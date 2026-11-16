@@ -151,8 +151,10 @@ export function createHostTooling(options: HostToolingOptions): HostTooling {
     );
     return tools;
   };
-  const additionalTools: ToolFactory = (context, deadline) =>
-    mcp === undefined || !hostExecutionProfile(context.hostKind).mcp ? [] : [...mcp.createTools(context, deadline)];
+  const additionalTools: ToolFactory = (context, deadline, _capabilities, config) =>
+    mcp === undefined || !hostExecutionProfile(context.hostKind).mcp
+      ? []
+      : [...mcp.createTools(context, deadline, config)];
   return { capabilityTools, additionalTools, skillVisible };
 }
 

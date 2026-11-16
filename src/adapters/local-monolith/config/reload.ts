@@ -10,6 +10,7 @@ import type {
   ConfigStatus,
 } from '../../../platform/config/write.ts';
 import { type AgentModelSwitcher, ModelSwitchError } from '../../../platform/models/switch.ts';
+import { withAgentModel, withChatModel } from '../../../orchestration/model-switch.ts';
 import type { RuntimeConfigurationStore } from '../../../platform/runtime-config.ts';
 import type { SecretStore } from '../../../platform/secrets.ts';
 import type { SearchProviderRule } from '../../../platform/web-search.ts';
@@ -54,8 +55,12 @@ export interface ConfigReloaderOptions {
   readonly store: RuntimeConfigurationStore;
   readonly modelSwitcher: AgentModelSwitcher;
   readonly secrets: SecretStore;
-  /** Throws when the tool registry does not fit the model's context window. */
-  readonly validateAgentModel: (model: Model<Api>) => void;
+  /**
+   * Throws when the tool registry does not fit the model's context window.
+   * `config` is the candidate being applied (or the active one, before a model
+   * write), so the caller can resolve the per-Chat MCP tool set the model gets.
+   */
+  readonly validateAgentModel: (config: RawConfig, model: Model<Api>) => void;
   /** Called after every successful publish; awaited so cutovers finish before apply returns. */
   readonly onPublished: () => void | Promise<void>;
   /** Optional image configuration gateway; present when the image service runs. */
@@ -84,7 +89,7 @@ export class ConfigReloader implements BotCommandConfigWriter, ConfigController 
   readonly #store: RuntimeConfigurationStore;
   readonly #modelSwitcher: AgentModelSwitcher;
   readonly #secrets: SecretStore;
-  readonly #validateAgentModel: (model: Model<Api>) => void;
+  readonly #validateAgentModel: (config: RawConfig, model: Model<Api>) => void;
   readonly #onPublished: () => void | Promise<void>;
   readonly #imageConfig: ImageConfigGateway | undefined;
   readonly #telegramConfig: TelegramConfigGateway | undefined;
@@ -234,8 +239,16 @@ export class ConfigReloader implements BotCommandConfigWriter, ConfigController 
     if (resolved === undefined) {
       return this.#rejected('model_unusable', `Model ${provider}/${model} is not registered`);
     }
+    // The tool registry is validated against the configuration the switch
+    // would produce, not the one still active: a Chat that is moving onto this
+    // model must already fit the MCP tool set it would get there.
+    const current = this.#store.current().config;
+    const prospective =
+      configuredChatId === undefined
+        ? withAgentModel(current, provider, model)
+        : withChatModel(current, configuredChatId, provider, model);
     try {
-      this.#validateAgentModel(resolved);
+      this.#validateAgentModel(prospective, resolved);
     } catch (error) {
       return this.#rejected('model_unusable', messageOf(error));
     }
@@ -323,7 +336,7 @@ export class ConfigReloader implements BotCommandConfigWriter, ConfigController 
       imageConfig: this.#imageConfig,
       telegramConfig: this.#telegramConfig,
       ...(this.#searchProviders === undefined ? {} : { searchProviders: this.#searchProviders }),
-      validateAgentModel: (model) => this.#validateAgentModel(model),
+      validateAgentModel: (config, model) => this.#validateAgentModel(config, model),
       onPublished: () => this.#onPublished(),
       failure: (code, message, fileWritten) => this.#failure(code, message, fileWritten),
       applied: (applied, restartRequired, outsideServe) => this.#applied(applied, restartRequired, outsideServe),

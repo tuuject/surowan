@@ -18,7 +18,9 @@ test('runtime reloads MCP pixels from disk after cache recreation and preserves 
     provider: 'agent',
     models: [{ id: 'agent-model', input: ['text', 'image'], contextWindow: 200_000, maxTokens: 32_768 }],
   });
-  const configStore = await testConfigStore(f.loaded, fauxRegistry(faux));
+  // The published configuration is the one the MCP manager adopted: the runtime
+  // resolves each Chat's MCP binding from its own snapshot of it.
+  const configStore = await testConfigStore({ ...f.loaded, config: f.config }, fauxRegistry(faux));
   const runtimeFor = (store: SqliteStore) =>
     new AgentRuntime({
       store,
@@ -34,7 +36,7 @@ test('runtime reloads MCP pixels from disk after cache recreation and preserves 
       }),
       bot: { id: 999n, displayName: 'Surowan', username: 'surowan' },
       systemResources: emptySystemResources(),
-      additionalTools: (context, deadline) => f.manager.createTools(context, deadline),
+      additionalTools: (context, deadline, _capabilities, config) => f.manager.createTools(context, deadline, config),
     });
   const nextInvocation = (store: SqliteStore, id: number) => {
     const received = new Date(Date.now() + id * 30_000);

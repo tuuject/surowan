@@ -15,25 +15,28 @@ import type { TUnsafe } from 'typebox';
 import type { AsyncSemaphore } from '../../platform/concurrency.ts';
 import type { McpServerConfig, SecretRef } from '../../platform/config/index.ts';
 import type { SecretStore } from '../../platform/secrets.ts';
+import type { McpToolPolicy } from './bindings.ts';
 
 export const ARGUMENT_MAX_BYTES = 32_768;
 export const RECONNECT_MAX_MS = 60_000;
 export const TRUNCATION_MARKER = '\n[tool result truncated]';
 export const TOOL_NAME_PATTERN = /^[A-Za-z0-9_-]+$/;
 
-interface ToolPolicy {
-  readonly readOnly: boolean;
-  readonly timeoutMs: number;
-}
-
 export interface McpToolDefinition {
+  /**
+   * The instance that discovered this tool. A call goes to this instance, never
+   * to whichever instance the alias publishes later: a replaced server speaks
+   * its own schema and policy, and sending an old definition to the new
+   * connection would silently change both.
+   */
+  readonly server: ManagedServer;
   readonly serverAlias: string;
   readonly originalName: string;
   readonly exposedName: string;
   readonly description: string;
   readonly parameters: TUnsafe<Record<string, unknown>>;
   readonly validator: { Check(value: unknown): value is Record<string, unknown> };
-  readonly policy: ToolPolicy;
+  readonly policy: McpToolPolicy;
   readonly resultMaxBytes: number;
 }
 
@@ -50,7 +53,12 @@ export interface ManagedServer {
   state: 'starting' | 'ready' | 'degraded' | 'stopped';
 }
 
-export type RegistryValidator = (tools: readonly AgentTool[]) => void;
+/**
+ * Checks one resolved tool set of one configuration. `chatIds` are the Telegram
+ * Chats that resolve to it, so the caller can validate against every model those
+ * Chats can run on instead of every configured model.
+ */
+export type RegistryValidator = (tools: readonly AgentTool[], chatIds: readonly number[]) => void;
 export type McpCallResult = CallToolResult | CompatibilityCallToolResult;
 
 export class CompatibleTransport implements Transport {

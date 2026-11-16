@@ -1,5 +1,12 @@
 import Type from 'typebox';
-import { PositiveInteger, SecretRefSchema, Strict, ThinkingLevelSchema } from './schema-model.ts';
+import {
+  MCP_SERVER_ALIAS_PATTERN,
+  PositiveInteger,
+  SecretRefSchema,
+  Strict,
+  ThinkingLevelSchema,
+  ToolPolicySchema,
+} from './schema-model.ts';
 
 /**
  * The participation, chat, agent, vision, tool-model and dictionary sections of
@@ -215,6 +222,23 @@ export const GroupMemorySchema = Type.Object(
   Strict,
 );
 
+/**
+ * One per-Chat MCP binding: which of a configured server's tools this Chat may
+ * call, and the policy those tools get here. Connection settings stay on the
+ * server, so a Chat that needs a different command, URL or credential refers to
+ * another alias instead of overriding one.
+ */
+export const ChatMcpBindingSchema = Type.Object(
+  {
+    server: Type.String({ pattern: MCP_SERVER_ALIAS_PATTERN }),
+    tools: Type.Optional(
+      Type.Union([Type.Literal('*'), Type.Array(Type.String({ minLength: 1 }), { uniqueItems: true })]),
+    ),
+    tool_policies: Type.Optional(Type.Array(ToolPolicySchema)),
+  },
+  Strict,
+);
+
 export const ChatSchema = Type.Object(
   {
     id: Type.Integer(),
@@ -226,6 +250,7 @@ export const ChatSchema = Type.Object(
     participation: Type.Optional(ParticipationSchema),
     proactive_reply: Type.Optional(ProactiveReplySchema),
     dictionary_injection_mode: Type.Optional(DictionaryInjectionModeSchema),
+    mcp: Type.Optional(Type.Array(ChatMcpBindingSchema)),
     provider: Type.Optional(Type.String({ minLength: 1 })),
     model: Type.Optional(Type.String({ minLength: 1 })),
     thinking_level: Type.Optional(ThinkingLevelSchema),

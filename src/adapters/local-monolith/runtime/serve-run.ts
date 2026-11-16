@@ -14,8 +14,7 @@ import { BotCommandService } from '../../../orchestration/bot-commands/index.ts'
 import { ReplayError, ReplayRunner } from '../../../orchestration/replay/index.ts';
 import { type CoreRuntime, createCoreRuntime } from '../../../orchestration/runtime.ts';
 import type { ImHost } from '../../../platform/im-host/index.ts';
-import { previewContext, unavailableCapabilities } from '../../../platform/invocation-context.ts';
-import { configuredAgentModels } from '../../../platform/providers.ts';
+import { previewContext } from '../../../platform/invocation-context.ts';
 import { webSearchAvailable } from '../../../platform/web-search.ts';
 import { WEB_SEARCH_PROVIDERS } from '../../../plugins/web-search/extension.ts';
 import { runRuntimeCatchUp } from '../../../runtime-catch-up.ts';
@@ -37,6 +36,7 @@ import {
   removedTelegramChatIds,
   stopRemovedChats,
 } from './chat-lifecycle.ts';
+import { createMcpPublication } from './mcp-publication.ts';
 import type { ServeAssembly, ServeHosts, ServeServices } from './serve.ts';
 import { ALLOWED_UPDATES, logEvent, replyToCommand, resolveConversation, type ServeContext } from './support.ts';
 import { publishStickerSets } from './sticker-sets.ts';
@@ -185,6 +185,19 @@ export async function startCoreRuntime(session: ServeContext, assembly: ServeAss
   // advances when a cutover succeeds, so a failed one is retried by the next
   // apply (the reloader reruns this hook while its publication is pending).
   let groupMemoryConfig = publishedConfig;
+  // The MCP side of this process: candidate validation, the registry validator
+  // and the serialized cutover, all built once in `mcp-publication.ts`.
+  const mcpPublication = createMcpPublication({
+    store,
+    configStore,
+    secrets,
+    scheduler: startedScheduler,
+    conversationRuntime,
+    isHostReady,
+    mcp: mcpManager,
+    runtime,
+    preview,
+  });
   const configReloader = new ConfigReloader({
     loaded,
     store: configStore,
@@ -202,12 +215,7 @@ export async function startCoreRuntime(session: ServeContext, assembly: ServeAss
       publish: (source) => telegramConnection.applyToken(source),
     },
     searchProviders,
-    validateAgentModel: (model) =>
-      runtime.validateAdditionalTools(
-        preview,
-        additionalTools(preview, Number.MAX_SAFE_INTEGER, unavailableCapabilities()),
-        model,
-      ),
+    validateAgentModel: (candidate, model) => mcpPublication.validateModel(candidate, model),
     // A raised max_concurrency only takes effect on the next scheduler tick.
     onPublished: async () => {
       const nextConfig = configStore.current().config;
@@ -259,6 +267,10 @@ export async function startCoreRuntime(session: ServeContext, assembly: ServeAss
           stopped_invocations: stickerSets.abortedInvocations,
         });
       }
+      // MCP servers and per-Chat bindings are adopted here: the affected Chats
+      // are stopped and rebuilt before the server instances move, and the
+      // consequences are logged as one event per publish.
+      await mcpPublication.publish(publishedConfig, nextConfig, configStore.current().generation);
       publishedConfig = nextConfig;
       if (addedChats.length > 0) {
         // A Chat can be removed and added again while its stored Memo Pad
@@ -293,12 +305,7 @@ export async function startCoreRuntime(session: ServeContext, assembly: ServeAss
     conversationRuntime,
     configReloader,
   );
-  mcpManager.setRegistryValidator((mcpTools) => {
-    const snapshot = configStore.current();
-    for (const { model } of configuredAgentModels(snapshot.config, snapshot.models)) {
-      runtime.validateAdditionalTools(preview, mcpTools, model);
-    }
-  });
+  mcpPublication.validateRegistry();
   // A live update goes through the same ingestion, command and status path the
   // serve loop used to install on the bot; the manager calls it per connection.
   const onUpdate = async (context: Context, ingestion: TelegramIngestion): Promise<void> => {

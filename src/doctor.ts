@@ -31,7 +31,7 @@ import { unwiredImHost } from './platform/im-host/index.ts';
 import { previewContext } from './platform/invocation-context.ts';
 import { keyJarPath } from './platform/key-jar.ts';
 import { type PromptTemplateValues, renderPromptTemplate } from './platform/prompt-template.ts';
-import { buildModelRegistry, configuredAgentModels } from './platform/providers.ts';
+import { buildModelRegistry, configuredAgentModels, modelsForTelegramChats } from './platform/providers.ts';
 import { RuntimeConfigurationStore } from './platform/runtime-config.ts';
 import { SecretStore } from './platform/secrets.ts';
 import { pickEnv, spawnProcess } from './platform/subprocess.ts';
@@ -233,11 +233,25 @@ async function runDoctorChecks(
       ...(media === undefined
         ? {}
         : { directImageLoader: (context, signal) => media.loadDirectImages(context.directImages, signal) }),
-      additionalTools: (context, deadline) => [...manager.createTools(context, deadline)],
+      additionalTools: (context, deadline, _capabilities, config) => [
+        ...manager.createTools(context, deadline, config),
+      ],
     });
     const preview = previewContext();
-    manager.setRegistryValidator((mcpTools) => {
-      for (const { model } of agentModels) {
+    // The base registry (no MCP tools) must fit every configured model, even
+    // ones no Telegram Chat uses: Playground work runs on those too.
+    for (const { model } of agentModels) {
+      runtime.validateAdditionalTools(preview, [], model);
+    }
+    manager.setRegistryValidator((mcpTools, chatIds) => {
+      // Each Chat gets its own tool set, so the models checked here are the ones
+      // those Chats can actually run on.
+      const chatModels = modelsForTelegramChats(
+        requiredConfig,
+        agentModels.map((entry) => entry.model),
+        chatIds,
+      );
+      for (const model of chatModels) {
         runtime.validateAdditionalTools(preview, mcpTools, model);
       }
     });

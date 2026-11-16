@@ -235,9 +235,12 @@ async function main(): Promise<void> {
         ...previewContext(),
         invocationId: seed.invocationA,
         conversationId: seed.conversationId,
+        chatId: BigInt(loaded.config.telegram.chats[0]?.id ?? 0),
         internalChatId: seed.chatId,
       };
-      const result = await manager.createTools(context, Date.now() + 30_000)[0]!.execute('live_capture', {});
+      const result = await manager
+        .createTools(context, Date.now() + 30_000, loaded.config)[0]!
+        .execute('live_capture', {});
       const messages = [
         {
           role: 'user' as const,

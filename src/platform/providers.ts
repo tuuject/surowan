@@ -147,6 +147,39 @@ export function configuredAgentModels(
 }
 
 /**
+ * The registered models the given Telegram Chats can run on, restricted to
+ * `models` (the configured set) and deduplicated by provider and model id. A
+ * Chat without an override follows the global agent settings, so it appears in
+ * the global entry as well; only the pair matters here, not the thinking level.
+ */
+export function modelsForTelegramChats(
+  config: RawConfig,
+  models: readonly Model<Api>[],
+  telegramChatIds: readonly number[],
+): Model<Api>[] {
+  const wanted = new Set(telegramChatIds.map((id) => String(id)));
+  const selected: Model<Api>[] = [];
+  for (const chat of config.telegram.chats) {
+    if (!wanted.has(String(chat.id))) {
+      continue;
+    }
+    const active = completeAgentSettings(resolveAgentSettings(config, chat));
+    if (active === undefined) {
+      continue;
+    }
+    const model = models.find((candidate) => candidate.provider === active.provider && candidate.id === active.model);
+    if (model === undefined) {
+      continue;
+    }
+    if (selected.some((existing) => existing.provider === model.provider && existing.id === model.id)) {
+      continue;
+    }
+    selected.push(model);
+  }
+  return selected;
+}
+
+/**
  * The registered provider to keep for one configured alias, or `null` when the
  * alias has to be built from scratch.
  */

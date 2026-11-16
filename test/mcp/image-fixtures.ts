@@ -21,27 +21,24 @@ afterEach(async () => {
 export async function imageFixture(payloadMaxBytes = 1_048_576) {
   const f = await fixture();
   const seed = seedAdminFixture(f.store);
-  const manager = new McpManager(
-    f.store,
-    {
-      ...f.loaded.config,
-      mcp: {
-        servers: [
-          {
-            alias: 'local',
-            transport: 'stdio',
-            command: [process.execPath, join(import.meta.dirname, '..', 'fixtures', 'mcp-server.ts')],
-            required: true,
-            tools: ['images', 'echo'],
-            payload_max_bytes: payloadMaxBytes,
-            result_max_bytes: 32_768,
-            default_tool_policy: { read_only: true, timeout_seconds: 10 },
-          },
-        ],
-      },
+  const config = {
+    ...f.loaded.config,
+    mcp: {
+      servers: [
+        {
+          alias: 'local',
+          transport: 'stdio' as const,
+          command: [process.execPath, join(import.meta.dirname, '..', 'fixtures', 'mcp-server.ts')],
+          required: true,
+          tools: ['images', 'echo'],
+          payload_max_bytes: payloadMaxBytes,
+          result_max_bytes: 32_768,
+          default_tool_policy: { read_only: true, timeout_seconds: 10 },
+        },
+      ],
     },
-    new SecretStore(),
-  );
+  };
+  const manager = new McpManager(f.store, config, new SecretStore());
   closes.push(async () => {
     if (f.store.db.open) {
       await manager.stop();
@@ -56,15 +53,18 @@ export async function imageFixture(payloadMaxBytes = 1_048_576) {
     ...previewContext(),
     invocationId: seed.invocationA,
     conversationId: seed.conversationId,
+    // The MCP binding is resolved from the published configuration, which lists
+    // this Telegram chat; the seeded admin rows keep their own internal ids.
+    chatId: BigInt(f.loaded.config.telegram.chats[0]?.id ?? 0),
     internalChatId: seed.chatId,
     header,
   };
-  const tool = manager.createTools(context, Date.now() + 30_000).find((tool) => tool.name === 'local__images');
+  const tool = manager.createTools(context, Date.now() + 30_000, config).find((tool) => tool.name === 'local__images');
   if (tool === undefined) {
     throw new Error('Missing image tool');
   }
   const assets = localImageAssets(f.store.orm, f.loaded.config.data_dir);
-  return { ...f, seed, manager, context, tool, contexts, assets };
+  return { ...f, config, seed, manager, context, tool, contexts, assets };
 }
 export type ImageFixture = Awaited<ReturnType<typeof imageFixture>>;
 

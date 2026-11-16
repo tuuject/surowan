@@ -7,7 +7,8 @@ import { imageDeliveryState } from '../../store/image-delivery.ts';
 import { escapeXml } from '../../platform/spoilers.ts';
 import { LongTaskService } from '../../store/long-tasks/index.ts';
 import type { Orm } from '../../store/store.ts';
-import { ADMIN_SCHEDULED_TASK_STATE, adminResumeState, adminScheduledTask } from './admin-task.ts';
+import { ADMIN_SCHEDULED_TASK_STATE, adminScheduledTask } from './admin-task.ts';
+import { resumeRuntimeState } from './resume.ts';
 import { formatRoomSnapshot, formatSnapshot, renderCurrentTime } from './format.ts';
 import { imageReceiptValidator, prepareSnapshot, type PreparedSnapshot } from './schema.ts';
 import type { ContextInjectionContribution, Injection, InjectionInput } from './index.ts';
@@ -255,7 +256,9 @@ export function renderInjection(deps: RenderDependencies, config: RawConfig, inp
   });
   const adminTask = completion === null ? undefined : adminScheduledTask(completion);
   // A resume that copied a never-injected batch is an ordinary rerun of it.
-  const resume = current.length === 0 ? adminResumeState(deps.orm, identity.invocationId, input.bucketId) : undefined;
+  const resume = resumeRuntimeState(deps.orm, identity.invocationId, input.bucketId, {
+    hasNewMessages: current.length > 0,
+  });
   const runtimeState = [
     `current_time: ${renderCurrentTime(identity.timezone, now)}`,
     ...(input.sleepy && completion?.delivery.bypassDailyBudget !== true ? [SLEEP_STATE_PROMPT] : []),

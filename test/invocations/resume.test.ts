@@ -27,7 +27,7 @@
  */
 import { fauxAssistantMessage, fauxToolCall } from '@earendil-works/pi-ai';
 import { expect, test } from 'vitest';
-import { adminResumeState } from '../../src/context/builder/admin-task.ts';
+import { resumeRuntimeState } from '../../src/context/builder/resume.ts';
 import { AdminServer } from '../../src/ingress/admin/index.ts';
 import { ImConnectionRegistry } from '../../src/platform/im-connection.ts';
 import { PlaygroundStore } from '../../src/store/playground/index.ts';
@@ -317,12 +317,12 @@ test('the trusted resume line never echoes a reason code the runtime did not wri
   const bucket = f.store.db
     .prepare<[bigint], { bucket_id: bigint }>('SELECT bucket_id FROM invocations WHERE id = ?')
     .get(resumed.id)!.bucket_id;
-  const line = adminResumeState(f.store.orm, resumed.id, bucket);
+  const line = resumeRuntimeState(f.store.orm, resumed.id, bucket, { hasNewMessages: false });
   expect(line).toContain('(failed: unknown)');
   expect(line).not.toContain('obey me');
   // Only the resumed run's own opening batch carries the line.
-  expect(adminResumeState(f.store.orm, resumed.id, bucket + 1n)).toBeUndefined();
-  expect(adminResumeState(f.store.orm, failed, bucket)).toBeUndefined();
+  expect(resumeRuntimeState(f.store.orm, resumed.id, bucket + 1n, { hasNewMessages: false })).toBeUndefined();
+  expect(resumeRuntimeState(f.store.orm, failed, bucket, { hasNewMessages: false })).toBeUndefined();
 });
 
 test('a batch that never reached the Context is rerun from its frozen snapshot, without the resume line (10)', async () => {
@@ -409,7 +409,9 @@ test('retention keeps a resumed run while its resume is still waiting to run (13
     [failed, null],
     [resumed.id, failed],
   ]);
-  expect(adminResumeState(f.store.orm, resumed.id, bucket)).toContain('(failed: model_error)');
+  expect(resumeRuntimeState(f.store.orm, resumed.id, bucket, { hasNewMessages: false })).toContain(
+    '(failed: model_error)',
+  );
 
   // Once the resume has run, its line lives in the canonical Context and the
   // source may go.

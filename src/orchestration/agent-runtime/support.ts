@@ -218,7 +218,7 @@ export function buildTools(
       audit: createToolAudit(services.store, target.invocationId),
       capabilities: executableCapabilities,
     }),
-    ...(services.additionalTools?.(target, deadline, capabilities) ?? []),
+    ...(services.additionalTools?.(target, deadline, capabilities, config) ?? []),
     ...(zzz === undefined ? [] : [zzz]),
   ];
 }

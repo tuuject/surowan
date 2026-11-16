@@ -101,7 +101,7 @@ test('stdio MCP discovery, result bounds, audit, and unmetered repeat calls', as
       contextWindow: 200_000,
       maxOutputTokens: 32768,
     });
-    const [tool] = manager.createTools(context, Date.now() + 30_000);
+    const [tool] = manager.createTools(context, Date.now() + 30_000, loaded.config);
     if (tool === undefined) {
       throw new Error('MCP tool was not exposed');
     }
@@ -227,7 +227,7 @@ test('Streamable HTTP MCP preserves query parameters, static headers and the Use
       contextWindow: 200_000,
       maxOutputTokens: 32768,
     });
-    const [tool] = manager.createTools(context, Date.now() + 30_000);
+    const [tool] = manager.createTools(context, Date.now() + 30_000, loaded.config);
     if (tool === undefined) {
       throw new Error('HTTP MCP tool was not exposed');
     }
@@ -449,7 +449,7 @@ test('stop() during a pending connect leaves the server stopped and closed', asy
     expect(
       store.db.prepare<[], { state: string }>("SELECT state FROM mcp_server_state WHERE alias = 'local'").get()?.state,
     ).toBe('stopped');
-    expect(manager.createTools(previewContext(), Number.MAX_SAFE_INTEGER)).toEqual([]);
+    expect(manager.createTools(previewContext(), Number.MAX_SAFE_INTEGER, loaded.config)).toEqual([]);
     pid = Number(await readFile(pidFile, 'utf8'));
     const alive = (): boolean => {
       try {

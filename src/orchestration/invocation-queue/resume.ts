@@ -118,12 +118,67 @@ export function resumeBlockReason(
  * configuration is active when it launches, so switching the model first is
  * how an operator retries on another model.
  */
+export interface ResumeOptions {
+  /**
+   * How many of the Conversation's newest messages the history snapshot must
+   * reach back over. Only a cutover that rebuilt the Context passes it: the
+   * continuation must still show the requests its stopped run was answering,
+   * and the configured `history_messages` window may be shorter than that batch.
+   * The configured value stays the floor.
+   */
+  readonly historyMessages?: number;
+  /**
+   * Re-deliver an existing batch as the opening batch instead of opening an
+   * empty one. Only the MCP cutover uses it, for the bucket of a task
+   * completion the stopped run had injected: the rebuilt Context no longer
+   * carries the receipt, so the result must be rendered again.
+   */
+  readonly openingBucketId?: bigint;
+}
+
+/** Upper bound for one cutover continuation's history snapshot. */
+const HISTORY_MESSAGES_CAP = 500;
+
+/**
+ * How many of a Conversation's newest messages a continuation must render as
+ * history to reach the first message of the batches one run consumed. Counting
+ * uses the same ordering `snapshotInvocation` does (`telegram_date`, then
+ * `telegram_message_id`), so "the first consumed message" lands inside the
+ * limit; batches that consumed no message (task receipts) fall back to the
+ * configured window.
+ */
+export function consumedBatchHistoryLimit(orm: Orm, invocationId: bigint, configured: number): number {
+  const consumed = Number(
+    orm
+      .all<{ consumed: bigint }>(sql`
+        WITH conversation AS (
+          SELECT conversation_id FROM invocations WHERE id = ${invocationId}
+        ), first_consumed AS (
+          SELECT m.telegram_date AS telegram_date, m.telegram_message_id AS telegram_message_id
+          FROM invocation_buckets ib
+          JOIN bucket_messages bm ON bm.bucket_id = ib.bucket_id
+          JOIN messages m ON m.id = bm.message_id
+          WHERE ib.invocation_id = ${invocationId}
+          ORDER BY m.telegram_date ASC, m.telegram_message_id ASC
+          LIMIT 1
+        )
+        SELECT COUNT(*) AS consumed FROM messages m, first_consumed f
+        WHERE m.conversation_id = (SELECT conversation_id FROM conversation)
+          AND m.visible = 1
+          AND (m.telegram_date > f.telegram_date
+            OR (m.telegram_date = f.telegram_date AND m.telegram_message_id >= f.telegram_message_id))`)
+      .at(0)?.consumed ?? 0n,
+  );
+  return Math.min(Math.max(configured, consumed), HISTORY_MESSAGES_CAP);
+}
+
 export function resumeInvocation(
   store: BusinessStore,
   configStore: RuntimeConfigurationStore,
   invocationId: bigint,
   isHostReady: HostReadiness,
   now = new Date(),
+  options: ResumeOptions = {},
 ): ResumeResult {
   return store.transaction(() => {
     const current = configStore.current();
@@ -140,25 +195,37 @@ export function resumeInvocation(
       return { ok: false, reason: 'not_found' };
     }
     const timestamp = now.toISOString();
-    const bucket = store.orm
-      .insert(buckets)
-      .values({
-        conversationId: source.conversationId,
-        state: 'queued',
-        kind: 'realtime',
-        firstReceivedAt: timestamp,
-        deadlineAt: timestamp,
-        queuedAt: timestamp,
-        createdAt: timestamp,
-        updatedAt: timestamp,
-      })
-      .returning({ id: buckets.id })
-      .get();
-    if (bucket === undefined) {
-      throw new Error('buckets insert returned no row');
+    let bucketId = options.openingBucketId;
+    if (bucketId === undefined) {
+      const bucket = store.orm
+        .insert(buckets)
+        .values({
+          conversationId: source.conversationId,
+          state: 'queued',
+          kind: 'realtime',
+          firstReceivedAt: timestamp,
+          deadlineAt: timestamp,
+          queuedAt: timestamp,
+          createdAt: timestamp,
+          updatedAt: timestamp,
+        })
+        .returning({ id: buckets.id })
+        .get();
+      if (bucket === undefined) {
+        throw new Error('buckets insert returned no row');
+      }
+      bucketId = bucket.id;
+    } else {
+      // The batch is already frozen; only its queue state has to be reset so the
+      // scheduler launches it again with its receipt attached.
+      store.orm
+        .update(buckets)
+        .set({ state: 'queued', queuedAt: timestamp, deadlineAt: timestamp, updatedAt: timestamp })
+        .where(eq(buckets.id, bucketId))
+        .run();
     }
     const resumed = enqueueInvocation(store.orm, {
-      bucketId: bucket.id,
+      bucketId,
       conversationId: source.conversationId,
       configHash: current.hash,
       promptVersion: AGENT_PROMPT_VERSION,
@@ -177,16 +244,19 @@ export function resumeInvocation(
       store.orm.run(
         sql`INSERT INTO invocation_messages
               (invocation_id, source_bucket_id, sequence_no, message_id, revision_id, section, omitted_before, snapshot_json, snapshot_format)
-            SELECT ${resumed}, CASE WHEN section = 'new' THEN ${bucket.id} ELSE NULL END, sequence_no, message_id,
+            SELECT ${resumed}, CASE WHEN section = 'new' THEN ${bucketId} ELSE NULL END, sequence_no, message_id,
                    revision_id, section, omitted_before, snapshot_json, snapshot_format
             FROM invocation_messages
             WHERE invocation_id = ${invocationId} AND (section = 'history' OR source_bucket_id = ${source.bucketId})`,
       );
     } else {
       // History rides along like a task receipt's: the builder drops whatever
-      // the canonical Context already holds.
-      snapshotInvocation(store, current.config.agent.history_messages, resumed, bucket.id, source.conversationId, true);
+      // the canonical Context already holds. A cutover continuation asks for a
+      // window that still reaches the requests its run was answering; the
+      // configured value remains the floor.
+      const historyMessages = Math.max(current.config.agent.history_messages, options.historyMessages ?? 0);
+      snapshotInvocation(store, historyMessages, resumed, bucketId, source.conversationId, true);
     }
-    return { ok: true, invocationId: resumed, bucketId: bucket.id };
+    return { ok: true, invocationId: resumed, bucketId };
   });
 }

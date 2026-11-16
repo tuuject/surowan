@@ -6,6 +6,7 @@ import { convertMcpResult } from '../../src/capabilities/mcp/content.ts';
 import { McpManager } from '../../src/capabilities/mcp/index.ts';
 import { MAX_DOWNLOAD_BYTES } from '../../src/capabilities/media/image.ts';
 import { loadToolImages } from '../../src/capabilities/media/tool-images.ts';
+import type { RawConfig } from '../../src/platform/config/index.ts';
 import { SecretStore } from '../../src/platform/secrets.ts';
 import { toolImageReferences } from '../../src/platform/tool-images.ts';
 import { startFixtureServer, stopFixtureServer } from '../helpers.ts';
@@ -196,31 +197,28 @@ test('Streamable HTTP accepts native mixed images and bounds oversized image res
     }
     return transport.handleRequest(request);
   });
-  const manager = new McpManager(
-    f.store,
-    {
-      ...f.loaded.config,
-      mcp: {
-        servers: [
-          {
-            alias: 'http',
-            transport: 'streamable_http',
-            url: `http://127.0.0.1:${http.port}/mcp`,
-            follow_redirects: false,
-            required: true,
-            tools: ['capture'],
-            payload_max_bytes: 4096,
-            result_max_bytes: 1024,
-            default_tool_policy: { read_only: true, timeout_seconds: 5 },
-          },
-        ],
-      },
+  const httpConfig: RawConfig = {
+    ...f.loaded.config,
+    mcp: {
+      servers: [
+        {
+          alias: 'http',
+          transport: 'streamable_http' as const,
+          url: `http://127.0.0.1:${http.port}/mcp`,
+          follow_redirects: false,
+          required: true,
+          tools: ['capture'],
+          payload_max_bytes: 4096,
+          result_max_bytes: 1024,
+          default_tool_policy: { read_only: true, timeout_seconds: 5 },
+        },
+      ],
     },
-    new SecretStore(),
-  );
+  };
+  const manager = new McpManager(f.store, httpConfig, new SecretStore());
   try {
     await manager.start();
-    const tool = manager.createTools(f.context, Date.now() + 10_000)[0]!;
+    const tool = manager.createTools(f.context, Date.now() + 10_000, httpConfig)[0]!;
     const result = await tool.execute('http_image', {});
     expect(result.isError).toBe(true);
     expect(result.content.map((block) => (block.type === 'text' ? block.text : ''))).toEqual([

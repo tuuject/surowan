@@ -1,466 +1,163 @@
-import { createHash } from 'node:crypto';
+/**
+ * The MCP manager: one object per process, one client per configured alias.
+ *
+ * The work is split by topic: `connection.ts` owns connecting, discovering and
+ * disconnecting one server, `reconcile.ts` adopts a published server list, and
+ * `tool-sets.ts` resolves and validates what one Chat may call. This file keeps
+ * the manager's own state, the registry-validation policy (61 tools plus the
+ * model fit) and the public surface the composition root uses.
+ */
 import type { AgentTool } from '@earendil-works/pi-agent-core';
-import { Client } from '@modelcontextprotocol/sdk/client/index.js';
-import { getDefaultEnvironment, StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
-import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
-import { eq, sql } from 'drizzle-orm';
-import Type, { type TUnsafe } from 'typebox';
-import Compile from 'typebox/compile';
-import { AsyncSemaphore } from '../../platform/concurrency.ts';
-import type { McpServerConfig, RawConfig } from '../../platform/config/index.ts';
+import type { ManagedServer, RegistryValidator } from './support.ts';
+import type { RawConfig } from '../../platform/config/index.ts';
+import { hostExecutionProfile } from '../../platform/host-profile.ts';
 import { type InvocationContext, previewContext } from '../../platform/invocation-context.ts';
 import type { SecretStore } from '../../platform/secrets.ts';
-import { versionUserAgent } from '../../platform/version.ts';
-import type { BusinessStore } from '../../store/store.ts';
+import { type BusinessStore, resolveChatConfig } from '../../store/store.ts';
 import { localImageAssets } from '../media/local-assets.ts';
-import type { McpResultDetails, McpToolResult } from './content.ts';
-import { mcpServerState } from '../../store/schema/index.ts';
-import { executeMcpTool, type McpCallDeps } from './calls.ts';
+import type { McpCallDeps } from './calls.ts';
 import {
-  CompatibleTransport,
-  RECONNECT_MAX_MS,
-  TOOL_NAME_PATTERN,
-  limitResponseBody,
-  resolveSecretRecord,
-  type ManagedServer,
-  type McpToolDefinition,
-  type RegistryValidator,
-} from './support.ts';
+  connect,
+  isCurrent,
+  managedServer,
+  type Revalidate,
+  scheduleReconnect,
+  setState,
+  stopServer,
+} from './connection.ts';
+import { reconcile } from './reconcile.ts';
+import type { McpServerReconcileResult, McpState } from './shared.ts';
+import {
+  assertConfigBindings,
+  buildTools,
+  chatTools,
+  definitions,
+  resolutions,
+  validateResolution,
+} from './tool-sets.ts';
 
 export class McpManager {
-  readonly #store: BusinessStore;
-  readonly #secrets: SecretStore;
-  readonly #servers = new Map<string, ManagedServer>();
-  #registryValidator: RegistryValidator | undefined;
-  #stopping = false;
+  readonly #state: McpState;
   readonly #callDeps: McpCallDeps;
 
   constructor(store: BusinessStore, config: RawConfig, secrets: SecretStore) {
-    this.#store = store;
-    this.#secrets = secrets;
+    const servers = new Map<string, ManagedServer>();
+    this.#state = {
+      store,
+      secrets,
+      servers,
+      config,
+      generation: 0,
+      registryValidator: undefined,
+      stopping: false,
+    };
     this.#callDeps = {
       store,
       assets: localImageAssets(store.orm, config.data_dir),
-      servers: this.#servers,
-      setState: (server, state, errorCode) => this.#setState(server, state, errorCode),
-      scheduleReconnect: (server) => this.#scheduleReconnect(server),
+      isCurrent: (server) => isCurrent(this.#state, server),
+      setState: (server, state, errorCode) => setState(this.#state, server, state, errorCode),
+      scheduleReconnect: (server) => scheduleReconnect(this.#state, server, this.#revalidate),
     };
     for (const serverConfig of config.mcp?.servers ?? []) {
-      this.#servers.set(serverConfig.alias, {
-        config: serverConfig,
-        semaphore: new AsyncSemaphore(1),
-        definitions: [],
-        client: undefined,
-        generation: 0,
-        reconnectAttempt: 0,
-        reconnectTimer: undefined,
-        stderrBytes: 0,
-        payloadLimited: false,
-        state: 'stopped',
-      });
+      servers.set(serverConfig.alias, managedServer(serverConfig));
     }
   }
 
   async start(): Promise<void> {
-    this.#stopping = false;
-    for (const server of this.#servers.values()) {
+    this.#state.stopping = false;
+    for (const server of this.#state.servers.values()) {
       try {
-        await this.#connect(server, true);
+        await connect(this.#state, server, true, this.#revalidate);
       } catch (error) {
-        this.#setState(server, 'degraded', 'initialization_failed');
+        setState(this.#state, server, 'degraded', 'initialization_failed');
         if (server.config.required) {
           await this.stop();
           throw new Error(
-            `Required MCP server ${server.config.alias} failed to initialize: ${this.#secrets.redactError(error)}`,
+            `Required MCP server ${server.config.alias} failed to initialize: ${this.#state.secrets.redactError(error)}`,
           );
         }
-        this.#scheduleReconnect(server);
+        scheduleReconnect(this.#state, server, this.#revalidate);
       }
     }
   }
 
   setRegistryValidator(validator: RegistryValidator): void {
-    validator(this.#createToolsForDefinitions(this.#allDefinitions(), previewContext(), Number.MAX_SAFE_INTEGER));
-    this.#registryValidator = validator;
+    this.#state.registryValidator = validator;
+    this.#validateResolutions();
   }
 
-  createTools(context: InvocationContext, invocationDeadline: number): readonly AgentTool[] {
-    return this.#createToolsForDefinitions(this.#allDefinitions(), context, invocationDeadline);
+  /**
+   * The tools one invocation may reach. The Chat binding is resolved from the
+   * configuration that invocation runs under (its snapshot), never from the
+   * instances' own view of the published file: the scheduler launches work
+   * against the published configuration before this manager has reconciled, so
+   * a Chat added with `mcp: []` in that window must reach nothing.
+   */
+  createTools(context: InvocationContext, invocationDeadline: number, config: RawConfig): readonly AgentTool[] {
+    // The host profile decides what a host may reach; a Playground room never
+    // inherits MCP just because a server is configured.
+    if (!hostExecutionProfile(context.hostKind).mcp) {
+      return [];
+    }
+    return chatTools(this.#state, config, this.#callDeps, context, invocationDeadline);
+  }
+
+  /**
+   * The exposed tool names one Chat reaches under `config` with the instances
+   * connected now. The MCP cutover reads it with the previous configuration
+   * before it stops anything, so it can name the calls a stopped run left
+   * unresolved.
+   */
+  toolNamesForChat(chatId: bigint, config: RawConfig): string[] {
+    const chat = resolveChatConfig(config, this.#state.store.orm, chatId);
+    return chat === undefined ? [] : definitions(this.#state, config, chat).map((definition) => definition.exposedName);
+  }
+
+  /**
+   * Adopts a published configuration: Chat bindings apply from now on, and each
+   * server alias is added, replaced or stopped on its own. An unchanged alias
+   * keeps its client — and any call running on it — untouched.
+   */
+  async reconcile(published: {
+    readonly config: RawConfig;
+    readonly generation: number;
+  }): Promise<McpServerReconcileResult> {
+    return await reconcile(this.#state, published, this.#revalidate);
   }
 
   async stop(): Promise<void> {
-    this.#stopping = true;
-    for (const server of this.#servers.values()) {
-      if (server.reconnectTimer !== undefined) {
-        clearTimeout(server.reconnectTimer);
-      }
-      server.reconnectTimer = undefined;
-      server.generation += 1;
-      const client = server.client;
-      server.client = undefined;
-      if (client !== undefined) {
-        await client.close().catch(() => undefined);
-      }
-      server.definitions = [];
-      this.#setState(server, 'stopped', null);
+    this.#state.stopping = true;
+    for (const server of this.#state.servers.values()) {
+      await stopServer(this.#state, server);
     }
   }
 
-  async #connect(server: ManagedServer, startup: boolean): Promise<void> {
-    if (this.#stopping) {
-      return;
-    }
-    this.#setState(server, 'starting', null);
-    const oldClient = server.client;
-    server.client = undefined;
-    server.generation += 1;
-    const generation = server.generation;
-    if (oldClient !== undefined) {
-      await oldClient.close().catch(() => undefined);
-    }
-    const client = new Client(
-      { name: 'surowan', version: '0.1.0' },
-      {
-        capabilities: {},
-        enforceStrictCapabilities: true,
-        listChanged: {
-          tools: {
-            onChanged: () => {
-              // A notification from a replaced or stopped client must not touch
-              // the registry the current client owns.
-              if (this.#stopping || generation !== server.generation) {
-                return;
-              }
-              void this.#refreshTools(server).catch(() => {
-                this.#setState(server, 'degraded', 'registry_update_failed');
-              });
-            },
-          },
-        },
-      },
-    );
-    const transport = new CompatibleTransport(await this.#createTransport(server));
-    client.onclose = () => {
-      if (this.#stopping || generation !== server.generation) {
-        return;
-      }
-      server.client = undefined;
-      const detail =
-        server.config.transport === 'stdio' ? `transport_closed_stderr_${server.stderrBytes}` : 'transport_closed';
-      this.#setState(server, 'degraded', detail);
-      this.#scheduleReconnect(server);
-    };
-    client.onerror = (error) => {
-      if (this.#stopping || generation !== server.generation) {
-        return;
-      }
-      if (error.message.startsWith('ReadBuffer exceeded maximum size of ')) {
-        server.payloadLimited = true;
-      }
-      this.#setState(server, 'degraded', server.payloadLimited ? 'payload_limit' : 'transport_error');
-    };
-    // Every exit that does not publish this client closes it: a failed
-    // discovery or validation used to leave its stdio process or HTTP session
-    // running with nothing left that could find and close it.
-    let published = false;
-    try {
-      await client.connect(transport, {
-        signal: AbortSignal.timeout(30_000),
-        timeout: 30_000,
-        maxTotalTimeout: 30_000,
-      });
-      const listed = await client.listTools(undefined, {
-        signal: AbortSignal.timeout(30_000),
-        timeout: 30_000,
-        maxTotalTimeout: 30_000,
-      });
-      // stop() or a newer connect may have run while this one awaited; publishing
-      // now would mark a stopped server ready with a client nobody closes.
-      if (this.#stopping || generation !== server.generation) {
-        return;
-      }
-      const definitions = this.#selectTools(server.config, listed.tools);
-      const previousDefinitions = server.definitions;
-      server.definitions = definitions;
-      try {
-        this.#validateCandidateRegistry();
-      } catch (error) {
-        server.definitions = previousDefinitions;
-        throw error;
-      }
-      server.client = client;
-      published = true;
-    } finally {
-      if (!published) {
-        // Its failure is reported by the caller, not as a transport close.
-        client.onclose = () => undefined;
-        client.onerror = () => undefined;
-        await client.close().catch(() => undefined);
-      }
-    }
-    server.reconnectAttempt = 0;
-    this.#setState(server, 'ready', null);
-    if (!startup) {
-      this.#validateCandidateRegistry();
-    }
+  /**
+   * Every distinct tool set one configuration produces, with the Telegram Chats
+   * that resolve to it. The reload path calls this with a candidate before it
+   * becomes active, so a model is only asked to fit the sets its own Chats get.
+   * Definitions come from the connected servers, so a server the candidate adds
+   * appears only after `reconcile` has connected it.
+   */
+  toolSets(config: RawConfig): { readonly chatIds: readonly number[]; readonly tools: readonly AgentTool[] }[] {
+    // Configuration validation can only check a binding against an explicit
+    // server list; a wildcard server's names are known once it has discovered
+    // them. An unchanged connected server will not reconnect, so its binding is
+    // checked here instead of never.
+    assertConfigBindings(this.#state, config);
+    return resolutions(this.#state, config).map((resolution) => ({
+      chatIds: resolution.chatIds,
+      tools: buildTools(this.#callDeps, resolution.definitions, previewContext(), Number.MAX_SAFE_INTEGER),
+    }));
   }
 
-  async #refreshTools(server: ManagedServer): Promise<void> {
-    const release = await server.semaphore.acquire(new AbortController().signal);
-    try {
-      const client = server.client;
-      if (client === undefined) {
-        throw new Error('MCP server is unavailable');
-      }
-      const listed = await client.listTools(undefined, {
-        signal: AbortSignal.timeout(30_000),
-        timeout: 30_000,
-        maxTotalTimeout: 30_000,
-      });
-      // The client may have been replaced or stopped during discovery.
-      if (this.#stopping || server.client !== client) {
-        return;
-      }
-      const candidate = this.#selectTools(server.config, listed.tools);
-      const previous = server.definitions;
-      server.definitions = candidate;
-      try {
-        this.#validateCandidateRegistry();
-      } catch (error) {
-        server.definitions = previous;
-        throw error;
-      }
-      this.#setState(server, 'ready', null);
-    } finally {
-      release();
+  readonly #revalidate: Revalidate = (): void => {
+    this.#validateResolutions();
+  };
+
+  #validateResolutions(): void {
+    for (const resolution of resolutions(this.#state, this.#state.config)) {
+      validateResolution(this.#state, this.#callDeps, resolution);
     }
-  }
-
-  async #createTransport(server: ManagedServer): Promise<StdioClientTransport | StreamableHTTPClientTransport> {
-    if (server.config.transport === 'stdio') {
-      const [command, ...args] = server.config.command;
-      if (command === undefined) {
-        throw new Error('MCP stdio command is empty');
-      }
-      const env = {
-        ...getDefaultEnvironment(),
-        ...(await resolveSecretRecord(server.config.env ?? {}, this.#secrets)),
-      };
-      const transport = new StdioClientTransport({
-        command,
-        args,
-        env,
-        stderr: 'pipe',
-        maxBufferSize: server.config.payload_max_bytes,
-      });
-      transport.stderr?.on('data', (chunk: Buffer | string) => {
-        server.stderrBytes += Buffer.byteLength(chunk);
-      });
-      return transport;
-    }
-    const headers = await resolveSecretRecord(server.config.headers ?? {}, this.#secrets);
-    // A configured User-Agent overrides the default; Headers matches names case-insensitively.
-    const requestHeaders = new Headers({ 'user-agent': versionUserAgent() });
-    for (const [name, value] of Object.entries(headers)) {
-      requestHeaders.set(name, value);
-    }
-    const maxBytes = server.config.payload_max_bytes;
-    const boundedFetch = async (input: string | URL, init?: RequestInit): Promise<Response> => {
-      const request = new Request(input.toString(), { ...init, redirect: 'manual' });
-      if (request.body !== null) {
-        const body = await request.clone().arrayBuffer();
-        if (body.byteLength > maxBytes) {
-          this.#setState(server, 'degraded', 'payload_limit');
-          throw new Error('MCP request exceeds payload limit');
-        }
-      }
-      const response = await fetch(request);
-      if (response.status >= 300 && response.status < 400) {
-        this.#setState(server, 'degraded', 'redirect_rejected');
-        await response.body?.cancel();
-        throw new Error('MCP HTTP redirect rejected');
-      }
-      return limitResponseBody(response, maxBytes, () => {
-        server.payloadLimited = true;
-        this.#setState(server, 'degraded', 'payload_limit');
-      });
-    };
-    return new StreamableHTTPClientTransport(new URL(server.config.url), {
-      requestInit: { headers: requestHeaders, redirect: 'manual' },
-      fetch: boundedFetch,
-      reconnectionOptions: {
-        initialReconnectionDelay: 1_000,
-        maxReconnectionDelay: 30_000,
-        reconnectionDelayGrowFactor: 2,
-        maxRetries: 3,
-      },
-    });
-  }
-
-  #selectTools(
-    server: McpServerConfig,
-    listed: readonly {
-      readonly name: string;
-      readonly description?: string | undefined;
-      readonly inputSchema: { readonly type: 'object'; readonly [key: string]: unknown };
-      readonly execution?: { readonly taskSupport?: 'optional' | 'required' | 'forbidden' | undefined } | undefined;
-    }[],
-  ): McpToolDefinition[] {
-    const byName = new Map<string, (typeof listed)[number]>();
-    for (const tool of listed) {
-      if (byName.has(tool.name)) {
-        throw new Error(`MCP server ${server.alias} returned duplicate tool ${tool.name}`);
-      }
-      byName.set(tool.name, tool);
-    }
-    const selected =
-      server.tools === '*'
-        ? listed
-        : server.tools.map((name) => {
-            const tool = byName.get(name);
-            if (tool === undefined) {
-              throw new Error(`MCP server ${server.alias} is missing configured tool ${name}`);
-            }
-            return tool;
-          });
-    return selected.map((tool) => {
-      if (tool.execution?.taskSupport === 'required') {
-        throw new Error(`MCP task-only tool ${server.alias}__${tool.name} is unsupported`);
-      }
-      const exposedName = `${server.alias}__${tool.name}`;
-      if (exposedName.length > 128 || !TOOL_NAME_PATTERN.test(exposedName)) {
-        throw new Error(`MCP tool name is incompatible with model APIs: ${exposedName}`);
-      }
-      const configuredPolicy =
-        server.tool_policies?.find((policy) => policy.name === tool.name) ?? server.default_tool_policy;
-      if (configuredPolicy === undefined) {
-        throw new Error(`MCP tool ${exposedName} has no policy`);
-      }
-      const parameters = Type.Unsafe<Record<string, unknown>>(tool.inputSchema);
-      const validator = Compile(parameters);
-      return {
-        serverAlias: server.alias,
-        originalName: tool.name,
-        exposedName,
-        description: tool.description ?? `Call ${tool.name} on MCP server ${server.alias}`,
-        parameters,
-        validator,
-        policy: {
-          readOnly: configuredPolicy.read_only,
-          timeoutMs: Math.round(configuredPolicy.timeout_seconds * 1_000),
-        },
-        resultMaxBytes: server.result_max_bytes,
-      };
-    });
-  }
-
-  #createToolsForDefinitions(
-    definitions: readonly McpToolDefinition[],
-    context: InvocationContext,
-    invocationDeadline: number,
-  ): AgentTool[] {
-    return definitions.map(
-      (definition): AgentTool<TUnsafe<Record<string, unknown>>, McpResultDetails> => ({
-        name: definition.exposedName,
-        label: definition.exposedName,
-        // Usage, untrusted-result, and failure rules live once in CORE_AGENT_PROTOCOL;
-        // repeating them per tool cost ~420 characters for every MCP tool on every request.
-        description: `MCP tool (${definition.policy.readOnly ? 'read-only' : 'side-effecting'}): ${definition.description}`,
-        parameters: definition.parameters,
-        executionMode: 'sequential',
-        execute: async (toolCallId, input, signal) =>
-          this.#executeTool(definition, context, invocationDeadline, toolCallId, input, signal),
-      }),
-    );
-  }
-
-  async #executeTool(
-    definition: McpToolDefinition,
-    context: InvocationContext,
-    invocationDeadline: number,
-    toolCallId: string,
-    input: Record<string, unknown>,
-    outerSignal?: AbortSignal,
-  ): Promise<McpToolResult> {
-    return executeMcpTool(this.#callDeps, definition, context, invocationDeadline, toolCallId, input, outerSignal);
-  }
-
-  #scheduleReconnect(server: ManagedServer): void {
-    if (this.#stopping || server.reconnectTimer !== undefined) {
-      return;
-    }
-    const attempt = server.reconnectAttempt;
-    const waitMs = Math.min(RECONNECT_MAX_MS, 1_000 * 2 ** Math.min(attempt, 6));
-    server.reconnectAttempt += 1;
-    const next = new Date(Date.now() + waitMs).toISOString();
-    this.#store.orm
-      .update(mcpServerState)
-      .set({
-        reconnectAttempt: BigInt(server.reconnectAttempt),
-        nextReconnectAt: next,
-        updatedAt: new Date().toISOString(),
-      })
-      .where(eq(mcpServerState.alias, server.config.alias))
-      .run();
-    server.reconnectTimer = setTimeout(() => {
-      server.reconnectTimer = undefined;
-      void (async () => {
-        const reconnectSignal = AbortSignal.timeout(30_000);
-        const release = await server.semaphore.acquire(reconnectSignal);
-        try {
-          await this.#connect(server, false);
-        } catch {
-          this.#setState(server, 'degraded', 'reconnect_failed');
-          this.#scheduleReconnect(server);
-        } finally {
-          release();
-        }
-      })().catch(() => {
-        this.#setState(server, 'degraded', 'reconnect_failed');
-        this.#scheduleReconnect(server);
-      });
-    }, waitMs);
-  }
-
-  #validateCandidateRegistry(): void {
-    const tools = this.#createToolsForDefinitions(this.#allDefinitions(), previewContext(), Number.MAX_SAFE_INTEGER);
-    if (tools.length > 61) {
-      throw new Error(`MCP registry has ${tools.length} tools; maximum alongside built-ins is 61`);
-    }
-    this.#registryValidator?.(tools);
-  }
-
-  #allDefinitions(): McpToolDefinition[] {
-    return [...this.#servers.values()].flatMap((server) => server.definitions);
-  }
-
-  #setState(server: ManagedServer, state: ManagedServer['state'], errorCode: string | null): void {
-    server.state = state;
-    const now = new Date().toISOString();
-    const hash =
-      state === 'ready'
-        ? createHash('sha256')
-            .update(
-              JSON.stringify(
-                server.definitions.map((tool) => ({
-                  name: tool.exposedName,
-                  parameters: tool.parameters,
-                  policy: tool.policy,
-                })),
-              ),
-            )
-            .digest('hex')
-        : null;
-    this.#store.orm.run(sql`
-      INSERT INTO mcp_server_state(alias, state, registry_hash, reconnect_attempt, next_reconnect_at, error_code, updated_at)
-      VALUES (${server.config.alias}, ${state}, ${hash}, ${BigInt(server.reconnectAttempt)}, NULL, ${errorCode}, ${now})
-      ON CONFLICT(alias) DO UPDATE SET
-        state = excluded.state,
-        registry_hash = COALESCE(excluded.registry_hash, mcp_server_state.registry_hash),
-        reconnect_attempt = excluded.reconnect_attempt,
-        next_reconnect_at = excluded.next_reconnect_at,
-        error_code = excluded.error_code,
-        updated_at = excluded.updated_at
-    `);
   }
 }
