@@ -1,6 +1,12 @@
 import { expect } from '@playwright/test';
 import { adminUrl, test, toast, watchPageIssues } from './helpers.ts';
-import { addOverviewComment, assertNoPageIssues, REVIEW_STORAGE_KEY, readDownloadedText } from './review-helpers.ts';
+import {
+  addOverviewComment,
+  assertNoPageIssues,
+  expectReviewCounts,
+  REVIEW_STORAGE_KEY,
+  readDownloadedText,
+} from './review-helpers.ts';
 
 test.use({ signedIn: true });
 
@@ -85,7 +91,7 @@ test.describe('invocation review storage and metadata resilience', () => {
     }, REVIEW_STORAGE_KEY);
     await page.goto(await adminUrl('/invocations/4001'));
     await expect(page.getByText('Invocation 4001').first()).toBeVisible();
-    await expect(page.getByText('2 comments on this invocation · 1 invocation in your review draft')).toBeVisible();
+    await expectReviewCounts(page, '2 comments on this invocation', '1 invocation in your review draft');
     await expect(page.getByText('Valid comment survives cleanup.')).toBeVisible();
     await expect(page.locator('[data-route-error]')).toHaveCount(0);
 
@@ -128,7 +134,7 @@ test.describe('invocation review storage and metadata resilience', () => {
     const readCard = await addOverviewComment(page, 'call_read_001', 'Second in-memory comment.');
     await expect(sendCard.getByText('First in-memory comment.')).toBeVisible();
     await expect(readCard.getByText('Second in-memory comment.')).toBeVisible();
-    await expect(page.getByText('2 comments on this invocation · 1 invocation in your review draft')).toBeVisible();
+    await expectReviewCounts(page, '2 comments on this invocation', '1 invocation in your review draft');
 
     assertNoPageIssues(finishWatching);
   });

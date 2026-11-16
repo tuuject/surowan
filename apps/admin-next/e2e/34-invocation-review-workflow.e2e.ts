@@ -1,6 +1,11 @@
 import { expect } from '@playwright/test';
 import { adminUrl, clickNav, test, watchPageIssues } from './helpers.ts';
-import { addOverallCommentOnDetail, addOverviewComment, assertNoPageIssues } from './review-helpers.ts';
+import {
+  addOverallCommentOnDetail,
+  addOverviewComment,
+  assertNoPageIssues,
+  expectReviewCounts,
+} from './review-helpers.ts';
 
 test.use({ signedIn: true });
 
@@ -19,14 +24,14 @@ test.describe('invocation review workflow', () => {
       window.dispatchEvent(new PopStateEvent('popstate'));
     });
     await expect(page.getByText('Invocation 4001').first()).toBeVisible();
-    await expect(page.getByText('0 comments on this invocation · 0 invocations in your review draft')).toBeVisible();
+    await expectReviewCounts(page, '0 comments on this invocation', '0 invocations in your review draft');
 
     await page.getByRole('button', { name: 'Add overall comment', exact: true }).click();
     await page.getByRole('textbox', { name: 'Overall comment', exact: true }).fill('Unsaved draft for 4001');
     await page.goBack();
     await expect(page.getByText('Invocation 4002').first()).toBeVisible();
     await expect(page.getByRole('textbox', { name: 'Overall comment', exact: true })).toHaveCount(0);
-    await expect(page.getByText('0 comments on this invocation · 0 invocations in your review draft')).toBeVisible();
+    await expectReviewCounts(page, '0 comments on this invocation', '0 invocations in your review draft');
     await page.goForward();
     await expect(page.getByText('Invocation 4001').first()).toBeVisible();
 
@@ -40,20 +45,20 @@ test.describe('invocation review workflow', () => {
       true,
     );
     await addOverallCommentOnDetail(page, 'Overall 4001 took too many turns.');
-    await expect(page.getByText('2 comments on this invocation · 1 invocation in your review draft')).toBeVisible();
+    await expectReviewCounts(page, '2 comments on this invocation', '1 invocation in your review draft');
 
     // Reload -> all three still shown
     await page.reload();
     await expect(page.getByText('Reply was too verbose here.')).toBeVisible();
     await expect(page.getByText('Unnecessary doc read before replying.')).toBeVisible();
     await expect(page.getByText('Overall 4001 took too many turns.')).toBeVisible();
-    await expect(page.getByText('2 comments on this invocation · 1 invocation in your review draft')).toBeVisible();
+    await expectReviewCounts(page, '2 comments on this invocation', '1 invocation in your review draft');
 
     // 2. On /invocations/4002: add a comment on one event.
     await page.goto(await adminUrl('/invocations/4002'));
     await expect(page.getByText('Invocation 4002').first()).toBeVisible();
     await addOverviewComment(page, 'Error provider_timeout', 'Provider timed out on first attempt.');
-    await expect(page.getByText('1 comment on this invocation · 2 invocations in your review draft')).toBeVisible();
+    await expectReviewCounts(page, '1 comment on this invocation', '2 invocations in your review draft');
 
     // 3. Open /reviews from the Activity nav: both invocations listed with their comments;
     // edit one comment, delete another, confirm UI updates and survives reload.
