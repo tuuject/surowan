@@ -1,7 +1,7 @@
 <div align="center">
   <img src="assets/readme/logo.webp" width="128" height="128" alt="塑料碗 Logo" />
 
-  <h1>塑料碗（Surowan）</h1>
+  <h1>塑料碗 Harness (Surowan Harness)</h1>
 
   <p>让你的赛博 OC 出门玩！</p>
   <p>可以自行部署、使用自己的 API Key 的 Telegram Agent Bot。<br />为私聊、群组与 Forum Topic 配置人格、记忆和参与边界。</p>
@@ -28,7 +28,7 @@
 
 ## 塑料碗是什么？
 
-塑料碗是一个运行在 Telegram 日常对话里的 Agent Bot，可以根据对话内容自主决定是否参与互动。
+塑料碗是一个运行在 Telegram 日常对话里的 Agent Bot，可以根据对话内容自主决定是否参与互动。本项目则是一个**人设无关**的 Harness，可以为任何想要运营群宠 Telegram Bot 的群友提供开箱即用的 Harness 服务端。
 
 它不是「一问一答」的机器人：Bot 会把短时间内的几条消息攒成一批，连同之前的聊天上下文交给模型，由模型判断要不要接话、怎么接。人格和说话方式写在 Prompt 里。
 
