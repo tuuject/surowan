@@ -138,6 +138,10 @@ export function ChatTable({
       seen.set(key, occurrence + 1);
       lines.push({ key: occurrence === 0 ? key : `${key}#${occurrence}`, text });
     };
+    if (settings.participation?.ask_only ?? view.global_participation?.ask_only) {
+      push(t('pages.chats.modeAskOnly'));
+      return lines;
+    }
     if (settings.participation === null) {
       const globalWindows = view.global_participation?.active_windows;
       if (globalWindows === undefined || globalWindows.length === 0) {

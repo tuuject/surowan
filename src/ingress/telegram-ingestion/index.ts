@@ -1,3 +1,4 @@
+import { isAsk } from '../../platform/bot-command.ts';
 import type { Update } from 'grammy/types';
 import { conversationThreadId, type ParsedCommand, parseBotCommand } from '../../orchestration/bot-commands/index.ts';
 import { mentionsBot } from '../../platform/participation.ts';
@@ -146,7 +147,11 @@ export class TelegramIngestion {
     const chatConfig = resolveChatConfig(this.#configStore.current().config, this.#store.orm, chatId);
     const ignoredUserIds = chatConfig?.ignored_user_ids ?? [];
     const selfIgnoreCommand = handledCommand?.name === 'ignoreme' || handledCommand?.name === 'unignoreme';
-    if (isIgnoredUser(message, ignoredUserIds) && !selfIgnoreCommand) {
+    if (
+      isIgnoredUser(message, ignoredUserIds) &&
+      !selfIgnoreCommand &&
+      (edited || !isAsk(message, this.#botUsername))
+    ) {
       return {};
     }
     const internalChatId = upsertChat(this.#chatDeps, chat, chatId, receivedAt);
@@ -173,9 +178,10 @@ export class TelegramIngestion {
     if (!edited) {
       // The window is refreshed even during startup catch-up, so a mention that
       // arrived while the process was down still leaves the chat awake.
+      const rule = this.#participation.ruleFor(this.#store.orm, chatId, chat.type);
       const decision = evaluateParticipation({
         orm: this.#store.orm,
-        rule: this.#participation.ruleFor(this.#store.orm, chatId, chat.type),
+        rule,
         chatId: internalChatId,
         telegramChatId: chatId,
         conversationId: stored.conversationId,
@@ -184,7 +190,7 @@ export class TelegramIngestion {
         receivedAt,
         eligibleHuman: stored.eligibleHuman,
       });
-      if (schedule) {
+      if (schedule && (!rule?.askOnly || decision.bucketCreationAllowed)) {
         bucketId = appendToBucket(
           this.#bucketDeps,
           internalChatId,
@@ -192,6 +198,7 @@ export class TelegramIngestion {
           stored,
           receivedAt,
           decision.bucketCreationAllowed,
+          rule?.askOnly === true,
         );
       }
     }
@@ -199,7 +206,7 @@ export class TelegramIngestion {
       bucketId !== undefined &&
       stored.eligibleHuman &&
       this.#configStore.current().config.telegram.mention_typing_enabled !== false &&
-      mentionsBot(message, { id: this.#botId, username: this.#botUsername });
+      (isAsk(message, this.#botUsername) || mentionsBot(message, { id: this.#botId, username: this.#botUsername }));
     return {
       messageId: stored.id,
       ...(bucketId === undefined ? {} : { bucketId }),

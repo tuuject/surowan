@@ -115,7 +115,10 @@ export const conversationAttention = sqliteTable(
     updatedAt: text('updated_at').notNull(),
   },
   (t) => [
-    check('conversation_attention_trigger_kind_check', sql`trigger_kind IN ('mention', 'reply_to_bot', 'keyword')`),
+    check(
+      'conversation_attention_trigger_kind_check',
+      sql`trigger_kind IN ('ask', 'mention', 'reply_to_bot', 'keyword')`,
+    ),
     index('conversation_attention_expiry_idx').on(t.expiresAt),
   ],
 );

@@ -46,7 +46,7 @@ export const CHAT_SPECS: readonly EndpointSpec[] = [
     positional: [{ name: 'id', kind: 'decimal' }],
     body: true,
     revision: 'config',
-    summary: 'Replace the active-hour windows of one Chat (null inherits the global schedule)',
+    summary: 'Patch Chat participation: active_windows and ask_only (null removes an override)',
   },
   {
     command: 'chat proactive-reply',

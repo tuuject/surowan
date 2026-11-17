@@ -1,4 +1,6 @@
-import { sql } from 'drizzle-orm';
+import type { Message } from 'grammy/types';
+import { isOriginalAsk } from '../../platform/bot-command.ts';
+import { type SQL, sql } from 'drizzle-orm';
 import { completeAgentSettings, resolveAgentSettings } from '../../platform/config/resolve.ts';
 import { isConversationActive } from '../../store/participation.ts';
 import { bucketMessages, buckets } from '../../store/schema/index.ts';
@@ -13,6 +15,8 @@ import {
 } from './shared.ts';
 
 interface CatchUpMessageRow {
+  readonly raw_fragment_json: string;
+  readonly eligible_human: bigint;
   readonly id: bigint;
   readonly conversation_id: bigint;
   readonly chat_id: bigint;
@@ -51,10 +55,13 @@ export function selectCatchUpMessages(
   const unbucketed = unbucketedOnly
     ? sql`AND NOT EXISTS (SELECT 1 FROM bucket_messages bm WHERE bm.message_id = m.id)`
     : sql``;
-  return deps.store.orm.all<CatchUpMessageRow>(
-    sql`WITH session_messages AS (
+  const sessionMessages = sql`
        SELECT m.id, m.conversation_id, m.chat_id, c.telegram_chat_id, c.type AS chat_type,
               m.telegram_message_id, m.telegram_date,
+              -- Only the original new message can be an ask trigger; edits keep
+              -- their normal revisions but must not turn history into a wakeup.
+              (SELECT original.raw_fragment_json FROM message_revisions original
+               WHERE original.message_id = m.id AND original.revision_no = 1) AS raw_fragment_json,
               CASE WHEN r.kind <> 'service' AND COALESCE(s.is_bot, 0) = 0
                         AND (r.kind <> 'sticker' OR r.text IS NOT NULL OR r.caption IS NOT NULL
                              OR EXISTS (SELECT 1 FROM media WHERE revision_id = r.id AND kind <> 'sticker')
@@ -68,7 +75,9 @@ export function selectCatchUpMessages(
          -- never swept up by a startup or runtime pass.
          AND c.host_kind = 'telegram'
          ${unbucketed}
-     ),
+     `;
+  const selected = deps.store.orm.all<CatchUpMessageRow>(
+    sql`WITH session_messages AS (${sessionMessages}),
      ranked AS (
        SELECT *, ROW_NUMBER() OVER (
          PARTITION BY conversation_id ORDER BY telegram_date DESC, telegram_message_id DESC
@@ -76,11 +85,73 @@ export function selectCatchUpMessages(
        FROM session_messages
        WHERE conversation_id IN (SELECT conversation_id FROM session_messages WHERE eligible_human = 1)
      )
-     SELECT id, conversation_id, chat_id, telegram_chat_id, chat_type, telegram_message_id, telegram_date
+     SELECT id, conversation_id, chat_id, telegram_chat_id, chat_type, telegram_message_id, telegram_date, raw_fragment_json, eligible_human
      FROM ranked
      WHERE message_rank <= ${BigInt(config.agent.history_messages)}
      ORDER BY conversation_id, telegram_date, telegram_message_id`,
   );
+  const conversations = new Map(selected.map((message) => [message.conversation_id, message]));
+  const selectedIds = new Set(selected.map((message) => message.id));
+  for (const message of conversations.values()) {
+    const rule = deps.participation.ruleFor(deps.store.orm, message.telegram_chat_id, message.chat_type);
+    if (!rule?.askOnly) {
+      continue;
+    }
+    for (const ask of selectCatchUpAsks(
+      deps,
+      sessionMessages,
+      message.conversation_id,
+      config.agent.history_messages,
+    )) {
+      if (!selectedIds.has(ask.id)) {
+        selected.push(ask);
+      }
+    }
+  }
+  return selected.sort((left, right) => {
+    if (left.conversation_id !== right.conversation_id) {
+      return left.conversation_id < right.conversation_id ? -1 : 1;
+    }
+    return (
+      left.telegram_date.localeCompare(right.telegram_date) ||
+      (left.telegram_message_id < right.telegram_message_id ? -1 : 1)
+    );
+  });
+}
+
+/** Scan bounded pages so ordinary traffic cannot evict an ask or require loading the whole backlog. */
+function selectCatchUpAsks(
+  deps: InvocationQueueDeps,
+  source: SQL,
+  conversationId: bigint,
+  limit: number,
+): CatchUpMessageRow[] {
+  const asks: CatchUpMessageRow[] = [];
+  const pageSize = Math.min(limit, 100);
+  let before: CatchUpMessageRow | undefined;
+  while (asks.length < limit) {
+    const cursor: SQL =
+      before === undefined
+        ? sql``
+        : sql`AND (telegram_date < ${before.telegram_date}
+      OR (telegram_date = ${before.telegram_date} AND telegram_message_id < ${before.telegram_message_id}))`;
+    const page = deps.store.orm.all<CatchUpMessageRow>(sql`WITH session_messages AS (${source})
+      SELECT * FROM session_messages WHERE conversation_id = ${conversationId} AND eligible_human = 1
+      ${cursor} ORDER BY telegram_date DESC, telegram_message_id DESC LIMIT ${BigInt(pageSize)}`);
+    for (const message of page) {
+      if (isOriginalAsk(JSON.parse(message.raw_fragment_json) as Message, deps.bot?.username ?? null)) {
+        asks.push(message);
+      }
+      if (asks.length === limit) {
+        break;
+      }
+    }
+    if (page.length < pageSize) {
+      break;
+    }
+    before = page.at(-1);
+  }
+  return asks;
 }
 
 /** Turns selected messages into one catch-up bucket per Conversation. */
@@ -113,6 +184,14 @@ export function materializeCatchUpBuckets(
     if (latest === undefined) {
       continue;
     }
+    const rule = deps.participation.ruleFor(store.orm, latest.telegram_chat_id, latest.chat_type);
+    const batchMessages = rule?.askOnly
+      ? messages.filter(
+          (message) =>
+            message.eligible_human === 1n &&
+            isOriginalAsk(JSON.parse(message.raw_fragment_json) as Message, deps.bot?.username ?? null),
+        )
+      : messages;
     const catchUpChat = resolveChatConfig(configStore.current().config, store.orm, latest.telegram_chat_id);
     let skipReason =
       catchUpChat === undefined
@@ -123,7 +202,7 @@ export function materializeCatchUpBuckets(
             ? 'chat_paused'
             : sleepUntil !== null
               ? 'sleeping'
-              : participationBlocks(deps, latest, now)
+              : (rule?.askOnly ? batchMessages.length === 0 : participationBlocks(deps, latest, now))
                 ? 'participation_gated'
                 : undefined;
     const created =
@@ -167,7 +246,8 @@ export function materializeCatchUpBuckets(
     if (skipReason === 'sleeping' && sleepUntil !== null) {
       logSleepingSkip(latest.telegram_chat_id, bucketId, null, sleepUntil);
     }
-    for (const [sequence, message] of messages.entries()) {
+    const auditMessages = skipReason === undefined ? batchMessages : messages;
+    for (const [sequence, message] of auditMessages.entries()) {
       store.orm
         .insert(bucketMessages)
         .values({ bucketId, messageId: message.id, sequenceNo: BigInt(sequence + 1), sourceBucketId: bucketId })
@@ -186,7 +266,9 @@ export function materializeCatchUpBuckets(
           now,
         )
       ) {
-        invocationIds.push(enqueueBucketInvocation(deps, bucketId, latest.conversation_id, now, false));
+        invocationIds.push(
+          enqueueBucketInvocation(deps, bucketId, latest.conversation_id, now, rule?.askOnly === true),
+        );
       } else {
         skipReason = 'proactive_reply_skipped';
         markBucketSkipped(deps, bucketId, now, skipReason);

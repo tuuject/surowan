@@ -76,7 +76,7 @@ Telegram Update
   → Telegram API
 ```
 
-群聊参与可由 `telegram.participation` 与 `chats[].participation` 收窄：配置了时段后，时段外只有直接 @、Reply Bot 自己发过的消息或命中触发关键词的消息才会开 Bucket，命中后该 Conversation 进入可配置长度的注意力窗口；私聊与未配置的群保持「任何可触发消息都开会话」的默认行为。
+群聊参与可由 `telegram.participation` 与 `chats[].participation` 收窄：配置了时段后，时段外只有 `/ask`、直接 @、Reply Bot 自己发过的消息或命中触发关键词的消息才会开 Bucket，命中后该 Conversation 进入可配置长度的注意力窗口；私聊与未配置的群保持「任何可触发消息都开会话」的默认行为。`participation.ask_only`（全局默认、Chat 可覆盖）为 true 时，只有 `/ask` 可创建或加入 Bucket，新桶为 0 秒且不留注意力窗口；普通消息仍保存为历史并参与群聊记忆。`/ask` 也允许被 ignored_user_ids 忽略的成员显式互动。
 
 Invocation 是运行窗口而不是一次问答：`agent.context.idle_grace_seconds > 0` 时，运行期间到期的 Bucket 会被 attach 并注入同一个 Invocation（`invocation_buckets`），Conversation Context 跨 Invocation 持久化；取 0 则退回「一次 Bucket 一次 Invocation」，但 Context 依然连续。
 

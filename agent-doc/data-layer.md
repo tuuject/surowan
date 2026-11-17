@@ -173,7 +173,7 @@ Alarm 是 `plugin_id = 'alarm'` 的任务投影。`long_tasks.created_by_user_id
 
 ### 注意力窗口
 
-`conversation_attention` 每个 Conversation 至多一行，记录 `expires_at`、命中的 `trigger_kind`（`mention`/`reply_to_bot`/`keyword`）与触发消息的 Telegram message ID。它只回答「这个会话现在算不算活跃」：行过期即无意义，读路径只比较 `expires_at > now` 且从不惰性删除，清理交给 `purgeExpiredData`。窗口要跨进程重启保持，因此放在 SQLite 而不是内存。
+`conversation_attention` 每个 Conversation 至多一行，记录 `expires_at`、命中的 `trigger_kind`（`ask`/`mention`/`reply_to_bot`/`keyword`）与触发消息的 Telegram message ID。它只回答「这个会话现在算不算活跃」：行过期即无意义，读路径只比较 `expires_at > now` 且从不惰性删除，清理交给 `purgeExpiredData`。窗口要跨进程重启保持，因此放在 SQLite 而不是内存。
 
 ### 主动回复计数（迁移 036）
 
@@ -309,3 +309,7 @@ dev-data/
 ```
 
 `dev-data/` 已 gitignore。不得提交数据库、WAL/SHM、媒体缓存、备份或真实配置。Memo Blob 位于 `<data_dir>/images/memo-blobs/<chatId>/`，属于 `images/` 归档，随 `.images/` 备份快照携带。
+
+## /ask 注意力触发（迁移 063）
+
+063_ask_participation.sql 重建 conversation_attention，保留列、现有行、级联外键与 expiry 索引，trigger_kind CHECK 新增 ask；Drizzle core.ts 同步。ask-only 不写此表。

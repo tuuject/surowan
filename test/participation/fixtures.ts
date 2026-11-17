@@ -50,6 +50,7 @@ export async function setup(
     readonly chat?: ParticipationOptions;
     readonly timezone?: string;
     readonly chatId?: number;
+    readonly ignored?: number[];
   } = {},
 ): Promise<Harness> {
   const directory = await mkdtemp(join(tmpdir(), 'surowan-participation-'));
@@ -60,6 +61,7 @@ export async function setup(
       {
         id: options.chatId ?? GROUP_CHAT_ID,
         instructions_file: 'chat-instructions.md',
+        ...(options.ignored === undefined ? {} : { ignored_user_ids: options.ignored }),
         ...(options.chat === undefined ? {} : { participation: options.chat }),
       },
     ];
@@ -74,10 +76,17 @@ export async function setup(
   const loaded = await loadConfig(configPath);
   const configStore = await testConfigStore(loaded);
   const store = await SqliteStore.open(loaded.config);
-  const scheduler = new BucketScheduler(store, configStore, async () => ({
-    state: 'completed',
-    reason: 'done',
-  }));
+  const scheduler = new BucketScheduler(
+    store,
+    configStore,
+    async () => ({
+      state: 'completed',
+      reason: 'done',
+    }),
+    undefined,
+    undefined,
+    { bot: BOT_IDENTITY },
+  );
   return {
     store,
     config: loaded.config,

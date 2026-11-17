@@ -21,7 +21,7 @@
 7. Message/Edited Message 结构是否可归一化。
 8. 配置了 `participation` 的 Chat 在活跃时段外是否被这类消息命中触发，见「定时活跃与注意力窗口」。
 
-拒绝的 Update 不进入 Bucket，但保留稳定 `rejection_reason`，例如 `chat_not_allowed`、`topic_not_allowed`。唯一例外是管理员在未允许 Chat 发送的 `/allowlist`：它按已允许入库审计并直接作为命令处理（见 [Bot Commands](#bot-commands)）。允许 Chat 内被 `ignored_user_ids` 命中的用户消息仍保留 Update 审计，但在 Message 和 Bucket 边界之前直接丢弃；命令也被丢弃，只有实时新消息中的 `/ignoreme`、`/unignoreme` 放行，以便成员恢复接收。其文本、媒体及后续编辑不会进入实时或启动追赶 Context，其他成员回复该用户时也不保存对应 Reply 快照。该过滤只匹配 Telegram user，不匹配 `sender_chat`，且不追溯删除配置生效前已入库的历史。排查 allowlist 时同时比较配置哈希；删除 Chat 会热移除并停止其运行（不删数据），其它非热字段的修改仍需重启（新增与删除 Chat、已有 Chat 的 `instructions_file`、模型覆盖、`ignored_user_ids` 属于热更新白名单，见 [configuration.md](configuration.md#运行时配置热更新)）。
+拒绝的 Update 不进入 Bucket，但保留稳定 `rejection_reason`，例如 `chat_not_allowed`、`topic_not_allowed`。唯一例外是管理员在未允许 Chat 发送的 `/allowlist`：它按已允许入库审计并直接作为命令处理（见 [Bot Commands](#bot-commands)）。允许 Chat 内被 `ignored_user_ids` 命中的用户消息仍保留 Update 审计，但在 Message 和 Bucket 边界之前直接丢弃；命令也被丢弃，实时新消息中的 `/ignoreme`、`/unignoreme` 与 `/ask` 放行，以便成员恢复接收。其文本、媒体及后续编辑不会进入实时或启动追赶 Context，其他成员回复该用户时也不保存对应 Reply 快照。该过滤只匹配 Telegram user，不匹配 `sender_chat`，且不追溯删除配置生效前已入库的历史。排查 allowlist 时同时比较配置哈希；删除 Chat 会热移除并停止其运行（不删数据），其它非热字段的修改仍需重启（新增与删除 Chat、已有 Chat 的 `instructions_file`、模型覆盖、`ignored_user_ids` 属于热更新白名单，见 [configuration.md](configuration.md#运行时配置热更新)）。
 
 ## Chat、Conversation 与 Topic
 
@@ -124,7 +124,7 @@ deadline = max(deadline, min(first_received_at + bucket_max_seconds, 到达时�
 
 `typing` 是 `execute` 注册表中的可选能力（`execute.call`，`tool: "typing"`，`input: {}`）。模型只有在决定接话且接下来需要耗时处理时才调用；快速回复直接 `send`，静默不调用。宿主按 4 秒间隔刷新，Telegram 适配器按 Chat + Topic 节流且不重叠请求，单次平台请求最多等 3.5 秒。重复调用不重置本轮上限，55 秒后停止刷新并取消在途请求，为 Telegram 最多 5 秒的状态尾部留余量；`freeAgent` 与运行清理停止状态，空闲后下一轮可以再次调用。模型请求的 typing 在本轮 `send` 之后继续刷新（后续工作可能仍在进行）；入库时因 @ 自动显示的 typing 则在 Bot 向该 Chat + Topic 发布后结束，模型此时再调用 typing 会接管为新的一轮。typing 仅为临时状态，不发布 assistant 文本，不计入 send 配额，也不把 Telegram 状态请求失败传给模型。
 
-被 @ 时 runtime 会自动显示 typing，不经过模型：`TelegramIngestion.ingest()` 在实时（非 catch-up）、非编辑、真人（`eligibleHuman`）消息以 `mention` 或 `text_mention` 指向本 Bot（文本、caption 与 Rich Message 内任意位置均算，判定与 participation 共用 `mentionsBot`）、该消息已进入 Bucket（因此未暂停且通过 participation 闸门）、且 `telegram.mention_typing_enabled` 未关闭时，在 `IngestResult.mention` 返回 Chat 与 Topic。`src/adapters/local-monolith/runtime/serve-run.ts` 的 `onUpdate` 据此调用 `telegramHost.activity.start(target, 'until_delivery')`（接口在 `src/platform/im-host/`，Telegram 实现在 `src/adapters/local-monolith/telegram/host.ts`），休眠期间不启动。它与模型的 `typing` 走同一个 `activity` 轮和同一个 transport 节流，所以两者同时存在不会重复请求。每个 Chat + Topic 至多一轮，重复 @ 不重置上限；模型随后调用 `typing` 会以 `until_stop` 接管该轮为新的一轮。`until_delivery` 轮在以下任一时刻停止：Bot 向该 Chat + Topic 成功发布（部分发布也算，全部失败不停止）；`freeAgent` 与运行清理对该 Conversation 调 `activity.stop`；host 停止或进程关闭（`stopAll`）；55 秒上限。仅回复 Bot 或命中关键词不触发。`telegram.mention_typing_enabled` 设为 `false` 时 ingest 不返回 `mention`，完全不启动状态；模型随后选择沉默时，状态会持续到本轮结束。
+被 @ 时 runtime 会自动显示 typing，不经过模型：`TelegramIngestion.ingest()` 在实时（非 catch-up）、非编辑、真人（`eligibleHuman`）消息以 `mention` 或 `text_mention` 指向本 Bot（文本、caption 与 Rich Message 内任意位置均算，判定与 participation 共用 `mentionsBot`）、该消息已进入 Bucket（因此未暂停且通过 participation 闸门）、且 `telegram.mention_typing_enabled` 未关闭时，在 `IngestResult.mention` 返回 Chat 与 Topic。`src/adapters/local-monolith/runtime/serve-run.ts` 的 `onUpdate` 据此调用 `telegramHost.activity.start(target, 'until_delivery')`（接口在 `src/platform/im-host/`，Telegram 实现在 `src/adapters/local-monolith/telegram/host.ts`），休眠期间不启动。它与模型的 `typing` 走同一个 `activity` 轮和同一个 transport 节流，所以两者同时存在不会重复请求。每个 Chat + Topic 至多一轮，重复 @ 不重置上限；模型随后调用 `typing` 会以 `until_stop` 接管该轮为新的一轮。`until_delivery` 轮在以下任一时刻停止：Bot 向该 Chat + Topic 成功发布（部分发布也算，全部失败不停止）；`freeAgent` 与运行清理对该 Conversation 调 `activity.stop`；host 停止或进程关闭（`stopAll`）；55 秒上限。`/ask` 同样触发；仅回复 Bot 或命中关键词不触发。`telegram.mention_typing_enabled` 设为 `false` 时 ingest 不返回 `mention`，完全不启动状态；模型随后选择沉默时，状态会持续到本轮结束。
 
 `agent.context.idle_grace_seconds` 大于 0 时，Invocation 变成一个运行窗口：它可以跨多个 Bucket，在运行期间接收新注入的消息。
 
@@ -639,3 +639,12 @@ Sticker 视觉元数据通过严格 Tool Call 返回：中文描述、情绪、�
 7. 媒体问题检查 `media_analyses` 和对应 Vision `model_calls`。
 
 一次自然语言回复看似成功，不代表内部 Tool 都成功；必须以审计表为准。
+
+
+### /ask 与 ask-only 参与模式
+
+`participation.ask_only` 可选，默认 false，全局与 Chat 均支持；Chat 显式 false 覆盖全局 true，热应用，私聊不受影响。为 true 时覆盖时段、关键词与注意力窗口：普通消息照常入库与整理记忆，但不创建或加入 Bucket；只有 eligibleHuman 的新 `/ask` 入桶，不记录注意力。新桶存 0/0/0 且不 adopt Bot 消息；已有 collecting 桶可合入多条 ask，attach/defer 不变。
+
+`platform/bot-command.ts` 与控制命令共享分词，识别正文 offset 0 bot_command、忽略大小写并校验目标用户名。`/ask` 不进入 BotCommandService，正文含前缀原样存储；允许 sender_chat 的占位 Bot，不允许真正 Bot。ignored_user_ids 仅对新 ask 例外，编辑仍丢弃。普通模式 ask 优先于 mention/reply/keyword，按正常节拍入桶、刷新时段外注意力、触发 mention typing 并绕过 proactive 抽样。追赶也存 ask；ask-only 每 Conversation 只收 ask，无 ask 记录 participation_gated。暂停、休眠、未配置 Agent 与移除 Chat 仍阻止运行，不强制模型回答。
+
+ask-only 追赶会独立选取本轮最新的 `agent.history_messages` 条原始非编辑 ask（分批扫描，普通流量不占 ask 名额）；排队桶仅包含 ask，并开启 history 快照以带入普通消息。跳过的追赶桶仍保留选中的 backlog 供审计与运行时去重。`isOriginalAsk` 由追赶与 proactive 共用：revision 1 必须没有 edit_date；原始 ask 后续编辑不撤销 direct 资格，其他触发仍判断当前 revision。

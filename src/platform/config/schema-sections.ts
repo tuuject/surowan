@@ -32,6 +32,7 @@ export const ParticipationWindowSchema = Type.Object(
 // replies trigger it.
 export const ParticipationSchema = Type.Object(
   {
+    ask_only: Type.Optional(Type.Boolean()),
     active_windows: Type.Optional(Type.Array(ParticipationWindowSchema)),
     trigger_keywords: Type.Optional(Type.Array(Type.String({ minLength: 1 }), { uniqueItems: true })),
     attention_window_seconds: Type.Optional(Type.Integer({ minimum: 1, maximum: 86_400 })),

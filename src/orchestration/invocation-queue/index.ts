@@ -90,6 +90,7 @@ export class InvocationQueueService {
      * resumes its work on the next pass.
      */
     this.#deps = {
+      bot: proactive?.bot,
       store,
       configStore,
       participation: new ParticipationRegistry(configStore),

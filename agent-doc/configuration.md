@@ -184,7 +184,7 @@ command SecretRef：
 - `bucket_bump_seconds`（可选，缺省 `0`）与 `bucket_max_seconds`（可选，缺省等于 `bucket_window_seconds`）把固定窗口变成自适应窗口：每条能开 Bucket 的消息加入 collecting Bucket 时，把 deadline 推迟到「该消息到达 + bump」，但不超过「首条消息 + max」；只往后推。三者都是 0–300 的整数秒，`check-config` 要求 `bucket_max_seconds >= bucket_window_seconds`。两项都省略时等价于旧的固定窗口，旧配置无需改动；`max` 缺省跟随 window 而不是常量 15，所以写了 `bucket_window_seconds: 30` 的旧配置仍是固定 30 秒。三项都属热更新白名单：修改只作用于之后新开的 Bucket，正在收集的 Bucket 保持开桶时的节拍（见「运行时配置热更新」），可在 Admin「Telegram」页编辑。开桶时的解析入口是 `resolveBucketTiming`（`src/platform/config/resolve.ts`），细则见 [会话节拍与 Bucket](telegram-agent-flow.md#会话节拍与-bucket)。
 - `process_bot_messages` 控制是否处理其他 Bot 的消息。`false` 时其他 Bot 的新消息与编辑只保留 Update 审计，完全不入库。`true` 时它们会入库，但永远不能创建 Bucket、命中 participation 触发或刷新注意力窗口：已有 collecting Bucket 时直接加入；否则暂存，等下一条真人消息创建 Bucket 时，按 Telegram 时间顺序排在该真人消息之前一并收入（仅收未进过任何 Bucket、晚于该 Conversation 上一个 Bucket 起点、且在 `/cut_topic` 截断之后的最新 `agent.history_messages` 条）。这样两个 Bot 无法互相唤醒形成死循环。自己发送的 Update 始终忽略。带 `sender_chat` 的消息（匿名管理员、以频道身份发言、关联频道自动转发）不算 Bot 消息：Telegram 为兼容会在 `from` 里放一个占位 Bot（如 GroupAnonymousBot），实际作者是 `sender_chat`，按真人消息处理。
 - `sticker_trigger_enabled` 可选，默认 `false`。关闭时，单独收到的人类 Sticker 仍会持久化，但不会创建 Bucket 或触发 Invocation；已有 collecting Bucket 时仍会加入。设为 `true` 后，单独的 Sticker 可以创建 Bucket。
-- `mention_typing_enabled` 可选，默认 `true`。真人在群里 @ Bot 且消息进入 Bucket 时，runtime 立即显示“正在输入”，不等待 `bucket_window_seconds` 和模型决策；设为 `false` 后只剩模型自己调用的 `typing`。仅 `@` 触发，Reply Bot 与关键词不触发；暂停、休眠、participation 闸门未放行时不显示。不在热更新白名单中，修改后需要重启。
+- `mention_typing_enabled` 可选，默认 `true`。真人在群里 @ Bot 且消息进入 Bucket 时，runtime 立即显示“正在输入”，不等待 `bucket_window_seconds` 和模型决策；设为 `false` 后只剩模型自己调用的 `typing`。`/ask` 与 `@` 触发，Reply Bot 与关键词不触发；暂停、休眠、participation 闸门未放行时不显示。不在热更新白名单中，修改后需要重启。
 - Chat ID 必须是非零安全整数且不可重复。
 - 未配置 `topic_ids`：允许该 Chat 的普通消息与所有 Topic。
 - 配置 `topic_ids`：只允许列出的正整数 Topic ID；未列出的 Topic 被审计为拒绝。
@@ -278,7 +278,7 @@ participation 放行 = 未配置 participation || 处于活跃时段 || 更新�
 - 字段可挂在 `telegram`（全局默认）与 `chats[]`（每 Chat）两处，按字段逐项继承；两处都缺省时 `enabled = false`、`base_probability = 0.2`、`increment = 0.1`、`hard_pity = 8`。
 - 第 `attempt` 次连续抽样（从 1 开始）的概率为 `attempt >= hard_pity ? 1 : min(1, base_probability + (attempt - 1) * increment)`。`hard_pity` 是硬保底：到达该次必定命中，不依赖随机数结果。
 - 命中只表示允许创建一个 Invocation 或向运行中的 Invocation attach 一批消息，**不保证模型调用 `send`**；模型选择沉默时不返还或重新累计这次机会。
-- 直接唤起完全绕过抽样，也不读取或修改保底计数：@ Bot（文本或 caption 的 mention/text_mention）、回复 Bot 自己发送的消息、命中 `participation.trigger_keywords`、以及 Telegram Bot Command。Bot Command 本来就不进入消息 Bucket / 概率链路。
+- 直接唤起完全绕过抽样，也不读取或修改保底计数：@ Bot（文本或 caption 的 mention/text_mention）、回复 Bot 自己发送的消息、命中 `participation.trigger_keywords`、以及 Telegram Bot Command。控制命令不进入 Bucket；`/ask` 正文进入 Bucket 并以 direct 绕过抽样。
 - 一次完成聚合的 Bucket 至多抽样一次；聚合批次中只要有一条直接唤起消息，整批按直接唤起处理。抽查发生在 Invocation 创建/attach 之前，因此未命中的批次不会产生模型调用。
 - 未命中的 Bucket 标记为 `skipped_budget`、`error_code = proactive_reply_skipped`；消息、Revision 与 `bucket_messages` 全部保留，后续触发时仍会作为 history 进入 Context，不会被删除。
 - 计数按 Chat 隔离（Forum Topic 共享所在群的计数），存在 SQLite 的 `proactive_reply_state`，跨重启保持。每个 Bucket 最多一次写入；抽样与 Bucket 状态转换在同一个同步事务里，不存在并发重复计数。
@@ -734,3 +734,10 @@ Developer 页使用可选的 `developer.record_model_payloads` 与 `developer.re
 - `public_url` 可选，**显式配置才启用 Passkey**：未配置时 `/api/auth/passkeys/*` 与 `DELETE /api/auth/password` 返回 404 `passkeys_disabled`，登录页与 Settings 页不显示 Passkey 入口。值必须是**规范 HTTPS origin**：无用户名/密码、路径（仅 `/`）与查询/fragment，可带一个尾部 `/`；仅开发场景允许 `http://localhost`；IPv4/IPv6 字面量不能作为 WebAuthn RP，HTTP 与 HTTPS 下均拒绝（校验在 `adminPublicOrigin`，`src/platform/config/semantics.ts`）。属于 `admin.*`，改动需重启。启用后：WebAuthn 只认配置的精确 origin，RP 是 origin 的 hostname（换域名后旧 key 失效）；Admin **全部写端点**的 Origin 校验从「与 Host 匹配」收紧为「与 public origin 全等」。语义与端点见 [admin-panel.md](admin-panel.md#passkey-登录与凭据)。
 
 详细认证、API 与前端约定见 [admin-panel.md](admin-panel.md)。
+
+
+### /ask 与 ask-only 参与模式
+
+`participation.ask_only` 可选，默认 false，全局与 Chat 均支持；Chat 显式 false 覆盖全局 true，热应用，私聊不受影响。为 true 时覆盖时段、关键词与注意力窗口：普通消息照常入库与整理记忆，但不创建或加入 Bucket；只有 eligibleHuman 的新 `/ask` 入桶，不记录注意力。新桶存 0/0/0 且不 adopt Bot 消息；已有 collecting 桶可合入多条 ask，attach/defer 不变。
+
+`platform/bot-command.ts` 与控制命令共享分词，识别正文 offset 0 bot_command、忽略大小写并校验目标用户名。`/ask` 不进入 BotCommandService，正文含前缀原样存储；允许 sender_chat 的占位 Bot，不允许真正 Bot。ignored_user_ids 仅对新 ask 例外，编辑仍丢弃。普通模式 ask 优先于 mention/reply/keyword，按正常节拍入桶、刷新时段外注意力、触发 mention typing 并绕过 proactive 抽样。追赶也存 ask；ask-only 每 Conversation 只收 ask，无 ask 记录 participation_gated。暂停、休眠、未配置 Agent 与移除 Chat 仍阻止运行，不强制模型回答。

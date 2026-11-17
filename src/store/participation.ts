@@ -130,6 +130,10 @@ export function evaluateParticipation(options: {
   if (isChatPaused(orm, options.chatId)) {
     return { bucketCreationAllowed: true, triggerKind: null, expiresAt: null };
   }
+  if (rule.askOnly) {
+    const triggerKind = options.eligibleHuman ? matchTriggerKind(options.message, options.bot, []) : null;
+    return { bucketCreationAllowed: triggerKind === 'ask', triggerKind, expiresAt: null };
+  }
   // Windows are only maintained outside active periods, so the schedule ends
   // exactly at the configured time instead of lingering for another window.
   if (isWithinActiveWindows(rule, receivedAt)) {

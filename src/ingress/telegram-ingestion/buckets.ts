@@ -19,6 +19,7 @@ export function appendToBucket(
   message: StoredMessage,
   receivedAt: Date,
   participationAllowed: boolean,
+  askOnly = false,
 ): bigint | undefined {
   if (isChatPaused(deps.store.orm, chatId)) {
     return undefined;
@@ -73,7 +74,9 @@ export function appendToBucket(
     // The timing is read once, here, and stored with the batch: a reload of
     // the `telegram.bucket_*` fields reaches the next batch, while this one
     // keeps extending and deferring by the timing it opened with.
-    const timing = resolveBucketTiming(deps.configStore.current().config, 'telegram');
+    const timing = askOnly
+      ? { windowSeconds: 0, maxSeconds: 0, bumpSeconds: 0 }
+      : resolveBucketTiming(deps.configStore.current().config, 'telegram');
     const deadline = receivedAt.getTime() + timing.windowSeconds * 1_000;
     const created = deps.store.orm
       .insert(buckets)
@@ -94,7 +97,9 @@ export function appendToBucket(
       throw new Error('buckets insert returned no row');
     }
     bucketId = created.id;
-    adoptPendingBotMessages(deps, conversation.id, bucketId);
+    if (!askOnly) {
+      adoptPendingBotMessages(deps, conversation.id, bucketId);
+    }
   }
   const sequence = deps.store.orm
     .all<{ next_sequence: bigint }>(

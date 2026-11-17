@@ -64,6 +64,7 @@ export const chats: typeof chatsEn = {
   modeUnrestricted: '不限制活跃时间',
   modeUnrestrictedHint: '移除本群的时段设置。没有全局时段时，机器人全天保持活跃。',
   modeUnrestrictedHintGlobal: '移除本群的时段设置，继续沿用全局时段（{{windows}}）。',
+  modeAskOnly: '仅 /ask 唤起',
   modeNone: '无固定活跃时段',
   modeNoneHint: '普通消息不会唤起机器人，只有 @、回复或触发关键词可以。',
   modeCustom: '自定义活跃时段',

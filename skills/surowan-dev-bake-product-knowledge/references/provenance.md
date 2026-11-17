@@ -85,3 +85,7 @@ The refresh imported the actual TypeScript constant, packed the current manual w
 Two scoped three-page authoring probes ran with and without the Skill. Both retained documented commands and disclosed gaps/conflicts; only the Skill runs included natural-language intent labels. Length estimates were unreliable: the first Skill probe exceeded its smaller 3000-byte limit, and a revised reminder still did not reliably keep that textual probe under budget. Accept only measured output. These probes do not establish a general success rate or production-model behavior.
 
 An independent source-comparison pass checked each of 19 runtime bullets against its cited manual pages and marked all supported. This is model-assisted evidence, not proof beyond the source excerpts; the explicit gaps and conflicts above remain relevant.
+
+## Ask refresh scope
+
+Re-read configure/telegram.md and guides/participation.md for /ask, ignored-member exception and ask-only inheritance. Other entries retain the previous bake; no full rebake performed. New facts route to these two manual pages.

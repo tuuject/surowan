@@ -1,3 +1,4 @@
+import { isOriginalAsk } from '../platform/bot-command.ts';
 import { eq, sql } from 'drizzle-orm';
 import type { Message } from 'grammy/types';
 import type { FileChat } from '../platform/config/index.ts';
@@ -124,7 +125,11 @@ export class ProactiveReplyGate {
    */
   #directTriggerKind(bucketId: bigint, keywords: readonly string[]): TriggerKind | null {
     const stickerTrigger = this.#configStore.current().config.telegram.sticker_trigger_enabled === true ? 1 : 0;
-    const rows = this.#orm.all<{ raw_fragment_json: string | null }>(
+    const rows = this.#orm.all<{
+      raw_fragment_json: string | null;
+      original_fragment_json: string;
+      current_eligible: bigint;
+    }>(
       // Messages from bots and the bot's own sends are filtered exactly like
       // ingestion filters them: they may join a batch, but they cannot call the
       // bot. A sticker-only message likewise only counts when stickers are
@@ -132,6 +137,16 @@ export class ProactiveReplyGate {
       sqlDirectMessages(bucketId, stickerTrigger),
     );
     for (const row of rows) {
+      try {
+        if (isOriginalAsk(JSON.parse(row.original_fragment_json) as Message, this.#bot.username)) {
+          return 'ask';
+        }
+      } catch {
+        // Keep inspecting current cues when a stored original fragment is malformed.
+      }
+      if (row.current_eligible !== 1n) {
+        continue;
+      }
       if (row.raw_fragment_json === null) {
         continue;
       }
@@ -141,7 +156,7 @@ export class ProactiveReplyGate {
       } catch {
         continue;
       }
-      const kind = matchTriggerKind(message, this.#bot, keywords);
+      const kind = matchTriggerKind(message, this.#bot, keywords, false);
       if (kind !== null) {
         return kind;
       }
@@ -156,7 +171,15 @@ export class ProactiveReplyGate {
 
 // Keeps the SQL template next to the only query that uses it.
 function sqlDirectMessages(bucketId: bigint, stickerTrigger: number) {
-  return sql`SELECT r.raw_fragment_json
+  return sql`SELECT r.raw_fragment_json,
+      (SELECT original.raw_fragment_json FROM message_revisions original
+       WHERE original.message_id = m.id AND original.revision_no = 1) AS original_fragment_json,
+      CASE WHEN r.kind <> 'service'
+        AND (r.text IS NOT NULL OR r.caption IS NOT NULL OR r.reply_to_message_id IS NOT NULL)
+        AND (r.kind <> 'sticker' OR r.text IS NOT NULL OR r.caption IS NOT NULL
+          OR EXISTS (SELECT 1 FROM media md WHERE md.revision_id = r.id AND md.kind <> 'sticker')
+          OR ${stickerTrigger} = 1)
+        THEN 1 ELSE 0 END AS current_eligible
     FROM bucket_messages bm
     JOIN messages m ON m.id = bm.message_id
     JOIN message_revisions r ON r.id = m.current_revision_id
@@ -164,15 +187,6 @@ function sqlDirectMessages(bucketId: bigint, stickerTrigger: number) {
     WHERE bm.bucket_id = ${bucketId}
       AND m.visible = 1
       AND m.sent_by_bot = 0
-      AND r.kind <> 'service'
       AND COALESCE(s.is_bot, 0) = 0
-      AND (r.text IS NOT NULL OR r.caption IS NOT NULL OR r.reply_to_message_id IS NOT NULL)
-      AND (
-        r.kind <> 'sticker'
-        OR r.text IS NOT NULL
-        OR r.caption IS NOT NULL
-        OR EXISTS (SELECT 1 FROM media md WHERE md.revision_id = r.id AND md.kind <> 'sticker')
-        OR ${stickerTrigger} = 1
-      )
     ORDER BY bm.sequence_no`;
 }
