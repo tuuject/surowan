@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { describe, expect, test } from 'vitest';
 import { loadConfig } from '../../src/adapters/local-monolith/config/index.ts';
 import { SqliteStore } from '../../src/adapters/local-monolith/database.ts';
-import { writeTestConfig } from '../helpers.ts';
+import { trackTempDirectory, writeTestConfig } from '../helpers.ts';
 import {
   canonicalSnapshot,
   createPre020Db,
@@ -104,7 +104,7 @@ describe('migration 021', () => {
 
   test('fresh and reopened stores have no sidecar table', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'surowan-mig-021-'));
-    directories.push(directory);
+    trackTempDirectory(directories, directory);
     const configPath = join(directory, 'config.jsonc');
     await writeTestConfig(directory, configPath);
     const { config } = await loadConfig(configPath);

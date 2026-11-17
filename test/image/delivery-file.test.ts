@@ -15,7 +15,7 @@ import {
   fakeTelegram,
   type Fixture,
   openConversation,
-  openedStores,
+  trackStore,
   processOne,
   sendRows,
   setup,
@@ -314,7 +314,7 @@ describe('send kind:file', () => {
     fixture.store.close();
 
     const store = await SqliteStore.open(fixture.config);
-    openedStores.push(store);
+    trackStore(store);
     expect({ rows: ledger(store), indexes: indexes(store) }).toEqual(before);
     expect(store.db.prepare('SELECT count(*) AS n FROM schema_migrations WHERE version = 49').get()).toEqual({
       n: 1n,

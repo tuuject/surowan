@@ -22,10 +22,12 @@ import { SecretStore } from '../../src/platform/secrets.ts';
 import { emptySystemResources } from '../../src/platform/system-resources.ts';
 import { SqliteStore } from '../../src/adapters/local-monolith/database.ts';
 import {
+  afterThisTest,
   type FixtureConfig,
   sleep,
   testConfigJsonc,
   testTelegramRuntime,
+  trackTempDirectory,
   writeTestConfig,
   writeTestKeyJar,
 } from '../helpers.ts';
@@ -220,7 +222,7 @@ export async function setup(
   } = {},
 ): Promise<Fixture> {
   const directory = await mkdtemp(join(tmpdir(), 'surowan-reload-'));
-  directories.push(directory);
+  trackTempDirectory(directories, directory);
   const configPath = join(directory, 'config.jsonc');
   await writeTestConfig(
     directory,
@@ -282,6 +284,16 @@ export async function setup(
   consoleSpy = vi.spyOn(console, 'log').mockImplementation((line: unknown) => {
     captured.push(String(line));
   });
+  // This module's afterEach binds to the first importing suite only, so the
+  // spy reset is re-registered against the test that installed it.
+  afterThisTest(
+    () => {
+      consoleSpy?.mockRestore();
+      consoleSpy = undefined;
+      captured.length = 0;
+    },
+    () => undefined,
+  );
   return {
     directory,
     secrets,

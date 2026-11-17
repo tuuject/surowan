@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import type { FileConfig } from '../../src/platform/config/index.ts';
 import { type LoadedConfig, loadConfig } from '../../src/adapters/local-monolith/config/index.ts';
 import type { ConfigChange } from '../../src/platform/config/diff.ts';
-import { testConfigJsonc, writeTestConfig, type FixtureConfig } from '../helpers.ts';
+import { testConfigJsonc, trackTempDirectory, writeTestConfig, type FixtureConfig } from '../helpers.ts';
 
 const directories: string[] = [];
 
@@ -17,7 +17,7 @@ afterAll(async () => {
 
 export async function createDirectory(prefix = 'surowan-diff-'): Promise<string> {
   const directory = await mkdtemp(join(tmpdir(), prefix));
-  directories.push(directory);
+  trackTempDirectory(directories, directory);
   return directory;
 }
 

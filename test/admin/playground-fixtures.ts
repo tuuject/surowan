@@ -25,7 +25,7 @@ import { AgentModelSwitcher } from '../../src/platform/models/switch.ts';
 import { keyJarPath } from '../../src/platform/key-jar.ts';
 import { SecretStore } from '../../src/platform/secrets.ts';
 import { PlaygroundStore } from '../../src/store/playground/index.ts';
-import { testConfigJsonc, testConfigStore, writeTestConfig } from '../helpers.ts';
+import { testConfigJsonc, testConfigStore, trackTempDirectory, writeTestConfig } from '../helpers.ts';
 import { createAdminAccount } from '../fixtures/admin-account.ts';
 
 const PASSWORD = 'correct-horse-battery';
@@ -39,7 +39,7 @@ afterAll(async () => {
 
 export async function fixture() {
   const directory = await mkdtemp(join(tmpdir(), 'surowan-admin-playground-'));
-  directories.push(directory);
+  trackTempDirectory(directories, directory);
   const configPath = join(directory, 'config.jsonc');
   const staticDir = join(directory, 'bundle');
   await mkdir(join(staticDir, 'static'), { recursive: true });

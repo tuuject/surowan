@@ -19,6 +19,7 @@ import {
   testSendToolEnv,
   type TestContextOptions,
   type TestInvocationContext,
+  trackTempDirectory,
   writeTestConfig,
 } from '../helpers.ts';
 import type { SendToolEnvironment } from '../../src/capabilities/send/support.ts';
@@ -66,7 +67,7 @@ export async function setup(
   allowReplyMessageMultipleTimes?: boolean,
 ): Promise<Fixture> {
   const directory = await mkdtemp(join(tmpdir(), 'surowan-reply-dedup-'));
-  directories.push(directory);
+  trackTempDirectory(directories, directory);
   const configPath = join(directory, 'config.jsonc');
   await writeTestConfig(
     directory,

@@ -10,6 +10,7 @@ import { encodeContextMessage } from '../../src/context/codec.ts';
 import { SecretStore } from '../../src/platform/secrets.ts';
 import { fixture } from '../admin/fixtures.ts';
 import { seedAdminFixture } from '../fixtures/admin-seed.ts';
+import { afterThisTest } from '../helpers.ts';
 import { previewContext } from '../../src/platform/invocation-context.ts';
 
 const closes: (() => Promise<void>)[] = [];
@@ -39,13 +40,24 @@ export async function imageFixture(payloadMaxBytes = 1_048_576) {
     },
   };
   const manager = new McpManager(f.store, config, new SecretStore());
-  closes.push(async () => {
-    if (f.store.db.open) {
-      await manager.stop();
-      await f.server.stop();
-      f.store.close();
-    }
-  });
+  afterThisTest(
+    async () => {
+      if (f.store.db.open) {
+        await manager.stop();
+        await f.server.stop();
+        f.store.close();
+      }
+    },
+    () => {
+      closes.push(async () => {
+        if (f.store.db.open) {
+          await manager.stop();
+          await f.server.stop();
+          f.store.close();
+        }
+      });
+    },
+  );
   await manager.start();
   await awaitServerAttempts(manager);
   const contexts = new ConversationContextStore(f.store);

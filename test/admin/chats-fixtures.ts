@@ -10,7 +10,7 @@ import { AgentModelSwitcher } from '../../src/platform/models/switch.ts';
 import { keyJarPath } from '../../src/platform/key-jar.ts';
 import { SecretStore } from '../../src/platform/secrets.ts';
 import { SqliteStore } from '../../src/adapters/local-monolith/database.ts';
-import { type FixtureConfig, testConfigJsonc, testConfigStore, writeTestConfig } from '../helpers.ts';
+import { afterThisTest, type FixtureConfig, testConfigJsonc, testConfigStore, writeTestConfig } from '../helpers.ts';
 import type { ChatsView } from '../../apps/admin-next/src/lib/api/chats.ts';
 import { createAdminAccount } from '../fixtures/admin-account.ts';
 
@@ -44,10 +44,18 @@ export async function fixture(transform?: (config: FixtureConfig) => void) {
   );
   const loaded = await loadConfig(path);
   const store = await SqliteStore.open(loaded.config);
-  cleanup.push(async () => {
-    store.close();
-    await rm(directory, { recursive: true, force: true });
-  });
+  afterThisTest(
+    async () => {
+      store.close();
+      await rm(directory, { recursive: true, force: true });
+    },
+    () => {
+      cleanup.push(async () => {
+        store.close();
+        await rm(directory, { recursive: true, force: true });
+      });
+    },
+  );
   const configStore = await testConfigStore(loaded);
   const secrets = new SecretStore(keyJarPath(path));
   const switcher = new AgentModelSwitcher(configStore);
@@ -79,5 +87,13 @@ export async function fixture(transform?: (config: FixtureConfig) => void) {
       headers: { 'content-type': 'application/json', 'if-match': revision },
       body: JSON.stringify(body),
     });
+  // Registered last so it still runs before the closers above, like the old
+  // module-level afterEach did.
+  afterThisTest(
+    () => {
+      vi.restoreAllMocks();
+    },
+    () => undefined,
+  );
   return { path, store, configStore, reloader, validate, secrets, request, call, view, write };
 }

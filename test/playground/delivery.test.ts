@@ -12,7 +12,18 @@
 import { describe, expect, test } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { messageRevisions, rooms } from '../../src/store/schema/index.ts';
-import { createRoom, deliver, hostFor, ledgerRow, reserveSend, roomMessages, store } from './delivery-fixtures.ts';
+import {
+  createRoom,
+  deliver,
+  hostFor,
+  installDeliveryHooks,
+  ledgerRow,
+  reserveSend,
+  roomMessages,
+  store,
+} from './delivery-fixtures.ts';
+
+installDeliveryHooks();
 
 describe('Bot Playground virtual delivery', () => {
   test('publishes a virtual message and records it in the same row as the send', async () => {

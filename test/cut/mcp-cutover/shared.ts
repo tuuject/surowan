@@ -29,7 +29,7 @@ import { keyJarPath } from '../../../src/platform/key-jar.ts';
 import type { RuntimeConfigurationStore } from '../../../src/platform/runtime-config.ts';
 import { SecretStore } from '../../../src/platform/secrets.ts';
 import { invocations } from '../../../src/store/schema/index.ts';
-import { testConfigJsonc, testConfigStore, writeTestConfig } from '../../helpers.ts';
+import { afterThisTest, testConfigJsonc, testConfigStore, trackTempDirectory, writeTestConfig } from '../../helpers.ts';
 import { seedInvocation } from '../../memo/fixtures.ts';
 
 const directories: string[] = [];
@@ -82,7 +82,7 @@ export interface Fixture {
 
 export async function fixture(): Promise<Fixture> {
   const directory = await mkdtemp(join(tmpdir(), 'surowan-mcp-cutover-'));
-  directories.push(directory);
+  trackTempDirectory(directories, directory);
   const configPath = join(directory, 'config.jsonc');
   const pid = (alias: string) => join(directory, `${alias}.pid`);
   await writeTestConfig(
@@ -132,15 +132,27 @@ export async function fixture(): Promise<Fixture> {
   const spy = vi.spyOn(console, 'log').mockImplementation((line: unknown) => {
     logs.push(String(line));
   });
-  cleanups.push(async () => {
-    spy.mockRestore();
-    // A held handler would keep `stop` waiting forever.
-    holdGate = undefined;
-    releaseHold?.();
-    await scheduler.stop(0);
-    await manager.stop();
-    store.close();
-  });
+  afterThisTest(
+    async () => {
+      spy.mockRestore();
+      // A held handler would keep `stop` waiting forever.
+      holdGate = undefined;
+      releaseHold?.();
+      await scheduler.stop(0);
+      await manager.stop();
+      store.close();
+    },
+    () => {
+      cleanups.push(async () => {
+        spy.mockRestore();
+        holdGate = undefined;
+        releaseHold?.();
+        await scheduler.stop(0);
+        await manager.stop();
+        store.close();
+      });
+    },
+  );
   await manager.start();
   await awaitServerAttempts(manager);
   const forgotten: bigint[] = [];

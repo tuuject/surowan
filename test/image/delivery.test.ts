@@ -15,8 +15,8 @@ import {
   fakeTelegram,
   imageRequests,
   openConversation,
-  openedStores,
   type Picture,
+  trackStore,
   resultText,
   sendRows,
   sendsUsed,
@@ -62,7 +62,7 @@ describe('send image delivery ledger', () => {
     expect(second.invocationId).not.toBe(first.invocationId);
     fixture.store.close();
     const reopened = await SqliteStore.open(fixture.config);
-    openedStores.push(reopened);
+    trackStore(reopened);
     const afterRestart = await buildTool({ ...fixture, store: reopened }, second, { api }).tool.execute('img-3', {
       kind: 'image',
       image_generation_id: GENERATION_ID,
@@ -92,7 +92,7 @@ describe('send image delivery ledger', () => {
     ).rejects.toThrow('outcome is unknown');
     reopened.close();
     const restarted = await SqliteStore.open(fixture.config);
-    openedStores.push(restarted);
+    trackStore(restarted);
     await expect(
       buildTool({ ...fixture, store: restarted }, second, { api: unknownApi }).tool.execute('u-2', {
         kind: 'image',

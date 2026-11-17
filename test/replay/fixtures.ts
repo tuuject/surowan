@@ -22,6 +22,7 @@ import { SqliteStore } from '../../src/adapters/local-monolith/database.ts';
 import { invocationMessages, media, messageRevisions, messages } from '../../src/store/schema/index.ts';
 import { seedAdminFixture } from '../fixtures/admin-seed.ts';
 import {
+  afterThisTest,
   type FixtureConfig,
   fauxRegistry,
   type TestRegistry,
@@ -267,10 +268,18 @@ export async function fixture(options: FixtureOptions = {}) {
   const built = options.registry?.(faux);
   const configStore = await testConfigStore(loaded, built?.registry ?? fauxRegistry(faux));
   const store = await SqliteStore.open(loaded.config);
-  cleanup.push(async () => {
-    store.close();
-    await rm(directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
-  });
+  afterThisTest(
+    async () => {
+      store.close();
+      await rm(directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
+    },
+    () => {
+      cleanup.push(async () => {
+        store.close();
+        await rm(directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
+      });
+    },
+  );
   const seed = seedAdminFixture(store);
   prepareScene(store, seed);
   const secrets = new SecretStore();

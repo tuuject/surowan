@@ -48,7 +48,15 @@ import { loadPlugins } from '../../src/plugins/plugin.ts';
 import { LongTaskService } from '../../src/store/long-tasks/index.ts';
 import { PlaygroundStore } from '../../src/store/playground/index.ts';
 import { imageGenerations, longTasks, messages, messageRevisions, taskReceipts } from '../../src/store/schema/index.ts';
-import { fauxRegistry, testConfigJsonc, testConfigStore, writeTestConfig, writeTestKeyJar } from '../helpers.ts';
+import {
+  afterThisTest,
+  fauxRegistry,
+  testConfigJsonc,
+  testConfigStore,
+  trackTempDirectory,
+  writeTestConfig,
+  writeTestKeyJar,
+} from '../helpers.ts';
 import { resolveConversation } from '../../src/adapters/local-monolith/runtime/support.ts';
 
 export const directories: string[] = [];
@@ -137,7 +145,7 @@ export interface FixtureOptions {
 
 export async function playgroundImageFixture(options: FixtureOptions = {}) {
   const directory = await mkdtemp(join(tmpdir(), 'surowan-playground-image-'));
-  directories.push(directory);
+  trackTempDirectory(directories, directory);
   const configPath = join(directory, 'config.jsonc');
   await writeImageFixture(directory, configPath, options.maxConcurrency);
   const loaded = await loadConfig(configPath);
@@ -147,7 +155,12 @@ export async function playgroundImageFixture(options: FixtureOptions = {}) {
   });
   const configStore = await testConfigStore(loaded, fauxRegistry(faux));
   const store = await SqliteStore.open(loaded.config);
-  cleanups.push(() => store.close());
+  afterThisTest(
+    () => store.close(),
+    () => {
+      cleanups.push(() => store.close());
+    },
+  );
   const providerCalls: unknown[] = [];
   const providerFetch: typeof fetch = async (_input, init) => {
     await options.beforeProvider?.();
@@ -157,7 +170,12 @@ export async function playgroundImageFixture(options: FixtureOptions = {}) {
   const service = createImageService(store, loaded.config, {
     providerAdapter: createOpenRouterAdapter({ fetchImpl: providerFetch }),
   });
-  cleanups.push(() => service.stop());
+  afterThisTest(
+    () => service.stop(),
+    () => {
+      cleanups.push(() => service.stop());
+    },
+  );
   service.publishConfig(await service.prepareConfig(loaded.config, new SecretStore(keyJarPath(configPath))));
   // A room-only runtime: its task service serves the same host set.
   const tasks = new LongTaskService(store.orm, undefined, ['playground']);
@@ -173,7 +191,12 @@ export async function playgroundImageFixture(options: FixtureOptions = {}) {
       return { base64: png.toString('base64'), mime: 'image/png' };
     },
   });
-  cleanups.push(() => bridge.stop());
+  afterThisTest(
+    () => bridge.stop(),
+    () => {
+      cleanups.push(() => bridge.stop());
+    },
+  );
   // The production layout: room assets live inside the backed-up image tree.
   const assets = new PlaygroundAssetStore({
     orm: store.orm,

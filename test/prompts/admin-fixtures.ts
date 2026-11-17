@@ -23,7 +23,13 @@ import { AgentModelSwitcher } from '../../src/platform/models/switch.ts';
 import type { RuntimeConfigurationStore } from '../../src/platform/runtime-config.ts';
 import { SecretStore } from '../../src/platform/secrets.ts';
 import { recordPromptVersionsFromConfig } from '../../src/store/prompt-versions.ts';
-import { type FixtureConfig, testConfigJsonc, testConfigStore, writeTestConfig } from '../helpers.ts';
+import {
+  type FixtureConfig,
+  testConfigJsonc,
+  testConfigStore,
+  trackTempDirectory,
+  writeTestConfig,
+} from '../helpers.ts';
 import { createAdminAccount } from '../fixtures/admin-account.ts';
 import type { Orm } from '../../src/store/store.ts';
 
@@ -47,7 +53,7 @@ export interface Fixture {
 
 export async function fixture(transform?: (config: FixtureConfig) => void): Promise<Fixture> {
   const directory = await mkdtemp(join(tmpdir(), 'surowan-prompts-'));
-  directories.push(directory);
+  trackTempDirectory(directories, directory);
   const configPath = join(directory, 'config.jsonc');
   await writeTestConfig(
     directory,

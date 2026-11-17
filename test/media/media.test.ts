@@ -17,13 +17,14 @@ import {
   invocationCapabilities,
   renderInvocationContext,
   testConfigStore,
+  trackTempDirectory,
   writeTestConfig,
 } from '../helpers.ts';
 import { directories } from './fixtures.ts';
 
 test('a switched vision model analyzes under its own cache version', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'surowan-media-switch-'));
-  directories.push(directory);
+  trackTempDirectory(directories, directory);
   const configPath = join(directory, 'config.jsonc');
   await writeTestConfig(directory, configPath);
   const loaded = await loadConfig(configPath);

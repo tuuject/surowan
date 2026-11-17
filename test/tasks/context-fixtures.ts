@@ -17,11 +17,13 @@ import { emptySystemResources } from '../../src/platform/system-resources.ts';
 import { SqliteStore } from '../../src/adapters/local-monolith/database.ts';
 import { LongTaskService } from '../../src/store/long-tasks/index.ts';
 import {
+  afterThisTest,
   type FixtureConfig,
   fauxRegistry,
   testConfigJsonc,
   testConfigStore,
   testTelegramRuntime,
+  trackTempDirectory,
   writeTestConfig,
 } from '../helpers.ts';
 
@@ -42,7 +44,7 @@ afterEach(async () => {
 
 export async function fixture(transform?: (config: FixtureConfig) => void) {
   const directory = await mkdtemp(join(tmpdir(), 'surowan-task-context-'));
-  directories.push(directory);
+  trackTempDirectory(directories, directory);
   const configPath = join(directory, 'config.jsonc');
   await writeTestConfig(
     directory,
@@ -60,7 +62,12 @@ export async function fixture(transform?: (config: FixtureConfig) => void) {
   });
   const configStore = await testConfigStore(loaded, fauxRegistry(faux));
   const store = await SqliteStore.open(loaded.config);
-  stores.push(store);
+  afterThisTest(
+    () => store.close(),
+    () => {
+      stores.push(store);
+    },
+  );
   const at = new Date().toISOString();
   store.db
     .prepare(
@@ -96,7 +103,12 @@ export async function fixture(transform?: (config: FixtureConfig) => void) {
     conversationRuntime,
     tasks,
   );
-  schedulers.push(scheduler);
+  afterThisTest(
+    () => scheduler.stop(0),
+    () => {
+      schedulers.push(scheduler);
+    },
+  );
   return {
     store,
     config: loaded.config,

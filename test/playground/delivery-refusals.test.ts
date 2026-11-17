@@ -8,7 +8,19 @@
 import { describe, expect, test } from 'vitest';
 import { identityConversation } from '../../src/platform/im-host/identity.ts';
 import { chats, conversations } from '../../src/store/schema/index.ts';
-import { createRoom, deliver, hostFor, ledgerRow, NOW, reserveSend, roomMessages, store } from './delivery-fixtures.ts';
+import {
+  createRoom,
+  deliver,
+  hostFor,
+  installDeliveryHooks,
+  ledgerRow,
+  NOW,
+  reserveSend,
+  roomMessages,
+  store,
+} from './delivery-fixtures.ts';
+
+installDeliveryHooks();
 
 describe('Bot Playground virtual delivery', () => {
   test('refuses a target from another room instead of trusting it', async () => {
