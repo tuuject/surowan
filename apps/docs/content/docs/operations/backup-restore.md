@@ -7,7 +7,7 @@ description: 创建数据库备份、理解保留策略，并在隔离环境验�
 
 审计与调度数据由 `retention.online_days` 保留；聊天消息、Revision、Media、Conversation Context 与原始 Update 不按该窗口清理，只有删除 Chat 或显式截断才删除。`backup` 会先清理可清理的审计/调度行再创建 SQLite 备份，并按 `retention.backup_copies` 轮换。配置、Prompt 和密钥不在数据库中，必须纳入单独且受保护的备份策略。
 
-启用了图片生成时，`backup` 还会把原图目录（`<data_dir>/images`）一并拷贝为备份文件旁的同名 `.images` 目录（如 `surowan-….sqlite.images/`）。目录不存在时跳过；拷贝失败只记日志，不影响 SQLite 备份的有效性。恢复时把 `.images` 目录放回 `data_dir` 下的 `images/`，与 SQLite 文件配套使用——两个快照之间没有跨库原子性，恢复后个别最新记录可能引用尚未拷入的图片文件。
+`backup` 还会把图片目录（`<data_dir>/images`）一并拷贝为备份文件旁的 `.images` 目录——把备份文件名的 `.sqlite` 后缀换成 `.images`（如 `surowan-….images/`）。目录不存在时跳过；拷贝失败只记日志，不影响 SQLite 备份的有效性。恢复时把 `.images` 目录放回 `data_dir` 下的 `images/`，与 SQLite 文件配套使用——两个快照之间没有跨库原子性，恢复后个别最新记录可能引用尚未拷入的图片文件。
 
 ## 创建备份
 
@@ -30,7 +30,7 @@ node src/cli.ts backup --config /path/to/config.jsonc
 1. 停止正在使用目标数据目录的服务，避免两个进程写同一 SQLite 数据库。
 2. 保留原始目录的只读副本；不要直接覆盖唯一副本。
 3. 准备**新建且为空的隔离目录**和复制的 `config/`、Prompt。编辑复制的配置，将 `data_dir`、`paths.database`、`paths.media_cache`、`paths.backups` 全部改到隔离目录内；Prompt 的相对路径仍以配置目录为准。密钥仍通过安全环境或 key jar 提供，绝不放进工单或公开存储。
-4. 项目没有 `restore` 命令。只将候选备份文件复制到新配置的 `paths.database`；不要覆盖原数据库，也不要复制旧目录中的 `-wal`、`-shm`、`serve.lock` 或 `serve.lock.sqlite`。先在不运行 Bot 的条件下检查数据库完整性。
+4. 项目没有 `restore` 命令。只将候选备份文件复制到新配置的 `paths.database`，备份配套的 `.images` 目录复制为新 `data_dir` 下的 `images/`；不要覆盖原数据库，也不要复制旧目录中的 `-wal`、`-shm`、`serve.lock` 或 `serve.lock.sqlite`。先在不运行 Bot 的条件下检查数据库完整性。
 5. 用复制的配置运行 `check-config`，人工核对全部路径；校验成功**不证明数据目录隔离或备份完整**。只有得到许可后才启动隔离服务，验证审计与一条受控消息。同一个 Telegram Token 只能有一个轮询实例；数据目录不同也不能与原 Bot 同时轮询。
 
 ### Linux/macOS 上的离线复制示例

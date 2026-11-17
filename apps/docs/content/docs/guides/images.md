@@ -104,4 +104,4 @@ API key 明文只写入配置同目录的 key jar，`config.jsonc` 仅保留凭�
 
 ## 保留与备份
 
-生成记录、资产行随在线保留窗口（`retention.online_days`）清理，原图文件随数据目录清理。`backup` 在生成 SQLite 快照的同时，把原图目录一并快照为备份文件旁的同名 `.images` 目录——恢复时把两个文件放回原位即可，详见[备份与恢复](../operations/backup-restore.md)。
+生成记录、资产行随在线保留窗口（`retention.online_days`）清理，原图文件随数据目录清理。`backup` 在生成 SQLite 快照的同时，把原图目录一并快照为备份文件旁的 `.images` 目录（`surowan-….sqlite` 配套 `surowan-….images/`）——恢复时把两个文件放回原位即可，详见[备份与恢复](../operations/backup-restore.md)。

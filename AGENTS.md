@@ -32,10 +32,11 @@ surowan/
 │   ├── cli.ts              # serve/check-config/doctor/backup/configure/admin-account/pairing/clients 入口
 │   ├── doctor.ts           # 真实依赖与外部连接诊断
 │   ├── startup-catch-up.ts # 启动补偿拉取与排队
+│   ├── runtime-catch-up.ts # 运行中补偿拉取（token 更换、连接恢复后的有限 backlog）
 │   ├── tui/                # 交互式配置向导
 │   ├── ingress/            # telegram-ingestion 与 admin/（Panel 认证、审计查询、HTTP 边界）
 │   ├── orchestration/      # scheduler、invocation-queue、agent-runtime、conversation-runtime、bot-commands
-│   ├── plugins/            # 内置 Agent 插件：plugin（definePlugin/loadPlugins）、builtin 清单、web-fetch/、image/、alarm/、dictionary/
+│   ├── plugins/            # 内置 Agent 插件：plugin（definePlugin/loadPlugins）、builtin 清单、web-fetch/、web-search/、image/、alarm/、dictionary/
 │   ├── capabilities/       # send-tool、read-tool、execute-tool、mcp、stickers、media/
 │   ├── context/            # context-builder、context-store、context-refs、context-gc、context-codec、context-injector、memo-pad/、group-memory/
 │   ├── store/              # BusinessStore 契约、schema、migrations/、long-tasks、invocation-snapshot、sleep、participation
@@ -43,12 +44,13 @@ surowan/
 │   ├── manual/             # 构建期生成的用户手册包（gitignored，scripts/manual-prepare.ts；Agent 经 list_documents/read_document 读取）
 │   └── system-resources/   # 随 runtime 发布的 system:/// 只读资源树（System Skills）
 ├── test/                   # vitest 行为测试与 MCP fixture
-├── scripts/                # 一次性维护脚本（直连 better-sqlite3，不属于业务层）
+├── scripts/                # 维护脚本与常驻工具（audit/、docs/、manual-prepare、skills-sync、git-hooks、file-token-limit、npm-release 等；直连 better-sqlite3，不属于业务层）
 ├── skills/                 # 开发本仓库用的 Coding Agent Skill 源（不是 Bot 的 System Skill）；`npx skills add tuuject/surowan` 可直接安装
 ├── apps/admin-next/        # Vite + React + Koi (Panda CSS) Admin Panel 前端（纯静态 SPA）
 ├── apps/docs/              # Rspress 中文官网与用户指南（独立静态站）
 ├── packages/image-service/ # 私有图片生成核心包：有损意图 API、provider adapter 边界、领域测试
 ├── packages/admin-surface/ # Admin Panel 路由表与权限标注：CLI 命令与 MCP 工具的共同数据源
+├── packages/cli/           # 已发布的 `@tuuject/surowan-utils` 客户端 CLI
 ├── src/image/              # 图片核心的进程级装配（借宿主连接、<data_dir>/images、优雅停止）
 ├── Dockerfile              # 三阶段镜像（架构无关产物在构建机原生构建）；媒体依赖打包在内
 ├── docker-compose.yml      # Docker 部署模板（/config 与 /data 两个卷）
@@ -78,7 +80,7 @@ Telegram Update
 
 Invocation 是运行窗口而不是一次问答：`agent.context.idle_grace_seconds > 0` 时，运行期间到期的 Bucket 会被 attach 并注入同一个 Invocation（`invocation_buckets`），Conversation Context 跨 Invocation 持久化；取 0 则退回「一次 Bucket 一次 Invocation」，但 Context 依然连续。
 
-媒体与 MCP 都在 Tool 边界内：模型只能读取当前 Conversation Context 授权且未过期的媒体引用；MCP Tool 经过 allowlist、只读策略、请求/响应大小限制、超时和审计。反向 MCP Server 的每个工具都必须按 API key 的 `read_all`/`write_all`/`execute_paid_operations` 权限执行，账号与凭据管理不暴露为工具。工具面分三层——runtime 原语（`read`/`read_member_profile`/`send`/`send_reply`/`execute`/`zzz`，以及 Memo Pad 的 `search_memory`/`read_memory`）直接暴露；内部能力（`web_fetch`、`search_stickers`、`read_image`、`list_documents`/`read_document`、Memo Pad 的增删改与 `save_memo_image`、插件提供的 Alarm、辞典等，注册表见 `src/adapters/local-monolith/runtime/index.ts` 的 `capabilityTools`，其中内置插件贡献的能力来自 `src/plugins/builtin.ts`）经 `execute` 的 search/help/call 调用；MCP Tool 直接暴露。用户手册 Markdown 在构建期打包到 `src/manual/`，模型先取空间索引再按需读取页面，整本手册不进入 system prompt。通用长期任务由 `store/long-tasks/index.ts` 持久化，唯一 Scheduler 同时处理 timer 完成与完成回执投递；插件只通过绑定 plugin/Conversation 的任务服务创建、完成或取消任务。管理员在 Admin Panel 定义的循环闹钟（`store/recurring-alarms/`）是任务服务的 timer source：到期周期物化成同一类任务、走同一条回执管线，提示词以 `<admin_scheduled_task>` 可信块注入；cron 计算经 `platform/recurring-schedule.ts` 契约由 `adapters/local-monolith/recurring-schedule.ts` 实现，唤醒只依赖持久化的 `next_fire_at`。System Skills（`src/system-resources/skills/` 与插件目录下的 `skills/`）是只读文档包，system prompt 只注入索引，正文由模型用 `read` 按需加载。记忆按 Conversation 隔离，由模型通过 `add_memory`/`delete_memory` 能力维护，TTL 到期自动清理；`agents.md` 才是经过人工审核的长期知识。
+媒体与 MCP 都在 Tool 边界内：模型只能读取当前 Conversation Context 授权且未过期的媒体引用；MCP Tool 经过 allowlist、只读策略、请求/响应大小限制、超时和审计。反向 MCP Server 的每个工具都必须按 API key 的 `read_all`/`write_all`/`execute_paid_operations` 权限执行，账号与凭据管理不暴露为工具。工具面分三层——runtime 原语（`read`/`read_member_profile`/`send`/`send_reply`/`execute`/`zzz`，以及 Memo Pad 的 `search_memory`/`read_memory`）直接暴露；内部能力（`web_fetch`、`search_stickers`、`read_image`、`list_documents`/`read_document`、Memo Pad 的增删改与 `save_memo_image`、插件提供的 Alarm、辞典等，注册表由 `src/adapters/local-monolith/host-tooling.ts` 的 `createHostTooling` 组装为 `capabilityTools` 并经 `runtime/serve.ts` 注入 runtime，其中内置插件贡献的能力来自 `src/plugins/builtin.ts`）经 `execute` 的 search/help/call 调用；MCP Tool 直接暴露。用户手册 Markdown 在构建期打包到 `src/manual/`，模型先取空间索引再按需读取页面，整本手册不进入 system prompt。通用长期任务由 `store/long-tasks/index.ts` 持久化，唯一 Scheduler 同时处理 timer 完成与完成回执投递；插件只通过绑定 plugin/Conversation 的任务服务创建、完成或取消任务。管理员在 Admin Panel 定义的循环闹钟（`store/recurring-alarms/`）是任务服务的 timer source：到期周期物化成同一类任务、走同一条回执管线，提示词以 `<admin_scheduled_task>` 可信块注入；cron 计算经 `platform/recurring-schedule.ts` 契约由 `adapters/local-monolith/recurring-schedule.ts` 实现，唤醒只依赖持久化的 `next_fire_at`。System Skills（`src/system-resources/skills/` 与插件目录下的 `skills/`）是只读文档包，system prompt 只注入索引，正文由模型用 `read` 按需加载。`agents.md` 是经过人工审核的长期知识。
 
 架构细节见 [agent-doc/architecture.md](agent-doc/architecture.md)。
 
@@ -145,7 +147,7 @@ pnpm run skills:sync
 - 配置和外部响应在边界处使用 TypeBox 校验；不要把未经校验的 `unknown` 转成业务类型。
 - SQLite ID 使用 `bigint`；Telegram JSON 中需要字符串化的 ID 不得经过不安全 `number` 转换。
 - 业务查询走 `store.orm`（Drizzle 同步 API；表定义在 `src/store/schema/`，新增迁移必须同步更新）；`store.db` 仅限连接层、doctor 探针与测试验证断言。复杂 SQL 与 FTS5 用 `sql` 模板，值一律绑定参数。
-- Conversation Context 的 canonical history 只有一个写者（`src/context/store.ts` 的 `ConversationContextStore`）；Pi Agent 的 transcript 是可丢弃缓存，任何裁剪都必须同时推进 `head_seq`、loop context、`Agent.state.messages` 与 `context_refs`，否则三份历史会分叉。同一份 Context 在运行期只能有**一个** header 对象：缓存命中时把运行开始时读到的 header 赋给缓存条目，否则注入路径与引用解析用的是一份永不推进的旧快照。
+- Conversation Context 的 canonical history 只有一个写者（`src/context/store/index.ts` 的 `ConversationContextStore`）；Pi Agent 的 transcript 是可丢弃缓存，任何裁剪都必须同时推进 `head_seq`、loop context、`Agent.state.messages` 与 `context_refs`，否则三份历史会分叉。同一份 Context 在运行期只能有**一个** header 对象：缓存命中时把运行开始时读到的 header 赋给缓存条目，否则注入路径与引用解析用的是一份永不推进的旧快照。
 - 不新增第二套 Provider、调度、审计或进程执行约定；复用现有模块。
 - 目录即子系统：不要再新增 `telegram-host.ts` / `send-tool-claim.ts` / `config-diff-merge.ts` 这类「同前缀平铺兄弟文件」。同前缀的三件以上收进该前缀的目录，文件名去掉前缀，与目录同名的入口改为 `index.ts`（例如 `src/adapters/local-monolith/telegram/{index,host,instance,connection-*}.ts`、`src/capabilities/send/{index,claim,deliver}.ts`）。只去掉目录自己的名字，子话题前缀保留（`telegram/connection-*.ts`、`agent-runtime/run-*.ts`）。少于三件的散件保持平铺；目录内共享 helper 叫 `shared.ts`，`-support`/`-types`/`-schema`/`-fixtures` 这类角色后缀保留。测试同样按主题进 `test/<主题>/`，文件名去掉主题前缀，共享 helper 留在 `test/helpers.ts` 与 `test/fixtures/`。`apps/admin-next/src/routes/`、`pages/` 的文件名带 URL 语义（TanStack Router 文件路由），不参与重命名。细则见 [agent-doc/architecture.md](agent-doc/architecture.md#目录组织)。
 - 清理式切换：迁移所有调用方并删除旧路径，不保留兼容别名或隐藏 fallback。

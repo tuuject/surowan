@@ -267,8 +267,6 @@ Models 页只给 Current models 摘要保留 Card，Provider 导航、Connection
 ### 私有推理标记 `private-reasoning.tsx`
 
 - `PrivateReasoningTag()`：金色徽章“Private reasoning”，用于 assistant 行。
-- `PrivateReasoningNote()`：说明文案——assistant 文本是私有推理，只有成功的
-  `send` tool call 才发往 Telegram。
 - 任何展示 agent 消息的页面都必须把 assistant 普通文本标为私有推理。
 
 ### 详情页状态 `detail-state.tsx`
