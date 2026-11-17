@@ -1,5 +1,5 @@
 import { readdir, readFile } from 'node:fs/promises';
-import { join, relative } from 'node:path';
+import { join, relative, sep } from 'node:path';
 import { describe, expect, test } from 'vitest';
 import { CronerScheduleEngine } from '../../src/adapters/local-monolith/recurring-schedule.ts';
 import {
@@ -162,7 +162,7 @@ describe('recurring schedule layering (F12)', () => {
         } else if (entry.name.endsWith('.ts')) {
           const text = await readFile(path, 'utf8');
           if (/from\s+['"]croner['"]|import\(\s*['"]croner['"]\s*\)/.test(text)) {
-            importers.push(relative(root, path));
+            importers.push(relative(root, path).split(sep).join('/'));
           }
         }
       }

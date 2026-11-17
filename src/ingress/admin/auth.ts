@@ -1,6 +1,6 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { hash, verify } from '@node-rs/argon2';
-import { and, eq, sql } from 'drizzle-orm';
+import { and, eq, lte, sql } from 'drizzle-orm';
 import type { LoginWarningSink } from '../../store/warnings.ts';
 import { asRunResult, type Orm } from '../../store/store.ts';
 import { adminPasskeys, adminSessions, adminUsers } from '../../store/schema/index.ts';
@@ -16,6 +16,11 @@ const USERNAME_PATTERN = /^[A-Za-z0-9._-]{3,32}$/;
 // login at once; the rest are turned away instead of queued.
 const MAX_TRACKED_CLIENTS = 1_000;
 const MAX_CONCURRENT_HASHES = 2;
+// The panel polls its list pages, so writing last_seen_at on every request
+// made an open panel a continuous stream of fsync'd writes under
+// `synchronous = FULL`. A minute of staleness is invisible to anything that
+// displays it, so the write only happens once the stored value is that old.
+const LAST_SEEN_REFRESH_MS = 60_000;
 // The runtime defaults to Argon2id; the explicit cost parameters keep the
 // strength of the Bun.password defaults this project was built on (64 MiB
 // memory), where @node-rs/argon2 would otherwise drop to its 19 MiB default.
@@ -361,7 +366,12 @@ export class AdminAuth {
       this.#orm.delete(adminSessions).where(eq(adminSessions.id, row.id)).run();
       return null;
     }
-    this.#orm.update(adminSessions).set({ lastSeenAt: now.toISOString() }).where(eq(adminSessions.id, row.id)).run();
+    const seenBefore = new Date(now.getTime() - LAST_SEEN_REFRESH_MS).toISOString();
+    this.#orm
+      .update(adminSessions)
+      .set({ lastSeenAt: now.toISOString() })
+      .where(and(eq(adminSessions.id, row.id), lte(adminSessions.lastSeenAt, seenBefore)))
+      .run();
     return { userId: row.userId, username: row.username, expiresAt: row.expiresAt };
   }
 

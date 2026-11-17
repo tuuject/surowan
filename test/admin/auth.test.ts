@@ -215,6 +215,40 @@ test('concurrent failures all count, and an expired lockout starts a fresh count
   }
 }, 30_000);
 
+test('session activity writes at most once a minute and expiry still deletes the session', async () => {
+  const { store } = await fixture();
+  try {
+    const auth = new AdminAuth(store.orm, 12);
+    const start = new Date('2026-10-01T00:00:00.000Z');
+    const account = await auth.createOrResetAccount(
+      { username: 'owner', password: PASSWORD },
+      { revokePasskeys: false },
+      start,
+    );
+    const token = auth.createVerifiedSession(account.userId, start);
+    const seenAt = () =>
+      store.db.prepare<[], { last_seen_at: string }>('SELECT last_seen_at FROM admin_sessions').get()?.last_seen_at;
+
+    expect(seenAt()).toBe(start.toISOString());
+    // Polling inside the same minute rewrites nothing.
+    expect(auth.authenticate(token, new Date(start.getTime() + 5_000))).not.toBeNull();
+    expect(auth.authenticate(token, new Date(start.getTime() + 59_000))).not.toBeNull();
+    expect(seenAt()).toBe(start.toISOString());
+    // A minute later the clock is refreshed once and restarts the window.
+    const later = new Date(start.getTime() + 61_000);
+    expect(auth.authenticate(token, later)).not.toBeNull();
+    expect(seenAt()).toBe(later.toISOString());
+    expect(auth.authenticate(token, new Date(later.getTime() + 30_000))).not.toBeNull();
+    expect(seenAt()).toBe(later.toISOString());
+    // Expiry is untouched: the session is still rejected and deleted.
+    const expired = new Date(start.getTime() + 12 * 3_600_000 + 1);
+    expect(auth.authenticate(token, expired)).toBeNull();
+    expect(store.db.prepare<[], { n: bigint }>('SELECT COUNT(*) AS n FROM admin_sessions').get()?.n).toBe(0n);
+  } finally {
+    store.close();
+  }
+});
+
 test('request bodies are limited by bytes as they stream in', async () => {
   const { store, server } = await fixture();
   try {

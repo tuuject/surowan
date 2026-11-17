@@ -27,15 +27,10 @@ interface InvocationDiagnosticRow {
   readonly previous_started_at: string | null;
 }
 
-/** Mutable bookkeeping this module owns on the scheduler's behalf. */
-export type InvocationExecutionState = {
-  lastForcedGcAt: number;
-};
-
 /**
- * What one invocation run needs from the scheduler. `active` and `state` are the
- * scheduler's own objects: the map it adds entries to and the fields it reports
- * on, not copies, so every change here is visible to it immediately.
+ * What one invocation run needs from the scheduler. `active` is the scheduler's
+ * own map: it adds entries to it and reads its size, not a copy, so every change
+ * here is visible to it immediately.
  */
 export type InvocationExecutionDeps = {
   readonly store: BusinessStore;
@@ -43,7 +38,6 @@ export type InvocationExecutionDeps = {
   readonly queue: InvocationQueueService;
   readonly handler: InvocationHandler;
   readonly active: Map<string, ActiveInvocation>;
-  readonly state: InvocationExecutionState;
   readonly warnings?: WarningService;
   readonly processDue: (now: Date) => bigint[];
   readonly processTasksDue: (now: Date) => bigint[];
@@ -202,27 +196,7 @@ function logInvocationDiagnostic(
       deps.store.orm
         .all<{ started_at: string | null }>(sql`SELECT started_at FROM invocations WHERE id = ${invocation.id}`)
         .at(0)?.started_at ?? null;
-    const recentInvocations =
-      deps.store.orm
-        .all<{ count: bigint }>(
-          sql`SELECT COUNT(*) AS count FROM invocations WHERE started_at >= ${new Date(now.getTime() - 60_000).toISOString()}`,
-        )
-        .at(0)?.count ?? 0n;
     const memory = process.memoryUsage();
-    let gcMemory: NodeJS.MemoryUsage | null = null;
-    // Forced GC is a diagnostic aid, not a correctness requirement: it only
-    // runs when the runtime exposes it (Node requires --expose-gc), and the
-    // gc_* metrics simply stay null otherwise.
-    const forceGc = (globalThis as { gc?: () => void }).gc;
-    if (
-      event === 'agent_invocation_end' &&
-      forceGc !== undefined &&
-      now.getTime() - deps.state.lastForcedGcAt >= 60_000
-    ) {
-      deps.state.lastForcedGcAt = now.getTime();
-      forceGc();
-      gcMemory = process.memoryUsage();
-    }
     console.log(
       JSON.stringify({
         event,
@@ -234,7 +208,6 @@ function logInvocationDiagnostic(
         pending_bucket_count: Number(row.pending_bucket_count),
         chat_pending_bucket_count: Number(row.chat_pending_bucket_count),
         active_agent_sessions: activeAgentSessions,
-        invocations_started_last_minute: Number(recentInvocations),
         invocation_duration_ms: durationMs,
         previous_invocation_gap_ms:
           currentStartedAt === null || row.previous_started_at === null
@@ -248,12 +221,6 @@ function logInvocationDiagnostic(
         heap_total_bytes: memory.heapTotal,
         external_bytes: memory.external,
         array_buffers_bytes: memory.arrayBuffers,
-        forced_gc: gcMemory !== null,
-        gc_rss_bytes: gcMemory?.rss ?? null,
-        gc_heap_used_bytes: gcMemory?.heapUsed ?? null,
-        gc_heap_total_bytes: gcMemory?.heapTotal ?? null,
-        gc_external_bytes: gcMemory?.external ?? null,
-        gc_array_buffers_bytes: gcMemory?.arrayBuffers ?? null,
         runtime_version: process.version,
         at: now.toISOString(),
       }),

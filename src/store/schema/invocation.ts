@@ -62,6 +62,7 @@ export const bucketMessages = sqliteTable(
   (t) => [
     primaryKey({ columns: [t.bucketId, t.messageId] }),
     uniqueIndex('bucket_messages_bucket_sequence_unique').on(t.bucketId, t.sequenceNo),
+    index('bucket_messages_message_idx').on(t.messageId),
   ],
 );
 
