@@ -114,22 +114,8 @@ const HARNESS_FIELDS: readonly HarnessField[] = [
 const FIELDS_BY_KEY = new Map(HARNESS_FIELDS.map((entry) => [entry.key, entry]));
 
 const EMPTY_TEXT_STRATEGY_KEY = 'send_empty_text_strategy';
-const LEGACY_EMPTY_TEXT_FLAG_KEY = 'send_empty_text_fallback_enabled';
 
 type HarnessValues = Record<string, HarnessValue>;
-
-/**
- * The strategy a configuration really means: an explicit strategy wins, and
- * the deprecated boolean only supplies `random_text` when it is absent.
- */
-function savedEmptyTextStrategy(section: unknown): string {
-  const agent = typeof section === 'object' && section !== null ? (section as Record<string, unknown>) : {};
-  const strategy = agent[EMPTY_TEXT_STRATEGY_KEY];
-  if (typeof strategy === 'string') {
-    return strategy;
-  }
-  return agent[LEGACY_EMPTY_TEXT_FLAG_KEY] === true ? 'random_text' : 'reject';
-}
 
 function rawValue(config: unknown, key: string): unknown {
   let value: unknown = config;
@@ -146,10 +132,6 @@ type HarnessSource = Pick<RawConfig, 'agent' | 'telegram'> | Pick<FileConfig, 'a
 export function harnessValues(config: HarnessSource): HarnessValues {
   const values: HarnessValues = {};
   for (const entry of HARNESS_FIELDS) {
-    if (entry.key === EMPTY_TEXT_STRATEGY_KEY) {
-      values[entry.key] = savedEmptyTextStrategy(config.agent);
-      continue;
-    }
     const value = rawValue(config[entry.section], entry.key);
     values[entry.key] = value === undefined ? (entry.absent ?? null) : (value as HarnessValue);
   }
@@ -201,33 +183,19 @@ export function harnessEdits(
       continue;
     }
     if (key === EMPTY_TEXT_STRATEGY_KEY) {
-      const section = file.agent ?? undefined;
-      const current = section?.send_empty_text_strategy;
-      const legacy = section?.send_empty_text_fallback_enabled;
-      if (value === null) {
+      const current = file.agent?.send_empty_text_strategy;
+      const effective = current ?? AGENT_DEFAULTS.send_empty_text_strategy;
+      if (value === null || (value === 'reject' && effective !== 'reject')) {
+        // `null` is an explicit reset, and changing a pinned non-default
+        // strategy back to `reject` removes the key: absence already means
+        // `reject`, so it is never written as an explicit value.
         if (current !== undefined) {
           edits.push({ path: ['agent', EMPTY_TEXT_STRATEGY_KEY], value: undefined });
         }
-        if (legacy !== undefined) {
-          edits.push({ path: ['agent', LEGACY_EMPTY_TEXT_FLAG_KEY], value: undefined });
-        }
         continue;
       }
-      const target = String(value);
-      const effective = current ?? (legacy === true ? 'random_text' : 'reject');
-      if (target === effective) {
-        continue;
-      }
-      if (target === 'reject') {
-        // Absence already means reject once the deprecated flag is gone.
-        if (current !== undefined) {
-          edits.push({ path: ['agent', EMPTY_TEXT_STRATEGY_KEY], value: undefined });
-        }
-      } else {
-        edits.push({ path: ['agent', EMPTY_TEXT_STRATEGY_KEY], value: target });
-      }
-      if (legacy !== undefined) {
-        edits.push({ path: ['agent', LEGACY_EMPTY_TEXT_FLAG_KEY], value: undefined });
+      if (value !== effective) {
+        edits.push({ path: ['agent', EMPTY_TEXT_STRATEGY_KEY], value: String(value) });
       }
       continue;
     }

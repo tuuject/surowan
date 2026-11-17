@@ -5,6 +5,7 @@ import { createHash } from 'node:crypto';
 import { parse } from 'jsonc-parser';
 import { afterEach, expect, test } from 'vitest';
 import { loadConfig } from '../../src/adapters/local-monolith/config/index.ts';
+import type { AgentSectionConfig } from '../../src/platform/config/index.ts';
 import { resolveAgentSection } from '../../src/platform/config/resolve.ts';
 
 import { testConfigJsonc, writeTestConfig } from '../helpers.ts';
@@ -52,16 +53,29 @@ test('schema and secret checks do not require file access', () => {
   expect(() => validateFileConfig(parsed)).toThrow(/plaintext secrets are not accepted/);
 });
 
-test('empty-text strategy defaults to reject and the legacy flag still means random_text', () => {
+test('empty-text strategy defaults to reject and ignores the retired fallback flag', () => {
   expect(resolveAgentSection(undefined).send_empty_text_strategy).toBe('reject');
-  expect(resolveAgentSection({ send_empty_text_fallback_enabled: false }).send_empty_text_strategy).toBe('reject');
-  expect(resolveAgentSection({ send_empty_text_fallback_enabled: true }).send_empty_text_strategy).toBe('random_text');
+  expect(resolveAgentSection({ send_empty_text_strategy: 'silent_success' }).send_empty_text_strategy).toBe(
+    'silent_success',
+  );
+  // The flag no longer derives a strategy; it is rejected by the schema, and
+  // anything that reaches resolution untyped stays inert.
   expect(
-    resolveAgentSection({
-      send_empty_text_fallback_enabled: true,
-      send_empty_text_strategy: 'silent_success',
-    }).send_empty_text_strategy,
-  ).toBe('silent_success');
+    resolveAgentSection({ send_empty_text_fallback_enabled: true } as AgentSectionConfig).send_empty_text_strategy,
+  ).toBe('reject');
+});
+
+test.each<[string, string, unknown]>([
+  ['agent', 'memory_ttl_warning_days', 30],
+  ['agent', 'send_empty_text_fallback_enabled', true],
+  ['vision', 'background_sticker_concurrency', 1],
+])('a leftover %s.%s key is rejected with the key named in the error', async (section, key, value) => {
+  const { dir, configPath } = await fixture();
+  const jsonc = testConfigJsonc(dir, (config) => {
+    (config as unknown as Record<string, Record<string, unknown>>)[section]![key] = value;
+  });
+  await writeFile(configPath, jsonc, { mode: 0o600 });
+  await expect(loadConfig(configPath)).rejects.toThrow(new RegExp(`/${section}.*${key}`));
 });
 
 test('invalid optional image is removed before file prompt loading', async () => {

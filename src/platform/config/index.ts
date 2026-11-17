@@ -59,7 +59,6 @@ export interface AgentRuntimeConfig extends AgentSettings {
   readonly max_concurrency: number;
   readonly context_stop_ratio: number;
   readonly history_messages: number;
-  readonly memory_ttl_warning_days?: number;
   readonly send_max_text_length?: number;
   readonly send_disallow_blank_lines?: boolean;
   readonly send_nudge_enabled?: boolean;
@@ -68,8 +67,6 @@ export interface AgentRuntimeConfig extends AgentSettings {
   readonly send_duplicate_guard_enabled?: boolean;
   /** Always concrete after resolution: `reject` unless configured otherwise. */
   readonly send_empty_text_strategy: EmptyTextSendStrategy;
-  /** Deprecated input; only read when `send_empty_text_strategy` is absent. */
-  readonly send_empty_text_fallback_enabled?: boolean;
   readonly send_empty_text_fallback_texts: readonly string[];
   readonly context: {
     readonly retained_sends_target: number;
@@ -107,7 +104,6 @@ export interface VisionRuntimeConfig {
   thinking_level?: ThinkingLevelConfig;
   max_output_tokens: number;
   max_concurrency: number;
-  background_sticker_concurrency: 1;
   prompt_version: number;
   daily_budget: { max_tokens: number; max_images: number };
 }

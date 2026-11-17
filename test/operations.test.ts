@@ -15,7 +15,7 @@ import {
   watchStopRequests,
 } from '../src/adapters/local-monolith/database.ts';
 import { purgeExpiredData } from '../src/store/store.ts';
-import { pathExists, sleep, testConfigStore, writeTestConfig } from './helpers.ts';
+import { pathExists, sleep, testConfigJsonc, testConfigStore, writeTestConfig } from './helpers.ts';
 
 const directories: string[] = [];
 
@@ -129,6 +129,115 @@ test('retention prunes old audit rows, keeps chat history, and backup keeps seve
   expect(integrity?.integrity_check).toBe('ok');
   backup.close();
 });
+
+test('backup rotation drops the image snapshot of every rotated-away backup', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'surowan-operations-'));
+  directories.push(directory);
+  const configPath = join(directory, 'config.jsonc');
+  await writeTestConfig(
+    directory,
+    configPath,
+    testConfigJsonc(directory, (config) => {
+      config.retention.backup_copies = 2;
+    }),
+  );
+  const { config } = await loadConfig(configPath);
+  const store = await SqliteStore.open(config);
+  store.close();
+  const imageDir = join(config.data_dir, 'images');
+  await mkdir(join(imageDir, 'assets'), { recursive: true, mode: 0o700 });
+  await writeFile(join(imageDir, 'assets', 'ref-1.png'), 'png-bytes');
+
+  const snapshots: string[] = [];
+  for (let index = 0; index < config.retention.backup_copies + 2; index += 1) {
+    const path = await backupDatabase(config);
+    // Forced mtimes, not the filesystem clock, decide which copies survive.
+    await utimes(path, new Date(index * 1_000), new Date(index * 1_000));
+    snapshots.push(path);
+  }
+  // `snapshotImageDirectory` names the sibling `<backup>.images`; assert the
+  // real names so a rename in the product breaks this test too.
+  const kept = snapshots.slice(-config.retention.backup_copies);
+  const rotated = snapshots.slice(0, -config.retention.backup_copies);
+  for (const path of kept) {
+    expect(await pathExists(path)).toBe(true);
+    expect(await pathExists(path.replace(/\.sqlite$/, '.images'))).toBe(true);
+  }
+  for (const path of rotated) {
+    expect(await pathExists(path)).toBe(false);
+    expect(await pathExists(path.replace(/\.sqlite$/, '.images'))).toBe(false);
+  }
+});
+
+test.each([7, 1])(
+  'a pre-migration backup rotates only within pre-migration copies (backup_copies=%i)',
+  async (backupCopies) => {
+    const directory = await mkdtemp(join(tmpdir(), 'surowan-operations-'));
+    directories.push(directory);
+    const configPath = join(directory, 'config.jsonc');
+    await writeTestConfig(
+      directory,
+      configPath,
+      testConfigJsonc(directory, (config) => {
+        config.retention.backup_copies = backupCopies;
+      }),
+    );
+    const { config } = await loadConfig(configPath);
+    await mkdir(config.paths.backups, { recursive: true });
+    // Older than every pre-migration copy: real `surowan-*.sqlite` backups with
+    // their `.images` snapshots. An automatic step at upgrade time must never
+    // delete a complete backup.
+    const surowan: string[] = [];
+    for (let index = 0; index < 3; index += 1) {
+      const path = join(config.paths.backups, `surowan-2020-01-01T00-00-0${index}-old.sqlite`);
+      await writeFile(path, 'backup');
+      await utimes(path, new Date(index * 1_000), new Date(index * 1_000));
+      const images = join(config.paths.backups, `surowan-2020-01-01T00-00-0${index}-old.images`);
+      await mkdir(images, { recursive: true });
+      await writeFile(join(images, 'marker'), 'x');
+      surowan.push(path);
+    }
+    for (let index = 0; index < backupCopies + 2; index += 1) {
+      const path = join(
+        config.paths.backups,
+        `pre-migration-2020-02-02T00-00-${String(index).padStart(2, '0')}.sqlite`,
+      );
+      await writeFile(path, 'copy');
+      await utimes(path, new Date((10 + index) * 1_000), new Date((10 + index) * 1_000));
+    }
+
+    // A database with every migration but the newest applied by hand leaves one
+    // pending migration: reopening writes a pre-migration backup for it.
+    let store = await SqliteStore.open(config, false);
+    const migrationDirectory = join(import.meta.dirname, '../src/store/migrations');
+    const names = (await readdir(migrationDirectory)).filter((name) => /^\d{3}_.*\.sql$/.test(name)).sort();
+    expect(names.length).toBeGreaterThan(0);
+    for (const name of names.slice(0, -1)) {
+      const text = await readFile(join(migrationDirectory, name), 'utf8');
+      store.db.transaction(() => {
+        store.db.exec(text);
+        store.db
+          .prepare('INSERT INTO schema_migrations(version, applied_at) VALUES (?, ?)')
+          .run(BigInt(Number(name.slice(0, 3))), new Date().toISOString());
+      })();
+    }
+    store.close();
+    store = await SqliteStore.open(config);
+    store.close();
+
+    // Only pre-migration copies rotate among themselves: the fresh one is the
+    // newest and survives; every complete backup and its snapshot is untouched.
+    const preMigration = (await readdir(config.paths.backups)).filter((name) =>
+      /^pre-migration-.*\.sqlite$/.test(name),
+    );
+    expect(preMigration).toHaveLength(backupCopies);
+    expect(preMigration.some((name) => !name.startsWith('pre-migration-2020-'))).toBe(true);
+    for (const path of surowan) {
+      expect(await pathExists(path)).toBe(true);
+      expect(await pathExists(path.replace(/\.sqlite$/, '.images'))).toBe(true);
+    }
+  },
+);
 
 test('takeover stops the instance holding the lock and leaves no stop request behind', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'surowan-takeover-'));

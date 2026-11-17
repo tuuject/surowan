@@ -36,6 +36,29 @@ test('applies a hot field and reports both hashes', async () => {
   }
 });
 
+test('a changed online retention window is applied, not outside serve', async () => {
+  const fixture = await setup();
+  try {
+    const before = fixture.configStore.current().config.retention.online_days;
+    await fixture.patch((config) => {
+      config.retention.online_days = before - 1;
+    });
+    const result = await fixture.reloader.reloadFromFile();
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      throw new Error(result.message);
+    }
+    expect(result.applied).toEqual(['retention.online_days']);
+    expect(result.restartRequired).toEqual([]);
+    expect(result.outsideServe).toEqual([]);
+    // The periodic sweep reads the published snapshot, so the next cleanup
+    // run already uses the new window.
+    expect(fixture.configStore.current().config.retention.online_days).toBe(before - 1);
+  } finally {
+    fixture.store.close();
+  }
+});
+
 test('keeps the active configuration when the file is invalid', async () => {
   const fixture = await setup();
   const before = fixture.configStore.current();

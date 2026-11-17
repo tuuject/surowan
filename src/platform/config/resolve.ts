@@ -81,9 +81,7 @@ export function resolveAgentSection(section: AgentSectionConfig | null | undefin
     max_concurrency: section?.max_concurrency ?? AGENT_DEFAULTS.max_concurrency,
     context_stop_ratio: section?.context_stop_ratio ?? AGENT_DEFAULTS.context_stop_ratio,
     history_messages: section?.history_messages ?? AGENT_DEFAULTS.history_messages,
-    send_empty_text_strategy:
-      section?.send_empty_text_strategy ??
-      (section?.send_empty_text_fallback_enabled === true ? 'random_text' : AGENT_DEFAULTS.send_empty_text_strategy),
+    send_empty_text_strategy: section?.send_empty_text_strategy ?? AGENT_DEFAULTS.send_empty_text_strategy,
     send_empty_text_fallback_texts:
       section?.send_empty_text_fallback_texts ?? AGENT_DEFAULTS.send_empty_text_fallback_texts,
     context: {
@@ -177,7 +175,6 @@ export function resolveBucketTiming(
 export const VISION_DEFAULTS = {
   max_output_tokens: 2_048,
   max_concurrency: 2,
-  background_sticker_concurrency: 1,
   prompt_version: 1,
   daily_budget: { max_tokens: 200_000, max_images: 200 },
 } as const;
@@ -190,7 +187,6 @@ export function resolveVisionSection(section: VisionSectionConfig | null | undef
     ...(section?.thinking_level === undefined ? {} : { thinking_level: section.thinking_level }),
     max_output_tokens: section?.max_output_tokens ?? VISION_DEFAULTS.max_output_tokens,
     max_concurrency: section?.max_concurrency ?? VISION_DEFAULTS.max_concurrency,
-    background_sticker_concurrency: VISION_DEFAULTS.background_sticker_concurrency,
     prompt_version: section?.prompt_version ?? VISION_DEFAULTS.prompt_version,
     daily_budget: {
       max_tokens: section?.daily_budget?.max_tokens ?? VISION_DEFAULTS.daily_budget.max_tokens,

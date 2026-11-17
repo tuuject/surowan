@@ -166,7 +166,6 @@ function seedConfig(dir: string): FileConfig {
       model: DEEPSEEK_FLASH.id,
       max_output_tokens: 8192,
       max_concurrency: 2,
-      background_sticker_concurrency: 1,
       prompt_version: 1,
       daily_budget: { max_tokens: 5_000_000, max_images: 2000 },
     },

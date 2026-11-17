@@ -55,7 +55,7 @@
     "send_duplicate_guard_enabled": true,
     // 可选，默认 "reject"：模型调用 send 却没写文字时的策略。"reject" 退回发送；"silent_success" 返回成功但不发送任何消息（连续三次结束本次运行）；"random_text" 改为发出 send_empty_text_fallback_texts 中随机一条（默认 "……"）。热更新，下一次 Invocation 生效。
     "send_empty_text_strategy": "reject",
-    // 仅 random_text 使用；一行一条。旧字段 send_empty_text_fallback_enabled=true 在未写策略时仍等价于 random_text。
+    // 仅 random_text 使用；一行一条。
     "send_empty_text_fallback_texts": ["……"],
     "context": {
       "retained_sends_target": 2,
@@ -78,7 +78,6 @@
     "model": "replace-with-your-text-and-image-model",
     "max_output_tokens": 2048,
     "max_concurrency": 2,
-    "background_sticker_concurrency": 1,
     "prompt_version": 1,
     "daily_budget": { "max_tokens": 200000, "max_images": 200 }
   },

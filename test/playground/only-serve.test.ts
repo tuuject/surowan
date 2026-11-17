@@ -106,7 +106,6 @@ async function writeConfig(options: FixtureOptions): Promise<{ configPath: strin
       model: 'vision-model',
       max_output_tokens: 2048,
       max_concurrency: 2,
-      background_sticker_concurrency: 1,
       prompt_version: 1,
       daily_budget: { max_tokens: 200_000, max_images: 200 },
     },

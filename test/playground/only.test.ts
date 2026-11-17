@@ -134,7 +134,6 @@ test('a process with Telegram disabled runs the room round and only recovers wha
         model: 'vision-model',
         max_output_tokens: 2048,
         max_concurrency: 2,
-        background_sticker_concurrency: 1,
         prompt_version: 1,
         daily_budget: { max_tokens: 200_000, max_images: 200 },
       },

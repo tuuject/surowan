@@ -308,7 +308,6 @@ export function testConfigJsonc(directory: string, transform?: (config: FixtureC
       model: 'vision-model',
       max_output_tokens: 2048,
       max_concurrency: 2,
-      background_sticker_concurrency: 1,
       prompt_version: 1,
       daily_budget: {
         max_tokens: 200000,

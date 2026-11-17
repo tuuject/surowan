@@ -274,7 +274,7 @@ Memories 页管理 Chat 级 Memo Pad，不是按 Conversation 隔离的短期记
 `GET /api/memories?chat=<telegram_chat_id>&state=&limit=&offset=&as_of=` 返回快照分页结构，按 `created_at, id` 倒序、以 `created_at` 为快照锚点（`id` 是随机的 `mem_<32hex>`，不承担时间排序）。面板里管理员自己新建的 memo 不进提示条：创建成功后页面直接换新快照并回到第 1 页：
 
 - `chat` 是十进制 Telegram Chat ID（不是内部 `chats.id`），`state` 取 `active`（永久或尚未过期）、`expired`（已到期）、`short`（短期且未到期）或 `long`（永久）；其它值 400 `invalid_state`。`limit`/`offset`/`as_of` 见「列表快照分页」。
-- 每项：`id`、`chat: { telegram_chat_id, type, title }`、`summary`、`detail`、`created_at`、`expires_at`（永久为 `null`）、`updated_at`、`ttl_seconds`（永久为 `null`，否则按 `created_at → expires_at` 计算）、`remaining_seconds`（永久为 `null`，已过期为 0 或负数）、`expired`、`short_term`。这里没有 `long_ttl` 警告标记，也不再读取 `agent.memory_ttl_warning_days`。
+- 每项：`id`、`chat: { telegram_chat_id, type, title }`、`summary`、`detail`、`created_at`、`expires_at`（永久为 `null`）、`updated_at`、`ttl_seconds`（永久为 `null`，否则按 `created_at → expires_at` 计算）、`remaining_seconds`（永久为 `null`，已过期为 0 或负数）、`expired`、`short_term`。这里没有 `long_ttl` 警告标记。
 - `GET /api/memories/chats` 返回 `{ items: [{ telegram_chat_id, type, title, username }] }`，只列 `host_kind = 'telegram'` 的已入库 Chat，供筛选下拉使用；该路径只读，其它方法返回 405。
 - `POST` / `PUT` / `DELETE` 的 body 与语义见 [API](#api) 的写端点表；`PUT` 与 `DELETE` 在 detail 变化后清理不再被同 Chat 任何 detail 引用的 Blob。
 - 编辑表单保留打开时的 TTL：未改变显示天数时不发送 `ttl_seconds`，因此只改 summary/detail 不会延长期限、把小时级 TTL 舍入成整天或复活过期条目。明确清空原有期限才发送 `null`；修改为其它天数则从保存时刻重新计期。
@@ -469,9 +469,9 @@ Developer 页最下方的「Model details source」面板编辑 `models_dev.api_
 
 ## Harness tuning 页
 
-Manage → Harness tuning 编辑 `agent` 段里除 `provider`/`model`/`thinking_level`（Models 页）、`system_prompt_file`（Prompts 页）与仅为兼容保留的 `memory_ttl_warning_days` 以外的全部字段，以及全局主动回复默认值 `telegram.proactive_reply`（Chat 覆盖仍在 Chats 页）；字段表、键名与边界校验在 `src/ingress/admin/harness.ts`，每个字段复用 `ConfigSchema` 里对应的 schema。每个字段登记所属配置段，键是该段下的点分路径：`agent` 字段如 `context.ref_ttl_hours`、`rate_limits.window_seconds`，`telegram` 字段为 `proactive_reply.enabled` / `base_probability` / `increment` / `hard_pity`，写入路径是「段 + 键」。
+Manage → Harness tuning 编辑 `agent` 段里除 `provider`/`model`/`thinking_level`（Models 页）与 `system_prompt_file`（Prompts 页）以外的全部字段，以及全局主动回复默认值 `telegram.proactive_reply`（Chat 覆盖仍在 Chats 页）；字段表、键名与边界校验在 `src/ingress/admin/harness.ts`，每个字段复用 `ConfigSchema` 里对应的 schema。每个字段登记所属配置段，键是该段下的点分路径：`agent` 字段如 `context.ref_ttl_hours`、`rate_limits.window_seconds`，`telegram` 字段为 `proactive_reply.enabled` / `base_probability` / `increment` / `hard_pity`，写入路径是「段 + 键」。
 
-`GET /harness` 返回 `{ revision, saved, active }`：`saved` 是磁盘文件值，`active` 是运行中配置的值；可选字段缺省时报告运行时实际使用的值（主动回复四项为 `PROACTIVE_REPLY_DEFAULTS`，默认关闭的布尔开关为 `false`，`send_max_text_length` 为 `null` 即不限制，`send_empty_text_strategy` 为 `reject`（旧字段 `send_empty_text_fallback_enabled: true` 缺省报告 `random_text`），`send_empty_text_fallback_texts` 为 `AGENT_DEFAULTS` 里的 `["……"]`；`memory_ttl_warning_days` 不再出现在 Harness 页，配置里保留它只为兼容旧文件）。写入 `send_empty_text_strategy` 时会移除已废弃的 `send_empty_text_fallback_enabled`；读回时显式策略优先。读取与修改需要 `ConfigReloader`，不可用时返回 503 `harness_unavailable`。
+`GET /harness` 返回 `{ revision, saved, active }`：`saved` 是磁盘文件值，`active` 是运行中配置的值；可选字段缺省时报告运行时实际使用的值（主动回复四项为 `PROACTIVE_REPLY_DEFAULTS`，默认关闭的布尔开关为 `false`，`send_max_text_length` 为 `null` 即不限制，`send_empty_text_strategy` 为 `reject`），`send_empty_text_fallback_texts` 为 `AGENT_DEFAULTS` 里的 `["……"]`）。写回 `reject` 时会删除显式策略字段（缺省即 `reject`），而不是把它写进文件。读取与修改需要 `ConfigReloader`，不可用时返回 503 `harness_unavailable`。
 
 `PUT /harness` 接受严格的 `{ values: { <key>: value } }`，至少一项；未知键返回 400 `invalid_body`，类型或单字段范围不符返回 400 `invalid_harness_value`，`null` 只允许用于可选字段并表示从文件删除该字段。必须带 revision 的 `If-Match`，不符返回 409 `config_conflict`。端点只把值与文件不同的字段写成编辑（可选字段缺省时，等于缺省值的写入也跳过，保持文件干净；字符串列表按内容逐项比较）；值只有数字、布尔、枚举字符串、`null` 与字符串列表五种，枚举在页面上是下拉框，字符串列表在页面上是「一行一条」的文本框，前端逐行去首尾空白、丢弃空行，全空时本地报错而不是写 `null`。没有任何编辑时不写文件，返回当前视图与空的 `apply`。跨字段规则（`retained_sends_target < retained_sends_max`、`hard_token_ratio <= context_stop_ratio`、`idle_grace_seconds` 与 Bucket 窗口、`max_wall_clock_seconds > idle_grace_seconds`）由整文件 `loadConfig` 校验，失败时 422 `config_invalid` 且文件不变。写入与热应用经 `ConfigReloader.writeAndApply`，失败后文件/运行态分离等契约与其它配置端点一致；成功返回更新后的视图与 `apply`。
 
@@ -636,7 +636,7 @@ Messages 列表与消息详情的 Revision 在发送者姓名旁显示可复制�
 
 迁移 `src/store/migrations/032_admin_passkeys.sql` 建立 `admin_passkeys` 并给 `admin_users` 补 `webauthn_user_id`（唯一，默认随机 16 字节 hex）：每行一个 WebAuthn 凭据，`credential_id` 全局唯一，`public_key`/`counter` 用于验证与防重放（登录以乐观锁更新 `counter`），`rp_id` 记录注册时的依赖方——key 只对注册它的 `rpId` 生效，换域名后旧 key 不可用；`name` 1–80 字符（CHECK 约束）。`user_id` 级联删除；`createOrResetAccount`（`admin-account` CLI 的落点）在空表建号、已有唯一管理员时改用户名与密码，并总是删除该账号全部 Session，只有 `--revoke-passkeys` 才删除全部 passkey；不触碰 `admin_api_keys`，也不重开 setup。该表不参与在线保留清理。语义见「Passkey 登录与凭据」。
 
-Bot 管理员白名单不再是数据库表：迁移 `src/store/migrations/026_drop_bot_admins.sql` 删除了旧表 `bot_admins`（迁移 `008` 引入），唯一事实源是配置文件里的 `telegram.admins`，旧表内容用 `scripts/migrate-admins.ts` 搬迁。Admin Panel「Bot admins」页面经配置写端点增删该列表并热应用。Bot 管理员决定谁能执行 `/pause`、`/resume`、`/model`、`/effort` 与 `/cut_topic`，与面板登录账号无关。
+Bot 管理员白名单不再是数据库表：迁移 `src/store/migrations/026_drop_bot_admins.sql` 删除了旧表 `bot_admins`（迁移 `008` 引入），唯一事实源是配置文件里的 `telegram.admins`。Admin Panel「Bot admins」页面经配置写端点增删该列表并热应用。Bot 管理员决定谁能执行 `/pause`、`/resume`、`/model`、`/effort` 与 `/cut_topic`，与面板登录账号无关。
 
 迁移 `src/store/migrations/034_dictionary.sql` 建立 `dictionary_entries`（辞典词条）并把 `model_calls` 的 `role` 约束扩展为包含 `tool`（Tool Model 辅助调用）。表结构、索引与作用域约束见 [data-layer.md](data-layer.md#dictionary_entries迁移-034)；注入与工具边界见 [dictionary.md](dictionary.md)。
 

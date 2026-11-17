@@ -32,7 +32,6 @@ const HOT_PATHS: ReadonlySet<string> = new Set([
   'agent.allow_reply_message_multiple_times',
   'agent.send_duplicate_guard_enabled',
   'agent.send_empty_text_strategy',
-  'agent.send_empty_text_fallback_enabled',
   'agent.send_empty_text_fallback_texts',
   'agent.daily_budget',
   'agent.daily_budget.max_tokens',
@@ -40,7 +39,6 @@ const HOT_PATHS: ReadonlySet<string> = new Set([
   'agent.rate_limits',
   'agent.max_concurrency',
   'agent.history_messages',
-  'agent.memory_ttl_warning_days',
   'vision.provider',
   'vision.model',
   'vision.thinking_level',
@@ -66,6 +64,9 @@ const HOT_PATHS: ReadonlySet<string> = new Set([
   'telegram.bucket_window_seconds',
   'telegram.bucket_max_seconds',
   'telegram.bucket_bump_seconds',
+  // The serve-side periodic retention sweep reads the published snapshot on
+  // every run, so a changed window reaches the next cleanup.
+  'retention.online_days',
 ]);
 
 /**
@@ -87,14 +88,11 @@ const HOT_PREFIXES: readonly string[] = [
 ];
 
 /**
- * `serve` reads these only through `backup` and the pre-migration backup, so
- * they are neither applied nor pending a restart.
+ * `paths.backups` and `retention.backup_copies` are read only by `backup` and
+ * the pre-migration backup rotation, so changes here are neither applied
+ * immediately nor pending a restart.
  */
-const OUTSIDE_SERVE_PATHS: ReadonlySet<string> = new Set([
-  'paths.backups',
-  'retention.online_days',
-  'retention.backup_copies',
-]);
+const OUTSIDE_SERVE_PATHS: ReadonlySet<string> = new Set(['paths.backups', 'retention.backup_copies']);
 
 /**
  * Chat IDs appear verbatim in change paths, including negative supergroup IDs.

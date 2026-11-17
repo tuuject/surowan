@@ -31,6 +31,7 @@ import type { ServeLock, SqliteStore } from '../database.ts';
 import type { TelegramHost } from '../telegram/host.ts';
 import type { TelegramConnectionManager } from '../telegram/index.ts';
 import type { WarningService } from '../../../store/warnings.ts';
+import type { RetentionCleanup } from './retention.ts';
 
 export const ALLOWED_UPDATES = ['message', 'edited_message', 'my_chat_member'] as const;
 
@@ -62,6 +63,8 @@ export interface ServeState {
   roomHost?: ImHost | undefined;
   admin?: AdminServer | undefined;
   warnings?: WarningService | undefined;
+  /** The periodic online-retention sweep; stopped before the store closes. */
+  retention?: RetentionCleanup | undefined;
 }
 
 /** What `serve` itself owns and every phase reads: config, secrets and the stop path. */

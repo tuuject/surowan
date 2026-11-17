@@ -14,7 +14,6 @@ test('classifies hot, restart and outside-serve fields', async () => {
     config.agent!.daily_budget!.max_tokens = 400_000;
     config.agent!.max_concurrency = 8;
     config.agent!.history_messages = 5;
-    config.agent!.memory_ttl_warning_days = 14;
     config.agent!.context!.retained_sends_target = 1;
     config.agent!.context!.hard_token_ratio = 0.5;
     config.agent!.context!.ref_ttl_hours = 24;
@@ -35,14 +34,14 @@ test('classifies hot, restart and outside-serve fields', async () => {
     'agent.daily_budget.max_tokens',
     'agent.history_messages',
     'agent.max_concurrency',
-    'agent.memory_ttl_warning_days',
     'agent.rate_limits.turns_per_injection',
     'agent.send_max_text_length',
     'agent.thinking_level',
+    'retention.online_days',
     'telegram.bucket_window_seconds',
     'vision.max_output_tokens',
   ]);
-  expect(paths(diff.changes, 'outside_serve')).toEqual(['paths.backups', 'retention.online_days']);
+  expect(paths(diff.changes, 'outside_serve')).toEqual(['paths.backups']);
   expect(paths(diff.changes, 'restart')).toEqual(['telegram.process_bot_messages']);
   // Hot and outside-serve values come from the file; restart-only values stay.
   expect(diff.candidate.file.agent!.thinking_level).toBe('high');
