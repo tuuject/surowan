@@ -120,6 +120,9 @@ export const image: Catalog<typeof imageEn> = {
     tabImages: 'Bilder',
     emptyPrompts: 'Keine Prompt-Materialien',
     emptyImages: 'Keine Bilder',
+    rename: 'Umbenennen',
+    renamedToast: 'Umbenannt',
+    renameTitle: '{{name}} umbenennen',
     archive: 'Archivieren',
     archiveConfirmTitle: '{{name}} archivieren',
     archiveConfirmDescription:

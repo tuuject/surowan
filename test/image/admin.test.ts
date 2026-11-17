@@ -231,6 +231,11 @@ test('asset CRUD and binary content round-trip through the handler', async () =>
 
   const listed = await call(fixtureRef, 'GET', 'image/prompts?q=水彩');
   expect((listed.body as { items: { id: string }[] }).items.map((item) => item.id)).toContain(promptId);
+  // The panel's API types are written against these field names; the browser
+  // suite mocks this API, so this is where a rename would be caught.
+  expect((listed.body as { items: unknown[] }).items.find((item) => (item as { id: string }).id === promptId)).toEqual(
+    expect.objectContaining({ createdAt: expect.any(String), updatedAt: expect.any(String), category: 'style' }),
+  );
 
   const updated = await call(fixtureRef, 'PUT', `image/prompts/${promptId}`, { description: '柔和' });
   expect((updated.body as { description: string }).description).toBe('柔和');
@@ -245,6 +250,18 @@ test('asset CRUD and binary content round-trip through the handler', async () =>
   });
   expect(uploaded.status).toBe(201);
   const assetId = (uploaded.body as { id: string }).id;
+  const images = await call(fixtureRef, 'GET', 'image/images');
+  expect((images.body as { items: unknown[] }).items.find((item) => (item as { id: string }).id === assetId)).toEqual(
+    expect.objectContaining({
+      source: 'upload',
+      generationId: null,
+      outputIndex: null,
+      createdAt: expect.any(String),
+      mime: 'image/png',
+      width: 6,
+      height: 6,
+    }),
+  );
 
   const content = await call(fixtureRef, 'GET', `image/images/${assetId}/content`);
   expect(content.status).toBe(200);

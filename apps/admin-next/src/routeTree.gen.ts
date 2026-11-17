@@ -19,6 +19,7 @@ import { Route as DeveloperRouteImport } from './routes/developer'
 import { Route as DictionaryRouteImport } from './routes/dictionary'
 import { Route as GroupMemoriesRouteImport } from './routes/group-memories'
 import { Route as HarnessRouteImport } from './routes/harness'
+import { Route as ImageAssetsRouteImport } from './routes/image-assets'
 import { Route as ImageGenerateRouteImport } from './routes/image-generate'
 import { Route as ImageGenerationsRouteImport } from './routes/image-generations'
 import { Route as ImageSettingsRouteImport } from './routes/image-settings'
@@ -90,6 +91,11 @@ const GroupMemoriesRoute = GroupMemoriesRouteImport.update({
 const HarnessRoute = HarnessRouteImport.update({
   id: '/harness',
   path: '/harness',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ImageAssetsRoute = ImageAssetsRouteImport.update({
+  id: '/image-assets',
+  path: '/image-assets',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ImageGenerateRoute = ImageGenerateRouteImport.update({
@@ -215,6 +221,7 @@ export interface FileRoutesByFullPath {
   '/dictionary': typeof DictionaryRoute
   '/group-memories': typeof GroupMemoriesRoute
   '/harness': typeof HarnessRoute
+  '/image-assets': typeof ImageAssetsRoute
   '/image-generate': typeof ImageGenerateRoute
   '/image-generations': typeof ImageGenerationsRoute
   '/image-settings': typeof ImageSettingsRoute
@@ -249,6 +256,7 @@ export interface FileRoutesByTo {
   '/dictionary': typeof DictionaryRoute
   '/group-memories': typeof GroupMemoriesRoute
   '/harness': typeof HarnessRoute
+  '/image-assets': typeof ImageAssetsRoute
   '/image-generate': typeof ImageGenerateRoute
   '/image-generations': typeof ImageGenerationsRoute
   '/image-settings': typeof ImageSettingsRoute
@@ -284,6 +292,7 @@ export interface FileRoutesById {
   '/dictionary': typeof DictionaryRoute
   '/group-memories': typeof GroupMemoriesRoute
   '/harness': typeof HarnessRoute
+  '/image-assets': typeof ImageAssetsRoute
   '/image-generate': typeof ImageGenerateRoute
   '/image-generations': typeof ImageGenerationsRoute
   '/image-settings': typeof ImageSettingsRoute
@@ -320,6 +329,7 @@ export interface FileRouteTypes {
     | '/dictionary'
     | '/group-memories'
     | '/harness'
+    | '/image-assets'
     | '/image-generate'
     | '/image-generations'
     | '/image-settings'
@@ -354,6 +364,7 @@ export interface FileRouteTypes {
     | '/dictionary'
     | '/group-memories'
     | '/harness'
+    | '/image-assets'
     | '/image-generate'
     | '/image-generations'
     | '/image-settings'
@@ -388,6 +399,7 @@ export interface FileRouteTypes {
     | '/dictionary'
     | '/group-memories'
     | '/harness'
+    | '/image-assets'
     | '/image-generate'
     | '/image-generations'
     | '/image-settings'
@@ -423,6 +435,7 @@ export interface RootRouteChildren {
   DictionaryRoute: typeof DictionaryRoute
   GroupMemoriesRoute: typeof GroupMemoriesRoute
   HarnessRoute: typeof HarnessRoute
+  ImageAssetsRoute: typeof ImageAssetsRoute
   ImageGenerateRoute: typeof ImageGenerateRoute
   ImageGenerationsRoute: typeof ImageGenerationsRoute
   ImageSettingsRoute: typeof ImageSettingsRoute
@@ -517,6 +530,13 @@ declare module '@tanstack/react-router' {
       path: '/harness'
       fullPath: '/harness'
       preLoaderRoute: typeof HarnessRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/image-assets': {
+      id: '/image-assets'
+      path: '/image-assets'
+      fullPath: '/image-assets'
+      preLoaderRoute: typeof ImageAssetsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/image-generate': {
@@ -687,6 +707,7 @@ const rootRouteChildren: RootRouteChildren = {
   DictionaryRoute: DictionaryRoute,
   GroupMemoriesRoute: GroupMemoriesRoute,
   HarnessRoute: HarnessRoute,
+  ImageAssetsRoute: ImageAssetsRoute,
   ImageGenerateRoute: ImageGenerateRoute,
   ImageGenerationsRoute: ImageGenerationsRoute,
   ImageSettingsRoute: ImageSettingsRoute,

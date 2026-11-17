@@ -74,6 +74,7 @@ export const layout: Catalog<typeof layoutEn> = {
     botStickerSets: 'Bot-Sticker-Sets',
     imageGenerate: 'Bildgenerierung',
     imageGenerations: 'Bildgenerierungen',
+    imageAssets: 'Bildmaterialien',
     playground: 'Playground',
     alarms: 'Alarme',
     recurringAlarms: 'Wiederkehrende Alarme',

@@ -74,6 +74,7 @@ export const layout: CompleteCatalog<typeof layoutEn> = {
     botStickerSets: 'مجموعات ملصقات البوت',
     imageGenerate: 'توليد الصور',
     imageGenerations: 'عمليات توليد الصور',
+    imageAssets: 'مواد الصور',
     playground: 'الملعب',
     alarms: 'المنبهات',
     recurringAlarms: 'المنبهات المتكررة',

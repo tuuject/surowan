@@ -220,6 +220,27 @@ test.describe('routes and deep links', () => {
     await expect(page.locator('[data-route-error]')).toHaveCount(0);
   });
 
+  test('/image-assets renders both tabs and its media navigation entry', async ({ page }) => {
+    // The e2e server wires no image service; an enabled status plus two empty
+    // lists keeps the page on its real list state.
+    await page.route('**/api/image/status', (route) => route.fulfill({ json: { enabled: true, models: [] } }));
+    for (const resource of ['prompts', 'images']) {
+      await page.route(`**/api/image/${resource}?*`, (route) =>
+        route.fulfill({ json: { items: [], total: 0, limit: 20, offset: 0 } }),
+      );
+    }
+    await page.goto(await adminUrl('/image-assets'));
+    await expect(page.getByRole('heading', { name: 'Image assets', exact: true })).toBeVisible();
+    const nav = page.getByRole('navigation', { name: 'Main navigation', exact: true });
+    const entry = nav.locator('a[href="/image-assets"]');
+    await expect(entry).toBeVisible();
+    await expect(entry).toHaveAttribute('aria-current', 'page');
+    await expect(page.getByRole('button', { name: 'Prompt assets', exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Images', exact: true })).toBeVisible();
+    await expect(page.getByText('No prompt assets', { exact: true })).toBeVisible();
+    await expect(page.locator('[data-route-error]')).toHaveCount(0);
+  });
+
   test('/settings renders the credentials form and the config card', async ({ page }) => {
     await page.goto(await adminUrl('/settings'));
     await expect(page.getByText('Admin credentials')).toBeVisible();
