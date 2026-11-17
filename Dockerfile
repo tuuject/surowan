@@ -49,21 +49,21 @@ FROM node:24-bookworm-slim AS builder
 
 WORKDIR /app
 
-# The same install as the assets stage, step for step: native modules must
-# match the target, and when the target is the build platform BuildKit sees
-# identical steps and runs them once for both stages.
-RUN apt-get update && apt-get install -y --no-install-recommends python3 make g++ \
-    && rm -rf /var/lib/apt/lists/*
-
+# pnpm for the fetch and install below; same packageManager lookup as the
+# assets stage. No toolchain: the final install runs --ignore-scripts, so
+# nothing compiles native code here (better-sqlite3 ships prebuilds; its build
+# script is denied in pnpm-workspace.yaml).
 COPY package.json ./
 RUN PNPM_VERSION="$(node -p 'require("./package.json").packageManager.split("+")[0]')" \
     && npm install --global "$PNPM_VERSION"
 
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+# Prefetch production deps into the pnpm store: this layer's inputs are the
+# root package.json copied above, the lockfile, the workspace config and the
+# patches, so a source change that leaves those alone reuses it. The shared
+# lockfile validates patch hashes even when the docs workspace is absent.
+COPY pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY patches ./patches
-COPY apps/admin-next/package.json ./apps/admin-next/
-COPY scripts/skills-sync.ts scripts/git-hooks.ts ./scripts/
-RUN pnpm install --frozen-lockfile
+RUN pnpm fetch --prod
 
 COPY . .
 COPY --from=assets /app/apps/admin-next/dist ./apps/admin-next/dist
@@ -71,12 +71,17 @@ COPY --from=assets /app/packages/image-service/dist ./packages/image-service/dis
 COPY --from=assets /app/packages/admin-surface/dist ./packages/admin-surface/dist
 COPY --from=assets /app/src/manual ./src/manual
 
-# Prune devDependencies — runtime only needs production deps.
-# --ignore-scripts: the workspace package's prepare runs tsc, which the prune
-# is about to remove; dist/ was already built in the assets stage.
+# Link the final node_modules entirely from the prefetched store: --offline
+# makes any missing package a build error instead of a download. This is the
+# stage's only install — nothing uses devDependencies — and it runs after
+# COPY . ., so the root node_modules it creates cannot be overwritten by the
+# build context (which excludes node_modules anyway; the per-package
+# node_modules pnpm creates under packages/ do not exist before this step).
+# --ignore-scripts: the workspace package's prepare runs tsc, which the prod
+# install leaves out; dist/ was already built in the assets stage.
 # The manual sources go first: the frozen prod install treats an apps/docs
 # directory without its package.json as a lockfile mismatch.
-RUN rm -rf apps/docs && pnpm install --prod --frozen-lockfile --ignore-scripts
+RUN rm -rf apps/docs && pnpm install --prod --frozen-lockfile --ignore-scripts --offline
 
 # ── Stage 3: Runtime (Node.js 24) ───────────────────────────────
 FROM node:24-bookworm-slim

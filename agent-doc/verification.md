@@ -16,8 +16,8 @@ GitHub Actions 会跑同一组检查；提交前按改动范围自己跑过，�
 
 | Workflow | 触发 | 执行的验证 |
 | --- | --- | --- |
-| `.github/workflows/docs.yml` | PR、push `main`/`develop` | `pnpm install --frozen-lockfile`、`pnpm run check`、`pnpm run lint`、`pnpm test test/docs/examples.test.ts test/docs/search.test.ts`、`pnpm run docs:build`、`pnpm run docs:verify`；构建后 `git status --porcelain` 必须为空；`DOCS_BASE_PATH=/` 与 `/surowan/` 各跑一遍 |
-| `.github/workflows/docker.yml` 的 `verify` job | push `main`/`develop`/`v*` | 全量 `pnpm test`、`pnpm run admin:build` 后全量 `pnpm run admin:test:e2e`（镜像构建见 [Docker 部署](operations.md#docker-部署)） |
+| `.github/workflows/docs.yml` | PR、push `main`/`develop` | `pnpm install --frozen-lockfile`、`pnpm run check`、`pnpm run lint`、`pnpm test test/docs/examples.test.ts`、`pnpm test test/docs/search.test.ts`（两个文件分开各跑一次，避免 vitest OR 多个过滤器时静默放过改名后的文件）、`pnpm run docs:build`、`pnpm run docs:verify`；构建后 `git status --porcelain` 必须为空；`DOCS_BASE_PATH=/` 与 `/surowan/` 各跑一遍 |
+| `.github/workflows/docker.yml` 的 `verify` job | PR、push `main`/`develop`/`v*` | 全量 `pnpm test`、`pnpm run admin:build` 后全量 `pnpm run admin:test:e2e`（镜像构建见 [Docker 部署](operations.md#docker-部署)） |
 | `.github/workflows/npm.yml` | push `main` 与 `v*` tag | `pnpm run cli:check`、`pnpm test test/invocations test/cli`、`pnpm test test/npm-release.test.ts`、`scripts/npm-release.ts` 的 ref/版本校验与打包发布 |
 
 依赖变更必须同步提交 `pnpm-lock.yaml`：每个 workflow 都用 `pnpm install --frozen-lockfile`。本页其余检查（`git diff --check`、`actionlint`、`check-config`、`doctor`、服务冒烟与真实 Telegram 验收等）不在 workflow 里执行，仍需按范围人工完成。
