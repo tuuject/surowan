@@ -21,6 +21,7 @@ import type { ProactiveReplyGate } from '../proactive-reply.ts';
  * one canonical in-memory state through these references and never hold a copy.
  */
 export interface InvocationQueueDeps {
+  readonly bot: { readonly username: string | null } | undefined;
   readonly store: BusinessStore;
   readonly configStore: RuntimeConfigurationStore;
   readonly participation: ParticipationRegistry;

@@ -11,6 +11,7 @@ export interface ParticipationWindow {
 
 /** The chat-level `participation` section; `null` when the chat configures none. */
 export interface ParticipationView {
+  readonly ask_only?: boolean;
   readonly active_windows?: readonly ParticipationWindow[];
   readonly trigger_keywords?: readonly string[];
   readonly attention_window_seconds?: number;
@@ -120,7 +121,7 @@ export function updateChat(
 /** `active_windows: null` removes the chat's windows; an empty array keeps the gate with no schedule. */
 export function updateChatParticipation(
   id: string,
-  body: { readonly active_windows: readonly ParticipationWindow[] | null },
+  body: { readonly active_windows?: readonly ParticipationWindow[] | null; readonly ask_only?: boolean | null },
   revision: string,
 ): Promise<ChatWriteResponse> {
   return call<ChatWriteResponse>(`/chats/${encodeURIComponent(id)}/participation`, {

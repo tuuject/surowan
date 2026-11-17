@@ -17,7 +17,7 @@ import { summarizeWindows } from '@/lib/participation';
 import { toast } from '@/lib/toast.ts';
 import { useProviderWrite } from '@/lib/use-provider-write';
 
-type ParticipationMode = 'unrestricted' | 'none' | 'custom';
+type ParticipationMode = 'unrestricted' | 'none' | 'custom' | 'ask';
 
 interface WindowDraft {
   readonly key: number;
@@ -49,6 +49,9 @@ function windowFromDraft(draft: WindowDraft): ParticipationWindow | undefined {
 }
 
 function initialMode(participation: ParticipationView | null): ParticipationMode {
+  if (participation?.ask_only) {
+    return 'ask';
+  }
   const windows = participation?.active_windows;
   if (windows === undefined) {
     return 'unrestricted';
@@ -145,7 +148,13 @@ function ParticipationForm({
   const summarize = (windows: readonly ParticipationWindow[]): string =>
     summarizeWindows(windows, { dayLabels, dailyLabel, separator: t('common.separator') });
   const globalWindows = view.global_participation?.active_windows ?? [];
-  const [mode, setMode] = useState<ParticipationMode>(initialMode(participation));
+  const [mode, setMode] = useState<ParticipationMode>(
+    initialMode(
+      (participation?.ask_only ?? view.global_participation?.ask_only)
+        ? { ...participation, ask_only: true }
+        : participation,
+    ),
+  );
   const [drafts, setDrafts] = useState<WindowDraft[]>(() =>
     draftsFromWindows(participation?.active_windows ?? view.global_participation?.active_windows ?? []),
   );
@@ -166,7 +175,12 @@ function ParticipationForm({
     mutationFn: () => {
       const activeWindows =
         mode === 'unrestricted' ? null : mode === 'none' ? [] : (drafts.map(windowFromDraft) as ParticipationWindow[]);
-      return updateChatParticipation(chat.id, { active_windows: activeWindows }, view.revision);
+      const askOnly = mode === 'ask' ? true : view.global_participation?.ask_only === true ? false : null;
+      return updateChatParticipation(
+        chat.id,
+        mode === 'ask' ? { ask_only: true } : { active_windows: activeWindows, ask_only: askOnly },
+        view.revision,
+      );
     },
     onMutate: () => onPendingChange(true),
     onSuccess: (result) => {
@@ -216,7 +230,7 @@ function ParticipationForm({
           label={t('pages.chats.colActiveHours')}
           value={mode}
           onChange={(value) => {
-            if (value === 'unrestricted' || value === 'none' || value === 'custom') {
+            if (value === 'unrestricted' || value === 'none' || value === 'custom' || value === 'ask') {
               switchMode(value);
             }
           }}
@@ -229,11 +243,14 @@ function ParticipationForm({
                   ? t('pages.chats.modeUnrestrictedHint')
                   : t('pages.chats.modeUnrestrictedHintGlobal', { windows: summarize(globalWindows) }),
             },
+            { value: 'ask', label: t('pages.chats.modeAskOnly') },
             { value: 'none', label: t('pages.chats.modeNone'), description: t('pages.chats.modeNoneHint') },
             { value: 'custom', label: t('pages.chats.modeCustom'), description: t('pages.chats.modeCustomHint') },
           ]}
         />
-        {mode !== 'unrestricted' ? <WeekWindowsChart windows={previewWindows} timezone={timezone} /> : null}
+        {mode !== 'unrestricted' && mode !== 'ask' ? (
+          <WeekWindowsChart windows={previewWindows} timezone={timezone} />
+        ) : null}
         {mode === 'custom' ? (
           <div className={css({ display: 'flex', flexDirection: 'column', gap: '3' })}>
             <div className={css({ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '3' })}>

@@ -136,6 +136,9 @@ function participationLine(
     return null;
   }
   const rule = deps.participation.ruleFor(deps.store.orm, telegramChatId, chat.type);
+  if (rule?.askOnly) {
+    return '参与模式：仅 /ask 唤起';
+  }
   if (rule === undefined) {
     return null;
   }

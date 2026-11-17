@@ -8,7 +8,9 @@ test.beforeEach(async ({ page }) => {
   await prepareChatsPage(page);
 });
 
-test('active-hours editing sets custom periods, an empty schedule and back to unrestricted', async ({ page }) => {
+test('active-hours editing sets custom periods, an empty schedule and back to unrestricted', async ({
+  page,
+}, testInfo) => {
   const finish = watchPageIssues(page);
   // Only groups gate participation; the fixture's only Chat is private, so the
   // suite hot-adds its own group and removes it at the end.
@@ -67,6 +69,21 @@ test('active-hours editing sets custom periods, an empty schedule and back to un
   await expect(hoursCell).toContainText('Mon–Fri 09:00–18:00');
   await expect(hoursCell).toContainText('Daily 20:00–23:30');
   await expect(hoursCell.locator('p')).toHaveCount(2);
+
+  dialog = await openDialog();
+  await dialog.getByRole('radio', { name: 'Only /ask', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(hoursCell).toContainText('Only /ask');
+  expect((await viewOf(page)).items.find((chat) => chat.id === GROUP)?.saved?.participation?.ask_only).toBe(true);
+  dialog = await openDialog();
+  await expect(dialog.getByRole('radio', { name: 'Only /ask', exact: true })).toBeChecked();
+  await page.screenshot({ path: testInfo.outputPath('ask-only-dialog.png'), fullPage: true });
+  await dialog.getByRole('radio', { name: /Custom periods/ }).click();
+  await dialog.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(hoursCell).toContainText('Mon–Fri 09:00–18:00');
+  expect((await viewOf(page)).items.find((chat) => chat.id === GROUP)?.saved?.participation?.ask_only).toBeUndefined();
 
   // The explicit empty array is a distinct state: trigger-only.
   dialog = await openDialog();

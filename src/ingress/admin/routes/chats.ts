@@ -1,3 +1,4 @@
+import { parseParticipation, updateChatParticipation } from '../chat-participation.ts';
 import type { RuntimeConfiguration, RuntimeConfigurationStore } from '../../../platform/runtime-config.ts';
 import type { MemoBlobStore } from '../../../context/memo-pad/blobs.ts';
 import type { BucketScheduler } from '../../../orchestration/scheduler/index.ts';
@@ -22,12 +23,10 @@ import {
   parseChatSettings,
   parseCreateChat,
   parseGroupMemory,
-  parseParticipation,
   parseProactiveReply,
   runningInvocationIdsForTelegramChat,
   updateChat,
   updateChatGroupMemory,
-  updateChatParticipation,
   updateChatProactiveReply,
 } from '../chats.ts';
 

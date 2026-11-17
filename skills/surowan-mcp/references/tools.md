@@ -97,3 +97,5 @@
 - `invalid_body` / `invalid_query`：参数不符合端点契约；修正后重试，不要猜字段。
 - `replay_unavailable` / `replay_scene_unavailable`：重放未接线或场景不可用；报告，不伪造输入。
 - `confirmation_required`：破坏性或计费工具缺少 `confirm: true`。
+
+`surowan_chat_participation` body 可选 active_windows 与 ask_only（至少一个）；省略保留，null 删除覆盖，ask_only false 退出全局 true。只接受群聊，保留其他参与字段。

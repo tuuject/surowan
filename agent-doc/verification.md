@@ -562,3 +562,14 @@ pnpm test
 生图审计详情浏览器回归：`pnpm run admin:build` 后执行 `pnpm run admin:test:e2e 12-image-generations`，使用固定生成记录验证详情深链接、刷新、列表进入与返回；断言生成状态、Attempt 错误、上游请求编号、用量、最终 Prompt、参考图快照顺序与原图链接、无参考图及原图加载失败状态，并保证浏览过程不发起写请求或真实生图。
 
 生图素材页浏览器回归：`pnpm run admin:build` 后执行 `pnpm run admin:test:e2e 12-image-assets`，用有状态假服务验证两个标签页的种子数据、Prompt 素材的新建/改名/归档与参考图的上传/改名/归档（断言真实写方法与路径），以及 `enabled: false` 时的设置门控。
+
+## /ask 验证契约
+
+| 测试 | 契约 |
+| --- | --- |
+| `test/participation/ask.test.ts` | 命令身份、入库、注意力、typing、0 秒独立桶、ignored 例外、继承、编辑、追赶与 direct sampling |
+| `test/participation/ask-catch-up.test.ts` | ask-only 追赶保留 history、独立限制 ask 数量、排除 revision-1 编辑、保留跳过批次审计 |
+| `test/proactive/ask.test.ts` | 零概率时 ask 批次仍创建 queued Invocation；原始 ask 编辑成普通文本后仍绕过抽样，不修改保底状态 |
+| `test/schema/migrations-ask.test.ts` | 063 保留旧注意力、索引并扩展 CHECK |
+| `test/admin/chats-participation.test.ts` | ask_only patch、字段保留、空对象删除、私聊拒绝 |
+| `apps/admin-next/e2e/09-chats-active-hours.e2e.ts` | 英文面板开关 Only /ask、恢复时段与列表摘要 |

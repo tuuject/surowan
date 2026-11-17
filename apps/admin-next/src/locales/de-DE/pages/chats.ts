@@ -69,6 +69,7 @@ export const chats: Catalog<typeof chatsEn> = {
     'Die Zeitfenster dieses Chats entfernen. Ohne globalen Zeitplan bleibt der Bot rund um die Uhr aktiv.',
   modeUnrestrictedHintGlobal:
     'Die Zeitfenster dieses Chats entfernen; die globalen Zeitfenster ({{windows}}) gelten weiter.',
+  modeAskOnly: 'Nur /ask',
   modeNone: 'Keine aktiven Zeitfenster',
   modeNoneHint:
     'Gewöhnliche Nachrichten wecken den Bot nie; nur @Erwähnungen, Antworten oder Auslöse-Schlüsselwörter tun das.',

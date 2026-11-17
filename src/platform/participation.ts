@@ -1,3 +1,4 @@
+import { isAsk } from './bot-command.ts';
 import type { Message } from 'grammy/types';
 import type { ParticipationConfig, ParticipationWindowConfig } from './config/index.ts';
 import { richMessageMentions, richMessagePlainText } from './telegram-markdown/index.ts';
@@ -5,7 +6,7 @@ import { richMessageMentions, richMessagePlainText } from './telegram-markdown/i
 /** Default length of the post-trigger attention window, in seconds. */
 export const DEFAULT_ATTENTION_WINDOW_SECONDS = 300;
 
-export type TriggerKind = 'mention' | 'reply_to_bot' | 'keyword';
+export type TriggerKind = 'ask' | 'mention' | 'reply_to_bot' | 'keyword';
 
 export interface BotIdentity {
   readonly id: bigint;
@@ -26,6 +27,7 @@ interface CompiledWindow {
  * only costs one cached formatter construction.
  */
 export interface ParticipationRule {
+  readonly askOnly: boolean;
   readonly windows: readonly CompiledWindow[];
   readonly keywords: readonly string[];
   readonly windowSeconds: number;
@@ -48,9 +50,22 @@ export function compileParticipation(options: {
   if (global === undefined && chat === undefined) {
     return undefined;
   }
+  const askOnly = chat?.ask_only ?? global?.ask_only ?? false;
+  const hasSchedule = [global, chat].some(
+    (value) =>
+      value !== undefined &&
+      (Object.keys(value).length === 0 ||
+        value.active_windows !== undefined ||
+        value.trigger_keywords !== undefined ||
+        value.attention_window_seconds !== undefined),
+  );
+  if (!askOnly && !hasSchedule) {
+    return undefined;
+  }
   const windows = chat?.active_windows ?? global?.active_windows ?? [];
   const keywords = [...(global?.trigger_keywords ?? []), ...(chat?.trigger_keywords ?? [])];
   return {
+    askOnly,
     windows: windows.map(compileWindow),
     keywords: uniqueLowerCased(keywords),
     windowSeconds:
@@ -87,8 +102,16 @@ export function isWithinActiveWindows(rule: ParticipationRule, now: Date): boole
   return false;
 }
 
-/** A direct mention wins over a reply, which wins over a keyword hit. */
-export function matchTriggerKind(message: Message, bot: BotIdentity, keywords: readonly string[]): TriggerKind | null {
+/** An explicit ask wins over mention, reply and keyword cues. */
+export function matchTriggerKind(
+  message: Message,
+  bot: BotIdentity,
+  keywords: readonly string[],
+  includeAsk = true,
+): TriggerKind | null {
+  if (includeAsk && isAsk(message, bot.username)) {
+    return 'ask';
+  }
   if (mentionsBot(message, bot)) {
     return 'mention';
   }

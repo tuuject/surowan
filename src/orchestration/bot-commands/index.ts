@@ -1,3 +1,4 @@
+import { botCommandToken } from '../../platform/bot-command.ts';
 import { eq } from 'drizzle-orm';
 import type { Message } from 'grammy/types';
 import { ConversationContextStore } from '../../context/store/index.ts';
@@ -108,8 +109,9 @@ export interface BotCommandRegistration {
 }
 
 // Single source of truth for the Telegram command menu: everything registered
-// via setMyCommands must also parse in parseBotCommand.
+// via setMyCommands must be recognized as a control command or model-facing /ask.
 export const BOT_COMMANDS: readonly BotCommandRegistration[] = [
+  { command: 'ask', description: '显式唤起 Bot 回答这条消息' },
   { command: 'pause', description: '暂停本群互动（仅管理员）' },
   { command: 'resume', description: '恢复本群互动（仅管理员）' },
   { command: 'status', description: '查看当前模型、thinking effort 与本日 token 用量' },
@@ -129,7 +131,7 @@ export interface CommandRegistrationApi {
 
 export async function registerBotCommands(api: CommandRegistrationApi): Promise<void> {
   for (const entry of BOT_COMMANDS) {
-    if (COMMAND_NAMES[entry.command] !== true) {
+    if (COMMAND_NAMES[entry.command] !== true && entry.command !== 'ask') {
       throw new Error(`Command not handled by parseBotCommand: ${entry.command}`);
     }
   }
@@ -142,18 +144,11 @@ export function parseBotCommand(message: Message, botUsername: string | null): P
   if (message.text === undefined || message.from?.is_bot === true) {
     return null;
   }
-  const text = message.text;
-  const entity = message.entities?.find((entry) => entry.type === 'bot_command' && entry.offset === 0);
-  if (entity === undefined) {
+  const token = botCommandToken(message, botUsername);
+  if (token === null) {
     return null;
   }
-  const token = text.slice(0, entity.length);
-  const separator = token.indexOf('@');
-  const name = (separator === -1 ? token.slice(1) : token.slice(1, separator)).toLowerCase();
-  const mention = separator === -1 ? null : token.slice(separator + 1).toLowerCase();
-  if (mention !== null && mention !== botUsername?.toLowerCase()) {
-    return null;
-  }
+  const { name } = token;
   if (COMMAND_NAMES[name] !== true) {
     return null;
   }
@@ -162,7 +157,7 @@ export function parseBotCommand(message: Message, botUsername: string | null): P
     if (!ARGUMENT_COMMANDS.has(name)) {
       return { name: commandName };
     }
-    const argument = text.slice(entity.offset + entity.length).trim();
+    const argument = message.text.slice(token.length).trim();
     return argument.length === 0 ? { name: commandName } : { name: commandName, argument };
   })();
   const threadId = conversationThreadId(message);

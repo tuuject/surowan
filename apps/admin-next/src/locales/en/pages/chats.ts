@@ -65,6 +65,7 @@ export const chats = {
   modeUnrestricted: 'No schedule restriction',
   modeUnrestrictedHint: "Remove this Chat's periods. Without a global schedule the bot stays active around the clock.",
   modeUnrestrictedHintGlobal: "Remove this Chat's periods; the global periods ({{windows}}) keep applying.",
+  modeAskOnly: 'Only /ask',
   modeNone: 'No active periods',
   modeNoneHint: 'Ordinary messages never wake the bot; only @mentions, replies or trigger keywords do.',
   modeCustom: 'Custom periods',

@@ -65,6 +65,7 @@ export const chats: CompleteCatalog<typeof chatsEn> = {
   modeUnrestricted: 'بلا قيود جدولة',
   modeUnrestrictedHint: 'إزالة فترات هذه المحادثة. بدون جدول عام يبقى البوت نشطًا على مدار الساعة.',
   modeUnrestrictedHintGlobal: 'إزالة فترات هذه المحادثة؛ تبقى الفترات العامة ({{windows}}) سارية.',
+  modeAskOnly: 'فقط /ask',
   modeNone: 'لا فترات نشطة',
   modeNoneHint: 'الرسائل العادية لا توقظ البوت أبدًا؛ فقط الإشارات (@) أو الردود أو الكلمات المفتاحية المشغّلة تفعل ذلك.',
   modeCustom: 'فترات مخصصة',
