@@ -17,6 +17,7 @@ import { media, messageRevisions, playgroundAssets } from '../../src/store/schem
 import {
   createRoom,
   directory,
+  installDeliveryHooks,
   ledgerRow,
   NOW,
   reserveSend,
@@ -24,6 +25,8 @@ import {
   store,
   telegramTransport,
 } from './delivery-fixtures.ts';
+
+installDeliveryHooks();
 
 describe('Bot Playground virtual delivery', () => {
   test('publishes a picture with its asset and refuses bytes it cannot store', async () => {

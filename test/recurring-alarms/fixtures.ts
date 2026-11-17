@@ -10,7 +10,7 @@ import { LongTaskService } from '../../src/store/long-tasks/index.ts';
 import { PlaygroundStore } from '../../src/store/playground/index.ts';
 import { RecurringAlarmService } from '../../src/store/recurring-alarms/index.ts';
 import type { RecurringAlarmDraft } from '../../src/store/recurring-alarms/records.ts';
-import { type FixtureConfig, testConfigJsonc, writeTestConfig } from '../helpers.ts';
+import { afterThisTest, type FixtureConfig, testConfigJsonc, writeTestConfig } from '../helpers.ts';
 
 export const CHAT_ID = 123456789;
 
@@ -53,12 +53,20 @@ export async function setup(
   } = {},
 ) {
   const directory = await mkdtemp(join(tmpdir(), 'surowan-recurring-'));
-  directories.push(directory);
   const configPath = join(directory, 'config.jsonc');
   await writeTestConfig(directory, configPath, testConfigJsonc(directory, options.transform));
   const loaded = await loadConfig(configPath);
   const store = await SqliteStore.open(loaded.config);
-  stores.push(store);
+  afterThisTest(
+    async () => {
+      store.close();
+      await rm(directory, { recursive: true, force: true });
+    },
+    () => {
+      stores.push(store);
+      directories.push(directory);
+    },
+  );
   const at = new Date().toISOString();
   store.db
     .prepare(

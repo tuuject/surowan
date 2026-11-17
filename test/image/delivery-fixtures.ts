@@ -15,12 +15,14 @@ import { loadConfig } from '../../src/adapters/local-monolith/config/index.ts';
 import type { CapabilityRefResolver } from '../../src/platform/invocation-context.ts';
 import { SqliteStore } from '../../src/adapters/local-monolith/database.ts';
 import {
+  afterThisTest,
   invocationCapabilities,
   renderInvocationContext,
   testConfigJsonc,
   testConfigStore,
   testSendToolEnv,
   type TestInvocationContext,
+  trackTempDirectory,
   writeTestConfig,
 } from '../helpers.ts';
 
@@ -62,6 +64,23 @@ afterAll(async () => {
   );
 });
 
+/**
+ * Registers a store opened mid-test (a reopen after `store.close()`): it is
+ * closed when the test finishes, or lands in `openedStores` outside one.
+ */
+export function trackStore(store: SqliteStore): void {
+  afterThisTest(
+    () => {
+      if (store.db.open) {
+        store.close();
+      }
+    },
+    () => {
+      openedStores.push(store);
+    },
+  );
+}
+
 export interface Fixture {
   readonly store: SqliteStore;
   readonly config: RawConfig;
@@ -72,7 +91,7 @@ export interface Fixture {
 
 export async function setup(extraChatIds: readonly number[] = []): Promise<Fixture> {
   const directory = await mkdtemp(join(tmpdir(), 'surowan-image-delivery-'));
-  directories.push(directory);
+  trackTempDirectory(directories, directory);
   const configPath = join(directory, 'config.jsonc');
   await writeTestConfig(
     directory,
@@ -86,7 +105,7 @@ export async function setup(extraChatIds: readonly number[] = []): Promise<Fixtu
   const loaded = await loadConfig(configPath);
   const configStore = await testConfigStore(loaded);
   const store = await SqliteStore.open(loaded.config);
-  openedStores.push(store);
+  trackStore(store);
   return {
     store,
     config: loaded.config,

@@ -21,7 +21,7 @@ import { SecretStore } from '../../src/platform/secrets.ts';
 import { SqliteStore } from '../../src/adapters/local-monolith/database.ts';
 import { invocationMessages, media } from '../../src/store/schema/index.ts';
 import { seedAdminFixture } from '../fixtures/admin-seed.ts';
-import { fauxRegistry, testConfigJsonc, testConfigStore, writeTestConfig } from '../helpers.ts';
+import { afterThisTest, fauxRegistry, testConfigJsonc, testConfigStore, writeTestConfig } from '../helpers.ts';
 import { createAdminAccount } from '../fixtures/admin-account.ts';
 
 const cleanup: Array<() => Promise<void>> = [];
@@ -86,10 +86,18 @@ export async function fixture() {
   );
   const loaded = await loadConfig(configPath);
   const store = await SqliteStore.open(loaded.config);
-  cleanup.push(async () => {
-    store.close();
-    await rm(directory, { recursive: true, force: true });
-  });
+  afterThisTest(
+    async () => {
+      store.close();
+      await rm(directory, { recursive: true, force: true });
+    },
+    () => {
+      cleanup.push(async () => {
+        store.close();
+        await rm(directory, { recursive: true, force: true });
+      });
+    },
+  );
   const configStore = await testConfigStore(loaded, fauxRegistry(fauxProvider({ provider: 'agent' })));
   const secrets = new SecretStore();
   secrets.remember(secret);

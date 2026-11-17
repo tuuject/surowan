@@ -6,11 +6,12 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { awaitServerAttempts } from '../../src/capabilities/mcp/availability.ts';
 import { ImConnectionRegistry } from '../../src/platform/im-connection.ts';
 import { standingWarnings } from '../../src/platform/warning-catalog.ts';
+import { trackTempDirectory } from '../helpers.ts';
 import { CHAT, directories, harness, server, waitForState, writeConfig } from './availability-shared.ts';
 
 test('the deprecated required key still loads, warns per alias, and raises a standing warning', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'surowan-mcp-required-'));
-  directories.push(directory);
+  trackTempDirectory(directories, directory);
   const loaded = await writeConfig(directory, (config) => {
     config.mcp = {
       servers: [

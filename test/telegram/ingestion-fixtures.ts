@@ -7,7 +7,13 @@ import { TelegramIngestion } from '../../src/ingress/telegram-ingestion/index.ts
 
 import { loadConfig } from '../../src/adapters/local-monolith/config/index.ts';
 import { SqliteStore } from '../../src/adapters/local-monolith/database.ts';
-import { type FixtureConfig, testConfigJsonc, testConfigStore, writeTestConfig } from '../helpers.ts';
+import {
+  type FixtureConfig,
+  testConfigJsonc,
+  testConfigStore,
+  trackTempDirectory,
+  writeTestConfig,
+} from '../helpers.ts';
 
 const directories: string[] = [];
 
@@ -24,7 +30,7 @@ export async function setup(
   botUsername?: string,
 ): Promise<{ store: SqliteStore; ingestion: TelegramIngestion }> {
   const directory = await mkdtemp(join(tmpdir(), 'surowan-ingest-'));
-  directories.push(directory);
+  trackTempDirectory(directories, directory);
   const configPath = join(directory, 'config.jsonc');
   await writeTestConfig(directory, configPath, testConfigJsonc(directory, transform));
   const loaded = await loadConfig(configPath);

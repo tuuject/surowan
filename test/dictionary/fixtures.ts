@@ -23,7 +23,7 @@ import { AgentModelSwitcher } from '../../src/platform/models/switch.ts';
 import type { RuntimeConfigurationStore } from '../../src/platform/runtime-config.ts';
 import { SecretStore } from '../../src/platform/secrets.ts';
 import { SqliteStore } from '../../src/adapters/local-monolith/database.ts';
-import { testConfigJsonc, testConfigStore, writeTestConfig } from '../helpers.ts';
+import { testConfigJsonc, testConfigStore, trackTempDirectory, writeTestConfig } from '../helpers.ts';
 import { createAdminAccount } from '../fixtures/admin-account.ts';
 
 export const directories: string[] = [];
@@ -43,7 +43,7 @@ export interface Fixture {
 
 export async function fixture(): Promise<Fixture> {
   const directory = await mkdtemp(join(tmpdir(), 'surowan-dictionary-'));
-  directories.push(directory);
+  trackTempDirectory(directories, directory);
   const configPath = join(directory, 'config.jsonc');
   await writeTestConfig(directory, configPath);
   const loaded = await loadConfig(configPath);
@@ -78,7 +78,7 @@ export async function adminFixture(): Promise<{
   readonly cookie: string;
 }> {
   const directory = await mkdtemp(join(tmpdir(), 'surowan-dictionary-admin-'));
-  directories.push(directory);
+  trackTempDirectory(directories, directory);
   const configPath = join(directory, 'config.jsonc');
   const staticDir = join(directory, 'bundle');
   await mkdir(staticDir, { recursive: true });

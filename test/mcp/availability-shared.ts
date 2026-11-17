@@ -11,7 +11,7 @@ import { type InvocationContext, previewContext } from '../../src/platform/invoc
 import { keyJarPath } from '../../src/platform/key-jar.ts';
 import { SecretStore } from '../../src/platform/secrets.ts';
 import { seedChat, seedInvocation } from '../memo/fixtures.ts';
-import { testConfigJsonc, writeTestConfig, type FixtureConfig } from '../helpers.ts';
+import { testConfigJsonc, trackTempDirectory, writeTestConfig, type FixtureConfig } from '../helpers.ts';
 
 /** Temp directories this suite's helpers created; cleaned up after the file. */
 export const directories: string[] = [];
@@ -83,7 +83,7 @@ export async function harness(transform: (config: FixtureConfig, directory: stri
   close(): Promise<void>;
 }> {
   const directory = await mkdtemp(join(tmpdir(), 'surowan-mcp-availability-'));
-  directories.push(directory);
+  trackTempDirectory(directories, directory);
   const loaded = await writeConfig(directory, (config) => {
     transform(config, directory);
     config.telegram.chats = [{ id: CHAT, instructions_file: 'chat-instructions.md' }];

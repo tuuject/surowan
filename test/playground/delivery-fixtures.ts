@@ -5,9 +5,10 @@
  * store and check the ledger, the message it produced, and every way a delivery
  * is refused - always with an explicit reason, never a fake success.
  *
- * This is not a test file: importing it registers the per-test store hooks (one
- * fresh store and temp directory per test, a cleared Telegram spy) and the
- * `store`/`directory` bindings the suites read stay live across those hooks.
+ * This is not a test file: the importing suite calls `installDeliveryHooks()`
+ * to register the per-test store hooks (one fresh store and temp directory per
+ * test, a cleared Telegram spy) and the `store`/`directory` bindings the
+ * suites read stay live across those hooks.
  */
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -49,18 +50,25 @@ export interface RoomFixture {
 export let directory: string;
 export let store: SqliteStore;
 
-beforeEach(async () => {
-  telegramTransport.mockClear();
-  directory = await mkdtemp(join(tmpdir(), 'surowan-playground-'));
-  store = await SqliteStore.open({
-    paths: { database: join(directory, 'surowan.sqlite'), data: directory },
-  } as never);
-});
+/**
+ * Registers the per-test store lifecycle. With `isolate: false` a module-level
+ * `beforeEach` would bind only to the first importing suite, so each suite
+ * calls this once at its top level.
+ */
+export function installDeliveryHooks(): void {
+  beforeEach(async () => {
+    telegramTransport.mockClear();
+    directory = await mkdtemp(join(tmpdir(), 'surowan-playground-'));
+    store = await SqliteStore.open({
+      paths: { database: join(directory, 'surowan.sqlite'), data: directory },
+    } as never);
+  });
 
-afterEach(async () => {
-  store.close();
-  await rm(directory, { recursive: true, force: true });
-});
+  afterEach(async () => {
+    store.close();
+    await rm(directory, { recursive: true, force: true });
+  });
+}
 
 /**
  * A room is a chat with no Telegram ids plus its own counters. Two rooms may

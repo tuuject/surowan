@@ -3,6 +3,7 @@ import { access, mkdtemp, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { MediaTooLargeError, TelegramMediaClient } from '../../src/capabilities/media/download.ts';
+import { trackTempDirectory } from '../helpers.ts';
 import { directories } from './fixtures.ts';
 
 /** Drives the real download client with a scripted body; no network involved. */
@@ -28,7 +29,7 @@ function telegramClient(getFile: () => Promise<{ readonly file_path?: string }>)
 
 test('the download client types oversized content-length and streaming as MediaTooLargeError', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'surowan-media-download-'));
-  directories.push(directory);
+  trackTempDirectory(directories, directory);
   const destination = join(directory, 'payload');
   const client = telegramClient(async () => ({ file_path: 'photos/payload.bin' }));
   const signal = new AbortController().signal;
@@ -64,7 +65,7 @@ test('the download client types oversized content-length and streaming as MediaT
 
 test('an abort while getFile is pending rejects the download and a late response writes nothing', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'surowan-media-download-'));
-  directories.push(directory);
+  trackTempDirectory(directories, directory);
   const destination = join(directory, 'payload');
   const controller = new AbortController();
   let resolveGetFile: ((file: { readonly file_path?: string }) => void) | undefined;

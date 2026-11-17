@@ -31,7 +31,7 @@ import { type ConversationScope, identityConversation } from '../../src/platform
 import { previewContext } from '../../src/platform/invocation-context.ts';
 import { PlaygroundStore } from '../../src/store/playground/index.ts';
 import { toolCalls } from '../../src/store/schema/index.ts';
-import { testConfigJsonc, testConfigStore, writeTestConfig } from '../helpers.ts';
+import { testConfigJsonc, testConfigStore, trackTempDirectory, writeTestConfig } from '../helpers.ts';
 import { directories } from './fixtures.ts';
 
 const PRIVATE_CHAT = 123456789;
@@ -55,7 +55,7 @@ async function telegramFixture(
   const scope = options.scope ?? 'group';
   const wireChatId = scope === 'private' ? PRIVATE_CHAT : GROUP_CHAT;
   const directory = await mkdtemp(join(tmpdir(), 'surowan-member-profile-'));
-  directories.push(directory);
+  trackTempDirectory(directories, directory);
   const configPath = join(directory, 'config.jsonc');
   await writeTestConfig(
     directory,
@@ -348,7 +348,7 @@ test('an avatar this process cannot accept is reported as missing, not as a fail
 
 test('a room reports its own member fields and never invents an avatar', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'surowan-member-profile-room-'));
-  directories.push(directory);
+  trackTempDirectory(directories, directory);
   const configPath = join(directory, 'config.jsonc');
   await writeTestConfig(directory, configPath);
   const loaded = await loadConfig(configPath);

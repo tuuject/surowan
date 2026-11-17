@@ -20,6 +20,7 @@ import { createImageService } from '../../src/image/service.ts';
 import { keyJarPath } from '../../src/platform/key-jar.ts';
 import { SecretStore } from '../../src/platform/secrets.ts';
 import { chats, conversations, imageGenerationAttempts, imageGenerations } from '../../src/store/schema/index.ts';
+import { afterThisTest, trackTempDirectory } from '../helpers.ts';
 import {
   cleanups,
   directories,
@@ -103,12 +104,17 @@ describe('playground image generation', () => {
 
   test('a standalone process never executes or recovers work of a host it does not serve', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'surowan-standalone-image-'));
-    directories.push(directory);
+    trackTempDirectory(directories, directory);
     const configPath = join(directory, 'config.jsonc');
     await writeImageFixture(directory, configPath);
     const loaded = await loadConfig(configPath);
     const store = await SqliteStore.open(loaded.config);
-    cleanups.push(() => store.close());
+    afterThisTest(
+      () => store.close(),
+      () => {
+        cleanups.push(() => store.close());
+      },
+    );
     const now = new Date().toISOString();
     store.orm
       .insert(chats)
@@ -153,7 +159,12 @@ describe('playground image generation', () => {
         providerAdapter: createOpenRouterAdapter({ fetchImpl: providerFetch }),
         executionEligibility: eligible,
       });
-      cleanups.push(() => service.stop());
+      afterThisTest(
+        () => service.stop(),
+        () => {
+          cleanups.push(() => service.stop());
+        },
+      );
       return service;
     };
     const agentActor = (conversationId: bigint) => ({

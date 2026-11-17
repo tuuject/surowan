@@ -1,5 +1,6 @@
 import { noMemoReads } from '../src/platform/invocation-context.ts';
-import { access, chmod, writeFile } from 'node:fs/promises';
+import { access, chmod, rm, writeFile } from 'node:fs/promises';
+import { onTestFinished } from 'vitest';
 import { dirname, join } from 'node:path';
 import { type Api, createModels, type FauxProviderHandle, type Model, type Models } from '@earendil-works/pi-ai';
 import { serve, type ServerType } from '@hono/node-server';
@@ -466,6 +467,32 @@ export function testTelegramRuntime(
     hosts: { telegram: testTelegramHost(transport, options) },
     conversation: (target) => identityConversation(target, 'telegram', scope),
   };
+}
+
+/**
+ * Runs `close` when the current test finishes. Shared fixture modules use this
+ * instead of module-level afterEach/afterAll: with `isolate: false` those
+ * hooks bind only to the file that evaluated the fixture module first, so
+ * teardown has to attach to the test that opened the resource. Calls made
+ * outside a test (a beforeAll, say) run `fallback` — usually pushing onto the
+ * module's own cleanup array.
+ */
+export function afterThisTest(close: () => Promise<void> | void, fallback: () => void): void {
+  try {
+    onTestFinished(close);
+  } catch {
+    fallback();
+  }
+}
+
+/** Removes `directory` when the current test finishes; outside a test it lands in `bag`. */
+export function trackTempDirectory(bag: string[], directory: string): void {
+  afterThisTest(
+    () => rm(directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }),
+    () => {
+      bag.push(directory);
+    },
+  );
 }
 
 /** The host plus the conversation ref the send tool environment now asks for. */

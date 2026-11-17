@@ -18,13 +18,14 @@ import {
   invocationCapabilities,
   renderInvocationContext,
   testConfigStore,
+  trackTempDirectory,
   writeTestConfig,
 } from '../helpers.ts';
 import { directories } from './fixtures.ts';
 
 test('read_image normalizes once and reuses the 30-day description cache', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'surowan-media-'));
-  directories.push(directory);
+  trackTempDirectory(directories, directory);
   const configPath = join(directory, 'config.jsonc');
   await writeTestConfig(directory, configPath);
   const loaded = await loadConfig(configPath);
@@ -121,7 +122,7 @@ test('read_image normalizes once and reuses the 30-day description cache', async
 
 test('vision analyses run at vision.thinking_level, or at the model default when it is unset', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'surowan-media-thinking-'));
-  directories.push(directory);
+  trackTempDirectory(directories, directory);
   const configPath = join(directory, 'config.jsonc');
   await writeTestConfig(directory, configPath);
   const loaded = await loadConfig(configPath);

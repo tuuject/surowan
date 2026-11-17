@@ -11,12 +11,12 @@ import type { MediaDownloader } from '../../src/capabilities/media/download.ts';
 import { MediaService } from '../../src/capabilities/media/index.ts';
 import { SecretStore } from '../../src/platform/secrets.ts';
 import { TelegramIngestion } from '../../src/ingress/telegram-ingestion/index.ts';
-import { testConfigStore, writeTestConfig } from '../helpers.ts';
+import { testConfigStore, trackTempDirectory, writeTestConfig } from '../helpers.ts';
 import { directories } from './fixtures.ts';
 
 test('prepareSceneImage reads photos, image documents and stickers read-only, while generation input still rejects stickers', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'surowan-media-scene-'));
-  directories.push(directory);
+  trackTempDirectory(directories, directory);
   const configPath = join(directory, 'config.jsonc');
   await writeTestConfig(directory, configPath);
   const loaded = await loadConfig(configPath);

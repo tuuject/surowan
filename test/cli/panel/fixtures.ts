@@ -26,7 +26,7 @@ import { SqliteStore } from '../../../src/adapters/local-monolith/database.ts';
 import { PlaygroundAssetStore } from '../../../src/capabilities/media/local-assets.ts';
 import { PlaygroundIngress } from '../../../src/ingress/playground.ts';
 import { PlaygroundStore } from '../../../src/store/playground/index.ts';
-import { testConfigJsonc, testConfigStore, writeTestConfig } from '../../helpers.ts';
+import { testConfigJsonc, testConfigStore, trackTempDirectory, writeTestConfig } from '../../helpers.ts';
 
 const BIN = fileURLToPath(new URL('../../../packages/cli/src/bin.ts', import.meta.url));
 
@@ -60,7 +60,7 @@ export interface PanelFixtureOptions {
  */
 export async function panelFixture(options: PanelFixtureOptions = {}): Promise<PanelFixture> {
   const directory = await mkdtemp(join(tmpdir(), 'surowan-cli-panel-'));
-  directories.push(directory);
+  trackTempDirectory(directories, directory);
   const home = join(directory, 'home');
   await mkdir(home, { recursive: true });
   const configPath = join(directory, 'config.jsonc');

@@ -13,7 +13,7 @@ import type { InvocationContext } from '../../src/platform/invocation-context.ts
 import { SecretStore } from '../../src/platform/secrets.ts';
 import { SqliteStore } from '../../src/adapters/local-monolith/database.ts';
 import { createToolAudit } from '../../src/store/tool-audit.ts';
-import { testConfigStore, writeTestConfig } from '../helpers.ts';
+import { testConfigStore, trackTempDirectory, writeTestConfig } from '../helpers.ts';
 import { DictionaryStore } from '../../src/plugins/dictionary/store.ts';
 import { directories, fixture } from './fixtures.ts';
 
@@ -109,7 +109,7 @@ test('the tool model inherits the global agent settings until one is configured'
 
 test('merge preview calls the tool model and persists nothing; confirm writes atomically', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'surowan-dictionary-merge-'));
-  directories.push(directory);
+  trackTempDirectory(directories, directory);
   const configPath = join(directory, 'config.jsonc');
   await writeTestConfig(directory, configPath);
   const loaded = await loadConfig(configPath);
@@ -235,7 +235,7 @@ test('merge preview calls the tool model and persists nothing; confirm writes at
 
 test('merge rejects an abnormal stop reason and an invalid suggestion, and audits each as an error', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'surowan-dictionary-merge-strict-'));
-  directories.push(directory);
+  trackTempDirectory(directories, directory);
   const configPath = join(directory, 'config.jsonc');
   await writeTestConfig(directory, configPath);
   const loaded = await loadConfig(configPath);

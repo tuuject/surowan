@@ -4,7 +4,7 @@ import { dirname, join } from 'node:path';
 import Database from 'better-sqlite3';
 import { afterEach } from 'vitest';
 import { loadConfig } from '../../src/adapters/local-monolith/config/index.ts';
-import { writeTestConfig } from '../helpers.ts';
+import { afterThisTest, writeTestConfig } from '../helpers.ts';
 
 export const directories: string[] = [];
 
@@ -18,6 +18,15 @@ afterEach(async () => {
   }
   directories.length = 0;
 });
+
+function trackDirectory(directory: string): void {
+  afterThisTest(
+    () => rm(directory, { recursive: true, force: true }).catch(() => undefined),
+    () => {
+      directories.push(directory);
+    },
+  );
+}
 
 export async function loadMigrationFile(version: number): Promise<string> {
   const name = String(version).padStart(3, '0');
@@ -36,7 +45,7 @@ export async function createPre020Db(): Promise<{
   directory: string;
 }> {
   const directory = await mkdtemp(join(tmpdir(), 'surowan-mig-'));
-  directories.push(directory);
+  trackDirectory(directory);
   const configPath = join(directory, 'config.jsonc');
   await writeTestConfig(directory, configPath);
   const { config } = await loadConfig(configPath);

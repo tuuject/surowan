@@ -15,6 +15,7 @@ import {
   createRoom,
   deliver,
   hostFor,
+  installDeliveryHooks,
   ledgerRow,
   NOW,
   reserveSend,
@@ -22,6 +23,8 @@ import {
   store,
   telegramTransport,
 } from './delivery-fixtures.ts';
+
+installDeliveryHooks();
 
 describe('Bot Playground virtual delivery', () => {
   test('the bot identity belongs to the room and survives a namesake and retention', async () => {

@@ -9,6 +9,7 @@
  * registers their shared temp-directory cleanup.
  */
 import { afterAll } from 'vitest';
+import { trackTempDirectory } from '../helpers.ts';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -45,7 +46,7 @@ export async function fixture(
   } = {},
 ): Promise<Fixture> {
   const directory = await mkdtemp(join(tmpdir(), 'surowan-admin-'));
-  directories.push(directory);
+  trackTempDirectory(directories, directory);
   const configPath = join(directory, 'config.jsonc');
   const staticDir = join(directory, 'bundle');
   await mkdir(join(staticDir, 'static'), { recursive: true });

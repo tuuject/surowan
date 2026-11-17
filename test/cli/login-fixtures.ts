@@ -8,6 +8,7 @@ import { PassThrough, Writable } from 'node:stream';
 import { fileURLToPath } from 'node:url';
 import { afterEach, vi } from 'vitest';
 import { runCli } from '../../packages/cli/src/run.ts';
+import { afterThisTest } from '../helpers.ts';
 
 export const KEY = 'synthetic-login-key-never-print';
 export const KEY_INFO = {
@@ -26,15 +27,35 @@ afterEach(async () => {
   vi.restoreAllMocks();
 });
 
+// Under a shared module registry this file's afterEach binds to the first
+// importing suite only, so each entry point re-registers teardown against the
+// test that is actually running.
+function trackMocks(): void {
+  afterThisTest(
+    () => {
+      vi.restoreAllMocks();
+    },
+    () => undefined,
+  );
+}
+
+function track(close: () => Promise<void>): void {
+  afterThisTest(close, () => {
+    cleanup.push(close);
+  });
+}
+
 export async function home(): Promise<string> {
+  trackMocks();
   const dir = await mkdtemp(join(tmpdir(), 'surowan-login-'));
-  cleanup.push(async () => await rm(dir, { recursive: true, force: true }));
+  track(async () => await rm(dir, { recursive: true, force: true }));
   return dir;
 }
 
 export async function server(
   handler: (response: ServerResponse, request: { method: string | undefined; url: string | undefined }) => void,
 ) {
+  trackMocks();
   const requests: Array<{ method: string | undefined; url: string | undefined; authorization: string | undefined }> =
     [];
   const http = createServer((request, response) => {
@@ -43,7 +64,7 @@ export async function server(
     handler(response, captured);
   });
   await new Promise<void>((resolve) => http.listen(0, '127.0.0.1', resolve));
-  cleanup.push(async () => {
+  track(async () => {
     http.closeAllConnections();
     await new Promise<void>((resolve) => http.close(() => resolve()));
   });
@@ -60,6 +81,7 @@ export function json(response: ServerResponse, status: number, body: unknown): v
 }
 
 export async function cli(args: readonly string[], homeDir: string, env: Record<string, string> = {}) {
+  trackMocks();
   let stdout = '';
   let stderr = '';
   const code = await runCli(args, {
@@ -84,6 +106,7 @@ export async function child(
   keepOpen = false,
   overrides: Record<string, string> = {},
 ) {
+  trackMocks();
   const env: Record<string, string | undefined> = { ...process.env, HOME: homeDir, USERPROFILE: homeDir };
   delete env.SUROWAN_API_KEY;
   delete env.SUROWAN_ENDPOINT;
@@ -113,6 +136,7 @@ export async function child(
 }
 
 export function terminal() {
+  trackMocks();
   let stderr = '';
   const rawModes: boolean[] = [];
   const input = Object.assign(new PassThrough(), {
@@ -132,7 +156,7 @@ export function terminal() {
   );
   vi.spyOn(process, 'stdin', 'get').mockReturnValue(input as unknown as typeof process.stdin);
   vi.spyOn(process, 'stderr', 'get').mockReturnValue(output as unknown as typeof process.stderr);
-  cleanup.push(async () => {
+  track(async () => {
     input.destroy();
     output.destroy();
   });
