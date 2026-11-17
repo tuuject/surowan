@@ -3,6 +3,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js';
 import { expect, test } from 'vitest';
 import { convertMcpResult } from '../../src/capabilities/mcp/content.ts';
+import { awaitServerAttempts } from '../../src/capabilities/mcp/availability.ts';
 import { McpManager } from '../../src/capabilities/mcp/index.ts';
 import { MAX_DOWNLOAD_BYTES } from '../../src/capabilities/media/image.ts';
 import { loadToolImages } from '../../src/capabilities/media/tool-images.ts';
@@ -206,7 +207,6 @@ test('Streamable HTTP accepts native mixed images and bounds oversized image res
           transport: 'streamable_http' as const,
           url: `http://127.0.0.1:${http.port}/mcp`,
           follow_redirects: false,
-          required: true,
           tools: ['capture'],
           payload_max_bytes: 4096,
           result_max_bytes: 1024,
@@ -218,6 +218,7 @@ test('Streamable HTTP accepts native mixed images and bounds oversized image res
   const manager = new McpManager(f.store, httpConfig, new SecretStore());
   try {
     await manager.start();
+    await awaitServerAttempts(manager);
     const tool = manager.createTools(f.context, Date.now() + 10_000, httpConfig)[0]!;
     const result = await tool.execute('http_image', {});
     expect(result.isError).toBe(true);

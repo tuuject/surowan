@@ -2,6 +2,7 @@ import type { ImConnectionRegistry } from '../../platform/im-connection.ts';
 import type { RuntimeConfigurationStore } from '../../platform/runtime-config.ts';
 import {
   WARNING_DEFINITIONS,
+  type McpServerAvailability,
   type WarningCategory,
   type WarningDefinition,
   standingWarnings,
@@ -20,6 +21,8 @@ export interface WarningsAdminDeps {
   readonly configStore: RuntimeConfigurationStore;
   /** Live per-IM state; standing warnings follow it on every read. */
   readonly connections: Pick<ImConnectionRegistry, 'get'>;
+  /** Live per-alias MCP states; absent outside `serve`, where no MCP runs. */
+  readonly mcpServerStates?: (() => readonly McpServerAvailability[]) | undefined;
 }
 
 function categoryOf(code: string): WarningCategory {
@@ -62,7 +65,7 @@ export function createWarningsAdminHandler(deps: WarningsAdminDeps) {
     return json({
       generated_at: now.toISOString(),
       standing: [
-        ...standingWarnings(configStore.current().config, connections, now),
+        ...standingWarnings(configStore.current().config, connections, now, deps.mcpServerStates?.() ?? []),
         ...(invalidKeys.length === 0
           ? []
           : [

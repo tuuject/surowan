@@ -31,6 +31,12 @@ export const WARNING_DEFINITIONS = {
   telegram_network_error: { kind: 'standing', category: 'runtime', severity: 'warning' },
   telegram_config_error: { kind: 'standing', category: 'runtime', severity: 'critical' },
   api_key_invalid_permissions: { kind: 'standing', category: 'security', severity: 'warning' },
+  // MCP availability is a live condition like the Telegram ones: the warnings
+  // exist exactly while the live server states say so. `degraded` means an
+  // attempt already failed, and `starting` warns only when it is a retry —
+  // otherwise the warning would flicker off for every reconnect attempt.
+  mcp_required_deprecated: { kind: 'standing', category: 'developer', severity: 'warning' },
+  mcp_server_unavailable: { kind: 'standing', category: 'runtime', severity: 'warning' },
   invocation_failure_rate: { kind: 'event', category: 'runtime', severity: 'critical' },
   admin_login_failures: { kind: 'event', category: 'security', severity: 'warning' },
 } as const satisfies Record<string, WarningDefinition>;
@@ -73,6 +79,26 @@ const AGENT_MODEL_FIELDS = ['provider', 'model', 'thinking_level'] as const;
 const VISION_MODEL_FIELDS = ['provider', 'model'] as const;
 
 /**
+ * Live per-alias availability the `mcp_server_unavailable` warning reads. This
+ * is the manager's view, not the persisted `mcp_server_state` row: the table
+ * keeps rows for aliases that left the configuration, and the warning must
+ * only ever name aliases of the active one. Alias, internal error code and
+ * times only — a server error message could carry secrets and is untrusted.
+ */
+export interface McpServerAvailability {
+  readonly alias: string;
+  readonly state: 'starting' | 'ready' | 'degraded' | 'stopped';
+  readonly error_code: string | null;
+  readonly next_reconnect_at: string | null;
+  /**
+   * True while `starting` is a reconnection attempt after a failure rather
+   * than the first connect after boot: the outage already happened, so the
+   * warning stays armed for the whole attempt instead of flickering off.
+   */
+  readonly retrying: boolean;
+}
+
+/**
  * Conditions that are true right now, in display order. A condition that clears
  * simply stops being returned; there is no resolved/opened history.
  */
@@ -80,6 +106,7 @@ export function standingWarnings(
   config: RawConfig,
   connections: Pick<ImConnectionRegistry, 'get'>,
   now = new Date(),
+  mcp: readonly McpServerAvailability[] = [],
 ): StandingWarning[] {
   const updatedAt = now.toISOString();
   const standing: StandingWarning[] = [];
@@ -113,6 +140,30 @@ export function standingWarnings(
   }
   if (telegram.status === 'config_error') {
     standing.push(entry('telegram_config_error', { reason: telegram.reason }));
+  }
+  const deprecatedRequired = (config.mcp?.servers ?? [])
+    .filter((server) => server.required !== undefined)
+    .map((server) => server.alias);
+  if (deprecatedRequired.length > 0) {
+    standing.push(entry('mcp_required_deprecated', { aliases: deprecatedRequired }));
+  }
+  const live = new Map(mcp.map((server) => [server.alias, server]));
+  const unavailable = (config.mcp?.servers ?? [])
+    .map((server) => live.get(server.alias))
+    .filter(
+      (server): server is McpServerAvailability =>
+        server !== undefined && (server.state === 'degraded' || server.retrying),
+    );
+  if (unavailable.length > 0) {
+    standing.push(
+      entry('mcp_server_unavailable', {
+        servers: unavailable.map((server) => ({
+          alias: server.alias,
+          error_code: server.error_code,
+          next_reconnect_at: server.next_reconnect_at,
+        })),
+      }),
+    );
   }
   return standing;
 }

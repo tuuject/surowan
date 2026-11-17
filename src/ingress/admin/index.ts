@@ -8,6 +8,7 @@ import type { AgentModelSwitcher } from '../../platform/models/switch.ts';
 import type { BucketScheduler } from '../../orchestration/scheduler/index.ts';
 import type { RawConfig } from '../../platform/config/index.ts';
 import type { ImConnectionRegistry } from '../../platform/im-connection.ts';
+import type { McpServerAvailability } from '../../platform/warning-catalog.ts';
 import type { ConfigController } from '../../platform/config/write.ts';
 import type { RuntimeConfigurationStore } from '../../platform/runtime-config.ts';
 import type { SecretStore } from '../../platform/secrets.ts';
@@ -85,6 +86,8 @@ export interface AdminServerOptions {
   readonly shutdownSignal?: AbortSignal;
   /** Shared with the scheduler so invocations and login attempts feed the same warnings. */
   readonly warnings?: WarningService;
+  /** Live per-alias MCP availability for the standing warnings; absent outside `serve`. */
+  readonly mcpServerStates?: (() => readonly McpServerAvailability[]) | undefined;
   /** Search providers registered by the loaded plugins; absent uses the bundled set. */
   readonly searchProviders?: readonly SearchProviderRule[];
   /** Override for the MCP skill directory; tests and packaged hosts may relocate it. */

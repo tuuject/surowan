@@ -11,10 +11,9 @@ import type { AgentTool } from '@earendil-works/pi-agent-core';
 import Type, { type TUnsafe } from 'typebox';
 import Compile from 'typebox/compile';
 import type { FileChat, McpServerConfig, RawConfig } from '../../platform/config/index.ts';
-import { deepEqual } from '../../platform/config/diff-merge.ts';
 import { type InvocationContext, previewContext } from '../../platform/invocation-context.ts';
 import { resolveChatConfig } from '../../store/store.ts';
-import { boundChatServers, serverToolPolicy } from './bindings.ts';
+import { boundChatServers, sameMcpServerConfig, serverToolPolicy } from './bindings.ts';
 import { executeMcpTool, type McpCallDeps } from './calls.ts';
 import type { McpResultDetails, McpToolResult } from './content.ts';
 import type { McpState, ToolSetResolution } from './shared.ts';
@@ -134,7 +133,7 @@ export function assertConfigBindings(state: McpState, config: RawConfig): void {
       if (serverConfig === undefined || instance === undefined) {
         continue;
       }
-      if (!deepEqual(instance.config, serverConfig) || instance.state !== 'ready') {
+      if (!sameMcpServerConfig(instance.config, serverConfig) || instance.state !== 'ready') {
         // A changed or not-yet-connected server is checked when it discovers.
         continue;
       }
@@ -161,15 +160,30 @@ export function assertConfigBindings(state: McpState, config: RawConfig): void {
   }
 }
 
-/** The tools one Chat reaches under one configuration, as definitions the call path can run. */
-export function definitions(state: McpState, config: RawConfig, chat: Pick<FileChat, 'mcp'>): McpToolDefinition[] {
+/**
+ * The tools one Chat reaches under one configuration, as definitions the call
+ * path can run. Only a `ready` instance contributes: an Invocation started
+ * while a server is `starting` or `degraded` simply gets none of its tools,
+ * and the next Invocation after a reconnect gets them back. `includeUnavailable`
+ * is for the audit path that names the calls a stopped run may have had, which
+ * a dropped server's retained definitions still describe.
+ */
+export function definitions(
+  state: McpState,
+  config: RawConfig,
+  chat: Pick<FileChat, 'mcp'>,
+  options?: { readonly includeUnavailable?: boolean },
+): McpToolDefinition[] {
   const resolved: McpToolDefinition[] = [];
   for (const bound of boundChatServers(config, chat)) {
     const server = state.servers.get(bound.server.alias);
-    if (server === undefined || !deepEqual(server.config, bound.server)) {
+    if (server === undefined || !sameMcpServerConfig(server.config, bound.server)) {
       // No connected instance of *this* server configuration yet: either the
       // reconcile has not connected it, or the alias still publishes the
       // previous configuration (which may be another endpoint and policy).
+      continue;
+    }
+    if (server.state !== 'ready' && options?.includeUnavailable !== true) {
       continue;
     }
     for (const definition of server.definitions) {

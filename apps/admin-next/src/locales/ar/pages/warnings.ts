@@ -34,6 +34,8 @@ export const warnings: CompleteCatalog<typeof warningsEn> = {
   noEvents: 'لا تحذيرات أحداث بعد.',
   missingFields: 'مفقود: {{fields}}',
   invalidApiKeys: 'مفاتيح غير صالحة: {{keys}}',
+  mcpDeprecatedAliases: 'ما يزال معيّنًا في: {{aliases}}',
+  mcpNextReconnect: 'المحاولة التالية <time>{{time}}</time>',
   lastFailedAt: 'آخر إخفاق: <time>{{time}}</time>',
   createdAt: 'أُنشئ <time>{{time}}</time>',
   updatedAt: 'حُدّث <time>{{time}}</time>',
@@ -97,6 +99,14 @@ export const warnings: CompleteCatalog<typeof warningsEn> = {
     api_key_invalid_permissions: {
       title: 'مفاتيح API بصلاحيات غير صالحة',
       body: 'مفتاح API واحد أو أكثر لديه صلاحيات غير صالحة ولا يمكنه تسجيل الدخول. احفظ وضعًا لكل منها في صفحة مفاتيح API.',
+    },
+    mcp_required_deprecated: {
+      title: 'خيار MCP مهمل ما يزال في الإعدادات',
+      body: 'لم يعد للعلم required أي تأثير: لا ينتظر بدء التشغيل أي خادم MCP وكل خادم يعيد المحاولة في الخلفية. أزله من هذه الأسماء المستعارة.',
+    },
+    mcp_server_unavailable: {
+      title: 'خوادم MCP غير قابلة للوصول',
+      body: 'تعذّر الوصول إلى هذه الخوادم المُعدّة وهي تعيد المحاولة في الخلفية. تبقى أدواتها مخفية حتى تتعافى.',
     },
     unknown: {
       title: 'تحذير غير معروف: {{code}}',

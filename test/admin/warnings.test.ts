@@ -1,4 +1,5 @@
 import { expect, test } from 'vitest';
+import type { McpServerAvailability } from '../../src/platform/warning-catalog.ts';
 import { WarningService } from '../../src/store/warnings.ts';
 import { fixture, PASSWORD, post, readJson, request, sessionCookie } from './fixtures.ts';
 import { createAdminAccount } from '../fixtures/admin-account.ts';
@@ -88,6 +89,75 @@ test('warnings API lists standing and event warnings, marks read and clears hist
     expect(await readJson(await call('/warnings'))).toMatchObject({ items: [], unread_count: 0 });
     // Standing warnings survive clearing history because they are derived.
     expect((await readJson(await call('/warnings'))).standing).toHaveLength(1);
+  } finally {
+    await f.server.stop();
+    f.store.close();
+  }
+});
+
+test('warnings API surfaces live MCP availability the runtime feeds it', async () => {
+  const degraded: McpServerAvailability[] = [];
+  const f = await fixture({ mcpServerStates: () => degraded });
+  try {
+    await createAdminAccount(f.store.orm, { username: 'owner', password: PASSWORD });
+    const setup = await f.server.handle(post('/api/auth/login', { username: 'owner', password: PASSWORD }));
+    const cookie = sessionCookie(setup);
+    const call = (path: string) =>
+      f.server.handle(request(`/api${path}`, { headers: { cookie, origin: 'http://127.0.0.1:8899' } }));
+
+    // The fixture config has no `mcp` section, so live states alone warn about nothing.
+    expect((await readJson(await call('/warnings'))).standing).toEqual([]);
+
+    const current = f.configStore.current();
+    f.configStore.publish({
+      ...current,
+      config: {
+        ...current.config,
+        mcp: {
+          servers: [
+            {
+              alias: 'local',
+              transport: 'stdio' as const,
+              command: ['node', 'server.ts'],
+              tools: ['echo'],
+              payload_max_bytes: 32768,
+              result_max_bytes: 32768,
+            },
+            {
+              alias: 'gone',
+              transport: 'stdio' as const,
+              command: ['node', 'gone.ts'],
+              tools: [],
+              payload_max_bytes: 32768,
+              result_max_bytes: 32768,
+            },
+          ],
+        },
+      },
+    });
+    degraded.push(
+      {
+        alias: 'local',
+        state: 'degraded',
+        error_code: 'initialization_failed',
+        next_reconnect_at: '2026-10-23T12:05:00.000Z',
+        retrying: false,
+      },
+      { alias: 'gone', state: 'stopped', error_code: null, next_reconnect_at: null, retrying: false },
+    );
+    const listed = await readJson(await call('/warnings'));
+    expect(listed.standing).toEqual([
+      expect.objectContaining({
+        kind: 'standing',
+        code: 'mcp_server_unavailable',
+        severity: 'warning',
+        variables: {
+          servers: [
+            { alias: 'local', error_code: 'initialization_failed', next_reconnect_at: '2026-10-23T12:05:00.000Z' },
+          ],
+        },
+      }),
+    ]);
   } finally {
     await f.server.stop();
     f.store.close();

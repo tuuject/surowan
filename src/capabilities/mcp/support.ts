@@ -40,17 +40,49 @@ export interface McpToolDefinition {
   readonly resultMaxBytes: number;
 }
 
+/**
+ * An in-flight connect/discovery before its client is published. Until the
+ * attempt publishes, `server.client` is still empty, so this handle is what
+ * `stopServer` aborts, closes and waits on — a pending stdio child or HTTP
+ * request must never outlive the manager's stop.
+ */
+export interface PendingAttempt {
+  /** The client being handshaken, once it exists; closing it kills its transport. */
+  client: Client | undefined;
+  /** Cancels the connect and discovery calls of this attempt. */
+  readonly abort: AbortController;
+  /** Resolves when the connect unwinds, whether it published or failed. */
+  readonly settled: Promise<void>;
+  readonly settle: () => void;
+}
+
+export function newPendingAttempt(): PendingAttempt {
+  const { promise, resolve } = Promise.withResolvers<void>();
+  return { client: undefined, abort: new AbortController(), settled: promise, settle: resolve };
+}
+
 export interface ManagedServer {
   readonly config: McpServerConfig;
   readonly semaphore: AsyncSemaphore;
   definitions: McpToolDefinition[];
   client: Client | undefined;
+  /** The connection attempt currently running, if any — never the published client. */
+  attempt: PendingAttempt | undefined;
   generation: number;
   reconnectAttempt: number;
   reconnectTimer: NodeJS.Timeout | undefined;
   stderrBytes: number;
   payloadLimited: boolean;
   state: 'starting' | 'ready' | 'degraded' | 'stopped';
+  /** The code the last state write recorded; feeds the availability warning. */
+  errorCode: string | null;
+  /** The persisted backoff target of the pending reconnect, if any. */
+  nextReconnectAt: string | null;
+  /**
+   * One degraded episode logs once: the event fires on the transition into
+   * `degraded` and once more when it clears, never per retry.
+   */
+  degradedNotified: boolean;
 }
 
 /**

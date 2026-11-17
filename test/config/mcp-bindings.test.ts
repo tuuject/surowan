@@ -14,7 +14,6 @@ function withMcp(config: FixtureConfig): void {
         alias: 'search',
         transport: 'stdio',
         command: [process.execPath, 'search-server.ts'],
-        required: false,
         tools: ['query', 'fetch'],
         payload_max_bytes: 32768,
         result_max_bytes: 32768,
@@ -27,7 +26,6 @@ function withMcp(config: FixtureConfig): void {
         alias: 'notes',
         transport: 'stdio',
         command: [process.execPath, 'notes-server.ts'],
-        required: false,
         tools: '*',
         payload_max_bytes: 32768,
         result_max_bytes: 32768,
@@ -276,4 +274,18 @@ test('narrowing a binding or changing a server is affecting; adding one is not',
     },
   );
   expect(affectedMcpChatIds(serverAdded.previous.config, serverAdded.next.config)).toEqual([]);
+});
+
+test('flipping the deprecated required key on a server affects no Chat', async () => {
+  const { previous, next } = await configs(
+    (config) => {
+      binding(config.telegram.chats[0]!, [{ server: 'search' }]);
+    },
+    (config) => {
+      binding(config.telegram.chats[0]!, [{ server: 'search' }]);
+      // The key is still accepted but ignored: it must not read as a server change.
+      (config.mcp!.servers[0]! as { required?: boolean }).required = true;
+    },
+  );
+  expect(affectedMcpChatIds(previous.config, next.config)).toEqual([]);
 });

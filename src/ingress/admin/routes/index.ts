@@ -178,6 +178,7 @@ export function createAdminRoutes(deps: AdminRoutesDeps) {
       store: options.store,
       configStore: options.configStore,
       connections,
+      ...(options.mcpServerStates === undefined ? {} : { mcpServerStates: options.mcpServerStates }),
     }),
     search: createSearchAdminRoutes({
       configReloader: reloader,

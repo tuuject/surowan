@@ -49,5 +49,10 @@ export interface McpState {
    */
   generation: number;
   registryValidator: RegistryValidator | undefined;
+  /**
+   * Process-level event log for degraded/recovered transitions; absent in
+   * harnesses that do not care about the operator log.
+   */
+  log: ((event: string, fields: Readonly<Record<string, string | number | boolean | null>>) => void) | undefined;
   stopping: boolean;
 }

@@ -31,6 +31,18 @@ export interface McpChatServer {
 
 type ChatBindingShape = Pick<FileChat, 'mcp'>;
 
+/**
+ * Whether two configured servers are the same instance. `required` is
+ * deprecated and has no effect anywhere, so a file that only adds or flips it
+ * must not read as a different server: nothing reconnects, no Chat is
+ * affected, and no tool disappears.
+ */
+export function sameMcpServerConfig(left: McpServerConfig, right: McpServerConfig): boolean {
+  const { required: _leftRequired, ...leftRest } = left;
+  const { required: _rightRequired, ...rightRest } = right;
+  return deepEqual(leftRest, rightRest);
+}
+
 /** The server-level policy of one tool, in the shape bound policies use. */
 export function serverToolPolicy(server: McpServerConfig, tool: string): McpToolPolicy | undefined {
   const configured =
@@ -113,7 +125,7 @@ function chatMcpChanged(
       // The server left the configuration, or this Chat lost its binding.
       return true;
     }
-    if (!deepEqual(bound.server, current.server)) {
+    if (!sameMcpServerConfig(bound.server, current.server)) {
       return true;
     }
     if (narrows(bound.tools, current.tools)) {

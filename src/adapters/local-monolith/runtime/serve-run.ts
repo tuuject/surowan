@@ -387,6 +387,7 @@ export async function startAdminServer(session: ServeContext, assembly: ServeAss
     plugins,
     warnings,
     connections,
+    mcpManager,
   } = assembly;
   const searchProviders = plugins.extensions(WEB_SEARCH_PROVIDERS).map((provider) => provider.rule);
   const { runtime, startedScheduler, configReloader } = core;
@@ -417,6 +418,7 @@ export async function startAdminServer(session: ServeContext, assembly: ServeAss
       secrets,
       searchProviders,
       warnings,
+      mcpServerStates: () => mcpManager.serverStates(),
       requestRestart,
       imageService,
       imageBridge,

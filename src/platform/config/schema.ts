@@ -44,7 +44,9 @@ const StdioMcpSchema = Type.Object(
     alias: Type.String({ pattern: MCP_SERVER_ALIAS_PATTERN }),
     transport: Type.Literal('stdio'),
     command: Type.Array(Type.String(), { minItems: 1 }),
-    required: Type.Boolean(),
+    // Deprecated and ignored: startup no longer waits for or fails on MCP.
+    // Accepted so old files keep loading; validation warns while it remains.
+    required: Type.Optional(Type.Boolean()),
     tools: Type.Union([Type.Literal('*'), Type.Array(Type.String({ minLength: 1 }), { uniqueItems: true })]),
     payload_max_bytes: Type.Integer({ minimum: 1, maximum: 1_048_576 }),
     result_max_bytes: Type.Integer({ minimum: 1, maximum: 32_768 }),
@@ -60,7 +62,9 @@ const HttpMcpSchema = Type.Object(
     transport: Type.Literal('streamable_http'),
     url: Type.String({ minLength: 1 }),
     follow_redirects: Type.Literal(false),
-    required: Type.Boolean(),
+    // Deprecated and ignored: startup no longer waits for or fails on MCP.
+    // Accepted so old files keep loading; validation warns while it remains.
+    required: Type.Optional(Type.Boolean()),
     tools: Type.Union([Type.Literal('*'), Type.Array(Type.String({ minLength: 1 }), { uniqueItems: true })]),
     payload_max_bytes: Type.Integer({ minimum: 1, maximum: 1_048_576 }),
     result_max_bytes: Type.Integer({ minimum: 1, maximum: 32_768 }),

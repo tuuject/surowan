@@ -22,6 +22,8 @@ export const warnings: Catalog<typeof warningsEn> = {
   noEvents: 'Noch keine Ereigniswarnungen.',
   missingFields: 'Fehlt: {{fields}}',
   invalidApiKeys: 'Ungültige Schlüssel: {{keys}}',
+  mcpDeprecatedAliases: 'Noch gesetzt bei: {{aliases}}',
+  mcpNextReconnect: 'nächster Versuch <time>{{time}}</time>',
   lastFailedAt: 'Letzter Fehlschlag: <time>{{time}}</time>',
   createdAt: 'Erstellt <time>{{time}}</time>',
   updatedAt: 'Aktualisiert <time>{{time}}</time>',
@@ -79,6 +81,14 @@ export const warnings: Catalog<typeof warningsEn> = {
     api_key_invalid_permissions: {
       title: 'API-Schlüssel mit ungültigen Berechtigungen',
       body: 'Ein oder mehrere API-Schlüssel haben ungültige Berechtigungen und können sich nicht anmelden. Auf der Seite API-Schlüssel für jeden einen Modus speichern.',
+    },
+    mcp_required_deprecated: {
+      title: 'Veraltete MCP-Option noch in der Konfiguration',
+      body: 'Das Flag required hat keine Wirkung mehr: Der Start wartet nie auf einen MCP-Server und jeder Server versucht es im Hintergrund erneut. Es bei diesen Aliasen entfernen.',
+    },
+    mcp_server_unavailable: {
+      title: 'MCP-Server sind nicht erreichbar',
+      body: 'Diese konfigurierten Server konnten nicht erreicht werden und versuchen es im Hintergrund erneut. Ihre Werkzeuge bleiben verborgen, bis sie sich erholt haben.',
     },
     unknown: {
       title: 'Unbekannte Warnung: {{code}}',

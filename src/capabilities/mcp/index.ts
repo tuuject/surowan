@@ -13,6 +13,7 @@ import type { RawConfig } from '../../platform/config/index.ts';
 import { hostExecutionProfile } from '../../platform/host-profile.ts';
 import { type InvocationContext, previewContext } from '../../platform/invocation-context.ts';
 import type { SecretStore } from '../../platform/secrets.ts';
+import type { McpServerAvailability } from '../../platform/warning-catalog.ts';
 import { type BusinessStore, resolveChatConfig } from '../../store/store.ts';
 import { localImageAssets } from '../media/local-assets.ts';
 import type { McpCallDeps } from './calls.ts';
@@ -40,7 +41,7 @@ export class McpManager {
   readonly #state: McpState;
   readonly #callDeps: McpCallDeps;
 
-  constructor(store: BusinessStore, config: RawConfig, secrets: SecretStore) {
+  constructor(store: BusinessStore, config: RawConfig, secrets: SecretStore, log?: McpState['log']) {
     const servers = new Map<string, ManagedServer>();
     this.#state = {
       store,
@@ -49,13 +50,14 @@ export class McpManager {
       config,
       generation: 0,
       registryValidator: undefined,
+      log,
       stopping: false,
     };
     this.#callDeps = {
       store,
       assets: localImageAssets(store.orm, config.data_dir),
       isCurrent: (server) => isCurrent(this.#state, server),
-      setState: (server, state, errorCode) => setState(this.#state, server, state, errorCode),
+      setState: (server, state, errorCode, detail) => setState(this.#state, server, state, errorCode, detail),
       scheduleReconnect: (server) => scheduleReconnect(this.#state, server, this.#revalidate),
     };
     for (const serverConfig of config.mcp?.servers ?? []) {
@@ -63,22 +65,48 @@ export class McpManager {
     }
   }
 
-  async start(): Promise<void> {
+  /**
+   * Startup never waits for or fails on MCP: every server connects in the
+   * background with the usual backoff, so `serve` reaches the scheduler and
+   * the Admin Panel even when every endpoint black-holes. A server that
+   * cannot be reached simply stays `degraded` until it recovers.
+   */
+  start(): Promise<void> {
     this.#state.stopping = false;
     for (const server of this.#state.servers.values()) {
-      try {
-        await connect(this.#state, server, true, this.#revalidate);
-      } catch (error) {
-        setState(this.#state, server, 'degraded', 'initialization_failed');
-        if (server.config.required) {
-          await this.stop();
-          throw new Error(
-            `Required MCP server ${server.config.alias} failed to initialize: ${this.#state.secrets.redactError(error)}`,
-          );
+      void (async () => {
+        try {
+          await connect(this.#state, server, true, this.#revalidate);
+        } catch (error) {
+          // A stop() racing the attempt already persisted `stopped`; reporting
+          // the failure now would overwrite it — and write to a closed store.
+          if (this.#state.stopping) {
+            return;
+          }
+          setState(this.#state, server, 'degraded', 'initialization_failed', error);
+          scheduleReconnect(this.#state, server, this.#revalidate);
         }
-        scheduleReconnect(this.#state, server, this.#revalidate);
-      }
+      })();
     }
+    return Promise.resolve();
+  }
+
+  /**
+   * The live per-alias state the Admin Panel's standing warnings read. The
+   * map only holds the published configuration's aliases, so a removed server
+   * cannot ghost-report; the `mcp_server_state` table is a worse source here
+   * because it keeps rows for aliases that left the configuration.
+   */
+  serverStates(): McpServerAvailability[] {
+    return [...this.#state.servers.values()].map((server) => ({
+      alias: server.config.alias,
+      state: server.state,
+      error_code: server.errorCode,
+      next_reconnect_at: server.nextReconnectAt,
+      // A `starting` that is a retry still belongs to the outage it is
+      // recovering from; a first connect after boot is not one.
+      retrying: server.state === 'starting' && server.degradedNotified,
+    }));
   }
 
   setRegistryValidator(validator: RegistryValidator): void {
@@ -110,7 +138,11 @@ export class McpManager {
    */
   toolNamesForChat(chatId: bigint, config: RawConfig): string[] {
     const chat = resolveChatConfig(config, this.#state.store.orm, chatId);
-    return chat === undefined ? [] : definitions(this.#state, config, chat).map((definition) => definition.exposedName);
+    return chat === undefined
+      ? []
+      : definitions(this.#state, config, chat, { includeUnavailable: true }).map(
+          (definition) => definition.exposedName,
+        );
   }
 
   /**

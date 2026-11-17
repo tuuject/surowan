@@ -43,7 +43,6 @@ MCP Server 通过 `mcp.servers` 配置，可使用 stdio 或 Streamable HTTP。�
         "alias": "search",
         "transport": "stdio",
         "command": ["node", "server.js"],
-        "required": false,
         "tools": ["lookup"],
         "payload_max_bytes": 65536,
         "result_max_bytes": 16384,
@@ -70,7 +69,6 @@ MCP Server 通过 `mcp.servers` 配置，可使用 stdio 或 Streamable HTTP。�
         "alias": "search",
         "transport": "stdio",
         "command": ["node", "search.js"],
-        "required": false,
         "tools": ["lookup"],
         "payload_max_bytes": 65536,
         "result_max_bytes": 16384,
@@ -80,7 +78,6 @@ MCP Server 通过 `mcp.servers` 配置，可使用 stdio 或 Streamable HTTP。�
         "alias": "notes",
         "transport": "stdio",
         "command": ["node", "notes.js"],
-        "required": false,
         "tools": ["append"],
         "payload_max_bytes": 65536,
         "result_max_bytes": 16384,
@@ -120,11 +117,11 @@ MCP Server 通过 `mcp.servers` 配置，可使用 stdio 或 Streamable HTTP。�
 
 `mcp.servers` 与每个 Chat 的 `mcp` 都可以热应用，不需要重启：在 Admin「Apply config file」或任何一次面板保存之后，新增的 Server 会被连接、删除的会被关闭、改过字段的会被替换，没改的 Server 保持连接。改变某个 Chat 能用的 Tool（删掉绑定、换 Tool 列表、改策略，或它用的 Server 被改）时，这个 Chat 正在跑的 Invocation 会被停下、该 Chat 的连续 Context 会被重建，然后自动续跑一次：模型看到的是新的聊天记录，会被告知这次是运营者改了 MCP 配置，并收到被停下时结果未知的 MCP Tool 名，避免重复副作用。只是新增 Server 或加宽 Tool 列表不会打断正在跑的对话，下一条消息就用上新的集合。
 
-`required: true` 只保证**启动**：真正启动时它连不上会让 `serve`/`doctor` 失败；热应用里新增或修改的 Server 连不上只会显示为 `degraded` 并在后台按退避重试，不影响其他 Server 与本次应用。
+启动不会因为 MCP Server 连不上而等待或失败：每个 Server 都在后台连接，连不上或校验不通过的实例显示为 `degraded` 并按退避重试，不影响其他 Server、启动与本次热应用。只有 `ready` 的 Server 会把 Tool 交给模型——Server 不可达期间它的 Tool 从下一次 Invocation 的注册表中消失，恢复后自动回来；Admin 的 Warnings 页在 `degraded` 期间显示 `mcp_server_unavailable` 警告（`starting` 不告警）。旧配置里的 `required` 字段已废弃且不再生效（启动、热应用、doctor 都不看它）：配置仍然能加载，`check-config` 与 Warnings 页会提示从哪些 alias 删掉它。
 
 确认方式：在 Tool session 的工具列表里看这个 Chat 实际拿到哪些名称（`<alias>__<tool>`），在 Tool call 审计里看参数、结果与策略；停跑与续跑会在日志里留下一条 `mcp_config_published` 事件（受影响 Chat、停掉的 Invocation、重建的 Context、续跑与跳过的原因）。内部 Plugin 的调用则在 `execute` 外层和内部能力层分别留下可关联审计。
 
-先用 `check-config` 离线检查配置。仍不能定位时，获得管理员许可后再运行 `node src/cli.ts doctor --config <config.jsonc>`：它会连接 Telegram、Provider 与 required MCP，可能产生模型费用。不要把“模型看到了 Tool 名称”当作“调用成功”；继续参考 [排障](../operations/troubleshooting.md)。
+先用 `check-config` 离线检查配置。仍不能定位时，获得管理员许可后再运行 `node src/cli.ts doctor --config <config.jsonc>`：它会连接 Telegram、Provider 与全部 MCP Server（连不上的只记为警告，不算失败），可能产生模型费用。不要把“模型看到了 Tool 名称”当作“调用成功”；继续参考 [排障](../operations/troubleshooting.md)。
 
 ## 常见误区
 

@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import type { Update } from 'grammy/types';
 import { loadConfig } from '../../src/adapters/local-monolith/config/index.ts';
 import { SqliteStore } from '../../src/adapters/local-monolith/database.ts';
+import { awaitServerAttempts } from '../../src/capabilities/mcp/availability.ts';
 import { McpManager } from '../../src/capabilities/mcp/index.ts';
 import { BucketScheduler } from '../../src/orchestration/scheduler/index.ts';
 import { TelegramIngestion } from '../../src/ingress/telegram-ingestion/index.ts';
@@ -41,7 +42,6 @@ async function harness(
           alias: 'local',
           transport: 'stdio',
           command: [process.execPath, fixturePath],
-          required: true,
           tools: policies.map((policy) => policy.name),
           payload_max_bytes: 1048576,
           result_max_bytes: 32768,
@@ -56,6 +56,7 @@ async function harness(
   const store = await SqliteStore.open(loaded.config);
   const manager = new McpManager(store, loaded.config, new SecretStore(keyJarPath(loaded.configPath)));
   await manager.start();
+  await awaitServerAttempts(manager);
   const ingestion = new TelegramIngestion(store, configStore, { id: 999 });
   const received = new Date('2026-08-15T00:00:00.000Z');
   const update: Update = {

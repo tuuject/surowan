@@ -257,7 +257,7 @@ node src/cli.ts check-config --config dev-data/config.jsonc
 - Agent 严格 Tool Call（按全局默认与每个 Chat 实际选用的模型/思考组合去重探测，同一组合只探一次）。
 - Vision 图片请求。
 - Telegram Bot Token：没有 `telegram` 段或没有 token 时跳过探针，JSON 报告 `telegram_status = "disabled"`、`telegram_bot_id = null`；有 token 时执行 `getMe`，成功报告 `telegram_status = "connected"` 与 Bot ID；SecretRef 无法解析时 Doctor 失败。
-- required MCP（Telegram 停用时仍检查）。
+- 全部已配置 MCP Server（Telegram 停用时仍检查；不可达报告为警告项而非失败）。
 
 Doctor 成功只证明连接与最小能力，不证明真实群聊调度、Reply、Sticker capability 或“不回复”行为。
 
@@ -496,8 +496,8 @@ Remove-Item Env:E2E_PASSKEYS
 
 仅在配置 MCP 时执行：
 
-- required Server 失败会阻止启动。
-- optional Server 失败进入 degraded，不伪装 ready。
+- 启动不等待 Server：连不上的实例进入 `degraded` 并按退避重试，不阻止启动、不伪装 ready（`required` 已废弃无效）。
+- `degraded` 期间该 Server 的 Tool 不出现在注册表；恢复后重新暴露。
 - allowlisted Tool 可调用并审计。
 - 未配置策略/超时/超大小结果被拒绝。
 - Streamable HTTP 重定向被拒绝；静态 Header 生效且不进入日志。
