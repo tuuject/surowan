@@ -31,6 +31,9 @@ export const WARNING_DEFINITIONS = {
   telegram_network_error: { kind: 'standing', category: 'runtime', severity: 'warning' },
   telegram_config_error: { kind: 'standing', category: 'runtime', severity: 'critical' },
   api_key_invalid_permissions: { kind: 'standing', category: 'security', severity: 'warning' },
+  // Deprecated file-level fields are accepted for upgrade compatibility; the
+  // warning names them for as long as the active configuration keeps them.
+  config_fields_deprecated: { kind: 'standing', category: 'developer', severity: 'warning' },
   // MCP availability is a live condition like the Telegram ones: the warnings
   // exist exactly while the live server states say so. `degraded` means an
   // attempt already failed, and `starting` warns only when it is a retry —
@@ -142,6 +145,10 @@ export function standingWarnings(
     .map((server) => server.alias);
   if (deprecatedRequired.length > 0) {
     standing.push(entry('mcp_required_deprecated', { aliases: deprecatedRequired }));
+  }
+  const deprecatedFields = config.deprecated_fields ?? [];
+  if (deprecatedFields.length > 0) {
+    standing.push(entry('config_fields_deprecated', { fields: deprecatedFields }));
   }
   const live = new Map(mcp.map((server) => [server.alias, server]));
   const unavailable = (config.mcp?.servers ?? [])

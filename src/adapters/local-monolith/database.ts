@@ -1,5 +1,5 @@
 import { access, chmod, cp, mkdir, readdir, readFile, rename, rm, stat, unlink, writeFile } from 'node:fs/promises';
-import { basename, dirname, join } from 'node:path';
+import { dirname, join } from 'node:path';
 import Database from 'better-sqlite3';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 import { localImageAssets } from '../../capabilities/media/local-assets.ts';
@@ -285,6 +285,10 @@ export class SqliteStore implements BusinessStore {
         config.paths.backups,
         `pre-migration-${timestampForFile()}-${crypto.randomUUID()}.sqlite`,
       );
+      // Pre-migration copies share `backup`'s retention count, but rotate only
+      // among themselves: an automatic step at upgrade time must never delete
+      // a complete `surowan-*` backup or its image snapshot.
+      await rotateBackups(config.paths.backups, config.retention.backup_copies, /^pre-migration-/);
     }
     for (const migration of pending) {
       if (migration.rebuildsTables) {
@@ -384,6 +388,11 @@ export async function backupDatabase(config: RawConfig): Promise<string> {
   }
 }
 
+/** The `<backup>.images/` snapshot that pairs with a `<backup>.sqlite` file. */
+function imageSnapshotPath(sqliteBackupPath: string): string {
+  return sqliteBackupPath.replace(/\.sqlite$/, '.images');
+}
+
 /**
  * Copies the image asset directory to `<backup-basename>.images/` beside the
  * SQLite backup file. Skipped entirely when the directory does not exist.
@@ -393,7 +402,7 @@ async function snapshotImageDirectory(config: RawConfig, sqliteBackupPath: strin
   if (!(await fileExists(imageDir))) {
     return;
   }
-  const target = sqliteBackupPath.replace(/\.sqlite$/, '.images');
+  const target = imageSnapshotPath(sqliteBackupPath);
   await mkdir(dirname(target), { recursive: true, mode: 0o700 });
   await cp(imageDir, target, { recursive: true, verbatimSymlinks: false });
   await chmod(target, 0o700).catch(() => undefined);
@@ -410,11 +419,16 @@ async function createBackupFile(database: Database.Database, backupDir: string, 
   await rename(temporaryPath, finalPath);
   return finalPath;
 }
-async function rotateBackups(backupDir: string, keep: number): Promise<void> {
+/**
+ * Keeps the newest `keep` `.sqlite` backups — optionally only those matching
+ * `namePattern` — and deletes the rest together with their `.images` snapshot
+ * directories. Other files and unrelated directories are never touched.
+ */
+async function rotateBackups(backupDir: string, keep: number, namePattern?: RegExp): Promise<void> {
   const entries = await readdir(backupDir, { withFileTypes: true });
   const files = await Promise.all(
     entries
-      .filter((entry) => entry.isFile() && entry.name.endsWith('.sqlite'))
+      .filter((entry) => entry.isFile() && entry.name.endsWith('.sqlite') && (namePattern?.test(entry.name) ?? true))
       .map(async (entry) => ({
         path: join(backupDir, entry.name),
         modified: (await stat(join(backupDir, entry.name))).mtimeMs,
@@ -422,11 +436,14 @@ async function rotateBackups(backupDir: string, keep: number): Promise<void> {
   );
   files.sort((left, right) => right.modified - left.modified);
   await Promise.all(files.slice(keep).map((file) => unlink(file.path)));
-  // Drop the image snapshots that belong to rotated-away SQLite copies.
-  const rotated = new Set(files.slice(keep).map((file) => basename(file.path, '.sqlite')));
+  // Drop the `<name>.images/` snapshots that belong to rotated-away copies;
+  // a directory only counts when it is the snapshot of a rotated backup.
+  const rotated = new Set(files.slice(keep).map((file) => imageSnapshotPath(file.path)));
   await Promise.all(
     entries
-      .filter((entry) => entry.isDirectory() && rotated.has(basename(entry.name, '.images')))
+      .filter(
+        (entry) => entry.isDirectory() && entry.name.endsWith('.images') && rotated.has(join(backupDir, entry.name)),
+      )
       .map((entry) => rm(join(backupDir, entry.name), { recursive: true })),
   );
 }

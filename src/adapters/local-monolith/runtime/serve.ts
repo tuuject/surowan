@@ -40,6 +40,7 @@ import { ServeLock, SqliteStore, stopRunningInstance, watchStopRequests } from '
 import { BUNDLED_MANUAL_DIR, bundledManualSpace, FileSystemDocSpaces } from '../doc-spaces.ts';
 import { createHostTooling, type HostTooling } from '../host-tooling.ts';
 import { CronerScheduleEngine } from '../recurring-schedule.ts';
+import { RetentionCleanup } from './retention.ts';
 import { logEvent, type ServeContext } from './support.ts';
 import { BUNDLED_SYSTEM_RESOURCES_DIR, FileSystemResources } from '../system-resources.ts';
 import { TelegramConnectionManager } from '../telegram/index.ts';
@@ -238,6 +239,13 @@ export async function startServeServices(session: ServeContext, environment: Ser
   memoPad.purgeExpired();
   await memoBlobs.sweep();
   await playgroundAssets.sweep();
+  // The online-retention sweep belongs to `serve`, not to `backup`: it runs
+  // once here — before the Scheduler exists — and then every 24 hours, always
+  // against the currently published configuration, so a changed
+  // `retention.online_days` reaches the next run without a restart.
+  const retention = new RetentionCleanup(openedStore.orm, () => configStore.current().config);
+  retention.start();
+  state.retention = retention;
   const tasks = new LongTaskService(openedStore.orm, () => state.scheduler?.wake(), servedHosts);
   // Recurring alarms feed the same timers: the Scheduler wakes for their next
   // occurrence and completes what they create. The occurrence math is this

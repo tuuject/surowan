@@ -158,6 +158,26 @@ function WarningDetails({ warning }: { readonly warning: WarningItem }): ReactEl
           : t('pages.warnings.codes.telegram_config_error.body.unknown');
       return <p className={css({ textStyle: 'body', color: 'text-muted' })}>{body}</p>;
     }
+    case 'config_fields_deprecated': {
+      const fields = stringListVariable(variables, 'fields');
+      return (
+        <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
+          <p className={css({ textStyle: 'body', color: 'text-muted' })}>
+            {t('pages.warnings.codes.config_fields_deprecated.body')}
+          </p>
+          {fields.length > 0 ? (
+            <p className={css({ textStyle: 'small', color: 'text-muted', fontFamily: 'mono' })}>
+              {t('pages.warnings.deprecatedConfigFields', { fields: fields.join(', ') })}
+            </p>
+          ) : null}
+          {fields.includes('agent.send_empty_text_fallback_enabled') ? (
+            <p className={css({ textStyle: 'small', color: 'text-muted' })}>
+              {t('pages.warnings.codes.config_fields_deprecated.hint')}
+            </p>
+          ) : null}
+        </div>
+      );
+    }
     case 'mcp_required_deprecated': {
       const aliases = stringListVariable(variables, 'aliases');
       return (
@@ -281,6 +301,7 @@ function WarningAction({ code }: { readonly code: string }): ReactElement | null
           {t('pages.warnings.actions.openApiKeys')}
         </ButtonLink>
       );
+    case 'config_fields_deprecated':
     case 'mcp_required_deprecated':
     case 'mcp_server_unavailable':
       return (
@@ -311,6 +332,8 @@ function WarningTitle({ warning }: { readonly warning: WarningItem }): ReactElem
       return <>{t('pages.warnings.codes.telegram_network_error.title')}</>;
     case 'api_key_invalid_permissions':
       return <>{t('pages.warnings.codes.api_key_invalid_permissions.title')}</>;
+    case 'config_fields_deprecated':
+      return <>{t('pages.warnings.codes.config_fields_deprecated.title')}</>;
     case 'mcp_required_deprecated':
       return <>{t('pages.warnings.codes.mcp_required_deprecated.title')}</>;
     case 'mcp_server_unavailable':

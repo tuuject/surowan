@@ -149,27 +149,64 @@ test('the empty-text strategy and fallback list are written, hot-applied and com
   );
 });
 
-test('a legacy fallback flag reports random_text and the first strategy save retires it', async () => {
-  const f = await fixture((config) => {
-    config.agent!.send_empty_text_fallback_enabled = true;
-  });
+test('the empty-text strategy round-trips, and resetting to the default removes the field', async () => {
+  const f = await fixture();
   const initial = await f.view();
-  expect(initial.saved.send_empty_text_strategy).toBe('random_text');
-  expect(initial.active.send_empty_text_strategy).toBe('random_text');
+  expect(initial.saved.send_empty_text_strategy).toBe('reject');
 
   const response = await f.update({ send_empty_text_strategy: 'silent_success' }, initial.revision);
   expect(response.status).toBe(200);
   const body = (await response.json()) as HarnessSettings;
   expect(body.saved.send_empty_text_strategy).toBe('silent_success');
   expect(f.configStore.current().config.agent.send_empty_text_strategy).toBe('silent_success');
-  const file = (await loadConfig(f.path)).fileConfig.agent;
-  expect(file?.send_empty_text_strategy).toBe('silent_success');
-  expect(Object.hasOwn(file ?? {}, 'send_empty_text_fallback_enabled')).toBe(false);
+  expect((await loadConfig(f.path)).fileConfig.agent?.send_empty_text_strategy).toBe('silent_success');
 
   // Switching back to the default removes the explicit strategy.
   const reset = await f.update({ send_empty_text_strategy: 'reject' }, body.revision);
   expect(((await reset.json()) as HarnessSettings).saved.send_empty_text_strategy).toBe('reject');
   expect(Object.hasOwn((await loadConfig(f.path)).fileConfig.agent ?? {}, 'send_empty_text_strategy')).toBe(false);
+});
+
+test('saving an unchanged explicit reject strategy writes nothing and survives other edits', async () => {
+  const f = await fixture((config) => {
+    config.agent!.send_empty_text_strategy = 'reject';
+  });
+  const before = await readFile(f.path, 'utf8');
+  const { revision } = await f.view();
+
+  // `reject` is already the value the file pins: saving it again is a no-op,
+  // not a request to delete the key.
+  const same = await f.update({ send_empty_text_strategy: 'reject' }, revision);
+  expect(same.status).toBe(200);
+  expect(await same.json()).toMatchObject({ revision, apply: { applied: [] } });
+  expect(await readFile(f.path, 'utf8')).toBe(before);
+
+  // A page save that carries the unchanged strategy alongside a real change
+  // keeps the key in the file.
+  const next = await f.update({ send_empty_text_strategy: 'reject', send_nudge_enabled: false }, revision);
+  expect(next.status).toBe(200);
+  expect((await loadConfig(f.path)).fileConfig.agent?.send_empty_text_strategy).toBe('reject');
+});
+
+test('a harness save keeps a deprecated flag in the file and writes no unchosen strategy', async () => {
+  const f = await fixture((config) => {
+    (config.agent as Record<string, unknown>).send_empty_text_fallback_enabled = true;
+  });
+  const { revision, saved } = await f.view();
+  // The deprecated field never reaches the page's values at all.
+  expect(Object.hasOwn(saved, 'send_empty_text_fallback_enabled')).toBe(false);
+
+  const response = await f.update({ send_nudge_enabled: false }, revision);
+  expect(response.status).toBe(200);
+  const file = (await loadConfig(f.path)).fileConfig.agent;
+  // The deprecated key survives the targeted edit; no strategy is invented.
+  expect(file?.send_empty_text_fallback_enabled).toBe(true);
+  expect(Object.hasOwn(file ?? {}, 'send_empty_text_strategy')).toBe(false);
+  // And it stays inert: the resolved runtime config never carries it.
+  const active = f.configStore.current().config;
+  expect(active.agent.send_empty_text_strategy).toBe('reject');
+  expect(Object.hasOwn(active.agent, 'send_empty_text_fallback_enabled')).toBe(false);
+  expect(active.deprecated_fields).toEqual(['agent.send_empty_text_fallback_enabled']);
 });
 
 test('a value equal to the file, or to an absent default, writes nothing', async () => {

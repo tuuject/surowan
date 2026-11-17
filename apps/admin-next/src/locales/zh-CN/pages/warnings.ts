@@ -20,6 +20,7 @@ export const warnings: typeof warningsEn = {
   missingFields: '缺少：{{fields}}',
   invalidApiKeys: '非法密钥：{{keys}}',
   mcpDeprecatedAliases: '仍设置于：{{aliases}}',
+  deprecatedConfigFields: '仍设置：{{fields}}',
   mcpNextReconnect: '下次重试 <time>{{time}}</time>',
   lastFailedAt: '最近失败：<time>{{time}}</time>',
   createdAt: '创建于 <time>{{time}}</time>',
@@ -77,6 +78,11 @@ export const warnings: typeof warningsEn = {
     api_key_invalid_permissions: {
       title: 'API 密钥权限无效',
       body: '有 API 密钥的权限无效，暂时无法使用。请到 API 密钥页为它们保存一个权限模式。',
+    },
+    config_fields_deprecated: {
+      title: '配置中仍有已废弃字段',
+      body: '这些字段仍会被接受但已无任何效果，请从配置文件中删除。',
+      hint: '要保留原来的空文本兜底行为，请改设 agent.send_empty_text_strategy 为 "random_text"。',
     },
     mcp_required_deprecated: {
       title: '配置里仍有已废弃的 MCP 选项',

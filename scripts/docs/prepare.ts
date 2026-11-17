@@ -30,6 +30,7 @@ interface SchemaNode {
   maxItems?: number;
   pattern?: string;
   uniqueItems?: boolean;
+  deprecated?: boolean;
 }
 
 function typeLabel(schema: SchemaNode): string {
@@ -83,6 +84,9 @@ function fieldHeading(lines: string[], schema: SchemaNode, name: string, require
     `类型：\`${typeLabel(schema)}\`；${required ? '必填' : '可选'}。`,
     '',
   );
+  if (schema.deprecated === true) {
+    lines.push('**已废弃**：字段仍被接受但无任何效果，请删除。', '');
+  }
   if (limits.length) {
     lines.push(`限制：${limits.map((limit) => `\`${limit}\``).join('，')}。`, '');
   }

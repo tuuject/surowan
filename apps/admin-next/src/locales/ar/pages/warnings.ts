@@ -35,6 +35,7 @@ export const warnings: CompleteCatalog<typeof warningsEn> = {
   missingFields: 'مفقود: {{fields}}',
   invalidApiKeys: 'مفاتيح غير صالحة: {{keys}}',
   mcpDeprecatedAliases: 'ما يزال معيّنًا في: {{aliases}}',
+  deprecatedConfigFields: 'ما يزال معيّنًا: {{fields}}',
   mcpNextReconnect: 'المحاولة التالية <time>{{time}}</time>',
   lastFailedAt: 'آخر إخفاق: <time>{{time}}</time>',
   createdAt: 'أُنشئ <time>{{time}}</time>',
@@ -99,6 +100,11 @@ export const warnings: CompleteCatalog<typeof warningsEn> = {
     api_key_invalid_permissions: {
       title: 'مفاتيح API بصلاحيات غير صالحة',
       body: 'مفتاح API واحد أو أكثر لديه صلاحيات غير صالحة ولا يمكنه تسجيل الدخول. احفظ وضعًا لكل منها في صفحة مفاتيح API.',
+    },
+    config_fields_deprecated: {
+      title: 'حقول إعدادات مهملة ما تزال مضبوطة',
+      body: 'هذه الحقول ما تزال مقبولة لكنها بلا أي أثر؛ أزِلها من ملف الإعدادات.',
+      hint: 'للإبقاء على سلوك الرد الاحتياطي القديم عند الإرسال الفارغ، اضبط agent.send_empty_text_strategy على "random_text" بدلًا منه.',
     },
     mcp_required_deprecated: {
       title: 'خيار MCP مهمل ما يزال في الإعدادات',

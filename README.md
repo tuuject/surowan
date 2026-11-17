@@ -131,7 +131,7 @@ Telegram 消息
 ### 数据与安全边界
 
 - 即使自行部署，消息、上下文和图片仍会按配置发送给你选择的模型和外部工具服务。**接入群聊前，请告知参与者并核对服务商的数据政策。**
-- 在线数据按 `retention.online_days` 保留，过期数据在运行 `backup` 时清理（见 [备份与恢复](apps/docs/content/docs/operations/backup-restore.md)）；备份文件和模型服务商那边保存的数据需要你分别管理。
+- 在线数据按 `retention.online_days` 保留，过期数据在 `serve` 运行时由启动与每日清理（`backup` 也会在备份前执行同一次清理，见 [备份与恢复](apps/docs/content/docs/operations/backup-restore.md)）；备份文件和模型服务商那边保存的数据需要你分别管理。
 - 模型没有任意文件系统或 Shell 权限；图片等媒体只能在所属会话内引用，并会过期；MCP 工具受配置与运行时策略约束。
 
 管理面板的访问边界见 [管理面板指南](apps/docs/content/docs/configure/admin.md)。

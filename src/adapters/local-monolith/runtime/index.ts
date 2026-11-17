@@ -115,6 +115,7 @@ export async function serve(configPath: string, options: ServeOptions = {}): Pro
       replayShutdown.abort(new Error('shutdown'));
       state.stopWatcher?.();
       state.warnings?.stop();
+      state.retention?.stop();
       // Stop ingress before the drain: no new update may become an invocation
       // while the scheduler is waiting for its runs to finish.
       await state.telegramConnection?.shutdown();

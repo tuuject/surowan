@@ -435,9 +435,9 @@ Alarm 是第一个 `plugin_id = "alarm"` 的 consumer，通过 `execute.call` �
 
 `agent.send_disallow_blank_lines` 开启（默认关闭）时，包含任何空行的文本同样在发送前被拒绝，错误码 `send_blank_lines`。
 
-`agent.send_empty_text_strategy`（可选，默认 `reject`）决定解析为文本（`kind: "text"` 或 kind 缺省且没有 `sticker_ref`/`image_generation_id`/`image_ref`）却没有 `text` 的一条怎么处理；旧字段 `send_empty_text_fallback_enabled: true` 在策略缺省时等价于 `random_text`。
+`agent.send_empty_text_strategy`（可选，默认 `reject`）决定解析为文本（`kind: "text"` 或 kind 缺省且没有 `sticker_ref`/`image_generation_id`/`image_ref`）却没有 `text` 的一条怎么处理。
 
-- `reject`：以 `send_input_invalid` 拒绝，不调用 Telegram。这是默认值，也是没有该策略字段且旧开关未开启时的行为。
+- `reject`：以 `send_input_invalid` 拒绝，不调用 Telegram。这是默认值，也是该字段缺省时的行为。
 - `silent_success`：Tool 入口直接返回成功，结果明确说明「已处理但没有发送任何消息」，不写 `host_sends`、不占发送额度、不触发 Reply 去重/重复发送/屏障；`tool_calls` 为 `success` 且 `side_effect = 0`。`send_reply` 逐 part 处理：缺文本的 part 跳过并各记一条成功审计，其余 part 照常发送，`reply_to_message_id` 落到第一条真正发出的 part。`send_reply` 预检拒绝与中途失败的报错都沿用模型原调用里的 part 序号，部分失败只列出真正发出的 part。静默成功不视为实际发送，连续三次会以 `completion_reason = silent_send` 结束运行（与重复失败熔断同为三次）；熔断按 Tool 调用计数，一次全部静默的 `send_reply` 只算一次，任何真正发出的消息都会把该连续计数清零。
 - `random_text`：由 `fillEmptyText` 在 Tool 入口从 `send_empty_text_fallback_texts`（默认 `["……"]`）随机取一条补上，并去掉 `parse_mode`（兜底文本没有按 MarkdownV2 转义）。补全发生在任何检查之前，所以长度/空行规则、Reply 去重、重复发送守卫与烧毁、`tool_calls.arguments_json`（`send_reply` 行与各 `:<n>` 行）看到的都是实际发出的文本：同一次运行里连续两次无文本发送抽中同一条，第二次照常以 `send_duplicate` 拒绝。Tool 结果在原文之后追加一句说明发出的是哪条兜底文本（`send_reply` 按 part 编号逐条说明），模型的 transcript 里保留的仍是它原本的调用参数。
 
@@ -624,7 +624,7 @@ Sticker 视觉元数据通过严格 Tool Call 返回：中文描述、情绪、�
 
 `/pause`、`/resume`、`/model`、`/effort`、`/cut_topic`、`/rebuild_context`、`/allowlist` 的白名单是配置文件里的 `telegram.admins`（Telegram User ID 数组），Bot 全局共享，它是唯一事实源：
 
-- 旧版 `bot_admins` 表已删除（迁移 `026_drop_bot_admins.sql`）；旧表内容用 `scripts/migrate-admins.ts` 搬进配置（须在升级启动前运行）。
+- 旧版 `bot_admins` 表已删除（迁移 `026_drop_bot_admins.sql`），`telegram.admins` 是唯一事实源。
 - 权限判定在 `BotCommandService`：命令发送者的 `message.from.id` 命中运行中配置的 `telegram.admins` 才放行；`sender_chat` 匿名身份一律拒绝。
 - `telegram.admins` 在热更新白名单里（见 [configuration.md](configuration.md#运行时配置热更新)）：Admin「应用配置文件」或 Bot admins 页面的增删都会热应用，下一次命令执行就用新列表，无需重启；面板的增删是配置写端点（If-Match revision），写的就是这一字段。
 

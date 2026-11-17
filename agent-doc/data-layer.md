@@ -14,7 +14,7 @@ Surowan 使用单个 SQLite 数据库保存消息、调度状态、能力索引�
 
 表级的 `STRICT` 由迁移 DDL 声明，不是连接选项。
 
-迁移文件位于 `src/store/migrations/`，文件名为 `NNN_name.sql`，按编号排序。每个迁移在 IMMEDIATE transaction 中执行并记录到 `schema_migrations`。已有数据库存在待执行迁移时，先在备份目录创建 `pre-migration-*.sqlite`。
+迁移文件位于 `src/store/migrations/`，文件名为 `NNN_name.sql`，按编号排序。每个迁移在 IMMEDIATE transaction 中执行并记录到 `schema_migrations`。已有数据库存在待执行迁移时，先在备份目录创建 `pre-migration-*.sqlite` 副本，随后只在 `pre-migration-*.sqlite` 副本之间按 `retention.backup_copies` 保留最新若干份；`surowan-*` 备份及其 `.images/` 快照不受这一步影响。
 
 迁移 `021` 删除旧 `internal_contexts` 旁路观察，不向 canonical history 回填，也不删任务、回执或正常审计。工具结果只随 `context_messages` 保留；本次移除旧提示词也会改变稳定 prompt hash，升级后首次打开 Conversation 时仍按既有规则重建 Context，不为旧外挂保留兼容通道。迁移 `022` 为既有回执回填其所属 Invocation 的 Bucket，并把唯一性从 Invocation 转为非空 `bucket_id`；因此同一 Invocation 可保留多个 receipt。
 
@@ -258,7 +258,7 @@ Admin 侧的 `admin_users`/`admin_sessions` 语义见 [admin-panel.md](admin-pan
 
 ## 保留清理
 
-`backup` 在备份前调用 `purgeExpiredData`。清理仅删除已完成终态和不再被活跃引用的数据：
+`purgeExpiredData` 由 `serve` 在启动时调用一次、之后每 24 小时调用一次（读取当前发布的 `retention.online_days`，失败只记结构化日志不中断进程），`backup` 也在备份前调用它。清理仅删除已完成终态和不再被活跃引用的数据：
 
 - 已过期的 `memo_pad_entries`（按自身 TTL，不参与在线保留窗口）；`purgeExpiredData` 删除的是行，`memo_blobs` 的行与文件由随后的 `MemoBlobStore.sweep()` 按引用清理（服务启动时也会执行一次）。
 - 已过期的 `conversation_attention` 注意力窗口行（窗口过期即无意义，不参与在线保留窗口）。

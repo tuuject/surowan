@@ -1,4 +1,5 @@
 import type { Static } from 'typebox';
+import { deprecatedConfigFields } from './deprecated.ts';
 import { resolveAgentSection, resolveTelegramSection, resolveVisionSection } from './resolve.ts';
 import type { ConfigSchema } from './schema.ts';
 import type {
@@ -59,7 +60,6 @@ export interface AgentRuntimeConfig extends AgentSettings {
   readonly max_concurrency: number;
   readonly context_stop_ratio: number;
   readonly history_messages: number;
-  readonly memory_ttl_warning_days?: number;
   readonly send_max_text_length?: number;
   readonly send_disallow_blank_lines?: boolean;
   readonly send_nudge_enabled?: boolean;
@@ -68,8 +68,6 @@ export interface AgentRuntimeConfig extends AgentSettings {
   readonly send_duplicate_guard_enabled?: boolean;
   /** Always concrete after resolution: `reject` unless configured otherwise. */
   readonly send_empty_text_strategy: EmptyTextSendStrategy;
-  /** Deprecated input; only read when `send_empty_text_strategy` is absent. */
-  readonly send_empty_text_fallback_enabled?: boolean;
   readonly send_empty_text_fallback_texts: readonly string[];
   readonly context: {
     readonly retained_sends_target: number;
@@ -107,7 +105,6 @@ export interface VisionRuntimeConfig {
   thinking_level?: ThinkingLevelConfig;
   max_output_tokens: number;
   max_concurrency: number;
-  background_sticker_concurrency: 1;
   prompt_version: number;
   daily_budget: { max_tokens: number; max_images: number };
 }
@@ -130,6 +127,13 @@ export type RawConfig = Omit<FileConfig, 'agent' | 'vision' | 'telegram' | 'deve
   vision: VisionRuntimeConfig;
   telegram: TelegramRuntimeConfig;
   admin: AdminRuntimeConfig;
+  /**
+   * The deprecated file-level fields this generation carries, derived by
+   * `assembleRawConfig` from `deprecatedConfigFields`. Derived metadata rather
+   * than a configuration field: `standingWarnings` reads it for the
+   * `config_fields_deprecated` warning, nothing else does.
+   */
+  readonly deprecated_fields?: readonly string[];
 };
 export type ImageConfig = RawConfig['image'];
 export type ProviderConfig = RawConfig['providers'][string];
@@ -164,6 +168,7 @@ export function assembleRawConfig(
     vision: resolveVisionSection(fileConfig.vision),
     admin: { ...fileConfig.admin, enabled: fileConfig.admin.enabled !== false },
     telegram: { ...telegram, chats },
+    deprecated_fields: deprecatedConfigFields(fileConfig).map((field) => field.path),
   };
 }
 

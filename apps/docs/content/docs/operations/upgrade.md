@@ -53,6 +53,8 @@ docker image inspect ghcr.io/tuuject/surowan:latest \
 
 如果旧配置没有 `admin` 段，升级后 `check-config` 会直接报错：管理面板现在是必填项。按 [管理面板](../configure/admin.md) 补上 `host`、`port` 与 `session_ttl_hours`；`enabled` 可以省略（默认 `true`）。`telegram` 则相反，已从必填改为可选，保留旧配置不需要改动。
 
+三个字段已废弃：`agent.memory_ttl_warning_days`、`agent.send_empty_text_fallback_enabled` 与 `vision.background_sticker_concurrency`。它们不再阻止启动：仍被 schema 接受但完全不生效，`check-config` 的 `warnings` 与 `serve` 启动日志的 `config_warnings` 事件会逐个列出字段路径并提示删除，Admin 警告页也会显示一条常态警告。建议从 `config.jsonc` 删掉它们。注意行为变化：`send_empty_text_fallback_enabled: true` 不再推导 `random_text` 策略——依赖旧兜底行为的部署要把 `agent.send_empty_text_strategy` 显式设为 `"random_text"`（`false` 与缺省等价，直接删字段即可）。
+
 ## 风险与恢复
 
 升级前备份不是降级保证。若启动或迁移失败，保留失败日志和原数据副本，在隔离目录演练 [恢复](backup-restore.md)，而不是删除 SQLite、缓存或锁文件。具体旧版本迁移路径尚未在本指南环境中演练。
