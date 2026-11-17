@@ -205,16 +205,26 @@ export function maybeCollect(
   return plan;
 }
 
+/**
+ * The run's input estimate: the retained canonical history plus the tool
+ * definitions, both in tokens from the shared estimator.
+ */
 export function estimateInputTokens(
   services: RuntimeServices,
   entry: CachedConversationAgent,
-  toolDefinitionCharacters: number,
+  toolDefinitionTokens: number,
 ): number {
   const window = services.contexts.window(entry.header);
   const retained = window.reduce((total, row) => total + Number(row.estTokens), 0);
-  return retained + Math.ceil(toolDefinitionCharacters / 4);
+  return retained + toolDefinitionTokens;
 }
 
+/**
+ * The transcript's token estimate expressed as ASCII-equivalent characters
+ * (`tokens * 4`), the unit the injection character budget is written in. Not a
+ * literal character count: CJK text is over-counted on purpose, so the budget
+ * errs toward smaller injections.
+ */
 export function estimateTranscriptCharacters(entry: CachedConversationAgent): number {
   return estimateMessagesTokens(entry.agent.state.messages) * 4;
 }

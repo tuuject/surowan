@@ -9,6 +9,7 @@ import { buckets } from '../../store/schema/index.ts';
 import {
   buildTools,
   estimateToolRegistryCharacters,
+  estimateToolRegistryTokens,
   hostFor,
   recordToolRegistry,
   validateToolRegistry,
@@ -145,6 +146,7 @@ export function createAgentRun(scope: RunScope, zzzExposed: boolean): AgentRun {
   const tools = applyToolSchemaKeywords(buildToolsFor(contextState, zzzExposed), toolSchemaKeywords);
   validateToolRegistry(tools, model.contextWindow);
   const toolDefinitionCharacters = estimateToolRegistryCharacters(tools);
+  const toolDefinitionTokens = estimateToolRegistryTokens(tools);
   recordToolRegistry(services, invocationId, tools);
 
   const conversationId = identity.conversationId;
@@ -244,7 +246,7 @@ export function createAgentRun(scope: RunScope, zzzExposed: boolean): AgentRun {
   agent.state.thinkingLevel = settings.thinking_level;
   agent.state.tools = [...tools];
   agent.maxRetryDelayMs = Math.max(0, deadline - Date.now());
-  state.estimatedInputTokens = estimateInputTokens(services, cached, toolDefinitionCharacters);
+  state.estimatedInputTokens = estimateInputTokens(services, cached, toolDefinitionTokens);
 
   return {
     agent,
@@ -253,6 +255,7 @@ export function createAgentRun(scope: RunScope, zzzExposed: boolean): AgentRun {
     typing,
     tools,
     toolDefinitionCharacters,
+    toolDefinitionTokens,
     carriedInjections,
     rebuildVisibleState,
     carried,

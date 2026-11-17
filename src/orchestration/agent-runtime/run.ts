@@ -9,6 +9,7 @@ import {
   readDailyTokenBudget,
 } from '../../store/sleep.ts';
 import type { InvocationConfigSnapshot } from '../../platform/runtime-config.ts';
+import { estimateTextTokens } from '../../platform/token-estimate.ts';
 import { capabilitiesFor } from './support.ts';
 import type { RunScope, RunState, RuntimeServices } from './types.ts';
 import { logContextRebuilt, logZzzExposure } from './observability.ts';
@@ -81,7 +82,7 @@ export async function runInvocation(
   // much alongside the stable prompt and the output budget; a hot reload that
   // lowers either model limit then rebuilds an oversized Context on this run's
   // first open instead of seeding a transcript the provider would reject.
-  const promptTokens = Math.ceil(stable.systemPrompt.length / 4);
+  const promptTokens = estimateTextTokens(stable.systemPrompt);
   const toolReserveTokens = Math.ceil(model.contextWindow * 0.1);
   const maxRetainedTokens = Math.max(
     0,

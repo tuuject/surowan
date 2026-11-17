@@ -13,6 +13,7 @@ import type { KeyedSemaphore } from '../../platform/concurrency.ts';
 import { configuredToolSchemaKeywords, type RawConfig } from '../../platform/config/index.ts';
 import { invocationGateKey } from '../../platform/invocation-policy.ts';
 import type { SecretStore } from '../../platform/secrets.ts';
+import { estimateTextTokens } from '../../platform/token-estimate.ts';
 import { applyToolSchemaKeywords } from '../../platform/tool-schema.ts';
 import { RepeatedToolFailure } from '../repeated-tool-failure.ts';
 import type { ReplayPromptOverrides } from './index.ts';
@@ -187,7 +188,8 @@ export async function runReplay(
       // the estimate reads the seeded registry directly instead of `context.tools`.
       const inputTokens =
         context.messages.reduce((sum, message) => sum + estimateMessageTokens(message), 0) +
-        Math.ceil((systemPrompt.length + JSON.stringify(tools).length) / 4);
+        estimateTextTokens(systemPrompt) +
+        estimateTextTokens(JSON.stringify(tools));
       if (inputTokens + streamModel.maxTokens >= streamModel.contextWindow * config.agent.context_stop_ratio) {
         fail('context_limit', 'Replay input exceeds the current model context budget');
         throw new Error('Replay context limit');

@@ -2,6 +2,7 @@ import type { AgentMessage } from '@earendil-works/pi-agent-core';
 import type { AssistantMessage, ToolResultMessage, UserMessage } from '@earendil-works/pi-ai';
 import Type from 'typebox';
 import Compile from 'typebox/compile';
+import { estimateTextTokens } from '../platform/token-estimate.ts';
 import { parseStoredToolContent, toolImageReferences } from '../platform/tool-images.ts';
 
 /**
@@ -262,8 +263,8 @@ export function decodeContextMessage(json: string): AgentMessage {
 
 /**
  * Rough token estimate for one persisted message. Only used for the GC token
- * safety valve, so a 4-characters-per-token approximation is enough; the real
- * numbers come from provider usage on every model call.
+ * safety valve, so the shared estimate from `platform/token-estimate.ts` is
+ * enough; the real numbers come from provider usage on every model call.
  */
 export function estimateMessageTokens(message: AgentMessage): number {
   const encoded = encodeContextMessage(message);
@@ -273,7 +274,7 @@ export function estimateMessageTokens(message: AgentMessage): number {
   // A conservative patch estimate; actual accounting still comes from provider usage.
   const images = message.role === 'toolResult' ? toolImageReferences(message.details) : [];
   return (
-    Math.ceil(encoded.json.length / 4) +
+    estimateTextTokens(encoded.json) +
     images.reduce((total, image) => total + Math.ceil(image.width / 32) * Math.ceil(image.height / 32), 0)
   );
 }

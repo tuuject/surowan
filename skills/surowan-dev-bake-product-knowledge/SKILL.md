@@ -50,7 +50,7 @@ When exact byte measurement is unavailable, report the size as unmeasured. A mod
 From the repository root, measure the actual exported string without starting the runtime:
 
 ```bash
-node --input-type=module -e 'import { PRODUCT_KNOWLEDGE_INDEX as text } from "./src/platform/product-knowledge.ts"; console.log({ chars: text.length, bytes: Buffer.byteLength(text, "utf8"), gc_estimated_tokens: Math.ceil(text.length / 4) });'
+node --input-type=module -e 'import { estimateTextTokens } from "./src/platform/token-estimate.ts"; import { PRODUCT_KNOWLEDGE_INDEX as text } from "./src/platform/product-knowledge.ts"; console.log({ chars: text.length, bytes: Buffer.byteLength(text, "utf8"), gc_estimated_tokens: estimateTextTokens(text) });'
 ```
 
 The GC-style estimate is not a model-token measurement. Report the measured size as is; do not round it down.

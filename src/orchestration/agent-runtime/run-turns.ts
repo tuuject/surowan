@@ -1,6 +1,6 @@
 import { SEND_TOOL_NAMES } from '../../capabilities/send/index.ts';
 import { activeSleepUntil, isDailyTokenBudgetReached } from '../../store/sleep.ts';
-import { estimateToolRegistryCharacters, recordAgentMessage } from './support.ts';
+import { estimateToolRegistryTokens, recordAgentMessage } from './support.ts';
 import type { AgentRun, RoundControl, RunScope } from './types.ts';
 import { estimateInputTokens, maybeCollect } from './transcript.ts';
 import { DUPLICATE_SEND_REJECTION_LIMIT, SILENT_SEND_LIMIT } from '../../capabilities/send/support.ts';
@@ -71,7 +71,7 @@ export function bindTurnHooks(scope: RunScope, run: AgentRun, round: RoundContro
       state.estimatedInputTokens = estimateInputTokens(
         services,
         cached,
-        estimateToolRegistryCharacters(nextTools ?? tools),
+        estimateToolRegistryTokens(nextTools ?? tools),
       );
     }
     const stopThreshold = Math.floor(model.contextWindow * config.agent.context_stop_ratio);

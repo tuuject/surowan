@@ -94,7 +94,7 @@ SQLite 无法用 `ALTER TABLE` 放宽 `NOT NULL`，只能重建表。`chats` 是
 - `agent_messages` 与 `context_messages` 的分工：前者是审计轨迹（每 Invocation 扁平展开、人可读、把 harness 提醒单独标成 `harness_nudge`，assistant 行在 `developer.record_agent_thinking` 开启时带单独的 `thinking_text` CoT 展示），后者是生产 Agent 跨 Invocation 续跑的来源（完整结构与 thinking、按 Conversation 保留），不是 Admin 场景重放输入；两者都由 `agent-runtime` 写入，互不替代。
 - `is_checkpoint` 标记一条注入批次的首条 user 消息；GC 只会把 `head_seq` 推到 checkpoint 行上。
 - `send_seq` 只在「成功实发 `send` 或 `send_reply` 的 toolResult」行上非空（排除图片去重返回），值等于写入时的 `send_count_total + 1`；GC 用它统计保留窗内还剩几次发送。
-- `est_tokens` 是逐行 Token 估算，供 GC 与收尾判定使用，不是精确计数。
+- `est_tokens` 是逐行 Token 估算，供 GC 与收尾判定使用，不是精确计数；按 `src/platform/token-estimate.ts` 的共享估算计算（ASCII 每 4 个字符 1 token，其余每个码点 1 token）。早先按「字符数除 4」写入的行保留原值，不回填，随 GC 逐步淘汰。
 - `evicted_at` 是软删除标记：GC 不立即物理删除行，只打标记；这些行不随在线窗口清理，只有 Conversation/Chat 删除或显式截断才移除。
 - `invocation_id` 记录写入该行的 Invocation，Invocation 被清理时置 `NULL`，历史行本身不随之删除。
 
