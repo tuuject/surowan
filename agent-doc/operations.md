@@ -66,7 +66,7 @@ node src/cli.ts doctor --config dev-data/config.jsonc
 - `pnpm test`：运行全部行为测试。
 - `pnpm run lint` / `pnpm run lint:fix`：Biome 检查与格式校验；`lint` 只读、每个 workflow 都跑，`lint:fix` 写回文件后仍需重跑 `lint`。
 - `check-config`：只验证 JSONC Schema、语义与引用，输出配置哈希。
-- `doctor`：执行 SQLite/Sharp/FFmpeg/Lottie、Provider、Vision、required MCP 与（配置了 token 时）Telegram 的真实探针。
+- `doctor`：执行 SQLite/Sharp/FFmpeg/Lottie、Provider、Vision、全部已配置 MCP Server 与（配置了 token 时）Telegram 的真实探针；MCP 不可达只报告为不可用项，不会让 doctor 失败。
 - `serve`：启动服务与 Telegram 连接（可用时）；白名单字段（agent 模型、Prompt、预算与并发等，见 [configuration.md](configuration.md#运行时配置热更新)）可在运行中通过 Admin 的「应用配置文件」或 `/model` 应用，其余字段仍需重启。
 - `backup`：执行保留清理、SQLite `VACUUM INTO` 备份与轮换；完整性检查属于独立恢复验证。
 - `configure`：`src/tui/` 的交互式配置向导，编辑既有配置的 Provider 与 thinking level，可从 Provider `/models` 拉取可路由模型 ID 后写回原文件。要求已存在可加载的配置且 stdin 是 TTY，非交互环境直接报错退出——agent 不要调用它。
@@ -315,7 +315,7 @@ surowan-utils doctor --json
 - `serve_started`
 - `admin_started`（`admin.enabled` 未显式关闭时出现）
 - 进程退出与重启次数
-- required MCP 初始化失败
+- `mcp_server_degraded` / `mcp_server_recovered`（每个降级片段各一条，不按重试刷屏）
 - 未脱敏前的错误不得直接输出
 
 消息、Tool 和模型的细节以 SQLite 审计为准，stdout 不为每条 Update 打日志。不要因日志安静就判断 Bot 没有处理消息。

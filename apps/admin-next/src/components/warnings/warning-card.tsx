@@ -24,6 +24,36 @@ function stringListVariable(variables: Readonly<Record<string, unknown>>, key: s
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
 }
 
+interface UnavailableMcpServer {
+  readonly alias: string;
+  readonly errorCode: string | null;
+  readonly nextReconnectAt: string | null;
+}
+
+/** `servers` arrives as plain JSON: every field is read defensively, never trusted. */
+function unavailableMcpServers(variables: Readonly<Record<string, unknown>>): readonly UnavailableMcpServer[] {
+  const value = variables.servers;
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.flatMap((item) => {
+    if (typeof item !== 'object' || item === null) {
+      return [];
+    }
+    const entry = item as Record<string, unknown>;
+    if (typeof entry.alias !== 'string') {
+      return [];
+    }
+    return [
+      {
+        alias: entry.alias,
+        errorCode: typeof entry.error_code === 'string' ? entry.error_code : null,
+        nextReconnectAt: typeof entry.next_reconnect_at === 'string' ? entry.next_reconnect_at : null,
+      },
+    ];
+  });
+}
+
 function invalidApiKeyLabels(variables: Readonly<Record<string, unknown>>): readonly string[] {
   const value = variables.keys;
   if (!Array.isArray(value)) {
@@ -128,6 +158,49 @@ function WarningDetails({ warning }: { readonly warning: WarningItem }): ReactEl
           : t('pages.warnings.codes.telegram_config_error.body.unknown');
       return <p className={css({ textStyle: 'body', color: 'text-muted' })}>{body}</p>;
     }
+    case 'mcp_required_deprecated': {
+      const aliases = stringListVariable(variables, 'aliases');
+      return (
+        <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
+          <p className={css({ textStyle: 'body', color: 'text-muted' })}>
+            {t('pages.warnings.codes.mcp_required_deprecated.body')}
+          </p>
+          {aliases.length > 0 ? (
+            <p className={css({ textStyle: 'small', color: 'text-muted', fontFamily: 'mono' })}>
+              {t('pages.warnings.mcpDeprecatedAliases', { aliases: aliases.join(', ') })}
+            </p>
+          ) : null}
+        </div>
+      );
+    }
+    case 'mcp_server_unavailable': {
+      const servers = unavailableMcpServers(variables);
+      return (
+        <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
+          <p className={css({ textStyle: 'body', color: 'text-muted' })}>
+            {t('pages.warnings.codes.mcp_server_unavailable.body')}
+          </p>
+          {servers.map((server) => (
+            <p key={server.alias} className={css({ textStyle: 'small', color: 'text-muted', fontFamily: 'mono' })}>
+              {server.alias}
+              {server.errorCode === null ? '' : ` · ${server.errorCode}`}
+              {server.nextReconnectAt === null ? (
+                ''
+              ) : (
+                <>
+                  {' · '}
+                  <Trans
+                    i18nKey="pages.warnings.mcpNextReconnect"
+                    values={{ time: formatTime(server.nextReconnectAt) }}
+                    components={{ time: <TechText /> }}
+                  />
+                </>
+              )}
+            </p>
+          ))}
+        </div>
+      );
+    }
     case 'api_key_invalid_permissions': {
       const names = invalidApiKeyLabels(variables);
       return (
@@ -208,6 +281,13 @@ function WarningAction({ code }: { readonly code: string }): ReactElement | null
           {t('pages.warnings.actions.openApiKeys')}
         </ButtonLink>
       );
+    case 'mcp_required_deprecated':
+    case 'mcp_server_unavailable':
+      return (
+        <ButtonLink to="/settings" variant="outline" color="secondary">
+          {t('pages.warnings.actions.openSettings')}
+        </ButtonLink>
+      );
     default:
       return null;
   }
@@ -231,6 +311,10 @@ function WarningTitle({ warning }: { readonly warning: WarningItem }): ReactElem
       return <>{t('pages.warnings.codes.telegram_network_error.title')}</>;
     case 'api_key_invalid_permissions':
       return <>{t('pages.warnings.codes.api_key_invalid_permissions.title')}</>;
+    case 'mcp_required_deprecated':
+      return <>{t('pages.warnings.codes.mcp_required_deprecated.title')}</>;
+    case 'mcp_server_unavailable':
+      return <>{t('pages.warnings.codes.mcp_server_unavailable.title')}</>;
     case 'telegram_config_error': {
       const reason = stringVariable(warning.variables, 'reason');
       switch (reason) {

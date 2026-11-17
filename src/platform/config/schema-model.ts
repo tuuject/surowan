@@ -82,6 +82,20 @@ export const ModelCompatSchema = Type.Object(
  */
 export const ToolSchemaKeywordsSchema = Type.Literal('minimal');
 
+/**
+ * One MCP tool's policy. It lives beside the model shapes because a server
+ * declares it once and every Chat may override it per bound tool.
+ */
+const ToolPolicyFields = {
+  read_only: Type.Boolean(),
+  timeout_seconds: Type.Number({ exclusiveMinimum: 0 }),
+};
+export const ToolPolicySchema = Type.Object({ name: Type.String({ minLength: 1 }), ...ToolPolicyFields }, Strict);
+export const DefaultToolPolicySchema = Type.Object(ToolPolicyFields, Strict);
+
+/** MCP server aliases; a per-Chat binding names one and the tool set stays `<alias>__<tool>`. */
+export const MCP_SERVER_ALIAS_PATTERN = '^[A-Za-z][A-Za-z0-9_-]{0,63}$';
+
 export const ModelConfigSchema = Type.Object(
   {
     id: Type.String({ minLength: 1 }),

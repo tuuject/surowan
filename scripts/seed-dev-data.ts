@@ -186,7 +186,6 @@ function seedConfig(dir: string): FileConfig {
           alias: 'brave',
           transport: 'stdio',
           command: ['npx', '--yes', '@brave/brave-search-mcp-server@2.1.0', '--transport', 'stdio'],
-          required: false,
           tools: '*',
           payload_max_bytes: 1_048_576,
           result_max_bytes: 32_768,

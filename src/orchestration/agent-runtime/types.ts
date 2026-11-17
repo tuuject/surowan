@@ -29,12 +29,16 @@ import type { RepeatedToolFailure } from '../repeated-tool-failure.ts';
 
 /**
  * Builds per-invocation tools. Used for the execute registry (runtime-internal
- * capabilities) and for directly exposed extras (allowlisted MCP tools).
+ * capabilities) and for directly exposed extras (allowlisted MCP tools). `config`
+ * is the configuration snapshot this run started with, so a factory that depends
+ * on configuration (per-Chat MCP bindings) resolves it at invocation start
+ * instead of reading a newer published one.
  */
 export type ToolFactory = (
   context: InvocationContext,
   deadline: number,
   capabilities: CapabilityRefResolver,
+  config: RawConfig,
 ) => readonly AgentTool[];
 export type AdditionalToolFactory = ToolFactory;
 

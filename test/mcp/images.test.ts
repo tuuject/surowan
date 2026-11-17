@@ -188,7 +188,9 @@ test('one retained-history query authorizes multiple calls and preserves call, a
 
 test('legacy text-only MCP envelope and unsupported binary content remain bounded', async () => {
   const f = await imageFixture();
-  const echo = f.manager.createTools(f.context, Date.now() + 30_000).find((tool) => tool.name === 'local__echo')!;
+  const echo = f.manager
+    .createTools(f.context, Date.now() + 30_000, f.config)
+    .find((tool) => tool.name === 'local__echo')!;
   const result = await echo.execute('echo_old', { text: 'legacy' });
   expect(result.content).toEqual([{ type: 'text', text: '{"content":[{"type":"text","text":"1:legacy"}]}' }]);
   const definition = { serverAlias: 'local', originalName: 'images', resultMaxBytes: 128 };

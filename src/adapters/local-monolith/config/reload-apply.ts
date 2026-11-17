@@ -44,8 +44,11 @@ export type ConfigApplyDeps = {
   readonly telegramConfig: TelegramConfigGateway | undefined;
   /** Registered search providers; missing means the bundled set. */
   readonly searchProviders?: readonly SearchProviderRule[];
-  /** Throws when the tool registry does not fit the model's context window. */
-  readonly validateAgentModel: (model: Model<Api>) => void;
+  /**
+   * Throws when the tool registry does not fit the model's context window.
+   * `config` is the candidate, so per-Chat tool sets can be resolved for it.
+   */
+  readonly validateAgentModel: (config: RawConfig, model: Model<Api>) => void;
   /**
    * Called after every successful publish; awaited by `applyFile`. It may throw
    * after doing part of its work: it must be safe to call again for the same
@@ -104,7 +107,7 @@ export async function applyFile(deps: ConfigApplyDeps): Promise<ConfigApplyResul
   }
   try {
     for (const { model } of configuredAgentModels(diff.candidate.raw, rebuilt.registry.models)) {
-      deps.validateAgentModel(model);
+      deps.validateAgentModel(diff.candidate.raw, model);
     }
   } catch (error) {
     return deps.failure('model_unusable', messageOf(error), false);

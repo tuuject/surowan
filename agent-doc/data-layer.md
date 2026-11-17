@@ -109,6 +109,8 @@ SQLite 无法用 `ALTER TABLE` 放宽 `NOT NULL`，只能重建表。`chats` 是
 
 迁移 `060` 给 `invocations` 加可空的 `resumed_from_invocation_id`（自引用，`ON DELETE SET NULL`，带索引 `invocations_resumed_from_idx`）：管理员续跑最新失败运行时，新 Invocation 指向被续跑的那一次。续跑的开场 Bucket 同样无 `bucket_messages`，失败批次不重新冻结；链接只是审计，源运行被保留清理或随 Chat 删除时置空，索引让这次置空不必为每个被删行扫全表；但保留清理会跳过仍被 queued/running 续跑引用的源运行，续跑开场注入的可信说明要从它读取。语义见 [admin-panel.md](admin-panel.md#invocation-续跑)。
 
+迁移 `061` 给 `invocations` 加两列，记录「这次运行为什么被运营者的配置切替停掉」：`abort_cause`（运行期码，今天只有 `mcp_config_changed`）与 `abort_unknown_tools`（JSON 数组，被停运行里 `tool_calls.state = 'outcome_unknown'` 且属于该运行 MCP 工具集的暴露名）。普通失败、管理员取消、进程重启等一切其它终态都不写这两列；续跑的开场 `<runtime_state>` 用 `abort_cause` 选择措辞，用工具名提醒模型不要盲目重复。解析与编码在 [store/abort-cause.ts](../src/store/abort-cause.ts)：两个值都按运行期词表校验后才允许进入可信提示行。
+
 - 主键 `(invocation_id, bucket_id)`，`attached_at` 是挂载时间。
 - `injected_at` 为 `NULL` 表示「已挂到该 Invocation，但还没进入模型 transcript」。Invocation 结束时 `releaseUninjectedBuckets` 把这些 Bucket（开场 Bucket 除外）重新排队成新的 Invocation，批次不会被静默丢弃。
 - Bucket 终态与重启恢复按 join 表判断：Invocation 结束时把它名下的所有 running Bucket 一起置为同一终态，进程重启时也只把这些 Bucket 标成 `aborted`/`outcome_unknown`。

@@ -11,7 +11,7 @@ Surowan 使用严格 JSONC 配置。Schema 位于 `src/platform/config/schema.ts
 - CLI 必须显式传入 `--config <path>`。
 - 配置在 `serve` 启动时读取一次；只有[运行时配置热更新](#运行时配置热更新)列出的白名单字段可以在运行中应用，其余字段修改后必须重启。
 - 配置哈希是原始 JSONC 文本与所有 Prompt 文件内容的 SHA-256，写入 Invocation 并打印在 `serve_started` 日志中。
-- 修改 Bucket 窗口或 MCP 后必须重启；Sticker Set 与Prompt、Provider（含连接字段与模型列表）、agent 模型与 vision 模型、`agent` 段的全部字段、已有 Chat 的 `provider`/`model`/`thinking_level` 覆盖、**新增或删除 Chat** 等白名单字段可用 Admin「Apply config file」或 `/model` 热应用（删除会停掉该 Chat 的运行，但保留数据）；修改 Topic 范围仍需重启。
+- MCP（`mcp.servers` 与每个 Chat 的 `mcp` 绑定）、Sticker Set 与Prompt、Provider（含连接字段与模型列表）、agent 模型与 vision 模型、`agent` 段的全部字段、已有 Chat 的 `provider`/`model`/`thinking_level` 覆盖、**新增或删除 Chat** 等白名单字段可用 Admin「Apply config file」或 `/model` 热应用（删除会停掉该 Chat 的运行，但保留数据）；修改 Topic 范围仍需重启，`data_dir`/`paths` 与 `admin.*` 同样如此。
 - 相对 `data_dir`/`paths` 按服务当前工作目录解释；Docker 镜像的工作目录是 `/app`。
 - Prompt 文件路径（`system_prompt_file`、`instructions_file`）相对于配置文件所在目录解释；修改文件内容同样会改变 `config_hash`。
 - Prompt 文件按原始字节参与哈希：剔除 HTML 注释只影响进入模型上下文的文本，纯注释改动仍然改变 `config_hash`。
@@ -46,6 +46,8 @@ node src/cli.ts check-config --config dev-data/config.jsonc
 | `telegram.chats[<id>].group_memory`（含 `enabled`、`idle_minutes`） | 该 Chat 的群聊记忆开关与空闲阈值；增删字段或改值都热应用，下一次 sleeping 扫描使用新值。开关状态变化时先 fence 该 Chat 的全部 Conversation（期间排队的 Invocation 不启动），中止 running Invocation，等它们真正落定后才驱逐 Agent 缓存并重建全部 Conversation Context；关闭只停止后续整理并让新 Invocation 不再拿到回忆工具，已写入的记忆与原文保留 |
 | `telegram.sticker_sets`（整个列表，含 `alias`、`note`） | 发布时先把 Set 对账进 `sticker_sets` 表（按 Telegram 名称大小写不敏感地识别，`alias`/`note` 只是复制，改名保留同一行与索引），再由运行中的 Sticker worker 在后台拉取未同步的 Set；没有 Telegram 连接时只对账存储。Set 的增删（按名称）立即中止所有运行中的 Telegram Invocation（原因 `sticker_sets_changed`，Playground 房间不受影响），只改昵称或备注不中止，下一次注入的贴纸目录即用新值。Admin「Bot sticker sets」页编辑，见 [admin-panel.md](admin-panel.md#sticker-sets-页端点) |
 | `telegram.bucket_window_seconds`、`telegram.bucket_max_seconds`、`telegram.bucket_bump_seconds` | Bucket 节拍。ingestion 开新 Bucket 时读一次当前发布值，写进该 Bucket 行的 `window_seconds` / `max_seconds` / `bump_seconds`（迁移 `057`）；之后的消息延长与三处推迟（轮结束、Scheduler 轮中途、运行结束）都只读这一行。因此修改只作用于之后新开的 Bucket，正在收集的 Bucket 按开桶时的节拍走完，运行中 Invocation 的配置快照也不会替它决定窗口。与 `agent.context.idle_grace_seconds` 同为热字段，两者在 candidate 里一起校验。Admin「Telegram」页编辑，见 [admin-panel.md](admin-panel.md#api) |
+| `mcp`、`mcp.servers`（整段；增删 alias、任意字段变化） | MCP 客户端按 alias 对账发布后的配置：新增 alias 连接它，删除 alias 关闭它，字段变化替换该实例，未变化的 alias 不重连（运行中的调用不受影响）。受影响 Chat 的 Conversation 会经历一次切替（fence → abort → 等落定 → 重建 Context → 换实例 → 续跑），规则见 [telegram-agent-flow.md](telegram-agent-flow.md#mcp-tool-与按-chat-绑定)。连不上或校验失败的新实例发布为 `degraded` 并按退避重试，不阻断本次应用 |
+| `telegram.chats[<id>].mcp`（整个绑定列表及其子字段） | 该 Chat 的 MCP 绑定；增删字段都热应用。绑定收窄（少了一个 Tool、被绑定的服务器消失或变化）会停掉该 Chat 的 running Invocation、重建其 Conversation Context 并续跑；纯增宽（新增服务器、新增绑定、更长的 `tools` 列表、只给新暴露的 Tool 加策略）不打断运行，下一次 Invocation 直接拿到更大的集合。绑定写出的 Tool 名必须存在于对应 Server：显式列表在配置校验时检查，`"*"` Server 在发现阶段检查；只改绑定的热应用会拿已连接且未变化的 Server 的发现结果再查一次，写错名字直接拒绝本次应用 |
 | `telegram.admins` | Bot 管理员白名单（`/pause`、`/resume`、`/model`、`/cut_topic`、`/rebuild_context`、`/allowlist` 的唯一事实源）；运行期判定直接读运行中的配置，下一次命令执行就用新列表 |
 | `dictionary`（整段，含 `injection_mode`） | 全局辞典注入模式；下一次 Invocation 生效 |
 | `tool_model` | 系统级辅助模型（辞典融合等）。下一次辅助调用使用新选择；运行中的调用继续用它开始时从快照取出的模型。删除该段表示继承全局 Agent 设置 |
@@ -56,7 +58,7 @@ node src/cli.ts check-config --config dev-data/config.jsonc
 
 `outside_serve` 字段（`serve` 从不读取，下一次 `backup` 生效，既不算已应用也不算待重启）：`paths.backups`、`retention.online_days`、`retention.backup_copies`。`retention.warning_read_days` 由 `serve` 的警告清理读取，因此和 `retention` 的其它字段不同：它按普通 restart 字段处理，改动后需要重启才生效。
 
-其它所有路径都是 restart：改动会写进文件，但要重启才生效，包括 `telegram.token`、`data_dir`、`paths.database`、`admin.*`、`mcp.servers`、Chat allowlist 中已有 Chat 的修改（新增与删除 Chat、参与策略 `participation`、主动回复 `proactive_reply` 是热变更），以及 `instructions_file`、`provider`、`model`、`thinking_level`、`ignored_user_ids`、`dictionary_injection_mode`、`group_memory`、`participation`、`proactive_reply` 以外的 Chat 字段，以及 `vision` 的 `max_concurrency`、`background_sticker_concurrency`、`prompt_version`、`daily_budget`。
+其它所有路径都是 restart：改动会写进文件，但要重启才生效，包括 `telegram.token`、`data_dir`、`paths.database`、`admin.*`、Chat allowlist 中已有 Chat 的修改（新增与删除 Chat、参与策略 `participation`、主动回复 `proactive_reply` 是热变更），以及 `instructions_file`、`provider`、`model`、`thinking_level`、`ignored_user_ids`、`dictionary_injection_mode`、`group_memory`、`participation`、`proactive_reply` 以外的 Chat 字段，以及 `vision` 的 `max_concurrency`、`background_sticker_concurrency`、`prompt_version`、`daily_budget`。
 
 应用流程与语义：
 
@@ -586,7 +588,6 @@ Agent 侧使用（`image_generate` 工具、图片技能、发送与审计链路
         "alias": "search",
         "transport": "stdio",
         "command": ["node", "server.js"],
-        "required": false,
         "tools": "*",
         "payload_max_bytes": 32768,
         "result_max_bytes": 32768,
@@ -600,7 +601,43 @@ Agent 侧使用（`image_generate` 工具、图片技能、发送与审计链路
 }
 ```
 
-Streamable HTTP 使用 `url` 与可选 SecretRef `headers`，且 `follow_redirects` 必须为 `false`。`url` 可以包含服务协议要求的查询参数，但禁止 URL userinfo 与 fragment；机密值应使用 SecretRef `headers`，不应写入查询参数。`tools` 为 `"*"` 时全部 Tool 共享 `default_tool_policy`；`tools` 为显式数组时，每个列出的 Tool 必须在 `tool_policies` 中提供对应策略，`default_tool_policy` 只服务于 `"*"`。策略只包含 `read_only` 与 `timeout_seconds`，没有每日调用次数上限。没有策略的 Tool 不会暴露给模型。`required = true` 的 Server 启动失败会阻止 `serve`/`doctor` 成功。
+Streamable HTTP 使用 `url` 与可选 SecretRef `headers`，且 `follow_redirects` 必须为 `false`。`url` 可以包含服务协议要求的查询参数，但禁止 URL userinfo 与 fragment；机密值应使用 SecretRef `headers`，不应写入查询参数。`tools` 为 `"*"` 时全部 Tool 共享 `default_tool_policy`；`tools` 为显式数组时，每个列出的 Tool 必须在 `tool_policies` 中提供对应策略，`default_tool_policy` 只服务于 `"*"`。策略只包含 `read_only` 与 `timeout_seconds`，没有每日调用次数上限。没有策略的 Tool 不会暴露给模型。
+
+**可用性是运行时状态，不是配置保证**：`serve` 启动不等待也不失败于 MCP——每个 Server 在后台连接，连不上或校验失败发布为 `degraded` 并按退避重连；只有 `ready` 的 Server 向模型暴露 Tool，`degraded` 期间该 Server 的 Tool 从下一次 Invocation 的注册表中消失，重连成功后恢复。`mcp_server_state` 表记录每个 alias 的状态与下次重连时间，Admin Panel 的 Warnings 页在 `degraded` 期间显示 `mcp_server_unavailable` 常驻警告。`required` 字段已**废弃且无效**（启动、热更新、doctor 都不再看它）：仍写着它的配置能正常加载，`check-config` 与 `serve` 的 `config_warnings` 会给出一个列出相关 alias 的告警，Warnings 页显示 `mcp_required_deprecated`，建议删掉。
+
+### 按 Chat 绑定
+
+每个 `telegram.chats[]` 条目可以写一个可选的 `mcp` 数组，把 Server 与 Tool 收窄到该 Chat：
+
+```jsonc
+{
+  "telegram": {
+    "chats": [
+      {
+        "id": -1001234567890,
+        "mcp": [
+          { "server": "search", "tools": ["query"] },
+          {
+            "server": "notes",
+            "tools": ["append"],
+            // 覆盖该 Server 对这个 Tool 的策略
+            "tool_policies": [{ "name": "append", "read_only": true, "timeout_seconds": 5 }],
+          },
+        ],
+      },
+      // 写了空数组：这个 Chat 没有任何 MCP Tool
+      { "id": 42, "mcp": [] },
+      // 不写 `mcp`：这个 Chat 拿到全部 Server 与该 Server 自己的设置（旧配置的行为）
+      { "id": -1009876543210 },
+    ],
+  },
+}
+```
+
+- 绑定只能**收窄**，不能替换连接：`server` 必须是已配置的 alias；`tools` 缺省继承 Server 的 `tools`，写数组时必须是该 Server 暴露列表的子集（Server 为 `"*"` 时在发现阶段校验），写 `"*"` 表示该 Server 暴露的全部；`tool_policies` 按 Tool 名覆盖该 Server 的策略（覆盖只在选中的 Tool 上生效，名字必须唯一）。
+- 每个 Chat 的绑定列表内 `server` 唯一；一个 Chat 无法用绑定给同一个 Server 换命令、URL 或凭据——需要不同连接时再定义一个新 alias（暴露名仍是 `<alias>__<tool>`，`mcp_server_state` 仍按 alias 记录）。
+- 工具注册表的 61 个上限与模型上下文窗口校验都按**解析后的集合**逐个 Chat 进行：没有任何 Chat 落到并集上时，并集本身不需要通过；同一集合的 Chat 共享一次校验。每个 Chat 用它自己能运行的模型校验（全局 agent 模型或它的模型覆盖）。
+- 解析发生在 Invocation 开始时，因此运行中的 Invocation 保留启动时的集合；改变集合的发布由切替规则处理（见 [telegram-agent-flow.md](telegram-agent-flow.md#mcp-tool-与按-chat-绑定)）。Playground 房间永远没有 MCP。
 
 ## web_fetch
 

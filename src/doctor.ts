@@ -15,6 +15,7 @@ import Database from 'better-sqlite3';
 import { Bot } from 'grammy';
 import sharp from 'sharp';
 import Type from 'typebox';
+import { awaitServerAttempts } from './capabilities/mcp/availability.ts';
 import { McpManager } from './capabilities/mcp/index.ts';
 import { MediaService } from './capabilities/media/index.ts';
 import { TelegramMediaClient } from './capabilities/media/download.ts';
@@ -31,7 +32,7 @@ import { unwiredImHost } from './platform/im-host/index.ts';
 import { previewContext } from './platform/invocation-context.ts';
 import { keyJarPath } from './platform/key-jar.ts';
 import { type PromptTemplateValues, renderPromptTemplate } from './platform/prompt-template.ts';
-import { buildModelRegistry, configuredAgentModels } from './platform/providers.ts';
+import { buildModelRegistry, configuredAgentModels, modelsForTelegramChats } from './platform/providers.ts';
 import { RuntimeConfigurationStore } from './platform/runtime-config.ts';
 import { SecretStore } from './platform/secrets.ts';
 import { pickEnv, spawnProcess } from './platform/subprocess.ts';
@@ -183,10 +184,6 @@ async function runDoctorChecks(
     // probe and still validates the provider, vision (above) and MCP surface.
     const telegramBot = telegram.kind === 'token' ? { bot: new Bot(telegram.token), token: telegram.token } : undefined;
     const me = telegramBot === undefined ? undefined : await telegramBot.bot.api.getMe();
-    const requiredConfig: RawConfig = {
-      ...config,
-      mcp: { servers: (config.mcp?.servers ?? []).filter((server) => server.required) },
-    };
     const modelGate = new KeyedSemaphore();
     const media =
       telegramBot === undefined
@@ -198,7 +195,7 @@ async function runDoctorChecks(
             mediaClient: new TelegramMediaClient(telegramBot.bot.api, telegramBot.token),
             modelGate,
           });
-    const manager = new McpManager(store, requiredConfig, secrets);
+    const manager = new McpManager(store, config, secrets);
     mcp = manager;
     const runtime = new AgentRuntime({
       store,
@@ -211,8 +208,8 @@ async function runDoctorChecks(
               telegram: createTelegramHost({
                 transport: grammyTelegramTransport(telegramBot.bot.api),
                 sendRate: () => ({
-                  sendsPerWindow: requiredConfig.agent.rate_limits.sends_per_window,
-                  windowSeconds: requiredConfig.agent.rate_limits.window_seconds,
+                  sendsPerWindow: config.agent.rate_limits.sends_per_window,
+                  windowSeconds: config.agent.rate_limits.window_seconds,
                 }),
               }),
             },
@@ -233,15 +230,34 @@ async function runDoctorChecks(
       ...(media === undefined
         ? {}
         : { directImageLoader: (context, signal) => media.loadDirectImages(context.directImages, signal) }),
-      additionalTools: (context, deadline) => [...manager.createTools(context, deadline)],
+      additionalTools: (context, deadline, _capabilities, config) => [
+        ...manager.createTools(context, deadline, config),
+      ],
     });
     const preview = previewContext();
-    manager.setRegistryValidator((mcpTools) => {
-      for (const { model } of agentModels) {
+    // The base registry (no MCP tools) must fit every configured model, even
+    // ones no Telegram Chat uses: Playground work runs on those too.
+    for (const { model } of agentModels) {
+      runtime.validateAdditionalTools(preview, [], model);
+    }
+    manager.setRegistryValidator((mcpTools, chatIds) => {
+      // Each Chat gets its own tool set, so the models checked here are the ones
+      // those Chats can actually run on.
+      const chatModels = modelsForTelegramChats(
+        config,
+        agentModels.map((entry) => entry.model),
+        chatIds,
+      );
+      for (const model of chatModels) {
         runtime.validateAdditionalTools(preview, mcpTools, model);
       }
     });
+    // Every configured server is probed (start() does not wait for any), and
+    // an unreachable one is a warning in the report — it would only degrade at
+    // runtime — never a failed doctor run.
     await manager.start();
+    const mcpServers = await awaitServerAttempts(manager);
+    const unreachableMcp = mcpServers.filter((server) => server.state !== 'ready');
     console.log(
       JSON.stringify({
         status: 'ok',
@@ -254,7 +270,8 @@ async function runDoctorChecks(
         manual_documents: docSpaces.summaries[0]?.documents ?? 0,
         providers: Object.keys(config.providers).length,
         vision: visionModel === undefined ? null : `${visionModel.provider}/${visionModel.id}`,
-        required_mcp: requiredConfig.mcp?.servers.length ?? 0,
+        mcp_servers: mcpServers.length,
+        mcp_unavailable: unreachableMcp.map((server) => `${server.alias}:${server.error_code ?? 'unreachable'}`),
         telegram_status: me === undefined ? 'disabled' : 'connected',
         telegram_bot_id: me === undefined ? null : String(me.id),
         config_hash: configHash,

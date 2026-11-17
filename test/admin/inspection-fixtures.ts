@@ -52,7 +52,6 @@ export async function fixture() {
             transport: 'streamable_http',
             url: `https://example.test/mcp?token=${secret}`,
             follow_redirects: false,
-            required: false,
             tools: [],
             payload_max_bytes: 1024,
             result_max_bytes: 1024,

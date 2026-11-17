@@ -15,26 +15,50 @@ import type { TUnsafe } from 'typebox';
 import type { AsyncSemaphore } from '../../platform/concurrency.ts';
 import type { McpServerConfig, SecretRef } from '../../platform/config/index.ts';
 import type { SecretStore } from '../../platform/secrets.ts';
+import type { McpToolPolicy } from './bindings.ts';
 
 export const ARGUMENT_MAX_BYTES = 32_768;
 export const RECONNECT_MAX_MS = 60_000;
 export const TRUNCATION_MARKER = '\n[tool result truncated]';
 export const TOOL_NAME_PATTERN = /^[A-Za-z0-9_-]+$/;
 
-interface ToolPolicy {
-  readonly readOnly: boolean;
-  readonly timeoutMs: number;
-}
-
 export interface McpToolDefinition {
+  /**
+   * The instance that discovered this tool. A call goes to this instance, never
+   * to whichever instance the alias publishes later: a replaced server speaks
+   * its own schema and policy, and sending an old definition to the new
+   * connection would silently change both.
+   */
+  readonly server: ManagedServer;
   readonly serverAlias: string;
   readonly originalName: string;
   readonly exposedName: string;
   readonly description: string;
   readonly parameters: TUnsafe<Record<string, unknown>>;
   readonly validator: { Check(value: unknown): value is Record<string, unknown> };
-  readonly policy: ToolPolicy;
+  readonly policy: McpToolPolicy;
   readonly resultMaxBytes: number;
+}
+
+/**
+ * An in-flight connect/discovery before its client is published. Until the
+ * attempt publishes, `server.client` is still empty, so this handle is what
+ * `stopServer` aborts, closes and waits on — a pending stdio child or HTTP
+ * request must never outlive the manager's stop.
+ */
+export interface PendingAttempt {
+  /** The client being handshaken, once it exists; closing it kills its transport. */
+  client: Client | undefined;
+  /** Cancels the connect and discovery calls of this attempt. */
+  readonly abort: AbortController;
+  /** Resolves when the connect unwinds, whether it published or failed. */
+  readonly settled: Promise<void>;
+  readonly settle: () => void;
+}
+
+export function newPendingAttempt(): PendingAttempt {
+  const { promise, resolve } = Promise.withResolvers<void>();
+  return { client: undefined, abort: new AbortController(), settled: promise, settle: resolve };
 }
 
 export interface ManagedServer {
@@ -42,15 +66,31 @@ export interface ManagedServer {
   readonly semaphore: AsyncSemaphore;
   definitions: McpToolDefinition[];
   client: Client | undefined;
+  /** The connection attempt currently running, if any — never the published client. */
+  attempt: PendingAttempt | undefined;
   generation: number;
   reconnectAttempt: number;
   reconnectTimer: NodeJS.Timeout | undefined;
   stderrBytes: number;
   payloadLimited: boolean;
   state: 'starting' | 'ready' | 'degraded' | 'stopped';
+  /** The code the last state write recorded; feeds the availability warning. */
+  errorCode: string | null;
+  /** The persisted backoff target of the pending reconnect, if any. */
+  nextReconnectAt: string | null;
+  /**
+   * One degraded episode logs once: the event fires on the transition into
+   * `degraded` and once more when it clears, never per retry.
+   */
+  degradedNotified: boolean;
 }
 
-export type RegistryValidator = (tools: readonly AgentTool[]) => void;
+/**
+ * Checks one resolved tool set of one configuration. `chatIds` are the Telegram
+ * Chats that resolve to it, so the caller can validate against every model those
+ * Chats can run on instead of every configured model.
+ */
+export type RegistryValidator = (tools: readonly AgentTool[], chatIds: readonly number[]) => void;
 export type McpCallResult = CallToolResult | CompatibilityCallToolResult;
 
 export class CompatibleTransport implements Transport {

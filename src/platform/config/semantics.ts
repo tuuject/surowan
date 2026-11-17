@@ -8,7 +8,9 @@ import {
 import type {
   AgentRuntimeConfig,
   AgentSettings,
+  FileChat,
   FileConfig,
+  McpServerConfig,
   ModelFileConfig,
   ParticipationConfig,
   ProviderApi,
@@ -217,6 +219,64 @@ export function validateSemantics(config: FileConfig, options: ValidateSemantics
       for (const tool of server.tools) {
         if (!policies.some((policy) => policy.name === tool)) {
           throw new Error(`MCP server ${server.alias} tool ${tool} has no policy`);
+        }
+      }
+    }
+  }
+  validateChatMcpBindings(servers, telegram.chats);
+}
+
+/**
+ * A per-Chat binding may only narrow one configured server: its `tools` must be
+ * a subset of what the server itself exposes, and every tool it selects must
+ * still resolve a policy (its own override, the server's entry, or the server's
+ * wildcard default). A binding that names `*` cannot be checked offline; the
+ * manager verifies the selected tools against discovery instead.
+ */
+function validateChatMcpBindings(servers: readonly McpServerConfig[], chats: readonly FileChat[]): void {
+  const byAlias = new Map(servers.map((server) => [server.alias, server]));
+  for (const chat of chats) {
+    const bindings = chat.mcp;
+    if (bindings === undefined) {
+      continue;
+    }
+    assertUnique(bindings, (binding) => binding.server, `chat ${chat.id} MCP binding`);
+    for (const binding of bindings) {
+      const server = byAlias.get(binding.server);
+      if (server === undefined) {
+        throw new Error(`Chat ${chat.id} MCP binding references unknown server ${binding.server}`);
+      }
+      const policies = binding.tool_policies ?? [];
+      assertUnique(policies, (policy) => policy.name, `chat ${chat.id} MCP binding tool policy of ${binding.server}`);
+      // A wildcard on both sides is only known once the server answers; a
+      // wildcard over an explicit server list is that list. Normalise the
+      // effective selection first: `binding.tools ?? server.tools` may already
+      // be the literal `'*'`, and iterating a string would test its characters.
+      const selection = binding.tools ?? server.tools;
+      const resolved = selection === '*' ? (server.tools === '*' ? undefined : server.tools) : selection;
+      if (resolved === undefined) {
+        continue;
+      }
+      const exposed = server.tools === '*' ? undefined : new Set(server.tools);
+      for (const tool of resolved) {
+        if (exposed !== undefined && !exposed.has(tool)) {
+          throw new Error(
+            `Chat ${chat.id} MCP binding for ${binding.server} lists tool ${tool}, which the server does not expose`,
+          );
+        }
+        const overridden =
+          policies.some((policy) => policy.name === tool) ||
+          (server.tool_policies?.some((policy) => policy.name === tool) ?? false) ||
+          server.default_tool_policy !== undefined;
+        if (!overridden) {
+          throw new Error(`Chat ${chat.id} MCP binding for ${binding.server} tool ${tool} has no policy`);
+        }
+      }
+      for (const policy of policies) {
+        if (!resolved.includes(policy.name)) {
+          throw new Error(
+            `Chat ${chat.id} MCP binding for ${binding.server} policy references unselected tool ${policy.name}`,
+          );
         }
       }
     }

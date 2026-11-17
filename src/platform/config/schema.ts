@@ -2,9 +2,12 @@ import Type from 'typebox';
 import {
   BuiltinProviderSchema,
   CustomProviderSchema,
+  DefaultToolPolicySchema,
+  MCP_SERVER_ALIAS_PATTERN,
   PositiveInteger,
   SecretRefSchema,
   Strict,
+  ToolPolicySchema,
 } from './schema-model.ts';
 import {
   AgentSectionSchema,
@@ -35,19 +38,15 @@ const StickerSetSchema = Type.Object(
   },
   Strict,
 );
-const ToolPolicyFields = {
-  read_only: Type.Boolean(),
-  timeout_seconds: Type.Number({ exclusiveMinimum: 0 }),
-};
-const ToolPolicySchema = Type.Object({ name: Type.String({ minLength: 1 }), ...ToolPolicyFields }, Strict);
-const DefaultToolPolicySchema = Type.Object(ToolPolicyFields, Strict);
 
 const StdioMcpSchema = Type.Object(
   {
-    alias: Type.String({ pattern: '^[A-Za-z][A-Za-z0-9_-]{0,63}$' }),
+    alias: Type.String({ pattern: MCP_SERVER_ALIAS_PATTERN }),
     transport: Type.Literal('stdio'),
     command: Type.Array(Type.String(), { minItems: 1 }),
-    required: Type.Boolean(),
+    // Deprecated and ignored: startup no longer waits for or fails on MCP.
+    // Accepted so old files keep loading; validation warns while it remains.
+    required: Type.Optional(Type.Boolean()),
     tools: Type.Union([Type.Literal('*'), Type.Array(Type.String({ minLength: 1 }), { uniqueItems: true })]),
     payload_max_bytes: Type.Integer({ minimum: 1, maximum: 1_048_576 }),
     result_max_bytes: Type.Integer({ minimum: 1, maximum: 32_768 }),
@@ -59,11 +58,13 @@ const StdioMcpSchema = Type.Object(
 );
 const HttpMcpSchema = Type.Object(
   {
-    alias: Type.String({ pattern: '^[A-Za-z][A-Za-z0-9_-]{0,63}$' }),
+    alias: Type.String({ pattern: MCP_SERVER_ALIAS_PATTERN }),
     transport: Type.Literal('streamable_http'),
     url: Type.String({ minLength: 1 }),
     follow_redirects: Type.Literal(false),
-    required: Type.Boolean(),
+    // Deprecated and ignored: startup no longer waits for or fails on MCP.
+    // Accepted so old files keep loading; validation warns while it remains.
+    required: Type.Optional(Type.Boolean()),
     tools: Type.Union([Type.Literal('*'), Type.Array(Type.String({ minLength: 1 }), { uniqueItems: true })]),
     payload_max_bytes: Type.Integer({ minimum: 1, maximum: 1_048_576 }),
     result_max_bytes: Type.Integer({ minimum: 1, maximum: 32_768 }),

@@ -94,6 +94,14 @@ export const invocations = sqliteTable(
       (): AnySQLiteColumn => invocations.id,
       { onDelete: 'set null' },
     ),
+    /**
+     * Why an operator-driven cutover stopped this run; NULL for every other
+     * ending. The continuation queued afterwards reads it to explain itself
+     * instead of guessing.
+     */
+    abortCause: text('abort_cause'),
+    /** JSON array of exposed tool names whose calls were left `outcome_unknown`. */
+    abortUnknownTools: text('abort_unknown_tools'),
   },
   (t) => [
     check(

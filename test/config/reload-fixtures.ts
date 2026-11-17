@@ -272,7 +272,7 @@ export async function setup(
     secrets,
     // The pipeline tests build a runtime; without one there is no tool registry
     // to fit into a context window, so the check has nothing to reject.
-    validateAgentModel: (candidate) => runtime?.validateAdditionalTools(previewContext(), [], candidate),
+    validateAgentModel: (_config, model) => runtime?.validateAdditionalTools(previewContext(), [], model),
     onPublished: options.onPublished ?? (() => undefined),
     ...(options.telegramConfig === undefined ? {} : { telegramConfig: options.telegramConfig }),
   });

@@ -107,6 +107,14 @@ const HOT_PROACTIVE_REPLY_PATHS = [
   /^telegram\.proactive_reply(\.|$)/,
   /^telegram\.chats\[-?\d+\]\.proactive_reply(\.|$)/,
 ];
+/**
+ * The MCP section and every per-Chat binding below it. The MCP manager diffs
+ * the server list by alias and the composition root runs the cutover that
+ * stops the affected Chats before those instances move, so neither needs a
+ * restart. A hot-added server that fails is published as `degraded` and
+ * retried on its own backoff; `required` is deprecated and changes nothing.
+ */
+const HOT_MCP_PATHS = [/^mcp(\.|$)/, /^telegram\.chats\[-?\d+\]\.mcp(\.|$)/];
 
 export function classify(path: string): ConfigChangeKind {
   if (OUTSIDE_SERVE_PATHS.has(path)) {
@@ -131,6 +139,11 @@ export function classify(path: string): ConfigChangeKind {
   // Same for spontaneous-participation tuning: the gate resolves the current
   // published values and resets a counter whose parameter set changed.
   if (HOT_PROACTIVE_REPLY_PATHS.some((pattern) => pattern.test(path))) {
+    return 'hot';
+  }
+  // MCP servers and Chat bindings are reconciled from the published
+  // configuration; a Chat whose tool set changes is cut over, not restarted.
+  if (HOT_MCP_PATHS.some((pattern) => pattern.test(path))) {
     return 'hot';
   }
   return 'restart';

@@ -17,6 +17,7 @@ import { AdminServer } from '../../src/ingress/admin/index.ts';
 import { type LoadedConfig, loadConfig } from '../../src/adapters/local-monolith/config/index.ts';
 import type { ImConnectionRegistry } from '../../src/platform/im-connection.ts';
 import type { RuntimeConfigurationStore } from '../../src/platform/runtime-config.ts';
+import type { McpServerAvailability } from '../../src/platform/warning-catalog.ts';
 import { SqliteStore } from '../../src/adapters/local-monolith/database.ts';
 import { testConfigJsonc, testConfigStore, writeTestConfig } from '../helpers.ts';
 
@@ -37,7 +38,12 @@ export interface Fixture {
   readonly directory: string;
 }
 
-export async function fixture(options: { readonly connections?: ImConnectionRegistry } = {}): Promise<Fixture> {
+export async function fixture(
+  options: {
+    readonly connections?: ImConnectionRegistry;
+    readonly mcpServerStates?: () => readonly McpServerAvailability[];
+  } = {},
+): Promise<Fixture> {
   const directory = await mkdtemp(join(tmpdir(), 'surowan-admin-'));
   directories.push(directory);
   const configPath = join(directory, 'config.jsonc');
@@ -68,6 +74,7 @@ export async function fixture(options: { readonly connections?: ImConnectionRegi
       store,
       configStore,
       ...(options.connections === undefined ? {} : { connections: options.connections }),
+      ...(options.mcpServerStates === undefined ? {} : { mcpServerStates: options.mcpServerStates }),
     }),
     loaded,
     configStore,

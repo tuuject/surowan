@@ -18,10 +18,19 @@ import {
 export interface McpCallDeps {
   readonly store: BusinessStore;
   readonly assets: PlaygroundAssetStore;
-  readonly servers: ReadonlyMap<string, ManagedServer>;
-  setState(server: ManagedServer, state: ManagedServer['state'], errorCode: string | null): void;
+  /** Whether one instance is still the one its alias publishes. */
+  isCurrent(server: ManagedServer): boolean;
+  setState(server: ManagedServer, state: ManagedServer['state'], errorCode: string | null, detail?: unknown): void;
   scheduleReconnect(server: ManagedServer): void;
 }
+
+/**
+ * The instance had no live client when a call tried to send, so no request
+ * left this process. The executor maps it to an audited `server_unavailable`
+ * refusal rather than the transport-failure path, whose `outcome_unknown`
+ * audit assumes a request may already have been sent.
+ */
+class McpTransportUnavailableError extends Error {}
 
 export async function executeMcpTool(
   deps: McpCallDeps,
@@ -45,6 +54,22 @@ export async function executeMcpTool(
     recordRejectedCall(deps.store, context.invocationId, toolCallId, definition, input, 'arguments_too_large');
     throw new Error('MCP tool arguments exceed 32 KiB');
   }
+  // A call goes to the instance that handed out this definition. A stopped or
+  // replaced instance may still be held by a run that outlived its fence; that
+  // run must get a clean refusal instead of sending an old schema or policy to
+  // the connection its alias now publishes.
+  const server = definition.server;
+  if (!deps.isCurrent(server)) {
+    recordRejectedCall(deps.store, context.invocationId, toolCallId, definition, input, 'server_replaced');
+    throw new Error(`MCP server ${definition.serverAlias} was replaced; call ${definition.originalName} again`);
+  }
+  if (server.state !== 'ready' || server.client === undefined) {
+    // A definite refusal like `server_replaced`: nothing was sent, so the
+    // audit is `error`, not `outcome_unknown`, and the refusal itself must
+    // not degrade or re-arm a server that is already retrying.
+    recordRejectedCall(deps.store, context.invocationId, toolCallId, definition, input, 'server_unavailable');
+    throw new Error(`MCP server ${definition.serverAlias} is unavailable; call ${definition.originalName} again later`);
+  }
   const auditId = startToolCall(
     deps.store.orm,
     context.invocationId,
@@ -53,14 +78,6 @@ export async function executeMcpTool(
     argumentsJson,
     !definition.policy.readOnly,
   );
-  const server = deps.servers.get(definition.serverAlias);
-  if (server === undefined) {
-    finishToolCall(deps.store.orm, auditId, 'error', null, 'server_unconfigured', {
-      startedAt: performance.now(),
-      pendingOnly: true,
-    });
-    throw new Error('MCP server is not configured');
-  }
   const startedAt = performance.now();
   let release: () => void;
   try {
@@ -89,7 +106,14 @@ export async function executeMcpTool(
         throw error;
       }
       await delay(100, undefined, { signal });
-      result = await callMcpTool(server, definition, input, signal, timeoutMs);
+      try {
+        result = await callMcpTool(server, definition, input, signal, timeoutMs);
+      } catch (retryError) {
+        // The first attempt already put a request on the wire: a retry that
+        // finds no client must not rewrite the audit into the definite
+        // `server_unavailable` refusal, so it keeps the sent attempt's class.
+        throw retryError instanceof McpTransportUnavailableError ? error : retryError;
+      }
     }
     received = true;
     const converted = await convertMcpResult(result, definition, context, deps.assets, signal);
@@ -118,6 +142,18 @@ export async function executeMcpTool(
       });
       throw new Error('MCP tool executed, but its result could not be processed; do not repeat side effects');
     }
+    if (error instanceof McpTransportUnavailableError) {
+      // The server dropped while this call waited on the semaphore (or lost
+      // its client between the pre-check and the send): the same definite
+      // refusal as the pre-check, not a transport failure.
+      finishToolCall(deps.store.orm, auditId, 'error', null, 'server_unavailable', {
+        startedAt,
+        pendingOnly: true,
+      });
+      throw new Error(
+        `MCP server ${definition.serverAlias} is unavailable; call ${definition.originalName} again later`,
+      );
+    }
     const known =
       error instanceof McpError && error.code !== ErrorCode.ConnectionClosed && error.code !== ErrorCode.RequestTimeout;
     const state = known ? 'error' : 'outcome_unknown';
@@ -126,8 +162,16 @@ export async function executeMcpTool(
       startedAt,
       pendingOnly: true,
     });
-    if (!known) {
-      deps.setState(server, 'degraded', errorCode);
+    // The caller's own run was aborted (a cutover, an admin cancel, the model
+    // switch). The SDK rejects the request with the abort signal's own reason,
+    // but the server may already have executed the call, so the audit stays
+    // `outcome_unknown`.
+    // Degrading here would drop and respawn the connection under every other
+    // conversation's in-flight call on the same server, so only a real
+    // transport failure or this call's own timeout tears it down.
+    const callerAborted = outerSignal?.aborted === true;
+    if (!known && !callerAborted) {
+      deps.setState(server, 'degraded', errorCode, error);
       deps.scheduleReconnect(server);
     }
     throw new Error(`MCP tool ${definition.exposedName} failed: ${errorCode}`);
@@ -145,7 +189,7 @@ export async function callMcpTool(
 ): Promise<McpCallResult> {
   const client = server.client;
   if (client === undefined || server.state !== 'ready') {
-    throw new Error('MCP transport is unavailable');
+    throw new McpTransportUnavailableError('MCP transport is unavailable');
   }
   return client.callTool({ name: definition.originalName, arguments: input }, undefined, {
     signal,

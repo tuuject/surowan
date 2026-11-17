@@ -43,7 +43,6 @@ MCP Server 通过 `mcp.servers` 配置，可使用 stdio 或 Streamable HTTP。�
         "alias": "search",
         "transport": "stdio",
         "command": ["node", "server.js"],
-        "required": false,
         "tools": ["lookup"],
         "payload_max_bytes": 65536,
         "result_max_bytes": 16384,
@@ -58,11 +57,71 @@ MCP Server 通过 `mcp.servers` 配置，可使用 stdio 或 Streamable HTTP。�
 
 `tools: "*"` 时使用 `default_tool_policy`；显式列出的 Tool 必须各有策略。没有策略的 Tool 不会暴露给模型。HTTP MCP 禁止重定向，凭据应使用 SecretRef Header，而不是 URL 参数。MCP 直接暴露为独立 Tool，不经 `execute` 注册表。
 
+### 按 Chat 限定 MCP Tool
+
+每个 `telegram.chats[]` 条目可以写一个可选的 `mcp` 数组，决定这个 Chat 能用哪些 Server 与 Tool：
+
+```jsonc
+{
+  "mcp": {
+    "servers": [
+      {
+        "alias": "search",
+        "transport": "stdio",
+        "command": ["node", "search.js"],
+        "tools": ["lookup"],
+        "payload_max_bytes": 65536,
+        "result_max_bytes": 16384,
+        "tool_policies": [{ "name": "lookup", "read_only": true, "timeout_seconds": 20 }]
+      },
+      {
+        "alias": "notes",
+        "transport": "stdio",
+        "command": ["node", "notes.js"],
+        "tools": ["append"],
+        "payload_max_bytes": 65536,
+        "result_max_bytes": 16384,
+        "tool_policies": [{ "name": "append", "read_only": false, "timeout_seconds": 20 }]
+      }
+    ]
+  },
+  "telegram": {
+    "chats": [
+      {
+        "id": -1001234567890,
+        "mcp": [
+          // 只拿到 search 的 lookup
+          { "server": "search", "tools": ["lookup"] },
+          // 换个策略：同一个 Tool 在这个群里按只读、短超时处理
+          {
+            "server": "notes",
+            "tools": ["append"],
+            "tool_policies": [{ "name": "append", "read_only": true, "timeout_seconds": 5 }]
+          }
+        ]
+      },
+      // 空数组：这个 Chat 完全没有 MCP Tool
+      { "id": 42, "mcp": [] },
+      // 不写 mcp：拿到全部 Server 与 Server 自己的设置（和以前一样）
+      { "id": -1009876543210 }
+    ]
+  }
+}
+```
+
+- `server` 必须是 `mcp.servers` 里的 alias，同一个 Chat 不能重复绑定；`tools` 只能从该 Server 暴露的 Tool 里选，写 `"*"` 表示它的全部；`tool_policies` 覆盖该 Tool 在这个 Chat 里的 `read_only` 与 `timeout_seconds`，名字必须在被选中的 Tool 里。
+- 绑定只收窄，不改连接：命令、URL、环境变量与 Header 仍属于 Server。需要两种连接就配两个 alias（Tool 名因此是 `<alias>__<tool>`）。
+- Playground 房间永远没有 MCP Tool。每个 Chat 单独检查 61 个 Tool 的上限与模型上下文窗口，不同 Chat 的集合互不影响。
+
 ## 何时生效和如何确认
 
-MCP 配置修改需要重启；required Server 启动失败会阻止服务成功启动。重启后在 Tool session 的工具列表和 Tool call 审计中确认实际暴露的名称、参数及结果。内部 Plugin 的调用则在 `execute` 外层和内部能力层分别留下可关联审计。
+`mcp.servers` 与每个 Chat 的 `mcp` 都可以热应用，不需要重启：在 Admin「Apply config file」或任何一次面板保存之后，新增的 Server 会被连接、删除的会被关闭、改过字段的会被替换，没改的 Server 保持连接。改变某个 Chat 能用的 Tool（删掉绑定、换 Tool 列表、改策略，或它用的 Server 被改）时，这个 Chat 正在跑的 Invocation 会被停下、该 Chat 的连续 Context 会被重建，然后自动续跑一次：模型看到的是新的聊天记录，会被告知这次是运营者改了 MCP 配置，并收到被停下时结果未知的 MCP Tool 名，避免重复副作用。只是新增 Server 或加宽 Tool 列表不会打断正在跑的对话，下一条消息就用上新的集合。
 
-先用 `check-config` 离线检查配置。仍不能定位时，获得管理员许可后再运行 `node src/cli.ts doctor --config <config.jsonc>`：它会连接 Telegram、Provider 与 required MCP，可能产生模型费用。不要把“模型看到了 Tool 名称”当作“调用成功”；继续参考 [排障](../operations/troubleshooting.md)。
+启动不会因为 MCP Server 连不上而等待或失败：每个 Server 都在后台连接，连不上或校验不通过的实例显示为 `degraded` 并按退避重试，不影响其他 Server、启动与本次热应用。只有 `ready` 的 Server 会把 Tool 交给模型——Server 不可达期间它的 Tool 从下一次 Invocation 的注册表中消失，恢复后自动回来；Admin 的 Warnings 页在 `degraded` 期间显示 `mcp_server_unavailable` 警告（`starting` 不告警）。旧配置里的 `required` 字段已废弃且不再生效（启动、热应用、doctor 都不看它）：配置仍然能加载，`check-config` 与 Warnings 页会提示从哪些 alias 删掉它。
+
+确认方式：在 Tool session 的工具列表里看这个 Chat 实际拿到哪些名称（`<alias>__<tool>`），在 Tool call 审计里看参数、结果与策略；停跑与续跑会在日志里留下一条 `mcp_config_published` 事件（受影响 Chat、停掉的 Invocation、重建的 Context、续跑与跳过的原因）。内部 Plugin 的调用则在 `execute` 外层和内部能力层分别留下可关联审计。
+
+先用 `check-config` 离线检查配置。仍不能定位时，获得管理员许可后再运行 `node src/cli.ts doctor --config <config.jsonc>`：它会连接 Telegram、Provider 与全部 MCP Server（连不上的只记为警告，不算失败），可能产生模型费用。不要把“模型看到了 Tool 名称”当作“调用成功”；继续参考 [排障](../operations/troubleshooting.md)。
 
 ## 常见误区
 

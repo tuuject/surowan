@@ -22,6 +22,8 @@ export const warnings = {
   noEvents: 'No event warnings yet.',
   missingFields: 'Missing: {{fields}}',
   invalidApiKeys: 'Invalid keys: {{keys}}',
+  mcpDeprecatedAliases: 'Still set on: {{aliases}}',
+  mcpNextReconnect: 'next retry <time>{{time}}</time>',
   lastFailedAt: 'Last failure: <time>{{time}}</time>',
   createdAt: 'Created <time>{{time}}</time>',
   updatedAt: 'Updated <time>{{time}}</time>',
@@ -79,6 +81,14 @@ export const warnings = {
     api_key_invalid_permissions: {
       title: 'API keys with invalid permissions',
       body: 'One or more API keys have invalid permissions and cannot sign in. Save a mode for each on the API keys page.',
+    },
+    mcp_required_deprecated: {
+      title: 'Deprecated MCP option still in the configuration',
+      body: 'The required flag no longer does anything: startup never waits for an MCP server and every server retries in the background. Remove it from these aliases.',
+    },
+    mcp_server_unavailable: {
+      title: 'MCP servers are unreachable',
+      body: 'These configured servers could not be reached and are retrying in the background. Their tools stay hidden until they recover.',
     },
     unknown: {
       title: 'Unknown warning: {{code}}',

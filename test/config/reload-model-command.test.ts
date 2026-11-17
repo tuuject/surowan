@@ -212,3 +212,51 @@ test('setAgentModel refuses a stale revision before writing', async () => {
     fixture.store.close();
   }
 });
+
+test('a model switch is validated against the configuration it would produce, before the file changes', async () => {
+  const fixture = await setup();
+  const before = fixture.configStore.current();
+  const original = await fixture.readText();
+  const seen: { agentModel: string | undefined; chatModel: string | undefined }[] = [];
+  try {
+    const reloader = new ConfigReloader({
+      loaded: fixture.loaded,
+      store: fixture.configStore,
+      modelSwitcher: fixture.modelSwitcher,
+      secrets: new SecretStore(),
+      // Stands in for `validateAdditionalTools`: the MCP tool set a Chat would
+      // get under the *prospective* configuration is what has to fit.
+      validateAgentModel: (config, model) => {
+        seen.push({ agentModel: config.agent?.model, chatModel: config.telegram.chats[0]?.model });
+        if (model.id === SECOND_MODEL) {
+          throw new Error('MCP tool set of chat 123456789 has 80 tools; maximum alongside built-ins is 61');
+        }
+      },
+      onPublished: () => undefined,
+    });
+
+    const global = await reloader.setAgentModel('faux', SECOND_MODEL);
+    expect(global.ok).toBe(false);
+    if (global.ok) {
+      throw new Error('Expected the global switch to be rejected');
+    }
+    expect(global.code).toBe('model_unusable');
+    expect(global.message).toContain('MCP tool set of chat 123456789 has 80 tools');
+
+    const perChat = await reloader.setChatModel(CHAT_ID, 'faux', SECOND_MODEL);
+    expect(perChat.ok).toBe(false);
+    if (perChat.ok) {
+      throw new Error('Expected the per-chat switch to be rejected');
+    }
+    expect(perChat.code).toBe('model_unusable');
+
+    // Nothing was written and nothing was published.
+    expect(await fixture.readText()).toBe(original);
+    expect(fixture.configStore.current()).toBe(before);
+    // The validator saw the prospective assignment, not the active one.
+    expect(seen).toContainEqual({ agentModel: SECOND_MODEL, chatModel: undefined });
+    expect(seen).toContainEqual({ agentModel: AGENT_MODEL, chatModel: SECOND_MODEL });
+  } finally {
+    fixture.store.close();
+  }
+});

@@ -24,7 +24,7 @@ node src/cli.ts doctor --config /path/to/config.jsonc
 node src/cli.ts backup --config /path/to/config.jsonc
 ```
 
-`doctor` 会探测 SQLite、媒体依赖、Provider、Vision 与 required MCP，并在配置了 Telegram token 时执行 `getMe`；没有 token 时跳过 Telegram 探针，成功 JSON 的 `telegram_status` 为 `disabled`、`telegram_bot_id` 为 `null`。它会消耗 Provider Token，不要把它当离线检查。`backup` 执行保留清理、SQLite 备份与轮换；之后仍应在隔离环境验证恢复。
+`doctor` 会探测 SQLite、媒体依赖、Provider、Vision 与全部已配置的 MCP Server（不可达只报告为警告项，不会让 doctor 失败），并在配置了 Telegram token 时执行 `getMe`；没有 token 时跳过 Telegram 探针，成功 JSON 的 `telegram_status` 为 `disabled`、`telegram_bot_id` 为 `null`。它会消耗 Provider Token，不要把它当离线检查。`backup` 执行保留清理、SQLite 备份与轮换；之后仍应在隔离环境验证恢复。
 
 ## 交互式配置
 

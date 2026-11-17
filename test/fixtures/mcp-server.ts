@@ -27,6 +27,19 @@ server.registerTool(
 );
 
 server.registerTool(
+  'wait',
+  {
+    description: 'Answer only after the given delay',
+    inputSchema: z.object({ ms: z.number().int().min(0) }),
+    annotations: { readOnlyHint: false },
+  },
+  async ({ ms }) => {
+    await new Promise((resolve) => setTimeout(resolve, ms));
+    return { content: [{ type: 'text', text: `waited ${ms}ms` }] };
+  },
+);
+
+server.registerTool(
   'images',
   {
     description: 'Return two native MCP images with ordered text',
