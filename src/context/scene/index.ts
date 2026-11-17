@@ -37,9 +37,9 @@ import type { RawConfig } from '../../platform/config/index.ts';
 import type { BusinessStore } from '../../store/store.ts';
 import { resolveChatConfig } from '../../store/store.ts';
 
-import { MEDIA_MISSING, compareMessages, loadHistoryWindow, renderCurrentTime } from './render.ts';
+import { MEDIA_MISSING, compareMessages, loadHistoryWindow } from './render.ts';
 import { loadBotSlice, loadOpeningBatch, loadSliceBatch, loadSource, type SceneMessage } from './rows.ts';
-import { formatSnapshot } from '../builder/format.ts';
+import { formatSnapshot, renderCurrentTime } from '../builder/format.ts';
 
 export interface SceneContextOptions {
   /** Same three inputs `renderInjection` uses to size one batch. */

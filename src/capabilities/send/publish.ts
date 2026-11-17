@@ -2,9 +2,6 @@
  * The second half of one send: hand the claimed message to the host, follow its
  * retry and barrier rules, then mark the audit rows accepted and record the
  * message the conversation now holds.
- *
- * Split out of send-tool.ts's createSendTools closure; the delivery loop, its
- * retry and barrier semantics, and the record order are unchanged.
  */
 
 import { setTimeout as delay } from 'node:timers/promises';

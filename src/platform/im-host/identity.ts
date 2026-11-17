@@ -50,16 +50,6 @@ export type SenderRef = string | null;
 /** How a host renders a sender for the model. */
 export type SenderRefStyle = 'uid' | 'opaque' | 'none';
 
-/** One participant of one conversation, as the platform needs it. */
-export interface ImSender {
-  /** Internal. Never rendered into a prompt. */
-  readonly id: SenderId;
-  readonly displayName: string;
-  readonly username: string | null;
-  /** Internal. The host's own database row for this participant, when it has one. */
-  readonly rowId?: bigint;
-}
-
 /** One conversation, resolved by the server and bound to its host. */
 export interface ImConversationRef {
   readonly host: HostKind;

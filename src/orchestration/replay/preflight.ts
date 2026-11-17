@@ -1,8 +1,6 @@
 /**
  * Who may be replayed and with which model: the read-only source, runtime and
  * model-selection guards, plus the scene and fidelity shape a preflight reports.
- *
- * Split out of `replay.ts`; guard order, error codes and messages are unchanged.
  */
 
 import { type Api, getSupportedThinkingLevels, type Model } from '@earendil-works/pi-ai';

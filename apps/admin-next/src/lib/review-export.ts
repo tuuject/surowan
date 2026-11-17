@@ -95,15 +95,6 @@ export interface ReviewExportJson {
 export const EXCERPT_MAX_CHARS = 280;
 export const REVIEW_TEXT_MAX_CHARS = 4_000;
 
-export function isCommentableEvent(event: InvocationTimelineEvent): event is CommentableTimelineEvent {
-  return (
-    event.kind === 'tool_call' ||
-    event.kind === 'agent_message' ||
-    event.kind === 'model_call' ||
-    event.kind === 'context_message'
-  );
-}
-
 export function truncateExcerpt(raw: string | null): string | null {
   if (raw === null) {
     return null;

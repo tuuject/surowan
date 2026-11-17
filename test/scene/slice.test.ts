@@ -30,10 +30,10 @@ import { buildSlice, expectSliceError } from './slice-harness.ts';
  *
  * This file covers the window itself: which bot message opens it, which frozen
  * rows fall inside it at a shared timestamp, and how the conversation cutoff
- * still applies. Freezes and media live in `./scene-slice-snapshots.test.ts`,
- * send selection and budgets in `./scene-slice-sends.test.ts`. The fixture,
- * row builders and slice helpers live in `./scene-slice-fixtures.ts` and
- * `./scene-slice-harness.ts`.
+ * still applies. Freezes and media live in `./slice-snapshots.test.ts`,
+ * send selection and budgets in `./slice-sends.test.ts`. The fixture,
+ * row builders and slice helpers live in `./slice-fixtures.ts` and
+ * `./slice-harness.ts`.
  */
 
 afterEach(cleanupFixtures);

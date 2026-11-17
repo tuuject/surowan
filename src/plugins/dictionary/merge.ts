@@ -1,9 +1,13 @@
-import type { Api, Model, Models, ModelThinkingLevel } from '@earendil-works/pi-ai';
-import { getSupportedThinkingLevels } from '@earendil-works/pi-ai';
+import type { Models } from '@earendil-works/pi-ai';
 import { eq } from 'drizzle-orm';
 import Type from 'typebox';
 import Compile from 'typebox/compile';
-import type { ToolModelSelection } from '../../platform/tool-model.ts';
+import {
+  parseToolModelJson,
+  requireToolModel,
+  toolModelReasoningOption,
+  type ToolModelSelection,
+} from '../../platform/tool-model.ts';
 import type { SecretStore } from '../../platform/secrets.ts';
 import type { Orm } from '../../store/store.ts';
 import { modelCalls } from '../../store/schema/index.ts';
@@ -26,13 +30,6 @@ export interface MergeSuggestion {
   readonly term: string;
   readonly definition: string;
   readonly aliases: readonly string[];
-}
-
-/** Pi's `reasoning` option excludes `off`; the level is chosen at call time. */
-function reasoningOption(
-  level: ModelThinkingLevel,
-): 'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | 'max' | undefined {
-  return level === 'off' ? undefined : level;
 }
 
 const MAX_OUTPUT_TOKENS = 1_024;
@@ -60,25 +57,6 @@ export interface MergeDependencies {
   readonly orm: Orm;
   readonly secrets: SecretStore;
   readonly models: Models;
-}
-
-/** Resolves the registered model behind a selection, refusing an unusable one. */
-function requireModel(models: Models, selection: ToolModelSelection): Model<Api> {
-  const model = models.getModel(selection.provider, selection.model);
-  if (model === undefined) {
-    throw new ToolModelUnavailableError(
-      `The tool model ${selection.provider}/${selection.model} is not registered in the running process`,
-    );
-  }
-  if (!model.input.includes('text')) {
-    throw new ToolModelUnavailableError(`The tool model ${selection.provider}/${selection.model} does not accept text`);
-  }
-  if (!getSupportedThinkingLevels(model).includes(selection.thinkingLevel)) {
-    throw new ToolModelUnavailableError(
-      `The tool model ${selection.provider}/${selection.model} does not support thinking level ${selection.thinkingLevel}`,
-    );
-  }
-  return model;
 }
 
 function sourceBlock(sources: readonly DictionaryEntryRecord[]): string {
@@ -116,24 +94,12 @@ const suggestionValidator = Compile(SuggestionSchema);
 
 /** Extracts the first JSON object from a model reply, tolerating a fenced code block. */
 function parseSuggestion(text: string): MergeSuggestion {
-  const start = text.indexOf('{');
-  const end = text.lastIndexOf('}');
-  if (start === -1 || end <= start) {
-    throw new ToolModelUnavailableError('The tool model did not return a JSON object');
-  }
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(text.slice(start, end + 1));
-  } catch {
-    throw new ToolModelUnavailableError('The tool model returned invalid JSON');
-  }
-  if (!suggestionValidator.Check(parsed)) {
-    const detail = [...suggestionValidator.Errors(parsed)]
-      .slice(0, 5)
-      .map((error) => `${error.instancePath || '/'}: ${error.message}`)
-      .join('; ');
-    throw new ToolModelUnavailableError(`The tool model returned an invalid suggestion (${detail})`);
-  }
+  const parsed = parseToolModelJson(
+    text,
+    suggestionValidator,
+    (message) => new ToolModelUnavailableError(message),
+    'an invalid suggestion',
+  );
   const term = parsed.term.trim();
   const definition = parsed.definition.trim();
   if (term.length === 0 || definition.length === 0) {
@@ -168,7 +134,7 @@ export async function suggestMerge(
   if (sources.length > MAX_SOURCES) {
     throw new DictionaryError('merge_too_many_sources', `At most ${MAX_SOURCES} entries can be merged at once`);
   }
-  const model = requireModel(dependencies.models, selection);
+  const model = requireToolModel(dependencies.models, selection, (message) => new ToolModelUnavailableError(message));
   const created = dependencies.orm
     .insert(modelCalls)
     .values({
@@ -188,7 +154,7 @@ export async function suggestMerge(
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(new Error('Tool model call timed out')), TIMEOUT_MS);
   const combined = signal === undefined ? controller.signal : AbortSignal.any([signal, controller.signal]);
-  const reasoning = reasoningOption(selection.thinkingLevel);
+  const reasoning = toolModelReasoningOption(selection.thinkingLevel);
   const startedAt = performance.now();
   const finishCall = (fields: {
     readonly state: 'success' | 'error';

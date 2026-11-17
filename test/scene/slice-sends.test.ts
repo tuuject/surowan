@@ -28,7 +28,7 @@ import { buildSlice, databaseRows, expectSliceError } from './slice-harness.ts';
  * Bot-send slice targets and limits: only a successful, same-conversation send
  * of this invocation may anchor the window, consecutive sends leave an empty
  * slice, the character budget keeps the newest input, and building never
- * writes. Fixture and row builders live in `./scene-slice-fixtures.ts`.
+ * writes. Fixture and row builders live in `./slice-fixtures.ts`.
  */
 
 afterEach(cleanupFixtures);

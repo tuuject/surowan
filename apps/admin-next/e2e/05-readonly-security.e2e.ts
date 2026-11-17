@@ -3,7 +3,7 @@ import { adminUrl, test } from './helpers.ts';
 
 /**
  * The production security posture, exercised against the real static hosting
- * (not the Rsbuild dev server): the CSP header must be present and the model
+ * (not the Vite dev server): the CSP header must be present and the model
  * catalog must expose only usable metadata. The read-only, same-origin and
  * error-free browsing guarantees are asserted on every route in 01-routes.
  */

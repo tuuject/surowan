@@ -36,7 +36,7 @@ export class GenerationWorker {
   private readonly logger: WorkerLogger;
   private readonly redactor: Redactor;
   private readonly executionEligibility: GenerationWorkerDeps['executionEligibility'];
-  /** Explicit state for the round pipeline in `worker-generation.ts`; mutable members stay live references. */
+  /** Explicit state for the round pipeline in `generation.ts`; mutable members stay live references. */
   private readonly pipeline: GenerationExecution;
   private queue: string[] = [];
   private queued = new Set<string>();

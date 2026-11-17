@@ -1,8 +1,6 @@
 /**
  * The `send` and `send_reply` replay tools together with the current
  * configuration checks they run before recording a synthesized send.
- *
- * Split out of `replay-tools.ts`; check and dispatch order is unchanged.
  */
 
 import type { AgentTool } from '@earendil-works/pi-agent-core';

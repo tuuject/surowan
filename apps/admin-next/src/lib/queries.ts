@@ -25,7 +25,7 @@ import { getPromptDiff, getPromptDocument, getPromptVersions } from './api/promp
 import { getProviderPresets, getProviders } from './api/providers.ts';
 import { listStickerSets, listStickers } from './api/stickers.ts';
 import { getTelegram } from './api/telegram.ts';
-import { getOverview, getUsage } from './api/usage.ts';
+import { getOverview } from './api/usage.ts';
 import { getVersion } from './api/version.ts';
 import { listWarnings } from './api/warnings.ts';
 
@@ -93,13 +93,6 @@ export function warningsQuery(position: SnapshotPosition) {
     queryFn: () => listWarnings({ limit: PAGE_SIZE, ...snapshotWindow(position) }),
     placeholderData: withinSnapshot(position.snapshot),
     refetchInterval: LIST_POLL_MS,
-  });
-}
-
-export function usageQuery(days: number) {
-  return queryOptions({
-    queryKey: ['usage', days],
-    queryFn: () => getUsage(days),
   });
 }
 

@@ -1,8 +1,6 @@
 /**
  * The send guards: what this invocation already published, what it already had
  * rejected, and how many attempts this chat made in the rate-limit window.
- *
- * Split out of send-tool.ts; the checks themselves are unchanged.
  */
 
 import { and, desc, eq, inArray, sql } from 'drizzle-orm';

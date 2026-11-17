@@ -12,8 +12,6 @@ import type { HostKind } from './im-host/identity.ts';
 /** The IM integrations a process may hold a connection for. */
 export type ImNamespace = Exclude<HostKind, 'playground'>;
 
-export type ImConnectionStatus = 'disabled' | 'connected' | 'network_error' | 'config_error';
-
 /** Why an IM connection is unusable because of its configuration. */
 export type ImConnectionConfigError = 'unauthorized' | 'conflict' | 'token_unreadable';
 

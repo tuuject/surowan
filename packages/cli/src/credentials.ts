@@ -65,10 +65,6 @@ export function hasApiKey(credentials: Credentials): credentials is ApiKeyCreden
   return 'apiKey' in credentials;
 }
 
-export function hasClientSignature(credentials: Credentials): credentials is ClientCredentials {
-  return 'client_id' in credentials;
-}
-
 /**
  * A key is an opaque token: no `pwk_` prefix is required, and synthetic keys
  * (including ones ending in a backslash) must round-trip unchanged. Only what

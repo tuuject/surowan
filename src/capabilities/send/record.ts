@@ -2,8 +2,6 @@
  * The audit rows a send writes: rejections that never reached the host, the
  * failed or uncertain attempt it claimed, a replayed delivery, and the outgoing
  * message a successful send leaves behind.
- *
- * Split out of send-tool.ts; every statement and its order is unchanged.
  */
 
 import { and, eq, sql } from 'drizzle-orm';

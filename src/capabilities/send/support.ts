@@ -1,8 +1,6 @@
 /**
  * Shapes and pure helpers shared by the send and send_reply tools: the tool
  * environment, input narrowing, and the wording each host's result uses.
- *
- * Split out of send-tool.ts; the schemas and the tools themselves stay there.
  */
 
 import type { Static } from 'typebox';

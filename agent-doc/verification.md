@@ -79,7 +79,7 @@ pnpm test test/prompts/template.test.ts test/prompts/markdown.test.ts test/tui-c
 | `test/image/startup.test.ts` | 真实 `serve` 本地启动流程在首次 Telegram 调用前发布已保存图片配置，第二次启动自动恢复；缺失/结构错误/无法解析凭据仅禁用图片能力，启动日志与实际快照一致且不泄露凭据。Telegram 边界使用 mock，无外部连接 |
 | `test/image/agent.test.ts` | 图片插件桥：生成落定推进 long task 与回执、`send kind:image` 交付本 Conversation 已落定输出并审计 bot 消息与 `media`、跨 Conversation 拒绝、失败生成仍回执、重启后 `reconcile` 对账、能力开关、输入引用授权；模型目录只读、无凭据、热更新/禁用与取消审计、转义备注的完整字节预算分页、超大单项拒绝；显式模型选择钉住路由/提示词/回执、无效选择零生成；声明输出文件缺失时发送以 `image_generation_unavailable` 拒绝且不新增发送行 |
 | `test/recurring-alarms/*.test.ts` | 循环闹钟：cron 方言白名单与拒绝项、IANA 时区、夏令时切换日、并集与日/星期「或」语义、`croner` 只被 local-monolith 引擎引用；定义校验与上限、revision 冲突与 `next_fire_at` 重算；同一周期只物化一次、错过合并与 30 分钟丢弃、`previous_pending`、目标暂停/移除/Topic 不在白名单只跳过、停用与删除抑制未领取投递、单宿主进程不触发他宿主、物化失败整体回滚并停泊、retention 保留未投递的触发记录；真实 Scheduler + AgentRuntime 下立即执行与定时触发注入同一个转义后的 `<admin_scheduled_task>`、payload 校验失败退回不可信回执、Telegram 绕过睡眠与预算而房间不绕过；Admin API 的 targets/preview/增改删/立即执行、API key 的 write+paid 门槛、跨源写入被拒 |
-| `load-env.test.ts` | CLI `.env.local`/`.env` 加载语义：dotenv 解析（含 BOM）、真实环境变量 > `.env.local` > `.env` 优先级 |
+| `load-env.test.ts` | CLI `.env.local`/`.env` 加载语义：内置 `.env` 解析（含 BOM）、真实环境变量 > `.env.local` > `.env` 优先级 |
 | `schema/schema.test.ts` | Drizzle 层 bigint 主键返回、STRICT 与 CHECK 约束、better-sqlite3 IMMEDIATE 事务回滚、`sql` 模板绑定与 FTS5 查询；Invocation 审计索引的新建/升级、分页统计与查询计划；图片交付台账旧库升级、已知/未知资产回填与查询索引；Reply 查重索引新建/升级及既有重复审计保留 |
 | `telegram/ingestion.test.ts` | allowlist、Revision、Bot/Service、Topic 隔离、先到的 `migrate_from_chat_id` 授权新 Supergroup、匿名管理员（占位 Bot + `sender_chat`）按真人处理 |
 | `telegram/spoiler.test.ts` | Telegram spoiler 到 Agent 可见上下文：整条/部分/多条 spoiler、UTF-16 偏移在 emoji 与中文后仍对齐、媒体 caption、回复引用行（含截断与前缀校验）、与其他 entity 并存（区间随 Markdown 标记偏移）、保留历史中的标签，以及无 spoiler 时快照不新增字段 |

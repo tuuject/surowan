@@ -1,8 +1,6 @@
 /**
  * The configuration-dependent sentences shared by these tools' descriptions: the
  * reply policy and the text constraints the model must respect.
- *
- * Split out of send-tool.ts; the wording is unchanged.
  */
 
 import type { SendToolEnvironment } from './support.ts';

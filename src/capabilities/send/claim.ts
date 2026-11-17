@@ -1,9 +1,6 @@
 /**
  * The reply policy and the claim: which reply targets this run already used,
  * and the write that records the pending send before it reaches the host.
- *
- * Split out of send-tool.ts's createSendTools closure. The query, the recheck
- * under the write lock and every audit write are unchanged.
  */
 
 import { and, eq, sql } from 'drizzle-orm';

@@ -10,7 +10,7 @@
  *
  * The manager is also the only place that knows a Telegram instance stopped:
  * the stop pass invalidates everything already accepted for Telegram
- * conversations (see `telegram-connection-stop.ts`), so a revoked token or a
+ * conversations (see `connection-stop.ts`), so a revoked token or a
  * replacement token cannot leave a queued reply from the old bot behind.
  */
 

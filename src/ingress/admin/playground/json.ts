@@ -3,6 +3,7 @@
  * error mapping they share.
  */
 import { LocalAssetRejected } from '../../../capabilities/media/local-assets.ts';
+import { parsePageParam } from '../audit/shared.ts';
 import type { RoomInvocationSummary, RoomMember, RoomState, RoomStatus } from '../../../store/playground/index.ts';
 import type { PlaygroundAdminResponse } from './index.ts';
 import { MAX_ID, PlaygroundAdminError, STATUS_BY_CODE } from './schemas.ts';
@@ -92,27 +93,20 @@ export function canonicalId(
 }
 
 export function parseLimit(value: string | null): number {
-  if (value === null || value.length === 0) {
-    return 50;
-  }
-  if (!/^[1-9][0-9]{0,2}$/.test(value)) {
-    throw new PlaygroundAdminError('invalid_limit', 'limit must be a decimal between 1 and 200', 400);
-  }
-  const limit = Number(value);
-  if (limit > 200) {
-    throw new PlaygroundAdminError('invalid_limit', 'limit must be a decimal between 1 and 200', 400);
-  }
-  return limit;
+  return parsePageParam(value, {
+    fallback: 50,
+    pattern: /^[1-9][0-9]{0,2}$/,
+    max: 200,
+    error: () => new PlaygroundAdminError('invalid_limit', 'limit must be a decimal between 1 and 200', 400),
+  });
 }
 
 export function parseOffset(value: string | null): number {
-  if (value === null || value.length === 0) {
-    return 0;
-  }
-  if (!/^(0|[1-9][0-9]{0,8})$/.test(value)) {
-    throw new PlaygroundAdminError('invalid_offset', 'offset must be a canonical non-negative decimal', 400);
-  }
-  return Number(value);
+  return parsePageParam(value, {
+    fallback: 0,
+    pattern: /^(0|[1-9][0-9]{0,8})$/,
+    error: () => new PlaygroundAdminError('invalid_offset', 'offset must be a canonical non-negative decimal', 400),
+  });
 }
 
 export function playgroundErrorResponse(error: unknown): PlaygroundAdminResponse {

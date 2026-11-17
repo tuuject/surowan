@@ -115,8 +115,9 @@ command SecretRef：
 
 `.env` / `.env.local` 加载：
 
-- 所有 CLI 子命令（`serve`/`check-config`/`doctor`/`backup`/`configure`/`admin-account`）启动时用 dotenv 加载当前工作目录下的 `.env.local` 与 `.env`；文件缺失时静默跳过。
+- 所有 CLI 子命令（`serve`/`check-config`/`doctor`/`backup`/`configure`/`admin-account`）启动时用 Node 内置的 `.env` 解析加载当前工作目录下的 `.env.local` 与 `.env`；文件缺失时静默跳过。
 - 只按 CWD 解析，不向上递归查找目录。
+- 只有 `KEY=value` 形式的行算赋值（支持 `export` 前缀、引号、引号内多行与行尾 `#` 注释；文件开头的 BOM 与 CR 行尾会先被归一化）。`KEY: value` 这种冒号写法不是赋值，这样的行会被忽略。
 - 优先级：真实环境变量 > `.env.local` > `.env`；compose `environment:`/`env_file:` 等方式注入的值不会被覆盖。
 - 两份文件均已被 `.gitignore` 排除，用于本地开发便利；生产部署仍应使用环境注入。
 

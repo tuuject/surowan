@@ -214,27 +214,6 @@ export function sortThinkingLevels(levels: readonly ThinkingLevel[]): readonly T
   return THINKING_LEVELS.filter((level) => levels.includes(level));
 }
 
-/** A provider/model entry in the file view, or `null` if either side is unset or missing. */
-export function modelConfigFor(
-  view: { readonly providers: readonly ProviderView[] },
-  provider: string | null,
-  model: string | null,
-): ProviderModelConfig | null {
-  if (provider === null || model === null) {
-    return null;
-  }
-  const entry = view.providers.find((candidate) => candidate.alias === provider);
-  return entry?.models.find((candidate) => candidate.id === model) ?? null;
-}
-
-/** The agent model's entry in the file view, or `null` if the file lost it. */
-export function agentModelConfig(view: {
-  readonly agent: { readonly provider: string | null; readonly model: string | null };
-  readonly providers: readonly ProviderView[];
-}): ProviderModelConfig | null {
-  return modelConfigFor(view, view.agent.provider, view.agent.model);
-}
-
 // --- compat tri-state ------------------------------------------------------
 
 export const AUTO_COMPAT = 'auto';
@@ -372,30 +351,6 @@ export function toolSchemaKeywordsFromState(state: string): ProviderModelConfig[
 }
 
 // --- in-use lookups --------------------------------------------------------
-
-export type ModelUsage = 'agent' | 'vision' | 'both' | null;
-
-export function modelUsage(
-  view: {
-    readonly agent: { provider: string | null; model: string | null };
-    readonly vision: { provider: string | null; model: string | null };
-  },
-  alias: string,
-  modelId: string,
-): ModelUsage {
-  const agent = view.agent.provider === alias && view.agent.model === modelId;
-  const vision = view.vision.provider === alias && view.vision.model === modelId;
-  if (agent && vision) {
-    return 'both';
-  }
-  if (agent) {
-    return 'agent';
-  }
-  if (vision) {
-    return 'vision';
-  }
-  return null;
-}
 
 export function providerUsage(
   view: {

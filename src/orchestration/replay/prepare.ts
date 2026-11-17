@@ -2,8 +2,6 @@
  * Everything a replay resolves from the live configuration before any model
  * request: the system prompt, the invocation context, the synthetic tool
  * registry and the retained public scene.
- *
- * Split out of `replay.ts`; resolution order and error mapping are unchanged.
  */
 
 import type { ImageContent } from '@earendil-works/pi-ai';

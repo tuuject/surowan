@@ -6,8 +6,8 @@
  * delivery is refused - always with an explicit reason, never a fake success.
  *
  * The refusals, identity/reply and picture suites continue this one in
- * `playground-delivery-{refusals,identity,pictures}.test.ts` and share
- * `playground-delivery-fixtures.ts`.
+ * `delivery-{refusals,identity,pictures}.test.ts` and share
+ * `delivery-fixtures.ts`.
  */
 import { describe, expect, test } from 'vitest';
 import { eq } from 'drizzle-orm';

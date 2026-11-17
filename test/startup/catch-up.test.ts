@@ -264,7 +264,7 @@ describe('startup catch-up', () => {
     });
     expect(result.invocationIds).toHaveLength(1);
 
-    // application.ts runs scheduler.start() right after the drain, and start()
+    // serve-run.ts runs scheduler.start() right after the drain, and start()
     // calls recover(now) before its loop. Freshly queued catch-up work must
     // survive it; otherwise every message of the drain is dropped as stale.
     scheduler.recover(now);

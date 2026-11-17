@@ -57,7 +57,3 @@ export function getQueryClient(): QueryClient {
   }
   return queryClient;
 }
-
-export function setQueryClient(client: QueryClient) {
-  queryClient = client;
-}

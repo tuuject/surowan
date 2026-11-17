@@ -2,9 +2,6 @@
  * The replay capabilities and remaining replay tools: execute dispatch
  * bookkeeping, zzz, the blocked tool, and the in-memory memory, alarm and
  * image surface.
- *
- * Split out of `replay-tools.ts`; every refusal and detail payload is
- * unchanged.
  */
 
 import { randomUUID } from 'node:crypto';

@@ -9,7 +9,6 @@ agent-doc
 node_modules
 apps/admin-next/node_modules
 apps/admin-next/dist
-apps/admin-next/.output
 # The runtime packs only content/docs and the downloadable examples into src/manual
 # (see scripts/manual-prepare.ts); the docs site itself is built and deployed
 # separately and never ships.
@@ -24,7 +23,6 @@ apps/docs/package.json
 apps/docs/rspress.config.ts
 apps/docs/tsconfig.json
 apps/docs/README.md
-docs/plan
 key.json
 *.sqlite
 *.sqlite-shm

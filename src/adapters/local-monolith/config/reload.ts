@@ -79,7 +79,7 @@ export interface ConfigReloaderOptions {
  * Applies the configuration file to the running process.
  *
  * The file is the desired configuration; this class decides which of its changes
- * the process can adopt right now (the hot whitelist in `config-diff.ts`) and
+ * the process can adopt right now (the hot whitelist in `diff-merge.ts`) and
  * which have to wait for a restart. Both layers of a candidate are validated
  * before anything is published: the file itself, so the next startup will work,
  * and the candidate, so the running process will.
@@ -94,7 +94,7 @@ export class ConfigReloader implements BotCommandConfigWriter, ConfigController 
   readonly #imageConfig: ImageConfigGateway | undefined;
   readonly #telegramConfig: TelegramConfigGateway | undefined;
   readonly #searchProviders: readonly SearchProviderRule[] | undefined;
-  /** Mutable reload state, shared by reference with `config-reload-apply.ts`. */
+  /** Mutable reload state, shared by reference with `reload-apply.ts`. */
   readonly #state: ConfigReloadState;
   /** Serializes reloads; a reload and a `/model` write never interleave. */
   #tail: Promise<unknown> = Promise.resolve();
@@ -207,7 +207,7 @@ export class ConfigReloader implements BotCommandConfigWriter, ConfigController 
 
   /**
    * Appends a bare allowlist entry `{ id }` for the chat to the configuration
-   * file and applies it. Adding a chat is a hot change (see `config-diff.ts`),
+   * file and applies it. Adding a chat is a hot change (see `diff.ts`),
    * so a successful apply lets the running process accept the chat immediately.
    * A chat the file already allowlists is not written again; applying the file
    * then covers a previously written but unapplied add.

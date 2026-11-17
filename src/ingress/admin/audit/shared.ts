@@ -107,14 +107,42 @@ export function parseWindow(query: { readonly limit?: string | null; readonly of
   return { limit: parseLimit(query.limit), offset: parseOffset(query.offset) };
 }
 
-export function parseOffset(value: string | null | undefined): number {
+/**
+ * The `limit`/`offset` parsing rule every listing shares: an absent value
+ * yields `fallback`, anything else must match `pattern` as a decimal and stay
+ * inside `min`/`max`. Each endpoint supplies its own error, so status codes
+ * and message texts stay per-endpoint even though the grammar is shared.
+ */
+export function parsePageParam(
+  value: string | null | undefined,
+  spec: {
+    readonly fallback: number;
+    readonly pattern: RegExp;
+    readonly min?: number;
+    readonly max?: number;
+    readonly error: (reason: 'shape' | 'range') => Error;
+  },
+): number {
   if (value === undefined || value === null || value.length === 0) {
-    return 0;
+    return spec.fallback;
   }
-  if (!OFFSET_PATTERN.test(value)) {
-    throw new AdminQueryError('invalid_offset', 'offset must be a canonical non-negative decimal below 1000000000');
+  if (!spec.pattern.test(value)) {
+    throw spec.error('shape');
   }
-  return Number(value);
+  const parsed = Number(value);
+  if ((spec.min !== undefined && parsed < spec.min) || (spec.max !== undefined && parsed > spec.max)) {
+    throw spec.error('range');
+  }
+  return parsed;
+}
+
+export function parseOffset(value: string | null | undefined): number {
+  return parsePageParam(value, {
+    fallback: 0,
+    pattern: OFFSET_PATTERN,
+    error: () =>
+      new AdminQueryError('invalid_offset', 'offset must be a canonical non-negative decimal below 1000000000'),
+  });
 }
 
 /** An integer snapshot token: the largest row id when the snapshot was taken. */
@@ -214,17 +242,16 @@ export function parseId(value: string, label: string): bigint {
 }
 
 export function parseLimit(value: string | null | undefined): number {
-  if (value === undefined || value === null || value.length === 0) {
-    return DEFAULT_PAGE_SIZE;
-  }
-  if (!/^\d{1,3}$/.test(value)) {
-    throw new AdminQueryError('invalid_limit', 'limit must be a positive integer');
-  }
-  const limit = Number.parseInt(value, 10);
-  if (limit < 1 || limit > MAX_PAGE_SIZE) {
-    throw new AdminQueryError('invalid_limit', `limit must be between 1 and ${MAX_PAGE_SIZE}`);
-  }
-  return limit;
+  return parsePageParam(value, {
+    fallback: DEFAULT_PAGE_SIZE,
+    pattern: /^\d{1,3}$/,
+    min: 1,
+    max: MAX_PAGE_SIZE,
+    error: (reason) =>
+      reason === 'shape'
+        ? new AdminQueryError('invalid_limit', 'limit must be a positive integer')
+        : new AdminQueryError('invalid_limit', `limit must be between 1 and ${MAX_PAGE_SIZE}`),
+  });
 }
 
 export function assertToken(value: string, label: string): string {
