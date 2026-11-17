@@ -1,8 +1,12 @@
-import type { Api, AssistantMessage, Message, Model, Models, ModelThinkingLevel } from '@earendil-works/pi-ai';
-import { getSupportedThinkingLevels } from '@earendil-works/pi-ai';
+import type { Api, AssistantMessage, Message, Model, Models } from '@earendil-works/pi-ai';
 import { eq } from 'drizzle-orm';
 import Compile from 'typebox/compile';
-import type { ToolModelSelection } from '../../platform/tool-model.ts';
+import {
+  parseToolModelJson,
+  requireToolModel,
+  toolModelReasoningOption,
+  type ToolModelSelection,
+} from '../../platform/tool-model.ts';
 import type { SecretStore } from '../../platform/secrets.ts';
 import type { Orm } from '../../store/store.ts';
 import { modelCalls } from '../../store/schema/index.ts';
@@ -63,32 +67,6 @@ export interface ConsolidationDependencies {
   readonly secrets: SecretStore;
 }
 
-function reasoningOption(
-  level: ModelThinkingLevel,
-): 'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | 'max' | undefined {
-  return level === 'off' ? undefined : level;
-}
-
-function requireModel(models: Models, selection: ToolModelSelection): Model<Api> {
-  const model = models.getModel(selection.provider, selection.model);
-  if (model === undefined) {
-    throw new GroupMemoryUnavailableError(
-      `The tool model ${selection.provider}/${selection.model} is not registered in the running process`,
-    );
-  }
-  if (!model.input.includes('text')) {
-    throw new GroupMemoryUnavailableError(
-      `The tool model ${selection.provider}/${selection.model} does not accept text`,
-    );
-  }
-  if (!getSupportedThinkingLevels(model).includes(selection.thinkingLevel)) {
-    throw new GroupMemoryUnavailableError(
-      `The tool model ${selection.provider}/${selection.model} does not support thinking level ${selection.thinkingLevel}`,
-    );
-  }
-  return model;
-}
-
 /**
  * Validates the model's ranges against the batch it saw and returns the events
  * ordered by range. A range that names a message outside the batch or runs
@@ -101,24 +79,12 @@ function requireModel(models: Models, selection: ToolModelSelection): Model<Api>
  * because they are stored in audit rows and sent back to the model.
  */
 export function parseConsolidatedEvents(text: string, rows: readonly GroupMemoryMessageRow[]): GroupMemoryEvent[] {
-  const start = text.indexOf('{');
-  const end = text.lastIndexOf('}');
-  if (start === -1 || end <= start) {
-    throw new GroupMemoryInvalidOutputError('The tool model did not return a JSON object');
-  }
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(text.slice(start, end + 1));
-  } catch {
-    throw new GroupMemoryInvalidOutputError('The tool model returned invalid JSON');
-  }
-  if (!eventValidator.Check(parsed)) {
-    const detail = [...eventValidator.Errors(parsed)]
-      .slice(0, 5)
-      .map((error) => `${error.instancePath || '/'}: ${error.message}`)
-      .join('; ');
-    throw new GroupMemoryInvalidOutputError(`The tool model returned invalid events (${detail})`);
-  }
+  const parsed = parseToolModelJson(
+    text,
+    eventValidator,
+    (message) => new GroupMemoryInvalidOutputError(message),
+    'invalid events',
+  );
   const known = new Set(rows.map((row) => row.telegramMessageId));
   const events: GroupMemoryEvent[] = [];
   for (const [index, raw] of parsed.events.entries()) {
@@ -229,7 +195,7 @@ export async function consolidateDay(
 ): Promise<ConsolidationResult> {
   let model: Model<Api>;
   try {
-    model = requireModel(options.models, options.selection);
+    model = requireToolModel(options.models, options.selection, (message) => new GroupMemoryUnavailableError(message));
   } catch (error) {
     return {
       ok: false,
@@ -335,7 +301,7 @@ async function callOnce(
   );
   const signal =
     options.signal === undefined ? controller.signal : AbortSignal.any([options.signal, controller.signal]);
-  const reasoning = reasoningOption(options.selection.thinkingLevel);
+  const reasoning = toolModelReasoningOption(options.selection.thinkingLevel);
   const startedAt = performance.now();
   const finishCall = (fields: {
     readonly state: 'success' | 'error';

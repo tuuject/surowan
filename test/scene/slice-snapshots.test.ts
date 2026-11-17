@@ -29,7 +29,7 @@ import { buildSlice } from './slice-harness.ts';
  * Bot-send slice inputs: only batches that were already injected when the send
  * started, only the snapshot frozen at or before it, reply references kept only
  * for rendered messages, and media authorized only through the frozen revision.
- * Fixture and row builders live in `./scene-slice-fixtures.ts`.
+ * Fixture and row builders live in `./slice-fixtures.ts`.
  */
 
 afterEach(cleanupFixtures);

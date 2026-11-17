@@ -47,19 +47,6 @@ export interface Overview {
   readonly cached_analysis_count: number;
 }
 
-export interface UsageResponse {
-  readonly days: number;
-  readonly series: readonly UsagePoint[];
-}
-
-export interface UsagePoint {
-  readonly date: string;
-  readonly model_tokens: number;
-  readonly vision_tokens: number;
-  readonly tool_calls: number;
-  readonly agent_invocations: number;
-}
-
 export function getOverview(): Promise<Overview> {
   return call<Overview>('/overview');
 }
@@ -70,8 +57,4 @@ export function cancelOngoingSessions(): Promise<CancelOngoingResult> {
 
 export function wakeBot(): Promise<WakeResult> {
   return call<WakeResult>('/wake', { method: 'POST' });
-}
-
-export function getUsage(days: number): Promise<UsageResponse> {
-  return call<UsageResponse>(`/usage?days=${encodeURIComponent(String(days))}`);
 }

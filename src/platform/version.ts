@@ -114,20 +114,6 @@ function compareParsed(left: ParsedVersion, right: ParsedVersion): number {
   }
 }
 
-/**
- * Compares two complete versions. A positive result means `left` is newer.
- * Release beats Staging beats Develop at the same base version; Staging orders
- * by timestamp and Develop has no update ordering beyond its hash.
- */
-export function compareVersions(left: string, right: string): number {
-  const leftParsed = parseVersionParts(left);
-  const rightParsed = parseVersionParts(right);
-  if (leftParsed === undefined || rightParsed === undefined) {
-    throw new Error(`Cannot compare invalid versions: ${left} / ${right}`);
-  }
-  return compareParsed(leftParsed, rightParsed);
-}
-
 function parseVersionFile(contents: string): SurowanVersion | undefined {
   let version: string | undefined;
   let declaredChannel: string | undefined;

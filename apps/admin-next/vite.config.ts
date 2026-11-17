@@ -19,7 +19,7 @@ export default defineConfig({
   ],
   resolve: {
     // Keep the `@/` alias from tsconfig.json available in the dev server;
-    // Rsbuild read tsconfig paths automatically, Vite needs the mapping here.
+    // Vite needs the mapping here.
     alias: { '@': path.resolve(import.meta.dirname, 'src') },
   },
   server: {

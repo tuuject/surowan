@@ -4,7 +4,7 @@ import { type ResolvedSearchEngine, urlFilterMatcher } from '../../platform/web-
 import type { ToolAudit } from '../../store/tool-audit.ts';
 import { classifyStatus, networkError, WebSearchError } from './errors.ts';
 import type { RawSearchHit, SearchHttpRequest, SearchProviderSpec, SearchRequestInput } from './extension.ts';
-import { formatResults, normalizeHit } from './format.ts';
+import { formatResults, normalizeHit, trimChars } from './format.ts';
 
 /**
  * One search request: credential resolution, the frozen request settings, the
@@ -181,10 +181,4 @@ async function readBounded(response: Response, maxBytes: number): Promise<Uint8A
     offset += chunk.byteLength;
   }
   return merged;
-}
-
-/** Characters, not UTF-16 units, so a surrogate pair is never split. */
-function trimChars(value: string, limit: number): string {
-  const characters = [...value];
-  return characters.length <= limit ? value : characters.slice(0, limit).join('');
 }

@@ -304,7 +304,7 @@ export async function startServeServices(session: ServeContext, environment: Ser
     tasks,
     docSpaces,
     toolImageStore,
-    ...(bridge === undefined ? {} : { imageBridge: bridge }),
+    imageBridge: bridge,
   });
   const skillVisibleForHost = tooling.skillVisible;
   // Runtime-internal capabilities: dispatched through the execute primitive.

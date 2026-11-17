@@ -33,6 +33,7 @@
     "zustand": "^5.0.15"
   },
   "devDependencies": {
+    "@hono/node-server": "^2.1.4",
     "@pandacss/dev": "~2.1.2",
     "@pandacss/preset-base": "~2.1.2",
     "@playwright/test": "^1.64.0",
@@ -41,6 +42,8 @@
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.1.2",
+    "drizzle-orm": "^0.45.4",
+    "sharp": "0.35.5",
     "typescript": "^5.7.2",
     "vite": "^8.3.3"
   }

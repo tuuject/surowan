@@ -1,8 +1,6 @@
 /**
  * One replay run: the in-memory Pi loop, its turn, tool-call and trace guards,
  * and the redacted result document it returns.
- *
- * Split out of `replay.ts`; stream, dispatch and trace ordering are unchanged.
  */
 
 import { randomUUID } from 'node:crypto';

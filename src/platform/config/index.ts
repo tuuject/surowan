@@ -132,8 +132,6 @@ export type RawConfig = Omit<FileConfig, 'agent' | 'vision' | 'telegram' | 'deve
   admin: AdminRuntimeConfig;
 };
 export type ImageConfig = RawConfig['image'];
-export type DictionaryConfig = RawConfig['dictionary'];
-export type ToolModelConfig = RawConfig['tool_model'];
 export type ProviderConfig = RawConfig['providers'][string];
 export type McpServerConfig = NonNullable<RawConfig['mcp']>['servers'][number];
 

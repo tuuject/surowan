@@ -1,5 +1,4 @@
-import { and, desc, eq, type SQL, sql } from 'drizzle-orm';
-import { invocations } from '../../store/schema/index.ts';
+import { type SQL, sql } from 'drizzle-orm';
 import type { BusinessStore } from '../../store/store.ts';
 import type { ConversationContextSummary } from './types.ts';
 
@@ -54,19 +53,4 @@ export function listConversationContexts(
       lastGcAt: row.last_gc_at,
       activeInvocationId: row.active_invocation_id,
     }));
-}
-
-/**
- * The running invocation of a Conversation, if any. The attach path injects a
- * due bucket into it; at most one can exist (one_running_invocation_per_conversation).
- */
-export function runningInvocationForConversation(store: BusinessStore, conversationId: bigint): bigint | undefined {
-  const row = store.orm
-    .select({ id: invocations.id })
-    .from(invocations)
-    .where(and(eq(invocations.conversationId, conversationId), eq(invocations.state, 'running')))
-    .orderBy(desc(invocations.id))
-    .limit(1)
-    .get();
-  return row?.id;
 }

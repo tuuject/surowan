@@ -1,9 +1,6 @@
 /**
  * Row and message shapes one historical scene reads, plus the loaders for its
  * source invocation, its frozen opening batch and the replay-slice window.
- *
- * Split out of `scene-context.ts`; the store queries, their order and the
- * validation they perform are unchanged.
  */
 
 import { sql } from 'drizzle-orm';

@@ -2,8 +2,8 @@ import Type from 'typebox';
 
 /**
  * The provider, model and secret shapes as written in the configuration file.
- * Validation rules live in `config-semantics.ts` and resolved defaults in
- * `config-resolve.ts`; `ConfigSchema` in `config-schema.ts` composes these into
+ * Validation rules live in `semantics.ts` and resolved defaults in
+ * `resolve.ts`; `ConfigSchema` in `schema.ts` composes these into
  * the file's root shape.
  */
 

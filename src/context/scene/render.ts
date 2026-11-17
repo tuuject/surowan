@@ -1,9 +1,9 @@
 /**
  * Turns stored history rows into rendered scene messages: the history-window
- * query, snapshot and media decoding, the comparator and the clock line.
+ * query, snapshot and media decoding, and the comparator.
  *
- * Split out of `scene-context.ts`. It only reads rows; the canonical history
- * rules are untouched — no Context header or state is re-read or copied here.
+ * It only reads rows; the canonical history rules are untouched — no Context
+ * header or state is re-read or copied here.
  */
 
 import { and, eq, inArray, sql } from 'drizzle-orm';
@@ -234,18 +234,4 @@ function parseStoredJson(json: string | null): unknown {
   } catch {
     return null;
   }
-}
-
-/**
- * The runtime block's clock line. `ContextBuilder#renderCurrentTime` is the
- * production twin but stays private; this is the only piece of the injection
- * envelope the scene renders itself.
- */
-export function renderCurrentTime(timezone: string, now: Date): string {
-  return `${new Intl.DateTimeFormat('en-CA', {
-    timeZone: timezone,
-    dateStyle: 'full',
-    timeStyle: 'long',
-    hourCycle: 'h23',
-  }).format(now)} (${timezone})`;
 }

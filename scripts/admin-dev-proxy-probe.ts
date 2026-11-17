@@ -1,5 +1,5 @@
 // Manual verification probe for the admin dev proxy Origin rewrite
-// (rsbuild.config.ts ALLOWED_ORIGINS: only http://localhost:5273 and
+// (vite.config.ts ALLOWED_ORIGINS: only http://localhost:5273 and
 // http://127.0.0.1:5273 get their Origin rewritten to the API target; any
 // other origin passes through untouched so the backend origin check rejects
 // cross-site writes).
@@ -8,12 +8,12 @@
 //   node scripts/admin-dev-proxy-probe.ts
 //
 // It starts an echo server (127.0.0.1:8891) that mirrors the Host/Origin
-// headers it receives, starts `rsbuild dev` in apps/admin-next with
+// headers it receives, starts `vite dev` in apps/admin-next with
 // ADMIN_API_TARGET=http://127.0.0.1:8891, then curls three cases through the
 // proxy and asserts the backend would accept/reject each one. Exits non-zero
 // on failure and kills the dev server process tree when done.
 //
-// Why not part of the default test run: it needs a real `rsbuild dev` server
+// Why not part of the default test run: it needs a real `vite dev` server
 // on a fixed port plus curl, so it is slow and flaky in CI/headless runs.
 // Browser-level dev-proxy behavior is covered manually; production serving
 // (no proxy) is what the automated tests exercise.
@@ -51,7 +51,7 @@ function killTree(proc: ChildProcess): void {
     return;
   }
   // Synchronous so taskkill finishes before the script exits and the whole
-  // dev server tree (pnpm → node/rsbuild → rspack) is actually gone.
+  // dev server tree (pnpm → vite) is actually gone.
   spawnSync('taskkill', ['/PID', String(proc.pid), '/T', '/F'], { stdio: 'ignore' });
 }
 
@@ -103,7 +103,7 @@ try {
     windowsHide: true,
   });
   await waitFor(`${DEV_BASE}/`, 20_000);
-  console.log(`rsbuild dev listening on ${DEV_BASE}`);
+  console.log(`vite dev listening on ${DEV_BASE}`);
 
   const allowed = await curlOnce('Origin: http://localhost:5273');
   const evil = await curlOnce('Origin: http://evil.example');

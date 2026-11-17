@@ -171,8 +171,9 @@ export async function fixture() {
     shutdownSignal: shutdown.signal,
     toolDefinitions: () => sceneRegistry(),
   });
-  // Same wiring as `serve` in src/application.ts: ReplayError becomes an
-  // AdminQueryError with the engine's code and status, anything else is 500.
+  // Same wiring as `serve` in src/adapters/local-monolith/runtime/serve-run.ts:
+  // ReplayError becomes an AdminQueryError with the engine's code and status,
+  // anything else is 500.
   const toAdminQueryError = (error: unknown): never => {
     if (error instanceof ReplayError) {
       throw new AdminQueryError(error.code, error.message, error.status);

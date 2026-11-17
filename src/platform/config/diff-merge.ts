@@ -2,7 +2,7 @@ import type { ConfigChange, ConfigChangeKind } from './diff.ts';
 
 /**
  * The hot whitelist and the field-level merge primitives shared by every
- * section of `config-diff.ts`. Keeping them here means each section module
+ * section of `diff.ts`. Keeping them here means each section module
  * (this one, the provider merge, the main composition) can import the same
  * classification rules without a cycle: only these types cross back, and they
  * are erased at runtime.

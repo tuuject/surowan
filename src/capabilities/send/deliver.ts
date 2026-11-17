@@ -1,11 +1,8 @@
 /**
  * The first half of one send: narrow and validate the input, apply the
  * duplicate and reply policies, then spend the barrier. The claim that follows
- * lives in send-tool-claim.ts; what this half returns is what the publish half
+ * lives in claim.ts; what this half returns is what the publish half
  * delivers.
- *
- * Split out of send-tool.ts's createSendTools closure. Every check, audit write
- * and its order is unchanged.
  */
 
 import type { Static } from 'typebox';

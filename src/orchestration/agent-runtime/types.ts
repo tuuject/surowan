@@ -40,7 +40,6 @@ export type ToolFactory = (
   capabilities: CapabilityRefResolver,
   config: RawConfig,
 ) => readonly AgentTool[];
-export type AdditionalToolFactory = ToolFactory;
 
 /**
  * Runtime-only facilities a capability factory needs from the live run. The

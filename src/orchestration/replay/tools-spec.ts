@@ -2,9 +2,8 @@
  * Shared replay tool spec: the current-schema input guards, the replay-only
  * constants, and the projection of one registry definition onto an agent tool.
  *
- * Split out of `replay-tools.ts` so both replay tool modules can use it
- * without importing the registry itself; it stays free of store and runtime
- * wiring.
+ * Both replay tool modules use it without importing the registry itself; it
+ * stays free of store and runtime wiring.
  */
 
 import Type, { type TSchema } from 'typebox';

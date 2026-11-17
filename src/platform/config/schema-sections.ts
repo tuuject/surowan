@@ -10,7 +10,7 @@ import {
 
 /**
  * The participation, chat, agent, vision, tool-model and dictionary sections of
- * the configuration file; `config-resolve.ts` turns the runtime-relevant ones
+ * the configuration file; `resolve.ts` turns the runtime-relevant ones
  * into their filled form.
  */
 

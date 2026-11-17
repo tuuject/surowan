@@ -12,7 +12,7 @@ import { listInvocations } from '../../src/ingress/admin/audit/invocations.ts';
 
 /**
  * Shared fixture for the `invocation-search` suite: a temp SQLite store holding
- * the synthetic corpus from `invocation-search-seed.ts`, plus the query helpers
+ * the synthetic corpus from `search-seed.ts`, plus the query helpers
  * the split test files share.
  */
 

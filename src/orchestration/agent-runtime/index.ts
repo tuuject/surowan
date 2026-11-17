@@ -171,7 +171,7 @@ export class AgentRuntime {
 
   /**
    * One invocation, phase by phase. The lifecycle itself lives in
-   * `agent-runtime-run.ts`; this keeps the error path of `run` next to the
+   * `run.ts`; this keeps the error path of `run` next to the
    * public surface.
    */
   async #runInvocation(

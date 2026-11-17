@@ -1,9 +1,6 @@
 /**
  * Every check a multi-part reply runs before its first part is published, so a
  * predictable rejection never leaves half a reply behind.
- *
- * Split out of send-tool.ts's createSendReplyTool; the checks and their order
- * are unchanged, and the caller supplies the rejection that records them.
  */
 
 import type { Static } from 'typebox';

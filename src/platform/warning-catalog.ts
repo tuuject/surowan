@@ -51,10 +51,6 @@ export function warningDefinition(code: WarningCode): WarningDefinition {
   return WARNING_DEFINITIONS[code];
 }
 
-export function isEventWarningCode(code: WarningCode): code is EventWarningCode {
-  return WARNING_DEFINITIONS[code].kind === 'event';
-}
-
 export interface StandingWarning {
   readonly kind: 'standing';
   readonly code: WarningCode;

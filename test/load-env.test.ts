@@ -64,4 +64,40 @@ describe('environment file loading', () => {
     loadEnvFiles(['.env.local', '.env']);
     expect(process.env.SUROWAN_TEST_ENV_BOM).toBe('yes');
   });
+
+  test('reads the usual .env forms from a CRLF file and keeps an empty real variable', async () => {
+    const directory = await workingDirectory();
+    const keys = ['EXPORTED', 'QUOTED', 'SINGLE', 'COMMENTED', 'EMPTY', 'MULTILINE', 'COLON', 'PRESET'].map(
+      (name) => `SUROWAN_TEST_ENV_${name}`,
+    );
+    envKeys.push(...keys);
+    // An empty string is still "set": the file must not replace it.
+    process.env.SUROWAN_TEST_ENV_PRESET = '';
+    await writeFile(
+      join(directory, '.env'),
+      [
+        '# a comment line',
+        'export SUROWAN_TEST_ENV_EXPORTED=from export',
+        'SUROWAN_TEST_ENV_QUOTED="two words"',
+        "SUROWAN_TEST_ENV_SINGLE='keeps # hash'",
+        'SUROWAN_TEST_ENV_COMMENTED=value # trailing comment',
+        'SUROWAN_TEST_ENV_EMPTY=',
+        'SUROWAN_TEST_ENV_MULTILINE="line one',
+        'line two"',
+        // Only `=` assigns; the YAML-like colon form is not an assignment.
+        'SUROWAN_TEST_ENV_COLON: ignored',
+        'SUROWAN_TEST_ENV_PRESET=from-file',
+        '',
+      ].join('\r\n'),
+    );
+    loadEnvFiles(['.env.local', '.env']);
+    expect(process.env.SUROWAN_TEST_ENV_EXPORTED).toBe('from export');
+    expect(process.env.SUROWAN_TEST_ENV_QUOTED).toBe('two words');
+    expect(process.env.SUROWAN_TEST_ENV_SINGLE).toBe('keeps # hash');
+    expect(process.env.SUROWAN_TEST_ENV_COMMENTED).toBe('value');
+    expect(process.env.SUROWAN_TEST_ENV_EMPTY).toBe('');
+    expect(process.env.SUROWAN_TEST_ENV_MULTILINE).toBe('line one\nline two');
+    expect(process.env.SUROWAN_TEST_ENV_COLON).toBeUndefined();
+    expect(process.env.SUROWAN_TEST_ENV_PRESET).toBe('');
+  });
 });
