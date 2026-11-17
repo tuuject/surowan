@@ -1,4 +1,5 @@
 import { call, writeHeaders } from './core.ts';
+import type { SecretInput, SecretSource } from './keychain.ts';
 
 /**
  * The web-search settings surface. The view never carries a credential: an
@@ -17,6 +18,8 @@ export interface SearchEngineView {
   readonly timeout_seconds: number;
   readonly note: string;
   readonly key_configured: boolean;
+  /** Panel sessions only: where the key comes from. */
+  readonly key_source?: SecretSource;
 }
 
 export interface SearchProviderView {
@@ -35,8 +38,6 @@ export interface SearchConfigView {
   readonly url_filters: readonly string[];
   readonly engines: readonly SearchEngineView[];
   readonly providers: readonly SearchProviderView[];
-  /** DeepSeek provider aliases whose key may be reused. */
-  readonly deepseek_keys: readonly string[];
 }
 
 export interface SearchEngineInput {
@@ -47,12 +48,10 @@ export interface SearchEngineInput {
   readonly results: number | null;
   readonly timeout_seconds: number | null;
   readonly note: string | null;
-  /** New plaintext; written to the key jar and never echoed back. */
-  readonly api_key: string | null;
-  /** Reuse the credential this engine already references. */
-  readonly keep_api_key: boolean;
-  /** Reuse a DeepSeek key configured for this model-provider alias. */
-  readonly key_source: string | null;
+  /** A fresh key (auto-named or explicitly named) or an existing entry. */
+  readonly api_key?: SecretInput | null;
+  /** Keep the credential this engine already references. */
+  readonly keep_api_key?: boolean;
 }
 
 export interface SearchConfigInput {

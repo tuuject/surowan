@@ -1,12 +1,12 @@
 import type { JSONPath } from 'jsonc-parser';
 import Compile from 'typebox/compile';
 import type { TLocalizedValidationError } from 'typebox/error';
+import type { SearchProviderRule } from '../web-search.ts';
 import { deprecatedConfigFields } from './deprecated.ts';
 import type { FileConfig } from './index.ts';
 import { activeVisionModel, completeAgentSettings, resolveAgentSettings } from './resolve.ts';
 import { ConfigSchema, ImageSectionSchema } from './schema.ts';
 import { validateSemantics } from './semantics.ts';
-import type { SearchProviderRule } from '../web-search.ts';
 
 /**
  * File-shape validation: refuses plaintext secrets, soft-disables an invalid
@@ -14,7 +14,7 @@ import type { SearchProviderRule } from '../web-search.ts';
  * `validateSemantics` for the rules the schema cannot express.
  */
 
-/** File name of the key jar; kept here so validation messages name it without file I/O imports. */
+/** File name of the keychain; kept here so validation messages name it without file I/O imports. */
 export const KEY_JAR_FILE = 'key.json';
 
 /** Validate a parsed configuration independently of its source or location. */

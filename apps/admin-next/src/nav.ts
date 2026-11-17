@@ -38,6 +38,7 @@ export type NavTo =
   | '/chats'
   | '/admins'
   | '/api-keys'
+  | '/keychain'
   | '/developer'
   | '/settings'
   | '/preferences';
@@ -131,6 +132,7 @@ export const NAV_GROUPS: readonly NavGroupDefinition[] = [
     icon: SettingsIcon,
     items: [
       { titleKey: 'apiKeys', to: '/api-keys' },
+      { titleKey: 'keychain', to: '/keychain' },
       { titleKey: 'developer', to: '/developer' },
       { titleKey: 'settings', to: '/settings' },
       { titleKey: 'preferences', to: '/preferences' },

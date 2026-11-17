@@ -2,6 +2,8 @@
  * Provider writes: the config edits a panel request turns into, in the order the
  * panel applies them, with the connection and model prechecks they run first.
  */
+
+import type { JSONPath } from 'jsonc-parser';
 import {
   builtinModelApi,
   findBuiltinProvider,
@@ -9,22 +11,50 @@ import {
   isSupportedProviderApi,
   SUPPORTED_PROVIDER_APIS,
 } from '../../../platform/builtin-providers.ts';
-import type { FileChat, ModelFileConfig, ProviderApi, ThinkingLevelConfig } from '../../../platform/config/index.ts';
-import { type ConfigEdit, secretEdit } from '../../../platform/config/write.ts';
-import { newKeyJarName } from '../../../platform/key-jar.ts';
+import type {
+  FileChat,
+  ModelFileConfig,
+  ProviderApi,
+  SecretRef,
+  ThinkingLevelConfig,
+} from '../../../platform/config/index.ts';
+
+import { resolveVisionSection } from '../../../platform/config/resolve.ts';
+import {
+  type ConfigEdit,
+  type KeychainReplacement,
+  type SecretWrite,
+  secretEdit,
+} from '../../../platform/config/write.ts';
 import { supportedThinkingLevels } from '../../../platform/thinking-levels.ts';
 import { AdminQueryError } from '../audit/shared.ts';
+import {
+  isSubmittedPlaintext,
+  type ResolvedSecret,
+  resolveSecretInput,
+  SecretAllocator,
+  type SecretInput,
+  type SecretSlot,
+  sameSecretRef,
+} from '../secret-input.ts';
 import type {
   CreateProviderBody,
   DeleteModelsBody,
   ProviderWriteContext,
+  ProviderWritePlan,
   UpdateProviderBody,
   VisionBody,
 } from './index.ts';
 import { checkModel, modelApi, providerOf, registerSecrets } from './read.ts';
-import { resolveVisionSection } from '../../../platform/config/resolve.ts';
 
-export async function createProvider(context: ProviderWriteContext, body: CreateProviderBody): Promise<ConfigEdit[]> {
+function slotOf(path: string, editPath: JSONPath, current: SecretRef | undefined, suggestedName: string): SecretSlot {
+  return { path, editPath, current, suggestedName };
+}
+
+export async function createProvider(
+  context: ProviderWriteContext,
+  body: CreateProviderBody,
+): Promise<ProviderWritePlan> {
   if (context.file.providers[body.alias] !== undefined) {
     throw new AdminQueryError('provider_exists', `Provider ${body.alias} already exists`, 409);
   }
@@ -32,34 +62,60 @@ export async function createProvider(context: ProviderWriteContext, body: Create
   for (const model of body.models) {
     checkModel(apiOf(model.id), model, `model ${model.id}`);
   }
-  registerSecrets(context.secrets, [body.api_key, ...Object.values(body.headers ?? {})]);
-  const keys: Record<string, string> = {};
-  const toJar = (plaintext: string): { jar: string } => {
-    const name = newKeyJarName();
-    keys[name] = plaintext;
-    return { jar: name };
-  };
+  const allocator = new SecretAllocator(context.keychain.entries, context.keychain.usage);
+  const apiKey = resolveSecretInput(
+    body.api_key,
+    slotOf(`providers.${body.alias}.api_key`, ['providers', body.alias, 'api_key'], undefined, body.alias),
+    context.caller,
+    allocator,
+  );
+  const headerSecrets: ResolvedSecret[] = [];
+  for (const [name, value] of Object.entries(body.headers ?? {})) {
+    headerSecrets.push(
+      resolveSecretInput(
+        value,
+        slotOf(
+          `providers.${body.alias}.headers.${name}`,
+          ['providers', body.alias, 'headers', name],
+          undefined,
+          `${body.alias}-${name}`,
+        ),
+        context.caller,
+        allocator,
+      ),
+    );
+  }
+  registerSecrets(
+    context.secrets,
+    [apiKey, ...headerSecrets].flatMap((secret) => (secret.kind === 'reuse' ? [] : [secret.plaintext])),
+  );
+  const keys: Record<string, string> = Object.create(null);
+  for (const resolved of [apiKey, ...headerSecrets]) {
+    if (resolved.kind === 'new') {
+      keys[resolved.name] = resolved.plaintext;
+    }
+  }
+  const headers: Record<string, SecretRef> = {};
+  for (const [index, name] of Object.keys(body.headers ?? {}).entries()) {
+    headers[name] = headerSecrets[index]?.ref ?? { jar: 'unreachable' };
+  }
   const provider =
     body.kind === 'builtin'
       ? {
           kind: 'builtin' as const,
           provider: body.provider as string,
-          api_key: toJar(body.api_key),
+          api_key: apiKey.ref,
           models: body.models,
         }
       : {
           kind: 'custom' as const,
           base_url: (body.base_url as string).replace(/\/+$/, ''),
           api: body.api as ProviderApi,
-          api_key: toJar(body.api_key),
-          ...(body.headers === undefined
-            ? {}
-            : {
-                headers: Object.fromEntries(Object.entries(body.headers).map(([name, value]) => [name, toJar(value)])),
-              }),
+          api_key: apiKey.ref,
+          ...(Object.keys(headers).length === 0 ? {} : { headers }),
           models: body.models,
         };
-  return [{ path: ['providers', body.alias], value: provider, keys }];
+  return { edits: [{ path: ['providers', body.alias], value: provider, keys }], secrets: {} };
 }
 
 /**
@@ -106,11 +162,38 @@ export async function updateProvider(
   context: ProviderWriteContext,
   alias: string,
   body: UpdateProviderBody,
-): Promise<ConfigEdit[]> {
+): Promise<ProviderWritePlan> {
   const provider = providerOf(context.file, alias);
   const edits: ConfigEdit[] = [];
+  let replaces: readonly KeychainReplacement[] = [];
+  const repairs: Record<string, string> = Object.create(null);
   const secretsToRegister: string[] = [];
   const removedHeaders: string[] = [];
+  const allocator = new SecretAllocator(context.keychain.entries, context.keychain.usage);
+
+  /** Files one submitted secret: an edit when the reference moves, a rotation or repair when it stays. */
+  const accept = (slot: SecretSlot, input: SecretInput): void => {
+    const resolved = resolveSecretInput(input, slot, context.caller, allocator);
+    secretsToRegister.push(resolved.kind === 'reuse' ? '' : resolved.plaintext);
+    if (resolved.kind === 'rotate') {
+      replaces = [...replaces, { name: resolved.name, value: resolved.plaintext, requestedBy: slot.path }];
+      return;
+    }
+    if (resolved.kind === 'repair') {
+      // The file already names this entry; the value fills it in without a
+      // reference change, so it travels outside the edits.
+      repairs[resolved.name] = resolved.plaintext;
+      return;
+    }
+    if (!sameSecretRef(resolved.ref, slot.current)) {
+      if (resolved.kind === 'new') {
+        edits.push(secretEdit(slot.editPath, resolved.plaintext, resolved.name));
+      } else {
+        edits.push({ path: slot.editPath, value: resolved.ref });
+      }
+    }
+  };
+
   if (provider.kind === 'builtin') {
     if (body.base_url !== undefined || body.api !== undefined || body.headers !== undefined) {
       throw new AdminQueryError(
@@ -119,15 +202,18 @@ export async function updateProvider(
       );
     }
     if (body.api_key !== undefined) {
-      secretsToRegister.push(body.api_key);
-      edits.push(secretEdit(['providers', alias, 'api_key'], body.api_key));
+      accept(
+        slotOf(`providers.${alias}.api_key`, ['providers', alias, 'api_key'], provider.api_key, alias),
+        body.api_key,
+      );
     }
   } else {
     const baseUrl = body.base_url === undefined ? provider.base_url : body.base_url.replace(/\/+$/, '');
     const baseUrlChanged = baseUrl !== provider.base_url;
-    if (baseUrlChanged) {
-      // Moving the endpoint without re-entering the credentials would let a
-      // stolen panel session point a configured key at its own server.
+    if (baseUrlChanged && context.caller === 'programmatic') {
+      // Moving the endpoint without re-entering the credentials would let an
+      // injected prompt point a configured key at its own server. A panel
+      // session is the admin, and the entry picker makes the guard moot there.
       if (body.api_key === undefined) {
         throw new AdminQueryError(
           'credentials_required',
@@ -135,7 +221,7 @@ export async function updateProvider(
         );
       }
       for (const name of Object.keys(provider.headers ?? {})) {
-        if (typeof body.headers?.[name] !== 'string') {
+        if (!isSubmittedPlaintext(body.headers?.[name])) {
           throw new AdminQueryError(
             'credentials_required',
             `Changing base_url requires every header value to be submitted again: ${name}`,
@@ -150,8 +236,10 @@ export async function updateProvider(
       edits.push({ path: ['providers', alias, 'api'], value: body.api });
     }
     if (body.api_key !== undefined) {
-      secretsToRegister.push(body.api_key);
-      edits.push(secretEdit(['providers', alias, 'api_key'], body.api_key));
+      accept(
+        slotOf(`providers.${alias}.api_key`, ['providers', alias, 'api_key'], provider.api_key, alias),
+        body.api_key,
+      );
     }
     for (const [name, value] of Object.entries(body.headers ?? {})) {
       if (value === null) {
@@ -161,8 +249,15 @@ export async function updateProvider(
         removedHeaders.push(name);
         continue;
       }
-      secretsToRegister.push(value);
-      edits.push(secretEdit(['providers', alias, 'headers', name], value));
+      accept(
+        slotOf(
+          `providers.${alias}.headers.${name}`,
+          ['providers', alias, 'headers', name],
+          provider.headers?.[name],
+          `${alias}-${name}`,
+        ),
+        value,
+      );
     }
     const keptHeaders = Object.keys(provider.headers ?? {}).filter((name) => !removedHeaders.includes(name));
     const addedHeaders = Object.entries(body.headers ?? {}).filter(([, value]) => value !== null).length;
@@ -176,11 +271,18 @@ export async function updateProvider(
       }
     }
   }
-  if (edits.length === 0) {
+  const secrets: SecretWrite = {
+    ...(Object.keys(repairs).length > 0 ? { add: repairs } : {}),
+    ...(replaces.length > 0 ? { replace: replaces } : {}),
+  };
+  if (edits.length === 0 && secrets.add === undefined && secrets.replace === undefined) {
     throw new AdminQueryError('no_changes', 'The request does not change any connection field');
   }
-  registerSecrets(context.secrets, secretsToRegister);
-  return edits;
+  registerSecrets(
+    context.secrets,
+    secretsToRegister.filter((value) => value.length > 0),
+  );
+  return { edits, secrets };
 }
 
 /**

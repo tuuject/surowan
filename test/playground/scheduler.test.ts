@@ -7,7 +7,7 @@ import { loadConfig } from '../../src/adapters/local-monolith/config/index.ts';
 import { SqliteStore } from '../../src/adapters/local-monolith/database.ts';
 import { buildModelRegistry } from '../../src/platform/providers.ts';
 import { SecretStore } from '../../src/platform/secrets.ts';
-import { keyJarPath } from '../../src/platform/key-jar.ts';
+import { keychainPath } from '../../src/platform/keychain.ts';
 import { RuntimeConfigurationStore } from '../../src/platform/runtime-config.ts';
 import { PlaygroundIngress } from '../../src/ingress/playground.ts';
 import { PLAYGROUND_QUEUE_TTL_MS, PlaygroundStore } from '../../src/store/playground/index.ts';
@@ -49,7 +49,7 @@ async function fixture(maxConcurrency?: number): Promise<{
   const loaded = await loadConfig(configPath);
   const store = await SqliteStore.open(loaded.config);
   stores.push(store);
-  const registry = await buildModelRegistry(loaded.config, null, new SecretStore(keyJarPath(configPath)));
+  const registry = await buildModelRegistry(loaded.config, null, new SecretStore(keychainPath(configPath)));
   const configStore = new RuntimeConfigurationStore({ config: loaded.config, hash: loaded.hash, ...registry });
   const room = new PlaygroundStore(store.orm).createRoom({
     title: 'Scheduler Room',

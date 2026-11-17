@@ -9,7 +9,7 @@ import { awaitServerAttempts } from '../../src/capabilities/mcp/availability.ts'
 import { McpManager } from '../../src/capabilities/mcp/index.ts';
 import { BucketScheduler } from '../../src/orchestration/scheduler/index.ts';
 import { TelegramIngestion } from '../../src/ingress/telegram-ingestion/index.ts';
-import { keyJarPath } from '../../src/platform/key-jar.ts';
+import { keychainPath } from '../../src/platform/keychain.ts';
 import { SecretStore } from '../../src/platform/secrets.ts';
 import { renderInvocationContext, sleep, testConfigJsonc, testConfigStore, writeTestConfig } from '../helpers.ts';
 
@@ -54,7 +54,7 @@ async function harness(
   const loaded = await loadConfig(configPath);
   const configStore = await testConfigStore(loaded);
   const store = await SqliteStore.open(loaded.config);
-  const manager = new McpManager(store, loaded.config, new SecretStore(keyJarPath(loaded.configPath)));
+  const manager = new McpManager(store, loaded.config, new SecretStore(keychainPath(loaded.configPath)));
   await manager.start();
   await awaitServerAttempts(manager);
   const ingestion = new TelegramIngestion(store, configStore, { id: 999 });

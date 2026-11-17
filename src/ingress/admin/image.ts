@@ -9,15 +9,6 @@ import {
 } from '@surowan/image-service';
 import type { ImageBridge } from '../../image/bridge.ts';
 import type { ImageService } from '../../image/service.ts';
-import type { RawConfig } from '../../platform/config/index.ts';
-
-export function reusableImageCredentials(config: Pick<RawConfig, 'providers'>) {
-  return Object.fromEntries(
-    Object.entries(config.providers)
-      .filter(([, provider]) => provider.kind === 'builtin' && provider.provider === 'openrouter')
-      .map(([alias, provider]) => [alias, provider.api_key]),
-  );
-}
 
 /**
  * The Admin panel's image API: workspace (submit/resolve with an admin actor),

@@ -12,7 +12,7 @@ import { awaitServerAttempts } from '../src/capabilities/mcp/availability.ts';
 import { McpManager } from '../src/capabilities/mcp/index.ts';
 import { BucketScheduler } from '../src/orchestration/scheduler/index.ts';
 import { previewContext } from '../src/platform/invocation-context.ts';
-import { keyJarPath } from '../src/platform/key-jar.ts';
+import { keychainPath } from '../src/platform/keychain.ts';
 import { SecretStore } from '../src/platform/secrets.ts';
 import { TelegramIngestion } from '../src/ingress/telegram-ingestion/index.ts';
 import {
@@ -23,7 +23,7 @@ import {
   testConfigJsonc,
   testConfigStore,
   writeTestConfig,
-  writeTestKeyJar,
+  writeTestKeychain,
 } from './helpers.ts';
 
 const directories: string[] = [];
@@ -64,7 +64,7 @@ test('stdio MCP discovery, result bounds, audit, and unmetered repeat calls', as
   const loaded = await loadConfig(configPath);
   const configStore = await testConfigStore(loaded);
   const store = await SqliteStore.open(loaded.config);
-  const manager = new McpManager(store, loaded.config, new SecretStore(keyJarPath(loaded.configPath)));
+  const manager = new McpManager(store, loaded.config, new SecretStore(keychainPath(loaded.configPath)));
   try {
     let validatedNames: string[] = [];
     manager.setRegistryValidator((tools) => {
@@ -193,11 +193,11 @@ test('Streamable HTTP MCP preserves query parameters, static headers and the Use
     };
   });
   await writeTestConfig(directory, configPath, jsonc);
-  await writeTestKeyJar(directory, { 'mcp-auth': 'Bearer static-secret', 'mcp-user-agent': 'Custom-MCP/1.0' });
+  await writeTestKeychain(directory, { 'mcp-auth': 'Bearer static-secret', 'mcp-user-agent': 'Custom-MCP/1.0' });
   const loaded = await loadConfig(configPath);
   const configStore = await testConfigStore(loaded);
   const store = await SqliteStore.open(loaded.config);
-  const manager = new McpManager(store, loaded.config, new SecretStore(keyJarPath(loaded.configPath)));
+  const manager = new McpManager(store, loaded.config, new SecretStore(keychainPath(loaded.configPath)));
   try {
     await manager.start();
     await awaitServerAttempts(manager);
@@ -291,7 +291,7 @@ test('Streamable HTTP MCP preserves query parameters, static headers and the Use
     const redirectManager = new McpManager(
       redirectStore,
       redirectLoaded.config,
-      new SecretStore(keyJarPath(redirectLoaded.configPath)),
+      new SecretStore(keychainPath(redirectLoaded.configPath)),
     );
     try {
       // A rejected redirect degrades the server instead of failing startup.
@@ -345,7 +345,7 @@ test('an unreachable stdio server degrades with its error logged instead of fail
   const manager = new McpManager(
     store,
     loaded.config,
-    new SecretStore(keyJarPath(loaded.configPath)),
+    new SecretStore(keychainPath(loaded.configPath)),
     (event, fields) => {
       events.push({ event, fields: { ...fields } });
     },
@@ -402,7 +402,7 @@ test('a server whose tool discovery fails is closed instead of left running', as
   await writeTestConfig(directory, configPath, jsonc);
   const loaded = await loadConfig(configPath);
   const store = await SqliteStore.open(loaded.config);
-  const manager = new McpManager(store, loaded.config, new SecretStore(keyJarPath(loaded.configPath)));
+  const manager = new McpManager(store, loaded.config, new SecretStore(keychainPath(loaded.configPath)));
   let pid: number | undefined;
   try {
     await manager.start();
@@ -458,7 +458,7 @@ test('stop() during a pending connect leaves the server stopped and closed', asy
   await writeTestConfig(directory, configPath, jsonc);
   const loaded = await loadConfig(configPath);
   const store = await SqliteStore.open(loaded.config);
-  const manager = new McpManager(store, loaded.config, new SecretStore(keyJarPath(loaded.configPath)));
+  const manager = new McpManager(store, loaded.config, new SecretStore(keychainPath(loaded.configPath)));
   let pid: number | undefined;
   try {
     // start() returns before the connect finishes; stop() must still leave the

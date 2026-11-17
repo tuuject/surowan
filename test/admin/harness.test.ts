@@ -9,7 +9,7 @@ import { SqliteStore } from '../../src/adapters/local-monolith/database.ts';
 import { AdminServer } from '../../src/ingress/admin/index.ts';
 
 import { PROACTIVE_REPLY_DEFAULTS, resolveProactiveReply } from '../../src/platform/proactive-reply.ts';
-import { keyJarPath } from '../../src/platform/key-jar.ts';
+import { keychainPath } from '../../src/platform/keychain.ts';
 import { AgentModelSwitcher } from '../../src/platform/models/switch.ts';
 import { SecretStore } from '../../src/platform/secrets.ts';
 import { seedAdminFixture } from '../fixtures/admin-seed.ts';
@@ -41,7 +41,7 @@ async function fixture(transform?: (config: FixtureConfig) => void) {
   const loaded = await loadConfig(path);
   const configStore = await testConfigStore(loaded);
   const store = await SqliteStore.open(loaded.config);
-  const secrets = new SecretStore(keyJarPath(path));
+  const secrets = new SecretStore(keychainPath(path));
   const reloader = new ConfigReloader({
     loaded,
     store: configStore,

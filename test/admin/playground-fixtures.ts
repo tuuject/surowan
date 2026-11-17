@@ -22,7 +22,7 @@ import { PlaygroundAssetStore } from '../../src/capabilities/media/local-assets.
 import { AdminServer } from '../../src/ingress/admin/index.ts';
 import { PlaygroundIngress } from '../../src/ingress/playground.ts';
 import { AgentModelSwitcher } from '../../src/platform/models/switch.ts';
-import { keyJarPath } from '../../src/platform/key-jar.ts';
+import { keychainPath } from '../../src/platform/keychain.ts';
 import { SecretStore } from '../../src/platform/secrets.ts';
 import { PlaygroundStore } from '../../src/store/playground/index.ts';
 import { testConfigJsonc, testConfigStore, trackTempDirectory, writeTestConfig } from '../helpers.ts';
@@ -64,7 +64,7 @@ export async function fixture() {
   const assets = new PlaygroundAssetStore({ orm: store.orm, root: assetsRoot });
   const rooms = new PlaygroundStore(store.orm);
   const ingress = new PlaygroundIngress(store.orm, { assets });
-  const secrets = new SecretStore(keyJarPath(configPath));
+  const secrets = new SecretStore(keychainPath(configPath));
   const modelSwitcher = new AgentModelSwitcher(configStore);
   const configReloader = new ConfigReloader({
     loaded,

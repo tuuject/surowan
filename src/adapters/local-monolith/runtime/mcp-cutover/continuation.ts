@@ -33,6 +33,7 @@ export async function finishCutover(
   state: CutoverState,
   next: RawConfig,
   generation: number,
+  rotated: ReadonlySet<string> = new Set(),
 ): Promise<
   Omit<McpConfigPublishResult, 'affectedChats' | 'stoppedInvocations' | 'conversations' | 'settled' | 'completion'>
 > {
@@ -49,7 +50,7 @@ export async function finishCutover(
   const rebuiltContexts = new ConversationContextStore(deps.store).rebuildForConversations(conversationIds, new Date());
   // Only now may the instances move: nothing was handed the old definitions
   // that could still call them.
-  const servers = await deps.mcp.reconcile({ config: next, generation });
+  const servers = await deps.mcp.reconcile({ config: next, generation }, rotated);
   const resumedInvocations: bigint[] = [];
   const skippedResumes: SkippedResume[] = [];
   const now = new Date();

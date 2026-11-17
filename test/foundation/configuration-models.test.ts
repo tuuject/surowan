@@ -2,7 +2,7 @@ import { afterEach, describe, expect, test } from 'vitest';
 import { writeFile } from 'node:fs/promises';
 import { configuredToolSchemaKeywords } from '../../src/platform/config/index.ts';
 import { loadConfig } from '../../src/adapters/local-monolith/config/index.ts';
-import { keyJarPath } from '../../src/platform/key-jar.ts';
+import { keychainPath } from '../../src/platform/keychain.ts';
 import { buildModelRegistry, requireModel } from '../../src/platform/providers.ts';
 import { SecretStore } from '../../src/platform/secrets.ts';
 import { testConfigJsonc } from '../helpers.ts';
@@ -22,7 +22,7 @@ describe('configuration', () => {
     });
     await writeFile(configPath, config);
     const loaded = await loadConfig(configPath);
-    const registry = await buildModelRegistry(loaded.config, null, new SecretStore(keyJarPath(configPath)));
+    const registry = await buildModelRegistry(loaded.config, null, new SecretStore(keychainPath(configPath)));
     expect(requireModel(registry.models, 'agent', 'agent-model', ['text']).input).toEqual(['text']);
   });
 

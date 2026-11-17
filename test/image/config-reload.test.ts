@@ -1,4 +1,4 @@
-import { chmod, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
@@ -11,14 +11,14 @@ import { eq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 import sharp from 'sharp';
 import { afterEach, beforeEach, expect, test } from 'vitest';
-import { createImageService, type ImageService } from '../../src/image/service.ts';
-import type { FileConfig } from '../../src/platform/config/index.ts';
 import { loadConfig } from '../../src/adapters/local-monolith/config/index.ts';
 import { ConfigReloader } from '../../src/adapters/local-monolith/config/reload.ts';
-import { keyJarPath } from '../../src/platform/key-jar.ts';
+import { SqliteStore } from '../../src/adapters/local-monolith/database.ts';
+import { createImageService, type ImageService } from '../../src/image/service.ts';
+import type { FileConfig } from '../../src/platform/config/index.ts';
+import { keychainPath, updateKeychain } from '../../src/platform/keychain.ts';
 import { AgentModelSwitcher } from '../../src/platform/models/switch.ts';
 import { SecretStore } from '../../src/platform/secrets.ts';
-import { SqliteStore } from '../../src/adapters/local-monolith/database.ts';
 import { testConfigJsonc, testConfigStore, writeTestConfig } from '../helpers.ts';
 
 // ---------------------------------------------------------------------------
@@ -124,11 +124,7 @@ async function waitFor<T>(check: () => T | null | undefined | false, timeoutMs =
 }
 
 async function rotateJarEntry(configPath: string, name: string, value: string): Promise<void> {
-  const jarPath = keyJarPath(configPath);
-  const jar = JSON.parse(await readFile(jarPath, 'utf8')) as Record<string, string>;
-  jar[name] = value;
-  await writeFile(jarPath, `${JSON.stringify(jar, null, 2)}\n`, { mode: 0o600 });
-  await chmod(jarPath, 0o600);
+  await updateKeychain(keychainPath(configPath), { replace: { [name]: value } });
 }
 
 async function rewriteImageSection(
@@ -167,8 +163,8 @@ async function fixture(providerFetch: typeof fetch): Promise<Fixture> {
       };
     }),
   );
-  const { writeTestKeyJar } = await import('../helpers.ts');
-  await writeTestKeyJar(directory, { openrouter: 'sk-image-v1' });
+  const { writeTestKeychain } = await import('../helpers.ts');
+  await writeTestKeychain(directory, { openrouter: 'sk-image-v1' });
   const loaded = await loadConfig(configPath);
   const store = await SqliteStore.open(loaded.config);
   cleanup.push(() => store.close());
@@ -176,7 +172,7 @@ async function fixture(providerFetch: typeof fetch): Promise<Fixture> {
     providerAdapter: (await import('@surowan/image-service')).createOpenRouterAdapter({ fetchImpl: providerFetch }),
   });
   cleanup.push(() => service.stop());
-  const secrets = new SecretStore(keyJarPath(configPath));
+  const secrets = new SecretStore(keychainPath(configPath));
   const configStore = await testConfigStore(loaded);
   const reloader = new ConfigReloader({
     loaded,
@@ -350,8 +346,8 @@ test('creating without a published snapshot fails loudly, then succeeds after th
       };
     }),
   );
-  const { writeTestKeyJar } = await import('../helpers.ts');
-  await writeTestKeyJar(directory, { openrouter: 'sk-image-v1' });
+  const { writeTestKeychain } = await import('../helpers.ts');
+  await writeTestKeychain(directory, { openrouter: 'sk-image-v1' });
   const loaded = await loadConfig(configPath);
   const store = await SqliteStore.open(loaded.config);
   cleanup.push(() => store.close());
@@ -362,7 +358,7 @@ test('creating without a published snapshot fails loudly, then succeeds after th
     }),
   });
   cleanup.push(() => service.stop());
-  const secrets = new SecretStore(keyJarPath(configPath));
+  const secrets = new SecretStore(keychainPath(configPath));
   const configStore = await testConfigStore(loaded);
   const reloader = new ConfigReloader({
     loaded,

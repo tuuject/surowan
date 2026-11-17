@@ -17,7 +17,7 @@ import { loadConfig } from '../../src/adapters/local-monolith/config/index.ts';
 import { SqliteStore } from '../../src/adapters/local-monolith/database.ts';
 import { generationEligibilityForHosts } from '../../src/image/host-eligibility.ts';
 import { createImageService } from '../../src/image/service.ts';
-import { keyJarPath } from '../../src/platform/key-jar.ts';
+import { keychainPath } from '../../src/platform/keychain.ts';
 import { SecretStore } from '../../src/platform/secrets.ts';
 import { chats, conversations, imageGenerationAttempts, imageGenerations } from '../../src/store/schema/index.ts';
 import { afterThisTest, trackTempDirectory } from '../helpers.ts';
@@ -183,7 +183,7 @@ describe('playground image generation', () => {
       inputImages: [] as string[],
     });
     const service = openService();
-    service.publishConfig(await service.prepareConfig(loaded.config, new SecretStore(keyJarPath(configPath))));
+    service.publishConfig(await service.prepareConfig(loaded.config, new SecretStore(keychainPath(configPath))));
     const telegram = service.core.generations.create(input('telegram work'), agentActor(42n), 'tg-live');
     service.core.generations.create(input('playground work'), agentActor(43n), 'pg-live');
 
@@ -217,7 +217,7 @@ describe('playground image generation', () => {
     store.orm.run(sql`UPDATE image_generations SET status = 'running' WHERE id = ${telegram.generation.id}`);
     const crashQueued = service.core.generations.create(input('queued while stopping'), agentActor(42n), 'tg-queued');
     const restart = openService();
-    restart.publishConfig(await restart.prepareConfig(loaded.config, new SecretStore(keyJarPath(configPath))));
+    restart.publishConfig(await restart.prepareConfig(loaded.config, new SecretStore(keychainPath(configPath))));
     await restart.core.worker.stop();
     expect(
       store.orm.select().from(imageGenerations).where(eq(imageGenerations.id, telegram.generation.id)).get()?.status,

@@ -8,7 +8,7 @@ import { SqliteStore } from '../../src/adapters/local-monolith/database.ts';
 import { TelegramIngestion } from '../../src/ingress/telegram-ingestion/index.ts';
 import { AgentRuntime } from '../../src/orchestration/agent-runtime/index.ts';
 import { BucketScheduler } from '../../src/orchestration/scheduler/index.ts';
-import { keyJarPath } from '../../src/platform/key-jar.ts';
+import { keychainPath } from '../../src/platform/keychain.ts';
 import { SecretStore } from '../../src/platform/secrets.ts';
 import { emptySystemResources } from '../../src/platform/system-resources.ts';
 import { fauxRegistry, testConfigStore, testTelegramRuntime, writeTestConfig } from '../helpers.ts';
@@ -54,7 +54,7 @@ test('audits complete redacted model error details', async () => {
 
   const errorDetail = 'Provider request failed with telegram-secret\nstatus=500\nbody={"error":"upstream exploded"}';
   faux.setResponses([fauxAssistantMessage('', { stopReason: 'error', errorMessage: errorDetail })]);
-  const secrets = new SecretStore(keyJarPath(loaded.configPath));
+  const secrets = new SecretStore(keychainPath(loaded.configPath));
   const telegramToken = loaded.config.telegram.token;
   if (telegramToken !== undefined) {
     await secrets.resolve(telegramToken);

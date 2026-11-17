@@ -6,14 +6,14 @@
  */
 import { join } from 'node:path';
 import { McpManager } from '../../../capabilities/mcp/index.ts';
-import { PlaygroundAssetStore } from '../../../capabilities/media/local-assets.ts';
-import { MediaService } from '../../../capabilities/media/index.ts';
-import { ingestToolImage } from '../../../capabilities/media/tool-image-store.ts';
 import type { MediaDownloader } from '../../../capabilities/media/download.ts';
+import { MediaService } from '../../../capabilities/media/index.ts';
+import { PlaygroundAssetStore } from '../../../capabilities/media/local-assets.ts';
+import { ingestToolImage } from '../../../capabilities/media/tool-image-store.ts';
 import { StickerService } from '../../../capabilities/stickers/index.ts';
+import { SleepingService } from '../../../context/group-memory/sleeping.ts';
 import { MemoBlobStore } from '../../../context/memo-pad/blobs.ts';
 import { MemoPadStore } from '../../../context/memo-pad/store.ts';
-import { SleepingService } from '../../../context/group-memory/sleeping.ts';
 import { createImageBridge, type ImageBridge } from '../../../image/bridge.ts';
 import { generationEligibilityForHosts } from '../../../image/host-eligibility.ts';
 import { createImageService, type ImageService } from '../../../image/service.ts';
@@ -33,20 +33,21 @@ import { BUILTIN_PLUGINS } from '../../../plugins/builtin.ts';
 import { type LoadedPlugins, loadPlugins } from '../../../plugins/plugin.ts';
 import { LongTaskService } from '../../../store/long-tasks/index.ts';
 import { PlaygroundStore } from '../../../store/playground/index.ts';
-import { RecurringAlarmService } from '../../../store/recurring-alarms/index.ts';
 import { recordPromptVersionsFromConfig } from '../../../store/prompt-versions.ts';
+import { RecurringAlarmService } from '../../../store/recurring-alarms/index.ts';
 import { WarningService } from '../../../store/warnings.ts';
+import { jarEntryDigests, mcpServerKeyDigests } from '../config/reload-apply.ts';
 import { ServeLock, SqliteStore, stopRunningInstance, watchStopRequests } from '../database.ts';
 import { BUNDLED_MANUAL_DIR, bundledManualSpace, FileSystemDocSpaces } from '../doc-spaces.ts';
 import { createHostTooling, type HostTooling } from '../host-tooling.ts';
 import { CronerScheduleEngine } from '../recurring-schedule.ts';
-import { RetentionCleanup } from './retention.ts';
-import { logEvent, type ServeContext } from './support.ts';
 import { BUNDLED_SYSTEM_RESOURCES_DIR, FileSystemResources } from '../system-resources.ts';
-import { TelegramConnectionManager } from '../telegram/index.ts';
 import { TelegramReadiness } from '../telegram/connection-support.ts';
 import type { TelegramHost } from '../telegram/host.ts';
+import { TelegramConnectionManager } from '../telegram/index.ts';
 import { ForwardingTelegramMedia, TelegramInstanceHolder } from '../telegram/instance.ts';
+import { RetentionCleanup } from './retention.ts';
+import { logEvent, type ServeContext } from './support.ts';
 
 /** The identity a Bot reports for itself; absent while Telegram is not connected. */
 export type { TelegramIdentity } from '../telegram/instance.ts';
@@ -63,6 +64,12 @@ export interface ServeServices {
   readonly imageService: ImageService;
   readonly imageBridge: ImageBridge;
   readonly configStore: RuntimeConfigurationStore;
+  /** SecretRef digests the startup registry was built from; seeds rotation detection. */
+  readonly providerKeyDigests: Readonly<Record<string, string>>;
+  /** Per-entry digests of the startup configuration's jar references. */
+  readonly jarDigests: Readonly<Record<string, string>>;
+  /** Per-MCP-alias digests of the startup configuration's jar references. */
+  readonly mcpServerKeyDigests: Readonly<Record<string, string>>;
   readonly modelSwitcher: AgentModelSwitcher;
   /** The one slot the Telegram adapters read; empty while Telegram is stopped. */
   readonly telegram: TelegramInstanceHolder;
@@ -175,8 +182,12 @@ export async function startServeServices(session: ServeContext, environment: Ser
     logEvent('config_warnings', { warnings: loaded.warnings.join(' | ') });
   }
   // The registry is built once here and republished by every reload; the
-  // configuration and its models always travel together.
+  // configuration and its models always travel together. The digests seed the
+  // reloader's rotation detection, so its first apply reuses connections the
+  // startup build already resolved.
   const registry = await buildModelRegistry(loaded.config, null, secrets);
+  const jarDigests = await jarEntryDigests(loaded.config, secrets);
+  const mcpDigests = await mcpServerKeyDigests(loaded.config, secrets);
   const configStore = new RuntimeConfigurationStore({ config: loaded.config, hash: loaded.hash, ...registry });
   const warnings = new WarningService(openedStore.orm);
   warnings.start({
@@ -326,6 +337,9 @@ export async function startServeServices(session: ServeContext, environment: Ser
     imageService,
     imageBridge: bridge,
     configStore,
+    providerKeyDigests: registry.keyDigests ?? {},
+    jarDigests,
+    mcpServerKeyDigests: mcpDigests,
     modelSwitcher,
     telegram,
     telegramConnection,

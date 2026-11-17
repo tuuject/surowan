@@ -11,8 +11,9 @@
  * settings (command, url, headers, env) stay on the server, so a Chat that needs
  * a different connection refers to another alias.
  */
-import type { FileChat, McpServerConfig, RawConfig } from '../../platform/config/index.ts';
+
 import { deepEqual } from '../../platform/config/diff-merge.ts';
+import type { FileChat, McpServerConfig, RawConfig } from '../../platform/config/index.ts';
 
 /** The policy one bound tool runs under, in the units the call path uses. */
 export interface McpToolPolicy {
@@ -99,12 +100,17 @@ export function boundChatServers(config: RawConfig, chat: ChatBindingShape): Mcp
  * `previous` was removed, which the chat lifecycle handles; a Chat only in `next`
  * has no running work to protect.
  */
-export function affectedMcpChatIds(previous: RawConfig, next: RawConfig): number[] {
+export function affectedMcpChatIds(
+  previous: RawConfig,
+  next: RawConfig,
+  /** Aliases whose secret references rotated: every Chat reaching one is affected. */
+  rotated: ReadonlySet<string> = new Set(),
+): number[] {
   const before = new Map(previous.telegram.chats.map((chat) => [chat.id, chat]));
   const affected: number[] = [];
   for (const chat of next.telegram.chats) {
     const previousChat = before.get(chat.id);
-    if (previousChat !== undefined && chatMcpChanged(previous, next, previousChat, chat)) {
+    if (previousChat !== undefined && chatMcpChanged(previous, next, previousChat, chat, rotated)) {
       affected.push(chat.id);
     }
   }
@@ -116,6 +122,7 @@ function chatMcpChanged(
   next: RawConfig,
   previousChat: ChatBindingShape,
   chat: ChatBindingShape,
+  rotated: ReadonlySet<string>,
 ): boolean {
   const before = new Map(boundChatServers(previous, previousChat).map((bound) => [bound.server.alias, bound]));
   const after = new Map(boundChatServers(next, chat).map((bound) => [bound.server.alias, bound]));
@@ -125,7 +132,8 @@ function chatMcpChanged(
       // The server left the configuration, or this Chat lost its binding.
       return true;
     }
-    if (!sameMcpServerConfig(bound.server, current.server)) {
+    if (rotated.has(alias) || !sameMcpServerConfig(bound.server, current.server)) {
+      // A rotated server reconnects: its Chat sees the new tool world.
       return true;
     }
     if (narrows(bound.tools, current.tools)) {

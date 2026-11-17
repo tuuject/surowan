@@ -21,7 +21,7 @@ config/
 
 ## 引用密钥
 
-配置不接受明文 Token 或 API key。使用环境变量、同目录 key jar，或固定 argv 命令引用：
+配置不接受明文 Token 或 API key。使用环境变量、同目录 keychain（`key.json`），或固定 argv 命令引用：
 
 ```jsonc
 {
@@ -32,7 +32,7 @@ config/
 }
 ```
 
-`{ "jar": "name" }` 只引用同目录 `key.json` 中的条目，不能将该文件提交、上传到文档站或交给 Agent 阅读。生产环境优先让 Compose、supervisor 或密钥管理器注入环境变量。
+`{ "jar": "name" }` 只引用同目录 `key.json`（keychain）中的条目，不能将该文件提交、上传到文档站或交给 Agent 阅读。keychain 的每个条目有稳定、可读的名字，可以被多处共用，也可以在原条目上轮换值；同名条目轮换后，所有使用它的连接在下次热应用时换上新值。旧的扁平格式由 `serve`、`configure` 与 `doctor` 启动时一次性原地迁移，条目名保留。不再被任何地方引用的条目不会自动删除——面板「密钥」页会列出它们，由你显式清理。生产环境优先让 Compose、supervisor 或密钥管理器注入环境变量。完整语义见仓库 `agent-doc/configuration.md` 的 SecretRef 一节。
 
 ## 网络搜索（web_search）
 

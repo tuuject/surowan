@@ -52,7 +52,7 @@ Admin Panel 与 `serve` 同进程启动，用于本地审计和受控管理；�
 - **Dictionary**：维护全局与群组术语、别名和解释，查看冲突，审阅 AI 融合建议，批量导入导出并设置自动注入模式，见[辞典指南](../guides/dictionary.md)。
 - **Recurring alarms**：管理员设定执行周期和提示词，让 Bot 定时主动执行任务（例如每天早上问候），也可以立即执行一次；不占每日预算、不受睡眠时段影响，见[循环闹钟](../guides/recurring-alarms.md)。
 - **图片生成 / 生图记录 / 生图素材**：图片生成工作台（提交、解析预览、实时查看输出）、全部生成的审计与重试、提示词素材与参考图库管理，见[图片生成](../guides/images.md)。
-- **图片设置**：图片功能的启用开关、生图凭据与模型配置。保存后立即应用，不需要重启；禁用会删除整个 `image` 段并清理不再引用的 key jar 条目。
+- **图片设置**：图片功能的启用开关、生图凭据与模型配置。保存后立即应用，不需要重启；禁用会删除整个 `image` 段，未使用的条目等[「密钥」页](admin-keychain.md)显式清理。
 - **Settings**：对手改配置使用 **Apply config file**，并查看 Saved 与 Running 状态及 `restart_required`。
 - **Panel preferences**（Account 组）：只对当前浏览器生效的显示选项：主题、界面语言（顶栏的语言菜单也能切换）。选项保存在浏览器本地，不写入配置文件，其他浏览器与管理员互不影响。
 - **Harness tuning**：调整 Agent 的运行上限与发送行为（预算、并发、发送规则、限流与 Context 保留）以及全局主动回复默认值，保存后由下一次 Invocation 生效，见 [Harness tuning](admin-harness-tuning.md)。

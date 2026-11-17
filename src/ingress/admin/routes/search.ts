@@ -1,10 +1,11 @@
-import type { ConfigController } from '../../../platform/config/write.ts';
+import type { ConfigController, SecretWrite } from '../../../platform/config/write.ts';
 import type { RuntimeConfigurationStore } from '../../../platform/runtime-config.ts';
 import type { SecretStore } from '../../../platform/secrets.ts';
 import type { SearchProviderRule } from '../../../platform/web-search.ts';
 import { CONFIG_WRITE_STATUS, readConfigFile } from '../config-file.ts';
 import { json, readJsonObject, requiredRevision, revisionRequired } from '../http.ts';
-import { parseSearchConfigBody, reusableSearchCredentials, searchConfigEdits, searchConfigView } from '../search.ts';
+import { parseSearchConfigBody, searchConfigEdits, searchConfigView } from '../search.ts';
+import type { CallerClass } from '../secret-input.ts';
 
 export interface SearchAdminRoutesDeps {
   /** Absent when the process has no reloadable configuration (tests, panels). */
@@ -24,17 +25,30 @@ const SEARCH_BODY_MAX_BYTES = 64 * 1024;
  *
  * The write is an ordinary panel configuration write: an `If-Match` revision,
  * the same file-and-apply path as every other editor, and new credentials only
- * as key-jar entries. `writeConfigEdits` drops jar entries the new file no
- * longer references, so disabling or removing an engine recycles its key.
+ * as keychain entries. Nothing is reclaimed on the way out; an entry a removed
+ * engine no longer references waits for an explicit purge.
  */
 export function createSearchAdminRoutes(deps: SearchAdminRoutesDeps) {
-  const searchConfigViewOf = async (reloader: ConfigController): Promise<Response> => {
+  const searchConfigViewOf = async (reloader: ConfigController, withSources: boolean): Promise<Response> => {
     const { loaded, revision } = await readConfigFile(reloader, deps.secrets);
-    return json(searchConfigView(loaded.fileConfig, deps.configStore.current().config, revision, deps.searchProviders));
+    return json(
+      searchConfigView(
+        loaded.fileConfig,
+        deps.configStore.current().config,
+        revision,
+        deps.searchProviders,
+        withSources,
+      ),
+    );
   };
 
   return {
-    async handle(request: Request, _url: URL, segments: readonly string[]): Promise<Response | undefined> {
+    async handle(
+      request: Request,
+      _url: URL,
+      segments: readonly string[],
+      caller: CallerClass,
+    ): Promise<Response | undefined> {
       if (segments[0] !== 'search') {
         return undefined;
       }
@@ -45,8 +59,9 @@ export function createSearchAdminRoutes(deps: SearchAdminRoutesDeps) {
       if (reloader === undefined) {
         return json({ error: 'config_reload_unavailable', message: 'Configuration reloading is not wired' }, 503);
       }
+      const withSources = caller === 'session';
       if (request.method === 'GET') {
-        return await searchConfigViewOf(reloader);
+        return await searchConfigViewOf(reloader, withSources);
       }
       if (request.method !== 'PUT') {
         return json({ error: 'method_not_allowed', message: 'Use GET or PUT for search settings' }, 405);
@@ -65,16 +80,27 @@ export function createSearchAdminRoutes(deps: SearchAdminRoutesDeps) {
         return json({ error: 'invalid_body', message: errorMessage(error) }, 400);
       }
       const persisted = await reloader.readPersisted();
+      const snapshot = await reloader.keychainSnapshot();
       const parsed = parseSearchConfigBody(
         body,
         persisted.fileConfig.web_search,
+        caller,
+        {
+          entries: new Set(snapshot.entries.map((entry) => entry.name)),
+          usage: snapshot.usage.file ?? {},
+        },
         deps.searchProviders,
-        reusableSearchCredentials(persisted.fileConfig),
       );
       for (const plaintext of Object.values(parsed.keys)) {
         deps.secrets?.remember(plaintext);
       }
-      const result = await reloader.writeAndApply(searchConfigEdits(parsed), revision);
+      const secretsWrite: SecretWrite = {
+        ...(Object.keys(parsed.repairs).length > 0 ? { add: parsed.repairs } : {}),
+        ...(parsed.replacements.length > 0 ? { replace: parsed.replacements } : {}),
+      };
+      // One lock hold: revision check, exclusive-use re-check, keychain write
+      // (with rollback), file edit, apply.
+      const result = await reloader.writeSecretsAndApply(searchConfigEdits(parsed), secretsWrite, revision);
       if (!result.ok) {
         const message = result.fileWritten
           ? `config.jsonc was updated but not applied: ${result.message}`
@@ -86,7 +112,13 @@ export function createSearchAdminRoutes(deps: SearchAdminRoutesDeps) {
       // of pairing old engines with a newer revision the client would reuse.
       const { loaded, revision: nextRevision } = await readConfigFile(reloader, deps.secrets);
       return json({
-        ...searchConfigView(loaded.fileConfig, deps.configStore.current().config, nextRevision, deps.searchProviders),
+        ...searchConfigView(
+          loaded.fileConfig,
+          deps.configStore.current().config,
+          nextRevision,
+          deps.searchProviders,
+          withSources,
+        ),
         apply: { applied: result.applied, restart_required: result.restartRequired },
       });
     },

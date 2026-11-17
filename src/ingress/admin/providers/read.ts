@@ -8,12 +8,19 @@ import {
   preferredBuiltinApi,
   supportedBuiltinApi,
 } from '../../../platform/builtin-providers.ts';
-import type { AgentSettings, FileConfig, ModelFileConfig, ProviderApi } from '../../../platform/config/index.ts';
-import type { SecretStore } from '../../../platform/secrets.ts';
-import { AdminQueryError } from '../audit/shared.ts';
-import type { ProviderPresetView, ProvidersView } from './index.ts';
-import { defaultVisionThinkingLevel, supportedThinkingLevels } from '../../../platform/thinking-levels.ts';
+import type {
+  AgentSettings,
+  FileConfig,
+  ModelFileConfig,
+  ProviderApi,
+  SecretRef,
+} from '../../../platform/config/index.ts';
 import { assertModelConfig, resolveBuiltinModelApi } from '../../../platform/config/semantics.ts';
+import type { SecretStore } from '../../../platform/secrets.ts';
+import { defaultVisionThinkingLevel, supportedThinkingLevels } from '../../../platform/thinking-levels.ts';
+import { AdminQueryError } from '../audit/shared.ts';
+import { secretSourceOf } from '../secret-input.ts';
+import type { ProviderPresetView, ProvidersView, ProviderView } from './index.ts';
 
 export function supervisedRestartEnabled(): boolean {
   return process.env.PLASTICWAN_SUPERVISED === '1';
@@ -25,6 +32,8 @@ export function listProviders(
   },
   revision: string,
   restartRequired: readonly string[],
+  /** Panel sessions see where each secret comes from; programmatic callers do not. */
+  withSources = false,
 ): ProvidersView {
   const configuredToolModel = file.tool_model;
   return {
@@ -55,6 +64,7 @@ export function listProviders(
           base_url: provider.base_url,
           header_names: Object.keys(provider.headers ?? {}),
           models: provider.models,
+          ...(withSources ? secretSources(provider.api_key, provider.headers) : {}),
         };
       }
       const source = findBuiltinProvider(provider.provider);
@@ -76,8 +86,26 @@ export function listProviders(
         base_url: source.baseUrl,
         header_names: [],
         models: provider.models,
+        ...(withSources ? secretSources(provider.api_key, undefined) : {}),
       };
     }),
+  };
+}
+
+/** The origin of a provider's key and headers; only a panel session receives it. */
+function secretSources(
+  apiKey: SecretRef,
+  headers: Readonly<Record<string, SecretRef>> | undefined,
+): Pick<ProviderView, 'api_key_source' | 'header_sources'> {
+  return {
+    api_key_source: secretSourceOf(apiKey),
+    ...(headers === undefined
+      ? {}
+      : {
+          header_sources: Object.fromEntries(
+            Object.entries(headers).map(([name, reference]) => [name, secretSourceOf(reference)]),
+          ),
+        }),
   };
 }
 

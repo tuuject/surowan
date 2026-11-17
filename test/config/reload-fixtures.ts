@@ -1,26 +1,27 @@
-import { afterAll, afterEach, vi } from 'vitest';
 import { chmod, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fauxProvider, type MutableModels } from '@earendil-works/pi-ai';
 import type { Update } from 'grammy/types';
+import { afterAll, afterEach, vi } from 'vitest';
+import { type LoadedConfig, loadConfig } from '../../src/adapters/local-monolith/config/index.ts';
+import { ConfigReloader, type TelegramConfigGateway } from '../../src/adapters/local-monolith/config/reload.ts';
+import { jarEntryDigests } from '../../src/adapters/local-monolith/config/reload-apply.ts';
+import { SqliteStore } from '../../src/adapters/local-monolith/database.ts';
+import type { TelegramTransport } from '../../src/adapters/local-monolith/telegram/host.ts';
 import { TelegramIngestion } from '../../src/ingress/telegram-ingestion/index.ts';
 import { AgentRuntime } from '../../src/orchestration/agent-runtime/index.ts';
 import { BotCommandService, type CommandSender } from '../../src/orchestration/bot-commands/index.ts';
 import { ConversationRuntime } from '../../src/orchestration/conversation-runtime.ts';
 import { BucketScheduler, type InvocationOutcome } from '../../src/orchestration/scheduler/index.ts';
-import type { TelegramTransport } from '../../src/adapters/local-monolith/telegram/host.ts';
 import type { FileConfig } from '../../src/platform/config/index.ts';
-import { type LoadedConfig, loadConfig } from '../../src/adapters/local-monolith/config/index.ts';
-import { ConfigReloader, type TelegramConfigGateway } from '../../src/adapters/local-monolith/config/reload.ts';
 import { previewContext } from '../../src/platform/invocation-context.ts';
-import { keyJarPath } from '../../src/platform/key-jar.ts';
+import { keychainPath } from '../../src/platform/keychain.ts';
 import { AgentModelSwitcher } from '../../src/platform/models/switch.ts';
 import { buildModelRegistry } from '../../src/platform/providers.ts';
 import { RuntimeConfigurationStore } from '../../src/platform/runtime-config.ts';
 import { SecretStore } from '../../src/platform/secrets.ts';
 import { emptySystemResources } from '../../src/platform/system-resources.ts';
-import { SqliteStore } from '../../src/adapters/local-monolith/database.ts';
 import {
   afterThisTest,
   type FixtureConfig,
@@ -29,7 +30,7 @@ import {
   testTelegramRuntime,
   trackTempDirectory,
   writeTestConfig,
-  writeTestKeyJar,
+  writeTestKeychain,
 } from '../helpers.ts';
 
 const directories: string[] = [];
@@ -218,7 +219,7 @@ export async function setup(
     /** Observe the Telegram token gateway the composition root installs. */
     readonly telegramConfig?: TelegramConfigGateway;
     /** Stands in for the composition root's publish hook. */
-    readonly onPublished?: () => void | Promise<void>;
+    readonly onPublished?: (info: { readonly rotatedMcpAliases: readonly string[] }) => void | Promise<void>;
   } = {},
 ): Promise<Fixture> {
   const directory = await mkdtemp(join(tmpdir(), 'surowan-reload-'));
@@ -232,7 +233,7 @@ export async function setup(
       options.transform?.(config);
     }),
   );
-  await writeTestKeyJar(directory, {
+  await writeTestKeychain(directory, {
     faux: 'faux-secret',
     extra: 'extra-secret',
     'key-a': 'key-a',
@@ -249,8 +250,11 @@ export async function setup(
   // wires it: credentials are resolved once, at startup. The fixture keeps the
   // mutable handle the registry was built from so a test can stand in a faux
   // provider; a published registry is read-only by type.
-  const secrets = (options.secrets ?? ((keyJar) => new SecretStore(keyJar)))(keyJarPath(configPath));
+  const secrets = (options.secrets ?? ((keyJar) => new SecretStore(keyJar)))(keychainPath(configPath));
   const registry = await buildModelRegistry(loaded.config, null, secrets);
+  // The reloader seeds rotation detection from the startup build, exactly as
+  // the composition root does.
+  const jarDigests = await jarEntryDigests(loaded.config, secrets);
   const models = registry.models as MutableModels;
   const configStore = new RuntimeConfigurationStore({ config: loaded.config, hash: loaded.hash, ...registry });
   const modelSwitcher = new AgentModelSwitcher(configStore);
@@ -272,6 +276,8 @@ export async function setup(
     store: configStore,
     modelSwitcher,
     secrets,
+    providerKeyDigests: registry.keyDigests ?? {},
+    jarDigests,
     // The pipeline tests build a runtime; without one there is no tool registry
     // to fit into a context window, so the check has nothing to reject.
     validateAgentModel: (_config, model) => runtime?.validateAdditionalTools(previewContext(), [], model),

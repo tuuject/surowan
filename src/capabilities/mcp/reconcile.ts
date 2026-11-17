@@ -16,6 +16,8 @@ export async function reconcile(
   state: McpState,
   published: { readonly config: RawConfig; readonly generation: number },
   revalidate: Revalidate,
+  /** Aliases whose secret references rotated: replaced even when the config says equal. */
+  rotated: ReadonlySet<string> = new Set(),
 ): Promise<McpServerReconcileResult> {
   const { config, generation } = published;
   if (generation < state.generation) {
@@ -40,7 +42,7 @@ export async function reconcile(
   }
   for (const [alias, serverConfig] of wanted) {
     const current = state.servers.get(alias);
-    if (current !== undefined && sameMcpServerConfig(current.config, serverConfig)) {
+    if (current !== undefined && !rotated.has(alias) && sameMcpServerConfig(current.config, serverConfig)) {
       continue;
     }
     if (current === undefined) {

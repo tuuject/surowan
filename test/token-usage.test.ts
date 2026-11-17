@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { AssistantMessage } from '@earendil-works/pi-ai';
 import { loadConfig } from '../src/adapters/local-monolith/config/index.ts';
-import { keyJarPath } from '../src/platform/key-jar.ts';
+import { keychainPath } from '../src/platform/keychain.ts';
 import { buildModelRegistry } from '../src/platform/providers.ts';
 import { SecretStore } from '../src/platform/secrets.ts';
 import { meteredTokens } from '../src/store/sleep.ts';
@@ -198,7 +198,7 @@ describe('provider usage normalization', () => {
         }),
       );
       const loaded = await loadConfig(configPath);
-      const registry = await buildModelRegistry(loaded.config, null, new SecretStore(keyJarPath(loaded.configPath)));
+      const registry = await buildModelRegistry(loaded.config, null, new SecretStore(keychainPath(loaded.configPath)));
       const model = registry.models.getModel('agent', 'agent-model');
       if (model === undefined) {
         throw new Error('Expected the agent model to be registered');

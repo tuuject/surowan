@@ -27,7 +27,7 @@ import { generationEligibilityForHosts } from '../../src/image/host-eligibility.
 import { BucketScheduler } from '../../src/orchestration/scheduler/index.ts';
 import { ImConnectionRegistry } from '../../src/platform/im-connection.ts';
 import { identityConversation } from '../../src/platform/im-host/identity.ts';
-import { keyJarPath } from '../../src/platform/key-jar.ts';
+import { keychainPath } from '../../src/platform/keychain.ts';
 import { buildModelRegistry } from '../../src/platform/providers.ts';
 import { RuntimeConfigurationStore } from '../../src/platform/runtime-config.ts';
 import { SecretStore } from '../../src/platform/secrets.ts';
@@ -56,7 +56,7 @@ async function fixture(): Promise<{ store: SqliteStore; configStore: RuntimeConf
   const loaded = await loadConfig(configPath);
   const store = await SqliteStore.open(loaded.config);
   stores.push(store);
-  const registry = await buildModelRegistry(loaded.config, null, new SecretStore(keyJarPath(configPath)));
+  const registry = await buildModelRegistry(loaded.config, null, new SecretStore(keychainPath(configPath)));
   return {
     store,
     configStore: new RuntimeConfigurationStore({ config: loaded.config, hash: loaded.hash, ...registry }),

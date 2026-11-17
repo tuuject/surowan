@@ -1,39 +1,40 @@
 import { join } from 'node:path';
-import type { HostReadiness } from '../../../orchestration/host-scope.ts';
-import type { BucketScheduler } from '../../../orchestration/scheduler/index.ts';
-import { LongTaskService } from '../../../store/long-tasks/index.ts';
 import { MemoBlobStore } from '../../../context/memo-pad/blobs.ts';
 import type { ImageBridge } from '../../../image/bridge.ts';
 import type { ImageService } from '../../../image/service.ts';
+import type { HostReadiness } from '../../../orchestration/host-scope.ts';
+import type { BucketScheduler } from '../../../orchestration/scheduler/index.ts';
 import { ImConnectionRegistry } from '../../../platform/im-connection.ts';
+import { BUILTIN_SEARCH_PROVIDERS } from '../../../platform/web-search.ts';
+import { LongTaskService } from '../../../store/long-tasks/index.ts';
 import type { WarningService } from '../../../store/warnings.ts';
-import type { PlaygroundAdminDeps } from '../playground/index.ts';
+import type { AdminAuth } from '../auth.ts';
+import { createControlAdminHandler } from '../control.ts';
 import { createImageAdminHandler } from '../image.ts';
+import type { AdminServerOptions } from '../index.ts';
+import { createInspectionAdminHandler } from '../inspection.ts';
 import { createInvocationMediaReader } from '../invocation-media.ts';
+import type { AdminPasskeys } from '../passkeys.ts';
+import type { PlaygroundAdminDeps } from '../playground/index.ts';
 import { createPlaygroundAdminHandler } from '../playground/index.ts';
 import { createStaticAssetHandler } from '../static.ts';
+import { createTelegramAdminHandler } from '../telegram.ts';
+import { createWarningsAdminHandler } from '../warnings.ts';
 import { createAdminsAdminHandler } from './admins.ts';
 import { createAdminAuthHandler } from './auth.ts';
-import type { AdminAuth } from '../auth.ts';
-import type { AdminPasskeys } from '../passkeys.ts';
 import { createChatsAdminHandler } from './chats.ts';
-import { createControlAdminHandler } from '../control.ts';
 import { createDictionaryAdminHandler } from './dictionary.ts';
 import { createGroupMemoryAdminHandler } from './group-memory.ts';
 import { createImageAdminRoutes } from './image.ts';
-import { createInspectionAdminHandler } from '../inspection.ts';
+import { createKeychainAdminRoutes } from './keychain.ts';
 import { createMemoryAdminHandler } from './memory.ts';
 import { createPlaygroundAdminRoutes } from './playground.ts';
 import { createPromptsAdminHandler } from './prompts.ts';
-import { createRecurringAlarmsAdminHandler } from './recurring-alarms.ts';
 import { createProvidersAdminHandler } from './providers.ts';
-import { createTelegramAdminHandler } from '../telegram.ts';
-import { createTuningAdminHandler } from './tuning.ts';
-import { createWarningsAdminHandler } from '../warnings.ts';
+import { createRecurringAlarmsAdminHandler } from './recurring-alarms.ts';
 import { createSearchAdminRoutes } from './search.ts';
 import { createStickerSetsAdminHandler } from './sticker-sets.ts';
-import { BUILTIN_SEARCH_PROVIDERS } from '../../../platform/web-search.ts';
-import type { AdminServerOptions } from '../index.ts';
+import { createTuningAdminHandler } from './tuning.ts';
 
 export interface AdminRoutesDeps {
   readonly options: AdminServerOptions;
@@ -162,6 +163,7 @@ export function createAdminRoutes(deps: AdminRoutesDeps) {
       configReloader: reloader,
       secrets,
     }),
+    keychain: createKeychainAdminRoutes({ configReloader: reloader, secrets }),
     inspection: createInspectionAdminHandler({
       store: options.store,
       configStore: options.configStore,

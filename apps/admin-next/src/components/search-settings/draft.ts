@@ -7,7 +7,7 @@ import type { SearchConfigInput, SearchEngineInput, SearchEngineView, SearchProv
  * the editor and the validator share exactly one definition of "valid".
  */
 
-export type KeyMode = 'keep' | 'new' | 'alias';
+export type KeyMode = 'keep' | 'new' | 'entry';
 
 export interface EngineDraft {
   readonly key: string;
@@ -20,7 +20,7 @@ export interface EngineDraft {
   readonly note: string;
   readonly apiKey: string;
   readonly keyMode: KeyMode;
-  readonly keyAlias: string;
+  readonly keyEntry: string;
   readonly keyConfigured: boolean;
   /** The id the server stored this engine under; null for an engine added here. */
   readonly savedId: string | null;
@@ -38,7 +38,7 @@ export function toDraft(engine: SearchEngineView): EngineDraft {
     note: engine.note,
     apiKey: '',
     keyMode: engine.key_configured ? 'keep' : 'new',
-    keyAlias: '',
+    keyEntry: '',
     keyConfigured: engine.key_configured,
     savedId: engine.id,
   };
@@ -63,7 +63,7 @@ export function emptyDraft(provider: SearchProviderView, existing: readonly Engi
     note: '',
     apiKey: '',
     keyMode: 'new',
-    keyAlias: '',
+    keyEntry: '',
     keyConfigured: false,
     savedId: null,
   };
@@ -96,7 +96,7 @@ export function switchProvider(provider: SearchProviderView): Partial<EngineDraf
     results: provider.supports_count ? '5' : '',
     apiKey: '',
     keyMode: 'new',
-    keyAlias: '',
+    keyEntry: '',
     keyConfigured: false,
   };
 }
@@ -117,9 +117,15 @@ export function buildPayload(
       results: provider?.supports_count === false ? null : parseInteger(draft.results),
       timeout_seconds: parseInteger(draft.timeout),
       note: draft.note.trim().length === 0 ? null : draft.note.trim(),
-      api_key: draft.keyMode === 'new' && draft.apiKey.trim().length > 0 ? draft.apiKey.trim() : null,
+      // A fresh key is auto-named after the engine id on the server; picking an
+      // entry reuses a keychain entry the panel session chooses.
+      api_key:
+        draft.keyMode === 'new' && draft.apiKey.trim().length > 0
+          ? draft.apiKey.trim()
+          : draft.keyMode === 'entry' && draft.keyEntry.trim().length > 0
+            ? { entry: draft.keyEntry.trim() }
+            : null,
       keep_api_key: draft.keyMode === 'keep' && canKeepKey(draft),
-      key_source: draft.keyMode === 'alias' && draft.keyAlias.trim().length > 0 ? draft.keyAlias.trim() : null,
     };
   });
   return {
@@ -223,10 +229,15 @@ function validateEngine(
   ) {
     errors.push(`${label}: timeout must be between 5 and 30 seconds`);
   }
-  if (provider.key === 'required' && engine.api_key === null && !engine.keep_api_key && engine.key_source === null) {
+  if (
+    provider.key === 'required' &&
+    engine.api_key === null &&
+    !engine.keep_api_key &&
+    !(typeof engine.api_key === 'object' && engine.api_key !== null && 'entry' in engine.api_key)
+  ) {
     errors.push(`${label}: an api key is required`);
   }
-  if (provider.key === 'forbidden' && (engine.api_key !== null || engine.key_source !== null || engine.keep_api_key)) {
+  if (provider.key === 'forbidden' && (engine.api_key !== null || engine.keep_api_key === true)) {
     errors.push(`${label}: this provider does not accept an api key`);
   }
   return errors;

@@ -1,6 +1,6 @@
-import { checkbox, input, password, select } from '@inquirer/prompts';
+import { checkbox, input, password, search, select } from '@inquirer/prompts';
 import type { ProviderApi, SecretRef } from '../platform/config/index.ts';
-import { newKeyJarName, updateKeyJar } from '../platform/key-jar.ts';
+import { KEYCHAIN_NAME_PATTERN, nextEntryName, readKeychain, updateKeychain } from '../platform/keychain.ts';
 
 export type ApiAdapter = ProviderApi;
 
@@ -12,29 +12,48 @@ const API_ADAPTER_LABELS: Record<ApiAdapter, string> = {
 };
 
 /**
- * A typed value goes into the key jar right away, so fetching models can resolve
- * it before the configuration is saved; `configure` prunes it again if the saved
- * file ends up not using it.
+ * A typed value goes into the keychain right away, so fetching models can
+ * resolve it before the configuration is saved; an entry left behind by a
+ * discarded session is cleaned up through the panel's keychain manager.
+ *
+ * The entry name defaults to where the secret is used and stays editable; a
+ * name that already exists is rejected instead of silently suffixed.
  */
-export async function promptSecretRef(message: string, keyJar: string): Promise<SecretRef> {
-  type SecretKind = 'env' | 'command' | 'jar';
+export async function promptSecretRef(
+  message: string,
+  keychainFile: string,
+  options: { readonly suggestedName?: string } = {},
+): Promise<SecretRef> {
+  const entries = await readKeychain(keychainFile);
+  const taken = new Set(Object.keys(entries ?? {}));
+  type SecretKind = 'new' | 'entry' | 'env' | 'command';
+  const choices: { value: SecretKind; name: string; description?: string }[] = [
+    { value: 'new', name: 'New key (stored in key.json)' },
+    ...(taken.size > 0 ? [{ value: 'entry' as const, name: 'Use an existing entry' }] : []),
+    {
+      value: 'env',
+      name: 'Environment variable',
+      description: 'Recommended: reads from an environment variable at runtime',
+    },
+    { value: 'command', name: 'External command', description: 'Runs a fixed argv and uses stdout as the secret' },
+  ];
   const kind = await select<SecretKind>({
     message: `${message}: source`,
-    choices: [
-      {
-        value: 'env',
-        name: 'Environment variable',
-        description: 'Recommended: reads from an environment variable at runtime',
-      },
-      { value: 'command', name: 'External command', description: 'Runs a fixed argv and uses stdout as the secret' },
-      {
-        value: 'jar',
-        name: 'Value in key.json',
-        description: 'Stores the value in key.json next to the config file; the config only names it',
-      },
-    ],
+    choices,
   });
   switch (kind) {
+    case 'entry': {
+      const name = await search({
+        message: `${message}: entry`,
+        source: (term) =>
+          Promise.resolve(
+            [...taken]
+              .filter((candidate) => term === undefined || term.length === 0 || candidate.includes(term))
+              .map((candidate) => ({ value: candidate, name: candidate })),
+          ),
+      });
+      return { jar: name };
+    }
     case 'env': {
       const env = await input({
         message: `${message}: environment variable name`,
@@ -55,8 +74,17 @@ export async function promptSecretRef(message: string, keyJar: string): Promise<
         mask: true,
         validate: (candidate) => candidate.length > 0 || 'Secret cannot be empty',
       });
-      const name = newKeyJarName();
-      await updateKeyJar(keyJar, { add: { [name]: value } });
+      const name = await input({
+        message: 'Entry name in key.json',
+        ...(options.suggestedName === undefined ? {} : { default: nextEntryName(options.suggestedName, taken) }),
+        validate: (candidate) => {
+          if (!KEYCHAIN_NAME_PATTERN.test(candidate)) {
+            return 'Use 1-64 letters, digits, "_" or "-"';
+          }
+          return !taken.has(candidate) || `Keychain already has an entry named ${candidate}`;
+        },
+      });
+      await updateKeychain(keychainFile, { add: { [name]: value } });
       return { jar: name };
     }
   }

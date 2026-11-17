@@ -71,7 +71,6 @@ function view(overrides: Partial<SearchConfigView>): SearchConfigView {
     url_filters: [],
     engines: [],
     providers: [...providers],
-    deepseek_keys: [],
     ...overrides,
   };
 }
@@ -137,6 +136,10 @@ test('switching provider drops the old endpoint and configured key', async ({ pa
   await page.route('**/api/search/config', async (route) => {
     await route.fulfill({ json: view({ engines: [configuredEngine] }) });
   });
+  // No keychain entries, so a fresh key is the only credential mode.
+  await page.route('**/api/keychain', async (route) => {
+    await route.fulfill({ json: { entries: [], usage: { file: {}, active: [], external: [] } } });
+  });
   await page.goto(await adminUrl('/search-settings'));
   await page.getByRole('button', { name: 'Edit main', exact: true }).click();
   await expect(page.getByLabel('Credential')).toHaveValue('keep');
@@ -167,6 +170,10 @@ test('adds an engine with a new key and previews URL filter matches', async ({ p
       return;
     }
     await route.fulfill({ json: config });
+  });
+  // No keychain entries, so a fresh key is the only credential mode.
+  await page.route('**/api/keychain', async (route) => {
+    await route.fulfill({ json: { entries: [], usage: { file: {}, active: [], external: [] } } });
   });
   await page.goto(await adminUrl('/search-settings'));
   await expect(page.getByText('No engine configured. Add one to make search available.')).toBeVisible();
@@ -268,7 +275,7 @@ test('a save conflict offers a reload onto the current revision', async ({ page 
   expect(ifMatch).toEqual(['rev-1', 'rev-2']);
 });
 
-test('reusing the only DeepSeek model key saves that alias', async ({ page }) => {
+test('reusing a keychain entry saves the entry reference', async ({ page }) => {
   const writes: unknown[] = [];
   await page.route('**/api/search/config', async (route) => {
     if (route.request().method() === 'PUT') {
@@ -278,23 +285,37 @@ test('reusing the only DeepSeek model key saves that alias', async ({ page }) =>
       });
       return;
     }
-    await route.fulfill({ json: view({ deepseek_keys: ['deepseek'] }) });
+    if (route.request().url().endsWith('/api/keychain')) {
+      await route.fulfill({
+        json: {
+          entries: [{ name: 'deepseek', created_at: new Date(0).toISOString(), restart_required: false }],
+          usage: { file: {}, active: [], external: [] },
+        },
+      });
+      return;
+    }
+    await route.fulfill({ json: view({}) });
   });
   await page.goto(await adminUrl('/search-settings'));
   await page.getByRole('button', { name: 'Add engine' }).click();
   await page.getByLabel('Provider').selectOption('deepseek');
-  await page.getByLabel('Credential').selectOption('alias');
+  await page.getByLabel('Credential').selectOption('entry');
   await page.getByRole('dialog').getByRole('button', { name: 'Save', exact: true }).click();
   await page.getByRole('button', { name: 'Save settings' }).click();
   await expect(toast(page, 'Web search settings saved')).toBeVisible();
+  // The entry picker preselects the first available entry.
   expect(writes[0]).toMatchObject({
-    engines: [{ provider: 'deepseek', api_key: null, keep_api_key: false, key_source: 'deepseek' }],
+    engines: [{ provider: 'deepseek', keep_api_key: false, api_key: { entry: 'telegram' } }],
   });
 });
 
 test('renaming a configured engine asks for a credential instead of keeping one', async ({ page }) => {
   await page.route('**/api/search/config', async (route) => {
     await route.fulfill({ json: view({ engines: [configuredEngine] }) });
+  });
+  // No keychain entries, so a fresh key is the only credential mode.
+  await page.route('**/api/keychain', async (route) => {
+    await route.fulfill({ json: { entries: [], usage: { file: {}, active: [], external: [] } } });
   });
   await page.goto(await adminUrl('/search-settings'));
   await page.getByRole('button', { name: 'Edit main', exact: true }).click();

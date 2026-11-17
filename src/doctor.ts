@@ -15,38 +15,39 @@ import Database from 'better-sqlite3';
 import { Bot } from 'grammy';
 import sharp from 'sharp';
 import Type from 'typebox';
+import { assertConfigPermissions, loadConfig } from './adapters/local-monolith/config/index.ts';
+import { SqliteStore } from './adapters/local-monolith/database.ts';
+import { BUNDLED_MANUAL_DIR, bundledManualSpace, FileSystemDocSpaces } from './adapters/local-monolith/doc-spaces.ts';
+import { resolveConversation } from './adapters/local-monolith/runtime/support.ts';
+import { BUNDLED_SYSTEM_RESOURCES_DIR, FileSystemResources } from './adapters/local-monolith/system-resources.ts';
+import { resolveTelegramTokenSource } from './adapters/local-monolith/telegram/connection-token.ts';
+import { createTelegramHost, grammyTelegramTransport } from './adapters/local-monolith/telegram/host.ts';
 import { awaitServerAttempts } from './capabilities/mcp/availability.ts';
 import { McpManager } from './capabilities/mcp/index.ts';
-import { MediaService } from './capabilities/media/index.ts';
 import { TelegramMediaClient } from './capabilities/media/download.ts';
 import { createLottieCommand } from './capabilities/media/image.ts';
-
+import { MediaService } from './capabilities/media/index.ts';
 import { AgentRuntime } from './orchestration/agent-runtime/index.ts';
 import { KeyedSemaphore } from './platform/concurrency.ts';
 import { configuredModel, type McpServerConfig, type ProviderConfig, type RawConfig } from './platform/config/index.ts';
-import { assertConfigPermissions, loadConfig } from './adapters/local-monolith/config/index.ts';
-
-import { createTelegramHost, grammyTelegramTransport } from './adapters/local-monolith/telegram/host.ts';
-import { resolveTelegramTokenSource } from './adapters/local-monolith/telegram/connection-token.ts';
 import { unwiredImHost } from './platform/im-host/index.ts';
 import { previewContext } from './platform/invocation-context.ts';
-import { keyJarPath } from './platform/key-jar.ts';
+import { keychainPath, migrateKeychain } from './platform/keychain.ts';
 import { type PromptTemplateValues, renderPromptTemplate } from './platform/prompt-template.ts';
 import { buildModelRegistry, configuredAgentModels, modelsForTelegramChats } from './platform/providers.ts';
 import { RuntimeConfigurationStore } from './platform/runtime-config.ts';
 import { SecretStore } from './platform/secrets.ts';
 import { pickEnv, spawnProcess } from './platform/subprocess.ts';
-import { BUNDLED_SYSTEM_RESOURCES_DIR, FileSystemResources } from './adapters/local-monolith/system-resources.ts';
-import { BUNDLED_MANUAL_DIR, bundledManualSpace, FileSystemDocSpaces } from './adapters/local-monolith/doc-spaces.ts';
 import { BUILTIN_PLUGINS } from './plugins/builtin.ts';
 import { loadPlugins } from './plugins/plugin.ts';
-import { SqliteStore } from './adapters/local-monolith/database.ts';
-import { resolveConversation } from './adapters/local-monolith/runtime/support.ts';
 
 export async function runDoctor(configPath: string, outputAgentPrompt = false): Promise<void> {
   const loaded = await loadConfig(configPath);
   await assertConfigPermissions(loaded.configPath);
-  const secrets = new SecretStore(keyJarPath(loaded.configPath));
+  // Diagnosing the real dependencies includes resolving secrets, so the one-time
+  // keychain format migration runs here too.
+  await migrateKeychain(keychainPath(loaded.configPath));
+  const secrets = new SecretStore(keychainPath(loaded.configPath));
   try {
     await runDoctorChecks(loaded.config, loaded.hash, secrets, outputAgentPrompt);
   } catch (error) {

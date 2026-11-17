@@ -2,7 +2,7 @@ import type { EndpointSpec } from '../types.ts';
 
 /**
  * Web-search settings page. The write rewrites the whole `web_search` section
- * and sends new plaintext keys into the key jar.
+ * and sends new plaintext keys into the keychain.
  */
 export const SEARCH_SPECS: readonly EndpointSpec[] = [
   {
@@ -17,6 +17,6 @@ export const SEARCH_SPECS: readonly EndpointSpec[] = [
     path: 'search/config',
     body: true,
     revision: 'config',
-    summary: 'Replace the whole search section; new api_key values go to the key jar',
+    summary: 'Replace the whole search section; new api_key values go to the keychain',
   },
 ];

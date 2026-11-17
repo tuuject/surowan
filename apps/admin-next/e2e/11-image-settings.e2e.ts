@@ -26,7 +26,6 @@ test('selects an API model, fills capabilities, saves, and reloads existing conf
     revision: 'initial',
     enabled: false,
     credentials: [],
-    credential_providers: [],
     models: [],
   };
   const writes: Array<{ enabled: boolean; credentials: Record<string, string>; models: ImageConfigView['models'] }> =
@@ -42,7 +41,6 @@ test('selects an API model, fills capabilities, saves, and reloads existing conf
           revision: `revision-${writes.length}`,
           enabled: body.enabled,
           credentials: ['openrouter'],
-          credential_providers: [],
           models: body.models,
         };
         await route.fulfill({ json: { enabled: true, apply: { applied: ['image'], restart_required: [] } } });
@@ -122,7 +120,6 @@ test('keeps per-model description notes while typing, persists them on save, and
     revision: 'notes',
     enabled: true,
     credentials: ['openrouter'],
-    credential_providers: [],
     models: [
       {
         id: 'nano-banana',
@@ -325,7 +322,6 @@ test('repairs legacy empty credentials and duplicate models using an existing Op
           revision: 'legacy',
           enabled: true,
           credentials: [],
-          credential_providers: ['openrouter'],
           models: [model, model],
         },
       });
@@ -333,18 +329,25 @@ test('repairs legacy empty credentials and duplicate models using an existing Op
       await route.fulfill({ json: { enabled: false, models: [] } });
     }
   });
+  // No keychain entries: the credential row shows a fresh key input.
+  await page.route('**/api/keychain', async (route) => {
+    await route.fulfill({ json: { entries: [], usage: { file: {}, active: [], external: [] } } });
+  });
   await page.goto(await adminUrl('/image-settings'));
   await expect(page.getByRole('button', { name: 'Save and apply' })).toBeEnabled();
-  await expect(page.getByLabel('Key source')).toHaveValue('openrouter');
+  await expect(page.getByLabel('API key', { exact: true })).toHaveValue('');
   await expect(page.getByRole('button', { name: 'Remove Legacy Image' })).toHaveCount(1);
   await expect(page.getByText('Merged 1 identical legacy model entries; takes effect on save')).toBeVisible();
-  await page.getByRole('button', { name: 'Add credential', exact: true }).click();
+  // The legacy models reference a credential the file no longer carries: the
+  // save demands the key itself (the panel cannot invent env or command refs).
+  await page.getByRole('button', { name: 'Save and apply' }).click();
+  await expect(page.getByText(/credential/i).first()).toBeVisible();
+  await page.getByLabel('API key', { exact: true }).fill('e2e-legacy-key');
   await page.getByRole('button', { name: 'Save and apply' }).click();
   await expect.poll(() => writes.length).toBe(1);
   expect(writes[0]).toEqual({
     enabled: true,
-    credentials: {},
-    credential_sources: { openrouter: 'openrouter' },
+    credentials: { openrouter: 'e2e-legacy-key' },
     models: [model],
   });
 });

@@ -2,11 +2,11 @@ import { createHash, randomBytes } from 'node:crypto';
 import { lstat, open, readFile, rename, unlink } from 'node:fs/promises';
 import { basename, dirname, join, resolve } from 'node:path';
 import { applyEdits, findNodeAtLocation, type JSONPath, modify, parse, parseTree } from 'jsonc-parser';
-import { assertConfigPermissions, type LoadedConfig, loadConfig } from './index.ts';
-import type { ConfigEdit } from '../../../platform/config/write.ts';
 import { TELEGRAM_DEFAULTS } from '../../../platform/config/resolve.ts';
-import { keyJarPath, referencedJarNames, updateKeyJar } from '../../../platform/key-jar.ts';
+import type { ConfigEdit } from '../../../platform/config/write.ts';
+import { keychainPath, updateKeychain } from '../../../platform/keychain.ts';
 import type { SearchProviderRule } from '../../../platform/web-search.ts';
+import { assertConfigPermissions, loadConfig } from './index.ts';
 
 export type ConfigWriteErrorCode =
   | 'config_symlink'
@@ -69,9 +69,9 @@ function replaceNullParents(text: string, path: JSONPath): string {
  * the remaining window between that comparison and the rename only matters for
  * hand edits landing in the same instant.
  *
- * Key jar entries carried by the edits are added before the rename, so the new
- * file never names a missing entry, and the entries the new file no longer
- * references are removed after it, so the old file never does either.
+ * Keychain entries carried by the edits are added before the rename, so the new
+ * file never names a missing entry. Nothing is reclaimed on the way out: an
+ * entry the new file no longer references stays until an explicit purge.
  */
 export async function writeConfigEdits(
   configPath: string,
@@ -99,7 +99,6 @@ export async function writeConfigEdits(
   const bom = source.charCodeAt(0) === 0xfeff;
   let text = bom ? source.slice(1) : source;
   const parsedSource = parse(text, [], { allowTrailingComma: true });
-  const previouslyReferenced = referencedJarNames(parsedSource);
   const added: Record<string, string> = {};
   if (createsTelegramSection(parsedSource, edits)) {
     // The section's scalars have no schema defaults, so creating it lazily with
@@ -134,25 +133,24 @@ export async function writeConfigEdits(
     await removeQuietly(temporary);
     throw new ConfigWriteError('config_write_failed', describe('Cannot write config', error));
   }
-  let written: LoadedConfig;
   try {
     // Prompt paths resolve against the containing directory, so this is the same
     // validation the next `serve` would run.
-    written = await loadConfig(temporary, {
+    await loadConfig(temporary, {
       ...(options.searchProviders === undefined ? {} : { searchProviders: options.searchProviders }),
     });
   } catch (error) {
     await removeQuietly(temporary);
     throw new ConfigWriteError('config_invalid', describe('Edited config is invalid', error));
   }
-  const jar = keyJarPath(target);
+  const jar = keychainPath(target);
   const addedNames = Object.keys(added);
   if (addedNames.length > 0) {
     try {
-      await updateKeyJar(jar, { add: added });
+      await updateKeychain(jar, { add: added });
     } catch (error) {
       await removeQuietly(temporary);
-      throw new ConfigWriteError('config_write_failed', describe('Cannot write key jar', error));
+      throw new ConfigWriteError('config_write_failed', describe('Cannot write keychain', error));
     }
   }
   try {
@@ -160,16 +158,11 @@ export async function writeConfigEdits(
   } catch (error) {
     await removeQuietly(temporary);
     if (addedNames.length > 0) {
-      await updateKeyJar(jar, { remove: addedNames }).catch(() => undefined);
+      // Rolling the added entries back keeps the keychain consistent with the
+      // file that stayed in place; this is a transaction rollback, not reclamation.
+      await updateKeychain(jar, { remove: addedNames }).catch(() => undefined);
     }
     throw new ConfigWriteError('config_write_failed', describe('Cannot replace config', error));
-  }
-  const stillReferenced = referencedJarNames(written.fileConfig);
-  const released = [...previouslyReferenced].filter((name) => !stillReferenced.has(name));
-  if (released.length > 0) {
-    // The new file is in place and the edit succeeded; an entry left behind only
-    // keeps a secret nothing uses, which is not worth reporting a failed write.
-    await updateKeyJar(jar, { remove: released }).catch(() => undefined);
   }
 }
 

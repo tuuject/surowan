@@ -1,4 +1,5 @@
 import { call, writeHeaders } from './core.ts';
+import type { SecretInput, SecretSource } from './keychain.ts';
 
 export type TelegramConnectionStatus = 'disabled' | 'connected' | 'network_error' | 'config_error';
 
@@ -36,6 +37,8 @@ export interface TelegramView {
   readonly status: TelegramConnectionState;
   readonly telegram_section_present: boolean;
   readonly token_configured: boolean;
+  /** Panel sessions only: where the token comes from. */
+  readonly token_source?: SecretSource;
   /** `saved` is the file on disk; `active` is what the running process collects new batches with. */
   readonly bucket_timing: { readonly saved: BucketTiming; readonly active: BucketTiming };
 }
@@ -53,7 +56,7 @@ export function getTelegram(): Promise<TelegramView> {
 }
 
 /** `null` clears the token; the endpoint never deletes the whole `telegram` section. */
-export function putTelegram(token: string | null, revision: string): Promise<TelegramUpdateResponse> {
+export function putTelegram(token: SecretInput | null, revision: string): Promise<TelegramUpdateResponse> {
   return call<TelegramUpdateResponse>('/telegram', {
     method: 'PUT',
     headers: writeHeaders(revision),

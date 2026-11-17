@@ -20,7 +20,7 @@ import { ConfigReloader } from '../../../src/adapters/local-monolith/config/relo
 import { type LoadedConfig, loadConfig } from '../../../src/adapters/local-monolith/config/index.ts';
 import type { RuntimeConfigurationStore } from '../../../src/platform/runtime-config.ts';
 import { AgentModelSwitcher } from '../../../src/platform/models/switch.ts';
-import { keyJarPath } from '../../../src/platform/key-jar.ts';
+import { keychainPath } from '../../../src/platform/keychain.ts';
 import { SecretStore } from '../../../src/platform/secrets.ts';
 import { SqliteStore } from '../../../src/adapters/local-monolith/database.ts';
 import { PlaygroundAssetStore } from '../../../src/capabilities/media/local-assets.ts';
@@ -148,7 +148,7 @@ export async function panelFixture(options: PanelFixtureOptions = {}): Promise<P
   const loaded: LoadedConfig = await loadConfig(configPath);
   const configStore: RuntimeConfigurationStore = await testConfigStore(loaded);
   const store = await SqliteStore.open(loaded.config);
-  const secrets = new SecretStore(keyJarPath(configPath));
+  const secrets = new SecretStore(keychainPath(configPath));
   const switcher = new AgentModelSwitcher(configStore);
   const reloader = new ConfigReloader({
     loaded,

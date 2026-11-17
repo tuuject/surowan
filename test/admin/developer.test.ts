@@ -10,7 +10,7 @@ import { SqliteStore } from '../../src/adapters/local-monolith/database.ts';
 
 import { AdminServer } from '../../src/ingress/admin/index.ts';
 import type { FileConfig } from '../../src/platform/config/index.ts';
-import { keyJarPath } from '../../src/platform/key-jar.ts';
+import { keychainPath } from '../../src/platform/keychain.ts';
 import { AgentModelSwitcher } from '../../src/platform/models/switch.ts';
 import { SecretStore } from '../../src/platform/secrets.ts';
 import { modelCalls } from '../../src/store/schema/index.ts';
@@ -45,7 +45,7 @@ async function fixture(developer?: FileConfig['developer']) {
   const loaded = await loadConfig(path);
   const configStore = await testConfigStore(loaded);
   const store = await SqliteStore.open(loaded.config);
-  const secrets = new SecretStore(keyJarPath(path));
+  const secrets = new SecretStore(keychainPath(path));
   const validate = vi.fn();
   const reloader = new ConfigReloader({
     loaded,

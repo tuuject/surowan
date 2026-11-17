@@ -35,7 +35,7 @@ function describeProvider(alias: string, provider: ProviderConfig): string {
   return `${alias} (custom: ${provider.api})`;
 }
 
-export async function addProvider(keyJar: string): Promise<{ alias: string; config: ProviderConfig } | undefined> {
+export async function addProvider(keychain: string): Promise<{ alias: string; config: ProviderConfig } | undefined> {
   let alias = '';
   aliasStep: while (true) {
     alias = await input({
@@ -60,7 +60,9 @@ export async function addProvider(keyJar: string): Promise<{ alias: string; conf
         return undefined;
       }
       const config =
-        kind === 'builtin' ? await configureBuiltinProvider(keyJar) : await configureCustomProvider(keyJar);
+        kind === 'builtin'
+          ? await configureBuiltinProvider(keychain, alias)
+          : await configureCustomProvider(keychain, alias);
       if (config !== undefined) {
         return { alias, config };
       }
@@ -72,7 +74,7 @@ export async function addProvider(keyJar: string): Promise<{ alias: string; conf
  * A builtin provider registers exactly the models written here: Pi's catalog
  * decides which ids may be configured, never which are reachable at runtime.
  */
-async function configureBuiltinProvider(keyJar: string): Promise<ProviderConfig | undefined> {
+async function configureBuiltinProvider(keychain: string, alias: string): Promise<ProviderConfig | undefined> {
   const providers = listBuiltinPresets();
   let providerId: string | undefined;
   let apiKey: SecretRef | undefined;
@@ -116,7 +118,7 @@ async function configureBuiltinProvider(keyJar: string): Promise<ProviderConfig 
         break;
       }
       case 'api_key':
-        apiKey = await promptSecretRef('API key', keyJar);
+        apiKey = await promptSecretRef('API key', keychain, { suggestedName: alias });
         discoveredModels = [];
         break;
       case 'discover':
@@ -128,7 +130,7 @@ async function configureBuiltinProvider(keyJar: string): Promise<ProviderConfig 
               api,
               apiKey,
             },
-            keyJar,
+            keychain,
           );
         }
         break;
@@ -146,7 +148,7 @@ async function configureBuiltinProvider(keyJar: string): Promise<ProviderConfig 
   }
 }
 
-async function configureCustomProvider(keyJar: string): Promise<ProviderConfig | undefined> {
+async function configureCustomProvider(keychain: string, alias: string): Promise<ProviderConfig | undefined> {
   let baseUrl: string | undefined;
   let api: ApiAdapter | undefined;
   let apiKey: SecretRef | undefined;
@@ -191,16 +193,16 @@ async function configureCustomProvider(keyJar: string): Promise<ProviderConfig |
         discoveredModels = [];
         break;
       case 'api_key':
-        apiKey = await promptSecretRef('API key', keyJar);
+        apiKey = await promptSecretRef('API key', keychain, { suggestedName: alias });
         discoveredModels = [];
         break;
       case 'headers':
-        headers = await editHeaders(headers, keyJar);
+        headers = await editHeaders(headers, keychain, alias);
         discoveredModels = [];
         break;
       case 'discover':
         if (baseUrl !== undefined && api !== undefined && apiKey !== undefined) {
-          discoveredModels = await discoverProviderModels({ baseUrl, api, apiKey, headers }, keyJar);
+          discoveredModels = await discoverProviderModels({ baseUrl, api, apiKey, headers }, keychain);
         }
         break;
       case 'models':
@@ -224,9 +226,13 @@ async function configureCustomProvider(keyJar: string): Promise<ProviderConfig |
   }
 }
 
-export async function editProvider(provider: ProviderConfig, keyJar: string): Promise<ProviderConfig | undefined> {
+export async function editProvider(
+  provider: ProviderConfig,
+  keychain: string,
+  alias: string,
+): Promise<ProviderConfig | undefined> {
   if (provider.kind === 'builtin') {
-    return await editBuiltinProvider(provider, keyJar);
+    return await editBuiltinProvider(provider, keychain, alias);
   }
   let updated: ProviderConfig = { ...provider };
   const action = await select<CustomProviderField>({
@@ -252,11 +258,11 @@ export async function editProvider(provider: ProviderConfig, keyJar: string): Pr
       break;
     }
     case 'api_key': {
-      updated = { ...updated, api_key: await promptSecretRef('API key', keyJar) };
+      updated = { ...updated, api_key: await promptSecretRef('API key', keychain, { suggestedName: alias }) };
       break;
     }
     case 'headers': {
-      updated = { ...updated, headers: await editHeaders(updated.headers ?? {}, keyJar) };
+      updated = { ...updated, headers: await editHeaders(updated.headers ?? {}, keychain, alias) };
       break;
     }
     case 'models': {
@@ -271,7 +277,8 @@ export async function editProvider(provider: ProviderConfig, keyJar: string): Pr
 
 async function editBuiltinProvider(
   provider: BuiltinProviderConfig,
-  keyJar: string,
+  keychain: string,
+  alias: string,
 ): Promise<ProviderConfig | undefined> {
   const action = await select<'api_key' | 'models' | 'cancel'>({
     message: `Edit built-in provider (${provider.provider})`,
@@ -283,7 +290,7 @@ async function editBuiltinProvider(
   });
   switch (action) {
     case 'api_key':
-      return { ...provider, api_key: await promptSecretRef('API key', keyJar) };
+      return { ...provider, api_key: await promptSecretRef('API key', keychain, { suggestedName: alias }) };
     case 'models': {
       const source = findBuiltinProvider(provider.provider);
       const api = source === undefined ? null : preferredBuiltinApi(source);
@@ -296,7 +303,7 @@ async function editBuiltinProvider(
                 api,
                 apiKey: provider.api_key,
               },
-              keyJar,
+              keychain,
             )
           : [];
       const models = await runModelWizard(provider.models, discovered);
@@ -311,7 +318,11 @@ async function editBuiltinProvider(
   }
 }
 
-async function editHeaders(headers: Record<string, SecretRef>, keyJar: string): Promise<Record<string, SecretRef>> {
+async function editHeaders(
+  headers: Record<string, SecretRef>,
+  keychain: string,
+  nameBase: string,
+): Promise<Record<string, SecretRef>> {
   const choices: { value: string; name: string }[] = [
     { value: '__add', name: 'Add header' },
     ...Object.entries(headers).map(([name]) => ({ value: name, name: `Edit "${name}"` })),
@@ -324,7 +335,9 @@ async function editHeaders(headers: Record<string, SecretRef>, keyJar: string): 
   }
   if (action === '__add') {
     const name = await input({ message: 'Header name', validate: (value) => value.trim().length > 0 || 'Required' });
-    const value = await promptSecretRef(`Value for "${name}"`, keyJar);
+    const value = await promptSecretRef(`Value for "${name}"`, keychain, {
+      suggestedName: `${nameBase}-${name}`,
+    });
     return { ...headers, [name]: value };
   }
   if (action.startsWith('__delete:')) {
@@ -332,6 +345,8 @@ async function editHeaders(headers: Record<string, SecretRef>, keyJar: string): 
     const { [name]: _, ...rest } = headers;
     return rest;
   }
-  const value = await promptSecretRef(`Value for "${action}"`, keyJar);
+  const value = await promptSecretRef(`Value for "${action}"`, keychain, {
+    suggestedName: `${nameBase}-${action}`,
+  });
   return { ...headers, [action]: value };
 }

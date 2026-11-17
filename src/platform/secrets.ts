@@ -1,5 +1,6 @@
+import { createHash } from 'node:crypto';
 import type { SecretRef } from './config/index.ts';
-import { readKeyJar } from './key-jar.ts';
+import { readKeychain } from './keychain.ts';
 import { pickEnv, readBoundedOutput, spawnProcess } from './subprocess.ts';
 
 const MAX_SECRET_BYTES = 4_096;
@@ -19,7 +20,7 @@ const MAX_SUBMITTED_SECRETS = 64;
 
 /**
  * A SecretRef that cannot be turned into a value: a missing environment
- * variable or key jar entry, a failing command, or an empty result. Callers
+ * variable or keychain entry, a failing command, or an empty result. Callers
  * that can report it as a configuration problem rather than a crash
  * distinguish it by type.
  */
@@ -43,17 +44,17 @@ export class EmptySecretError extends SecretResolutionError {
 }
 
 export class SecretStore {
-  readonly #keyJarPath: string | undefined;
+  readonly #keychainPath: string | undefined;
   readonly #values = new Set<string>();
   readonly #submitted: string[] = [];
 
   /**
-   * `keyJarPath` is the jar of the configuration being served (`keyJarPath()` in
-   * `key-jar.ts`); a store without one only redacts and resolves no jar entry.
+   * `keychainPath` is the jar of the configuration being served (`keychainPath()` in
+   * `keychain.ts`); a store without one only redacts and resolves no keychain entry.
    * The jar is read on every resolve, so a reload sees entries added since.
    */
-  constructor(keyJarPath?: string) {
-    this.#keyJarPath = keyJarPath;
+  constructor(keychainPath?: string) {
+    this.#keychainPath = keychainPath;
   }
 
   async resolve(reference: SecretRef): Promise<string> {
@@ -77,23 +78,64 @@ export class SecretStore {
   }
 
   async #resolveJar(name: string): Promise<string> {
-    if (this.#keyJarPath === undefined) {
-      throw new SecretResolutionError(`No key jar is configured to resolve entry ${name}`);
+    if (this.#keychainPath === undefined) {
+      throw new SecretResolutionError(`No keychain is configured to resolve entry ${name}`);
     }
-    let jar: Awaited<ReturnType<typeof readKeyJar>>;
+    let jar: Awaited<ReturnType<typeof readKeychain>>;
     try {
-      jar = await readKeyJar(this.#keyJarPath);
+      jar = await readKeychain(this.#keychainPath);
     } catch (error) {
       throw new SecretResolutionError(error instanceof Error ? error.message : String(error));
     }
     if (jar === null) {
-      throw new SecretResolutionError(`Key jar does not exist: ${this.#keyJarPath}`);
+      throw new SecretResolutionError(`Keychain does not exist: ${this.#keychainPath}`);
     }
-    const value = Object.hasOwn(jar, name) ? jar[name] : undefined;
-    if (value === undefined) {
-      throw new SecretResolutionError(`Key jar has no entry ${name}: ${this.#keyJarPath}`);
+    const entry = Object.hasOwn(jar, name) ? jar[name] : undefined;
+    if (entry === undefined) {
+      throw new SecretResolutionError(`Keychain has no entry ${name}: ${this.#keychainPath}`);
     }
-    return value;
+    return entry.value;
+  }
+
+  /**
+   * The entry's value for digesting, or `null` when the keychain cannot name
+   * one: the file is absent, unreadable or still in the old format, or the
+   * entry does not exist. Digests drive connection reuse only; the resolve
+   * path reports the underlying problem when a rebuild actually needs the
+   * value.
+   */
+  async #peekJar(name: string): Promise<string | null> {
+    if (this.#keychainPath === undefined) {
+      return null;
+    }
+    let jar: Awaited<ReturnType<typeof readKeychain>>;
+    try {
+      jar = await readKeychain(this.#keychainPath);
+    } catch {
+      return null;
+    }
+    const entry = jar === null ? undefined : Object.hasOwn(jar, name) ? jar[name] : undefined;
+    return entry?.value ?? null;
+  }
+
+  /**
+   * A content digest of what one SecretRef currently resolves to, without
+   * resolving it: a keychain entry hashes to the SHA-256 of its value, an
+   * `env` or `command` reference digests to the empty string because its value
+   * is not ours to observe. The digest never leaves memory: it is not logged,
+   * persisted or returned by any API. A `missing` marker stands for "the
+   * entry (or the whole file) cannot be read right now" and can never equal a
+   * hex digest.
+   */
+  async digestOf(reference: SecretRef): Promise<string> {
+    if (!('jar' in reference)) {
+      return '';
+    }
+    const value = await this.#peekJar(reference.jar);
+    if (value === null) {
+      return 'missing';
+    }
+    return createHash('sha256').update(value).digest('hex');
   }
 
   /**

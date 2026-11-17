@@ -1,12 +1,14 @@
 import Type, { type Static, type TSchema } from 'typebox';
 import Compile from 'typebox/compile';
 import type { FileConfig, ModelFileConfig, ProviderApi, ThinkingLevelConfig } from '../../../platform/config/index.ts';
+import { ModelConfigSchema, ThinkingLevelSchema } from '../../../platform/config/schema-model.ts';
+import { PROVIDER_ALIAS_PATTERN } from '../../../platform/config/semantics.ts';
+import type { ConfigEdit, SecretWrite } from '../../../platform/config/write.ts';
 import type { ModelMetadataDraft } from '../../../platform/models/metadata.ts';
 import type { RuntimeConfiguration } from '../../../platform/runtime-config.ts';
 import type { SecretStore } from '../../../platform/secrets.ts';
 import { AdminQueryError } from '../audit/shared.ts';
-import { ModelConfigSchema, ThinkingLevelSchema } from '../../../platform/config/schema-model.ts';
-import { PROVIDER_ALIAS_PATTERN } from '../../../platform/config/semantics.ts';
+import type { CallerClass, KeychainUsageForInput, SecretSourceView } from '../secret-input.ts';
 
 /** Panel bodies carry whole model lists, so they are larger than audit filters. */
 export const PROVIDER_BODY_MAX_BYTES = 512 * 1024;
@@ -21,7 +23,13 @@ const ApiSchema = Type.Union([
   Type.Literal('google-generative-ai'),
 ]);
 const PlainSecretSchema = Type.String({ minLength: 1, maxLength: 8_192 });
-const HeaderValuesSchema = Type.Record(Type.String({ minLength: 1 }), PlainSecretSchema);
+const EntryNameSchema = Type.String({ pattern: '^[A-Za-z0-9_-]{1,64}$' });
+const SecretInputSchema = Type.Union([
+  PlainSecretSchema,
+  Type.Object({ value: PlainSecretSchema, name: Type.Optional(EntryNameSchema) }, { additionalProperties: false }),
+  Type.Object({ entry: EntryNameSchema }, { additionalProperties: false }),
+]);
+const HeaderValuesSchema = Type.Record(Type.String({ minLength: 1 }), SecretInputSchema);
 
 const CreateProviderBodySchema = Type.Object(
   {
@@ -30,7 +38,7 @@ const CreateProviderBodySchema = Type.Object(
     provider: Type.Optional(Type.String({ minLength: 1 })),
     base_url: Type.Optional(Type.String({ minLength: 1 })),
     api: Type.Optional(ApiSchema),
-    api_key: PlainSecretSchema,
+    api_key: SecretInputSchema,
     headers: Type.Optional(HeaderValuesSchema),
     models: Type.Array(ModelConfigSchema, { minItems: 1, maxItems: MAX_MODELS_PER_REQUEST }),
   },
@@ -41,9 +49,9 @@ const UpdateProviderBodySchema = Type.Object(
   {
     base_url: Type.Optional(Type.String({ minLength: 1 })),
     api: Type.Optional(ApiSchema),
-    api_key: Type.Optional(PlainSecretSchema),
+    api_key: Type.Optional(SecretInputSchema),
     /** `null` deletes a header; a missing name keeps the stored value. */
-    headers: Type.Optional(Type.Record(Type.String({ minLength: 1 }), Type.Union([PlainSecretSchema, Type.Null()]))),
+    headers: Type.Optional(Type.Record(Type.String({ minLength: 1 }), Type.Union([SecretInputSchema, Type.Null()]))),
   },
   Strict,
 );
@@ -77,8 +85,11 @@ const DiscoverBodySchema = Type.Object(
     provider: Type.Optional(Type.String({ minLength: 1 })),
     base_url: Type.Optional(Type.String({ minLength: 1 })),
     api: Type.Optional(ApiSchema),
+    // A temporary discovery connection is tested with the submitted plaintext
+    // itself: there is nothing to reuse and an entry reference here would let
+    // a caller probe a stored secret against an arbitrary address.
     api_key: Type.Optional(PlainSecretSchema),
-    headers: Type.Optional(HeaderValuesSchema),
+    headers: Type.Optional(Type.Record(Type.String({ minLength: 1 }), PlainSecretSchema)),
   },
   Strict,
 );
@@ -117,6 +128,10 @@ export interface ProviderView {
   readonly base_url: string;
   readonly header_names: readonly string[];
   readonly models: readonly ModelFileConfig[];
+  /** Panel sessions only: where the API key comes from. */
+  readonly api_key_source?: SecretSourceView;
+  /** Panel sessions only: where each custom header comes from, by header name. */
+  readonly header_sources?: Readonly<Record<string, SecretSourceView>>;
 }
 
 export interface ProvidersView {
@@ -193,6 +208,17 @@ export interface ProviderWriteContext {
    * not receive the credentials the process resolved.
    */
   readonly snapshot: RuntimeConfiguration;
+  /** Keychain entries and raw-file usage, for naming and reuse decisions. */
+  readonly keychain: KeychainUsageForInput;
+  /** Panel session or programmatic credential; programmatic cannot reuse entries. */
+  readonly caller: CallerClass;
+}
+
+/** What one provider write does: file edits plus in-place value rotations. */
+export interface ProviderWritePlan {
+  readonly edits: readonly ConfigEdit[];
+  /** Keychain changes that ride outside the edits: repairs and in-place rotations. */
+  readonly secrets: SecretWrite;
 }
 
 const createProviderValidator = Compile(CreateProviderBodySchema);

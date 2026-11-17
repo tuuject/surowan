@@ -10,7 +10,7 @@ import { createImageBridge } from '../../src/image/bridge.ts';
 import { createImageService } from '../../src/image/service.ts';
 import { loadConfig } from '../../src/adapters/local-monolith/config/index.ts';
 import { ConfigReloader } from '../../src/adapters/local-monolith/config/reload.ts';
-import { keyJarPath } from '../../src/platform/key-jar.ts';
+import { keychainPath } from '../../src/platform/keychain.ts';
 import { AgentModelSwitcher } from '../../src/platform/models/switch.ts';
 import { SecretStore } from '../../src/platform/secrets.ts';
 import imagePlugin from '../../src/plugins/image/index.ts';
@@ -19,7 +19,7 @@ import { SqliteStore } from '../../src/adapters/local-monolith/database.ts';
 import { LongTaskService } from '../../src/store/long-tasks/index.ts';
 import { buckets, chats, conversations, invocations } from '../../src/store/schema/index.ts';
 import { createToolAudit } from '../../src/store/tool-audit.ts';
-import { testConfigJsonc, testConfigStore, writeTestConfig, writeTestKeyJar } from '../helpers.ts';
+import { testConfigJsonc, testConfigStore, writeTestConfig, writeTestKeychain } from '../helpers.ts';
 
 // Shared fixtures for the image-agent suites: temp-directory lifecycle, the
 // bridge/service fixture, and helpers that drive and observe generations.
@@ -113,7 +113,7 @@ export async function fixture(plan: readonly boolean[] = []): Promise<ImageAgent
       };
     }),
   );
-  await writeTestKeyJar(directory, { openrouter: 'sk-image-v1' });
+  await writeTestKeychain(directory, { openrouter: 'sk-image-v1' });
   const loaded = await loadConfig(configPath);
   const store = await SqliteStore.open(loaded.config);
   cleanup.push(() => store.close());
@@ -182,9 +182,9 @@ export async function fixture(plan: readonly boolean[] = []): Promise<ImageAgent
     loaded,
     store: loadedForStore,
     modelSwitcher: new AgentModelSwitcher(loadedForStore),
-    secrets: new SecretStore(keyJarPath(configPath)),
+    secrets: new SecretStore(keychainPath(configPath)),
     imageConfig: {
-      prepare: (candidate) => service.prepareConfig(candidate, new SecretStore(keyJarPath(configPath))),
+      prepare: (candidate) => service.prepareConfig(candidate, new SecretStore(keychainPath(configPath))),
       publish: (snapshot) => service.publishConfig(snapshot as Parameters<typeof service.publishConfig>[0]),
     },
     validateAgentModel: () => undefined,

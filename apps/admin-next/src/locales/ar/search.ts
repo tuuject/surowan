@@ -33,7 +33,7 @@ export const search: CompleteCatalog<typeof searchEn> = {
   fieldKey: 'بيانات الاعتماد',
   keyKeep: 'الاحتفاظ بالمفتاح المُعدّ',
   keyNew: 'إدخال مفتاح جديد',
-  keyReuse: 'إعادة استخدام مفتاح نموذج DeepSeek',
+  keyEntry: 'استخدام مدخل موجود',
   keyPlaceholder: 'الصق مفتاح API',
   keyForbidden: 'هذا المزوّد لا يأخذ بيانات اعتماد.',
   keyOptional: 'المفتاح اختياري؛ وبدونه تُستخدم نقطة النهاية المجانية.',

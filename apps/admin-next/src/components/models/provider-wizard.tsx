@@ -12,6 +12,7 @@ import {
 } from '@/components/models/provider-wizard-steps';
 import { useDraftSelection } from '@/components/models/use-draft-selection';
 import { useOpenSession } from '@/hooks/use-open-session.ts';
+import type { SecretInput } from '@/lib/api/keychain.ts';
 import type {
   CreateProviderRequest,
   DiscoveredModel,
@@ -20,9 +21,29 @@ import type {
   ProviderModelConfig,
 } from '@/lib/api/providers.ts';
 import { createProvider, discoverProviderModels, lookupModelMetadata } from '@/lib/api/providers.ts';
+import { type SecretDraft, secretNameInvalid, secretValueOf } from '@/lib/secret-draft.ts';
+
+/**
+ * Discovery sends the typed plaintext itself: the entry name only matters
+ * when the provider is created. An entry reference has nothing to test with.
+ */
+function discoveryPlaintextOf(value: SecretInput | SecretDraft | string | null): string | null {
+  if (value === null) {
+    return null;
+  }
+  if (typeof value === 'string') {
+    return value;
+  }
+  if ('mode' in value) {
+    return value.mode === 'new' && value.value.length > 0 ? value.value : null;
+  }
+  return 'value' in value ? value.value : null;
+}
+
 import { type HeaderRow, headerRowsFromNames, headerValues } from '@/lib/header-rows.ts';
 import { modelFormForDraft } from '@/lib/model-form.ts';
 import { parseModelIds, requestErrorMessage } from '@/lib/model-manager.ts';
+import { keychainQuery } from '@/lib/queries';
 import { providerPresetsQuery } from '@/lib/queries.ts';
 import { useProviderWrite } from '@/lib/use-provider-write.ts';
 
@@ -70,8 +91,10 @@ export function ProviderWizard({
   const [presetId, setPresetId] = useState('');
   const [baseUrl, setBaseUrl] = useState('');
   const [api, setApi] = useState<ProviderApi>('openai-completions');
-  const [apiKey, setApiKey] = useState('');
+  const [keyDraft, setKeyDraft] = useState<SecretDraft>(() => ({ mode: 'new', value: '', name: '' }));
   const [headers, setHeaders] = useState<readonly HeaderRow[]>(() => headerRowsFromNames([]));
+  const keychain = useQuery({ ...keychainQuery, enabled: open });
+  const keychainEntries = (keychain.data?.entries ?? []).map((entry) => entry.name);
   const [ids, setIds] = useState('');
   const [editing, setEditing] = useState<DiscoveredModel | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -110,17 +133,31 @@ export function ProviderWizard({
 
   const discover = useMutation({
     mutationFn: async (_startedIn: number) => {
-      const payload = headerValues(headers);
+      const payload = headerValues(headers, alias);
       if (payload.error !== null) {
         throw new Error(payload.error);
       }
-      if (apiKey.length === 0) {
+      // Discovery tests the typed plaintext itself: a draft on an existing
+      // entry is refused before the request, and a named draft still uses the
+      // typed plaintext (the name only matters when the provider is created).
+      const key = discoveryPlaintextOf(keyDraft);
+      if (key === null) {
         throw new Error(t('models.models.wizard.enterApiKeyFirst'));
+      }
+      const headerPlaintexts: Record<string, string> = {};
+      if (payload.values !== undefined) {
+        for (const [name, value] of Object.entries(payload.values)) {
+          const plaintext = discoveryPlaintextOf(value);
+          if (plaintext === null) {
+            throw new Error(t('models.models.wizard.enterApiKeyFirst'));
+          }
+          headerPlaintexts[name] = plaintext;
+        }
       }
       return await discoverProviderModels({
         ...connection,
-        api_key: apiKey,
-        ...(payload.values === undefined ? {} : { headers: payload.values }),
+        api_key: key,
+        ...(Object.keys(headerPlaintexts).length === 0 ? {} : { headers: headerPlaintexts }),
       });
     },
     onSuccess: (result, startedIn) => {
@@ -183,7 +220,7 @@ export function ProviderWizard({
     if (selection.models === null) {
       return;
     }
-    const payload = headerValues(headers);
+    const payload = headerValues(headers, alias);
     if (payload.error !== null) {
       // An incomplete header row must stop the submit: dropping it silently
       // would create the provider without a header the admin meant to send.
@@ -191,11 +228,16 @@ export function ProviderWizard({
       return;
     }
     setCreateError(null);
+    const key = secretValueOf(keyDraft, alias);
+    if (key === null) {
+      setCreateError(t('models.models.wizard.enterApiKeyFirst'));
+      return;
+    }
     create.mutate({
       alias,
       kind,
       ...(kind === 'builtin' ? { provider: presetId } : { base_url: baseUrl.trim(), api }),
-      api_key: apiKey,
+      api_key: key,
       ...(payload.values === undefined ? {} : { headers: payload.values }),
       models: selection.models,
     });
@@ -214,7 +256,9 @@ export function ProviderWizard({
     setPresetId('');
     setBaseUrl('');
     setApi('openai-completions');
-    setApiKey('');
+    // The wizard restarts with no alias yet: the name stays unstated so the
+    // server derives it from wherever the key ends up being used.
+    setKeyDraft({ mode: 'new', value: '', name: '' });
     setHeaders(headerRowsFromNames([]));
     setIds('');
     setEditing(null);
@@ -259,7 +303,11 @@ export function ProviderWizard({
               </Button>
             ) : null}
             {step === 'credentials' ? (
-              <Button type="button" disabled={apiKey.length === 0} onClick={() => setStep('models')}>
+              <Button
+                type="button"
+                disabled={secretValueOf(keyDraft, alias) === null || secretNameInvalid(keyDraft)}
+                onClick={() => setStep('models')}
+              >
                 {t('models.models.wizard.next')}
               </Button>
             ) : null}
@@ -294,11 +342,13 @@ export function ProviderWizard({
 
           {step === 'credentials' ? (
             <WizardCredentialsStep
-              apiKey={apiKey}
-              onApiKeyChange={setApiKey}
+              keyDraft={keyDraft}
+              onKeyDraftChange={setKeyDraft}
               headers={headers}
               onHeadersChange={setHeaders}
               custom={kind === 'custom'}
+              alias={alias}
+              keychainEntries={keychainEntries}
             />
           ) : null}
 

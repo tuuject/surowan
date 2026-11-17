@@ -97,7 +97,12 @@ export interface McpCutoverDeps {
  * stuck run can never hold the configuration lock.
  */
 export interface McpCutover {
-  publish(previous: RawConfig, next: RawConfig, generation: number): Promise<McpConfigPublishResult>;
+  publish(
+    previous: RawConfig,
+    next: RawConfig,
+    generation: number,
+    rotated?: ReadonlySet<string>,
+  ): Promise<McpConfigPublishResult>;
 }
 
 export function releaseFences(state: CutoverState): void {

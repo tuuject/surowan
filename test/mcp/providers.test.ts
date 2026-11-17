@@ -2,7 +2,7 @@ import { fauxAssistantMessage, fauxToolCall, normalizeContext } from '@earendil-
 import { expect, test } from 'vitest';
 import { loadToolImages, projectCompletionsToolImages } from '../../src/capabilities/media/tool-images.ts';
 import { buildModelRegistry } from '../../src/platform/providers.ts';
-import { keyJarPath } from '../../src/platform/key-jar.ts';
+import { keychainPath } from '../../src/platform/keychain.ts';
 import { SecretStore } from '../../src/platform/secrets.ts';
 import { scrubModelRequestAuditJson } from '../../src/platform/models/request-audit.ts';
 import { startFixtureServer, stopFixtureServer } from '../helpers.ts';
@@ -49,7 +49,7 @@ for (const [api, modelId] of [
           },
         },
         null,
-        new SecretStore(keyJarPath(f.loaded.configPath)),
+        new SecretStore(keychainPath(f.loaded.configPath)),
       );
       const model = registry.models.getModel('agent', modelId)!;
       const first = appendImageResult(f, await f.tool.execute('call_a|item_a', {}), 'call_a|item_a');

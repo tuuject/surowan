@@ -18,7 +18,7 @@ import { TelegramIngestion } from '../../src/ingress/telegram-ingestion/index.ts
 import { BucketScheduler } from '../../src/orchestration/scheduler/index.ts';
 import { type LoadedConfig, loadConfig } from '../../src/adapters/local-monolith/config/index.ts';
 import { ConfigReloader } from '../../src/adapters/local-monolith/config/reload.ts';
-import { keyJarPath } from '../../src/platform/key-jar.ts';
+import { keychainPath } from '../../src/platform/keychain.ts';
 import { AgentModelSwitcher } from '../../src/platform/models/switch.ts';
 import type { RuntimeConfigurationStore } from '../../src/platform/runtime-config.ts';
 import { SecretStore } from '../../src/platform/secrets.ts';
@@ -98,7 +98,7 @@ export async function adminFixture(): Promise<{
   );
   const loaded = await loadConfig(configPath);
   const configStore = await testConfigStore(loaded);
-  const secrets = new SecretStore(keyJarPath(configPath));
+  const secrets = new SecretStore(keychainPath(configPath));
   const switcher = new AgentModelSwitcher(configStore);
   const reloader = new ConfigReloader({
     loaded,

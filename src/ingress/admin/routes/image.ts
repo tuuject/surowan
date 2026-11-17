@@ -1,20 +1,24 @@
-import Type from 'typebox';
 import { Compile } from 'typebox/compile';
 import type { ImageBridge } from '../../../image/bridge.ts';
-import type { SecretStore } from '../../../platform/secrets.ts';
-import type { ConfigController, ConfigEdit } from '../../../platform/config/write.ts';
+import type { SecretRef } from '../../../platform/config/index.ts';
+import type { ConfigController, ConfigEdit, KeychainReplacement, SecretWrite } from '../../../platform/config/write.ts';
 import {
   listOpenRouterImageEndpoints,
   listOpenRouterImageModels,
   validImageModelId,
 } from '../../../platform/image-models.ts';
-import { json, readJsonObject, redact, requiredRevision, revisionRequired } from '../http.ts';
+import type { SecretStore } from '../../../platform/secrets.ts';
 import { CONFIG_WRITE_STATUS } from '../config-file.ts';
-import { type createImageAdminHandler, type ImageAdminResponse, reusableImageCredentials } from '../image.ts';
-
-const imageCredentialSourcesValidator = Compile(
-  Type.Record(Type.String({ pattern: '^[a-zA-Z0-9_-]{1,80}$' }), Type.String({ minLength: 1, maxLength: 80 })),
-);
+import { json, readJsonObject, redact, requiredRevision, revisionRequired } from '../http.ts';
+import type { createImageAdminHandler, ImageAdminResponse } from '../image.ts';
+import {
+  type CallerClass,
+  resolveSecretInput,
+  SecretAllocator,
+  type SecretInput,
+  sameSecretRef,
+  secretSourceOf,
+} from '../secret-input.ts';
 
 export type ImageAdminHandler = ReturnType<typeof createImageAdminHandler>;
 
@@ -30,7 +34,7 @@ export interface ImageAdminRoutesDeps {
 export function createImageAdminRoutes(deps: ImageAdminRoutesDeps) {
   const { image, bridge, configReloader, secrets } = deps;
 
-  const imageConfigView = async (): Promise<Response> => {
+  const imageConfigView = async (withSources: boolean): Promise<Response> => {
     const reloader = configReloader;
     if (reloader === undefined) {
       return json({ error: 'config_reload_unavailable', message: 'Configuration reloading is not wired' }, 503);
@@ -40,23 +44,30 @@ export function createImageAdminRoutes(deps: ImageAdminRoutesDeps) {
     if (revision !== (await reloader.revision())) {
       return json({ error: 'config_conflict', message: '配置已变化，请重新加载' }, 409);
     }
+    const credentials = Object.entries(loaded.fileConfig.image?.credentials ?? {});
     return json({
       revision,
       enabled: loaded.fileConfig.image !== undefined,
-      credentials: Object.keys(loaded.fileConfig.image?.credentials ?? {}),
-      credential_providers: Object.keys(reusableImageCredentials(loaded.fileConfig)),
+      credentials: credentials.map(([name]) => name),
+      ...(withSources
+        ? { credential_key_sources: Object.fromEntries(credentials.map(([name, ref]) => [name, secretSourceOf(ref)])) }
+        : {}),
       models: loaded.fileConfig.image?.models ?? [],
     });
   };
 
   /**
    * The image capability switch: enable writes the `image` section (plaintext
-   * credentials travel as edit keys into the key jar, the file keeps SecretRef
-   * names), disable removes the section — which also garbage-collects the
-   * now-unreferenced jar entries. Applies through the reloader lock, so the
-   * snapshot publishes without a restart.
+   * credentials travel as edit keys into the keychain, the file keeps SecretRef
+   * names), disable removes the section — leaving the entries in place for an
+   * explicit purge. Applies through the reloader lock, so the snapshot
+   * publishes without a restart.
    */
-  const applyImageConfig = async (body: Record<string, unknown>, revision: string): Promise<ImageAdminResponse> => {
+  const applyImageConfig = async (
+    body: Record<string, unknown>,
+    revision: string,
+    caller: CallerClass,
+  ): Promise<ImageAdminResponse> => {
     const reloader = configReloader;
     if (reloader === undefined) {
       return {
@@ -73,6 +84,8 @@ export function createImageAdminRoutes(deps: ImageAdminRoutesDeps) {
       return { kind: 'json', status: 409, body: { error: 'config_conflict', message: '配置已变化，请重新加载后保存' } };
     }
     let edits: readonly ConfigEdit[];
+    let repairs: Record<string, string> | undefined;
+    let replaces: KeychainReplacement[] | undefined;
     if (!enabled) {
       edits = [{ path: ['image'], value: undefined }];
     } else {
@@ -92,39 +105,79 @@ export function createImageAdminRoutes(deps: ImageAdminRoutesDeps) {
         };
       }
       const loaded = await reloader.readPersisted();
-      const credentialNames: Record<string, string> = {};
-      const secretRefs = { ...loaded.fileConfig.image?.credentials };
-      const sources = body.credential_sources ?? {};
-      if (!imageCredentialSourcesValidator.Check(sources)) {
-        return { kind: 'json', status: 400, body: { error: 'invalid_body', message: '凭据来源格式不正确' } };
-      }
-      const reusable = reusableImageCredentials(loaded.fileConfig);
-      for (const [name, alias] of Object.entries(sources)) {
-        const ref = Object.hasOwn(reusable, alias) ? reusable[alias] : undefined;
-        if (ref === undefined) {
-          return {
-            kind: 'json',
-            status: 400,
-            body: { error: 'invalid_body', message: `OpenRouter 凭据来源不存在：${alias}` },
-          };
-        }
-        secretRefs[name] = ref;
-      }
-      for (const [name, plaintext] of Object.entries(credentials)) {
-        if (!/^[a-zA-Z0-9_-]{1,80}$/.test(name) || typeof plaintext !== 'string' || plaintext.length === 0) {
+      const snapshot = await reloader.keychainSnapshot();
+      const allocator = new SecretAllocator(
+        new Set(snapshot.entries.map((entry) => entry.name)),
+        snapshot.usage.file ?? {},
+      );
+      const savedRefs: Record<string, SecretRef> = Object.assign(
+        Object.create(null),
+        loaded.fileConfig.image?.credentials ?? {},
+      );
+      const keys: Record<string, string> = Object.create(null);
+
+      const remembered: string[] = [];
+      for (const [name, value] of Object.entries(credentials as Record<string, unknown>)) {
+        if (!/^[a-zA-Z0-9_-]{1,80}$/.test(name)) {
           return {
             kind: 'json',
             status: 400,
             body: { error: 'invalid_body', message: `invalid credential entry: ${name}` },
           };
         }
-        credentialNames[name] = plaintext;
-        secretRefs[name] = { jar: name };
+        const read = readCredentialInput(value);
+        if (read === null) {
+          // No submitted secret for this name: the stored reference stays.
+          continue;
+        }
+        if (!read.ok) {
+          return {
+            kind: 'json',
+            status: 400,
+            body: {
+              error: 'invalid_body',
+              message: `credential ${name} must be a string, { value, name? } or { entry }, or null to keep the stored one`,
+            },
+          };
+        }
+        const resolved = resolveSecretInput(
+          read.input,
+          {
+            path: `image.credentials.${name}`,
+            editPath: ['image', 'credentials', name],
+            current: savedRefs[name],
+            suggestedName: name,
+          },
+          caller,
+          allocator,
+        );
+        if (resolved.kind !== 'reuse') {
+          remembered.push(resolved.plaintext);
+        }
+        if (resolved.kind === 'new') {
+          keys[resolved.name] = resolved.plaintext;
+        } else if (resolved.kind === 'repair') {
+          const target: Record<string, string> = repairs ?? Object.create(null);
+          target[resolved.name] = resolved.plaintext;
+          repairs = target;
+        } else if (resolved.kind === 'rotate') {
+          if (replaces === undefined) {
+            replaces = [];
+          }
+          replaces.push({
+            name: resolved.name,
+            value: resolved.plaintext,
+            requestedBy: `image.credentials.${name}`,
+          });
+        }
+        if (!sameSecretRef(resolved.ref, savedRefs[name])) {
+          savedRefs[name] = resolved.ref;
+        }
       }
       const { ImageSectionSchema } = await import('../../../platform/config/schema.ts');
       const sectionValidator = Compile(ImageSectionSchema);
-      if (!sectionValidator.Check({ credentials: secretRefs, models })) {
-        const detail = [...sectionValidator.Errors({ credentials: secretRefs, models })]
+      if (!sectionValidator.Check({ credentials: savedRefs, models })) {
+        const detail = [...sectionValidator.Errors({ credentials: savedRefs, models })]
           .slice(0, 3)
           .map((error) => `${error.instancePath}: ${error.message ?? 'invalid'}`)
           .join('; ');
@@ -140,7 +193,7 @@ export function createImageAdminRoutes(deps: ImageAdminRoutesDeps) {
           return { kind: 'json', status: 400, body: { error: 'invalid_body', message: `模型 ID 重复：${model.id}` } };
         }
         modelIds.add(model.id);
-        if (!Object.hasOwn(secretRefs, model.credentialRef)) {
+        if (!Object.hasOwn(savedRefs, model.credentialRef)) {
           return {
             kind: 'json',
             status: 400,
@@ -148,15 +201,32 @@ export function createImageAdminRoutes(deps: ImageAdminRoutesDeps) {
           };
         }
       }
-      for (const plaintext of Object.values(credentialNames)) {
+      for (const plaintext of remembered) {
         secrets?.remember(plaintext);
       }
-      edits = [
-        { path: ['image', 'credentials'], value: secretRefs, keys: credentialNames },
-        { path: ['image', 'models'], value: models },
-      ];
+      // A rotate-only save (every reference stays, no new entries) is not a
+      // configuration change: the rotation rides on the keychain alone and the
+      // no-op edits are dropped, so `writeConfigEdits` does not reject them.
+      const refsMoved = JSON.stringify(savedRefs) !== JSON.stringify(loaded.fileConfig.image?.credentials ?? {});
+      const modelsMoved = JSON.stringify(models) !== JSON.stringify(loaded.fileConfig.image?.models ?? []);
+      const nextEdits: ConfigEdit[] = [];
+      if (refsMoved || Object.keys(keys).length > 0) {
+        nextEdits.push({
+          path: ['image', 'credentials'],
+          value: savedRefs,
+          ...(Object.keys(keys).length > 0 ? { keys } : {}),
+        });
+      }
+      if (modelsMoved) {
+        nextEdits.push({ path: ['image', 'models'], value: models });
+      }
+      edits = nextEdits;
     }
-    const result = await reloader.writeAndApply(edits, revision);
+    const secretsWrite: SecretWrite = {
+      ...(repairs === undefined || Object.keys(repairs).length === 0 ? {} : { add: repairs }),
+      ...(replaces !== undefined && replaces.length > 0 ? { replace: replaces } : {}),
+    };
+    const result = await reloader.writeSecretsAndApply(edits, secretsWrite, revision);
     if (!result.ok) {
       const message = result.fileWritten
         ? `config.jsonc was updated but not applied: ${result.message}`
@@ -180,13 +250,14 @@ export function createImageAdminRoutes(deps: ImageAdminRoutesDeps) {
       url: URL,
       segments: readonly string[],
       username: string,
+      caller: CallerClass,
     ): Promise<Response | undefined> {
       if (segments[0] !== 'image') {
         return undefined;
       }
       const route = segments.join('/');
       if (route === 'image/config' && request.method === 'GET') {
-        return await imageConfigView();
+        return await imageConfigView(caller === 'session');
       }
       if (request.method === 'GET' && (route === 'image/models' || route === 'image/models/endpoints')) {
         const model = url.searchParams.get('model');
@@ -215,7 +286,7 @@ export function createImageAdminRoutes(deps: ImageAdminRoutesDeps) {
         url,
         { username },
         (maxBytes) => readJsonObject(request, maxBytes),
-        async (body) => await applyImageConfig(body, requiredRevision(request) ?? ''),
+        async (body) => await applyImageConfig(body, requiredRevision(request) ?? '', caller),
       );
       if (response.kind === 'content') {
         return new Response(new Uint8Array(response.bytes), {
@@ -226,4 +297,30 @@ export function createImageAdminRoutes(deps: ImageAdminRoutesDeps) {
       return json(response.body, response.status);
     },
   };
+}
+
+/** One submitted credential value: the shared secret input union, or nothing. */
+function readCredentialInput(
+  value: unknown,
+): { readonly ok: true; readonly input: SecretInput } | { readonly ok: false } | null {
+  if (value === undefined || value === null || value === '') {
+    return null;
+  }
+  if (typeof value === 'string') {
+    return { ok: true, input: value };
+  }
+  if (typeof value === 'object' && !Array.isArray(value)) {
+    const record = value as Record<string, unknown>;
+    if (typeof record.entry === 'string' && Object.keys(record).length === 1) {
+      return { ok: true, input: { entry: record.entry } };
+    }
+    if (typeof record.value === 'string') {
+      const name = typeof record.name === 'string' ? record.name : undefined;
+      return {
+        ok: true,
+        input: name === undefined ? { value: record.value } : { value: record.value, name },
+      };
+    }
+  }
+  return { ok: false };
 }

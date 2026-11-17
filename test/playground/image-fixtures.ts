@@ -40,7 +40,7 @@ import { PlaygroundIngress } from '../../src/ingress/playground.ts';
 import { createCoreRuntime } from '../../src/orchestration/runtime.ts';
 import { KeyedSemaphore } from '../../src/platform/concurrency.ts';
 import { noMemoReads, unavailableCapabilities, type InvocationContext } from '../../src/platform/invocation-context.ts';
-import { keyJarPath } from '../../src/platform/key-jar.ts';
+import { keychainPath } from '../../src/platform/keychain.ts';
 import { SecretStore } from '../../src/platform/secrets.ts';
 import type { SystemSkill } from '../../src/platform/system-resources.ts';
 import { BUILTIN_PLUGINS } from '../../src/plugins/builtin.ts';
@@ -55,7 +55,7 @@ import {
   testConfigStore,
   trackTempDirectory,
   writeTestConfig,
-  writeTestKeyJar,
+  writeTestKeychain,
 } from '../helpers.ts';
 import { resolveConversation } from '../../src/adapters/local-monolith/runtime/support.ts';
 
@@ -126,7 +126,7 @@ export async function writeImageFixture(directory: string, configPath: string, m
       };
     }),
   );
-  await writeTestKeyJar(directory, {
+  await writeTestKeychain(directory, {
     openrouter: 'sk-image-v1',
     agent: 'sk-agent',
     vision: 'sk-vision',
@@ -176,7 +176,7 @@ export async function playgroundImageFixture(options: FixtureOptions = {}) {
       cleanups.push(() => service.stop());
     },
   );
-  service.publishConfig(await service.prepareConfig(loaded.config, new SecretStore(keyJarPath(configPath))));
+  service.publishConfig(await service.prepareConfig(loaded.config, new SecretStore(keychainPath(configPath))));
   // A room-only runtime: its task service serves the same host set.
   const tasks = new LongTaskService(store.orm, undefined, ['playground']);
   const bridge = createImageBridge({

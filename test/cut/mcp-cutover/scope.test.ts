@@ -3,14 +3,15 @@
  * reconciled: pure additions abort nothing, a removed Chat belongs to the chat
  * lifecycle, and a binding is always resolved from the published configuration.
  */
-import { eq } from 'drizzle-orm';
+
 import { join } from 'node:path';
+import { eq } from 'drizzle-orm';
 import { expect, test } from 'vitest';
 import { conversations, invocations } from '../../../src/store/schema/index.ts';
 import { seedChat } from '../../memo/fixtures.ts';
 import {
-  CHAT_ANY,
   CHAT_A,
+  CHAT_ANY,
   CHAT_B,
   contextFor,
   fixture,
@@ -36,7 +37,9 @@ test('adding a server aborts nothing and reaches the Chats that resolve to it', 
   expect(result.servers).toMatchObject({ added: ['gamma'], replaced: [], removed: [] });
   expect(f.store.orm.select().from(invocations).where(eq(invocations.id, invocationId)).get()?.state).toBe('running');
   // The new Chat has no binding, so it reaches every server; the next Invocation picks gamma up.
-  expect(f.manager.toolNamesForChat(BigInt(CHAT_ANY), next)).toEqual(['alpha__echo', 'beta__echo', 'gamma__echo']);
+  expect([...f.manager.toolNamesForChat(BigInt(CHAT_ANY), next)].sort()).toEqual(
+    ['alpha__echo', 'beta__echo', 'gamma__echo', 'scripted__echo'].sort(),
+  );
 });
 
 test('a Chat removed together with its server is left to the chat lifecycle', async () => {

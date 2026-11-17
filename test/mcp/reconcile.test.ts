@@ -1,17 +1,17 @@
-import { afterAll, expect, test } from 'vitest';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import type { McpServerConfig, RawConfig } from '../../src/platform/config/index.ts';
+import { afterAll, expect, test } from 'vitest';
 import { type LoadedConfig, loadConfig } from '../../src/adapters/local-monolith/config/index.ts';
 import { SqliteStore } from '../../src/adapters/local-monolith/database.ts';
 import { awaitServerAttempts } from '../../src/capabilities/mcp/availability.ts';
 import { McpManager } from '../../src/capabilities/mcp/index.ts';
 import type { McpServerReconcileResult } from '../../src/capabilities/mcp/shared.ts';
+import type { McpServerConfig, RawConfig } from '../../src/platform/config/index.ts';
 import { type InvocationContext, previewContext } from '../../src/platform/invocation-context.ts';
-import { keyJarPath } from '../../src/platform/key-jar.ts';
+import { keychainPath } from '../../src/platform/keychain.ts';
 import { SecretStore } from '../../src/platform/secrets.ts';
-import { testConfigJsonc, writeTestConfig, type FixtureConfig } from '../helpers.ts';
+import { type FixtureConfig, testConfigJsonc, writeTestConfig } from '../helpers.ts';
 
 const directories: string[] = [];
 
@@ -74,7 +74,7 @@ async function fixture(): Promise<{
     ];
   });
   const store = await SqliteStore.open(loaded.config);
-  const manager = new McpManager(store, loaded.config, new SecretStore(keyJarPath(loaded.configPath)));
+  const manager = new McpManager(store, loaded.config, new SecretStore(keychainPath(loaded.configPath)));
   let generation = 1;
   return {
     directory,

@@ -8,7 +8,7 @@ import { SqliteStore } from '../../src/adapters/local-monolith/database.ts';
 import { McpManager } from '../../src/capabilities/mcp/index.ts';
 import { awaitServerAttempts } from '../../src/capabilities/mcp/availability.ts';
 import { type InvocationContext, previewContext } from '../../src/platform/invocation-context.ts';
-import { keyJarPath } from '../../src/platform/key-jar.ts';
+import { keychainPath } from '../../src/platform/keychain.ts';
 import { buildModelRegistry, configuredAgentModels, modelsForTelegramChats } from '../../src/platform/providers.ts';
 import { SecretStore } from '../../src/platform/secrets.ts';
 import { testConfigJsonc, writeTestConfig, type FixtureConfig } from '../helpers.ts';
@@ -78,7 +78,7 @@ async function harness(transform: (config: FixtureConfig) => void): Promise<Harn
   );
   const loaded = await loadConfig(configPath);
   const store = await SqliteStore.open(loaded.config);
-  const secrets = new SecretStore(keyJarPath(loaded.configPath));
+  const secrets = new SecretStore(keychainPath(loaded.configPath));
   const manager = new McpManager(store, loaded.config, secrets);
   const registry = await buildModelRegistry(loaded.config, null, secrets);
   return {

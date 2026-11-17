@@ -1,15 +1,16 @@
+import type { SecretDraft } from '@/components/secret-input/secret-field.tsx';
 import type { ImageModelConfig } from '@/lib/api/images.ts';
 
 /** Model row in the form: `key` is a stable React key, `description` is normalized to a string. */
 export type EditableModel = ImageModelConfig & { key: string; description: string };
 
-/** Credential row in the form: `key` is a stable React key, `source` names a saved key alias or is empty. */
+/** Credential row in the form: `key` is a stable React key, `draft` carries the key input. */
 export type EditableCredential = {
   key: string;
   name: string;
-  secret: string;
+  /** True when the configuration already stores this credential. */
   saved: boolean;
-  source: string;
+  draft: SecretDraft;
 };
 
 /** Strip the stable key and omit empty descriptions before persisting. */

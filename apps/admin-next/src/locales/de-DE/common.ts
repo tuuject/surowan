@@ -111,4 +111,20 @@ export const common: Catalog<typeof commonEn> = {
     tool_result: 'Tool-Ergebnis',
     harness_nudge: 'Sende-Erinnerung',
   },
+  secret: {
+    sourceLabel: 'Schlüsselquelle',
+    newKey: 'Neuen Schlüssel eingeben',
+    existingEntry: 'Vorhandenen Eintrag verwenden',
+    external: 'Externe Referenz',
+    valueHint: 'Der Wert liegt im Keychain; die Datei nennt nur den Eintrag.',
+    valuePlaceholder: 'Geheimnis einfügen',
+    entryName: 'Eintragsname',
+    nameHint: '1-64 Buchstaben, Ziffern, "_" oder "-"; nach dem Verwendungsort vorbelegt.',
+    nameInvalid: 'Der Eintragsname darf nur 1-64 Buchstaben, Ziffern, "_" oder "-" enthalten.',
+    existingHint: 'Der Eintrag kann geteilt sein: eine Rotation im Keychain wirkt auf jede Verwendung.',
+    providedByEnv:
+      'Durch die Umgebungsvariable {{env}} bereitgestellt; ein Wechsel ersetzt sie durch einen Keychain-Eintrag.',
+    providedByCommand:
+      'Durch einen externen Befehl bereitgestellt; ein Wechsel ersetzt ihn durch einen Keychain-Eintrag.',
+  },
 };

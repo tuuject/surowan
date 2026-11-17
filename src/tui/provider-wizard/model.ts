@@ -275,9 +275,9 @@ export async function discoverProviderModels(
     readonly apiKey: SecretRef;
     readonly headers?: Readonly<Record<string, SecretRef>>;
   },
-  keyJar: string,
+  keychain: string,
 ): Promise<DiscoveredProviderModel[]> {
-  const secrets = new SecretStore(keyJar);
+  const secrets = new SecretStore(keychain);
   try {
     // The wizard may use `jar`, `env` and `command` refs, so it resolves them here; the
     // listing call itself only ever sees the resolved values.

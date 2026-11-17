@@ -86,7 +86,7 @@ printf '%s' "$NEW_PROMPT" | surowan-utils prompt save global --file - --json
 | `prompt cancel-running` | 只取消仍按旧 Prompt 运行的 Invocation；已发出的消息不撤回 |
 | `session cancel` | 中止全部 running/queued Invocation 并过期其 Bucket |
 | `restart` | 进程以退出码 75 退出，依赖外部 supervisor 拉起；未声明 `PLASTICWAN_SUPERVISED=1` 时返回 409 |
-| `telegram token clear` | 删除 Bot Token 并回收不再被引用的 jar 条目；Telegram 随即停用。设置新 token 用 `telegram token`，不需要 `--yes` |
+| `telegram token clear` | 删除 Bot Token（keychain 条目保留，等面板「密钥」页清理）；Telegram 随即停用。设置新 token 用 `telegram token`，不需要 `--yes` |
 | `developer clear-payloads` | 分批清空历史模型报文，审计行保留但报文不可恢复 |
 | `warning clear` / `group-memory delete` / `memo delete` | 删除事件告警 / 群聊记忆事件 / Memo 条目及其孤立 Blob |
 

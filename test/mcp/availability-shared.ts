@@ -8,7 +8,7 @@ import { SqliteStore } from '../../src/adapters/local-monolith/database.ts';
 import { McpManager } from '../../src/capabilities/mcp/index.ts';
 import type { McpServerConfig } from '../../src/platform/config/index.ts';
 import { type InvocationContext, previewContext } from '../../src/platform/invocation-context.ts';
-import { keyJarPath } from '../../src/platform/key-jar.ts';
+import { keychainPath } from '../../src/platform/keychain.ts';
 import { SecretStore } from '../../src/platform/secrets.ts';
 import { seedChat, seedInvocation } from '../memo/fixtures.ts';
 import { testConfigJsonc, trackTempDirectory, writeTestConfig, type FixtureConfig } from '../helpers.ts';
@@ -89,7 +89,7 @@ export async function harness(transform: (config: FixtureConfig, directory: stri
     config.telegram.chats = [{ id: CHAT, instructions_file: 'chat-instructions.md' }];
   });
   const store = await SqliteStore.open(loaded.config);
-  const manager = new McpManager(store, loaded.config, new SecretStore(keyJarPath(loaded.configPath)));
+  const manager = new McpManager(store, loaded.config, new SecretStore(keychainPath(loaded.configPath)));
   const seeded = seedChat(store, BigInt(CHAT));
   const invocationId = seedInvocation(store, seeded.conversationId);
   const context: InvocationContext = {

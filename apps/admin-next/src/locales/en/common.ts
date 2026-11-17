@@ -117,4 +117,19 @@ export const common = {
     tool_result: 'Tool result',
     harness_nudge: 'Send reminder',
   },
+  /** The shared secret-accepting field: a new key, an existing entry, or a read-only external reference. */
+  secret: {
+    sourceLabel: 'Key source',
+    newKey: 'Enter a new key',
+    existingEntry: 'Use an existing entry',
+    external: 'External reference',
+    valueHint: 'The value is stored in the keychain; the file only names it.',
+    valuePlaceholder: 'Paste the secret',
+    entryName: 'Entry name',
+    nameHint: '1-64 letters, digits, "_" or "-"; prefilled from where this field sits.',
+    nameInvalid: 'The entry name must use 1-64 letters, digits, "_" or "-".',
+    existingHint: 'The entry is shared: rotating it in the keychain affects every use.',
+    providedByEnv: 'Provided by the environment variable {{env}}; switching replaces it with a keychain entry.',
+    providedByCommand: 'Provided by an external command; switching replaces it with a keychain entry.',
+  },
 };

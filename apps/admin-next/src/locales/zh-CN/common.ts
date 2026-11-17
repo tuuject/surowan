@@ -111,4 +111,19 @@ export const common: typeof commonEn = {
     tool_result: '工具结果',
     harness_nudge: '发送提醒',
   },
+  /** 共享的密钥输入控件：填新密钥、选用已有条目，或只读展示外部引用。 */
+  secret: {
+    sourceLabel: '密钥来源',
+    newKey: '填入新密钥',
+    existingEntry: '选用已有条目',
+    external: '外部引用',
+    valueHint: '密钥存进 keychain，配置文件里只写条目名。',
+    valuePlaceholder: '粘贴密钥',
+    entryName: '条目名',
+    nameHint: '1-64 个字母、数字、"_" 或 "-"；已按使用位置预填。',
+    nameInvalid: '条目名只能用 1-64 个字母、数字、"_" 或 "-"。',
+    existingHint: '该条目可能被多处共用：在 keychain 里轮换会同时影响所有使用处。',
+    providedByEnv: '由环境变量 {{env}} 提供；切换后将改用 keychain 条目。',
+    providedByCommand: '由外部命令提供；切换后将改用 keychain 条目。',
+  },
 };

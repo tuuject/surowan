@@ -33,7 +33,7 @@ export type ImageService = {
   stop(): Promise<void>;
   /**
    * Candidate preparation for `ConfigReloader`: resolves the image section's
-   * SecretRefs against the key jar and validates the models through the
+   * SecretRefs against the keychain and validates the models through the
    * package contract. Returns undefined when no image section is configured.
    * Throws `SecretResolutionError` or a zod error; the caller reports the
    * failure and keeps the previously published snapshot.
@@ -106,7 +106,7 @@ export function createImageService(
       const models = image.models.map((model) => modelDefinitionSchema.parse(model));
       return createImageConfigSnapshot({
         // The snapshot's identity covers models and resolved credential values
-        // alike, so a key-jar rotation yields a new version even when the
+        // alike, so a keychain rotation yields a new version even when the
         // configuration file itself did not change.
         version: createHash('sha256').update(JSON.stringify({ models, credentials })).digest('hex').slice(0, 32),
         models,

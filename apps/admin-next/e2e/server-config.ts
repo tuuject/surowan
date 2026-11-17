@@ -10,7 +10,7 @@
 import { type LoadedConfig, loadConfig } from '../../../src/adapters/local-monolith/config/index.ts';
 import type { AdminConfig } from '../../../src/ingress/admin/index.ts';
 import { loadModelsDevCatalog } from '../../../src/platform/models-dev.ts';
-import { testConfigJsonc, writeTestConfig, writeTestKeyJar } from '../../../test/helpers.ts';
+import { testConfigJsonc, writeTestConfig, writeTestKeychain } from '../../../test/helpers.ts';
 import {
   E2E_BUILTIN_ALIAS,
   E2E_BUILTIN_PROVIDER,
@@ -107,7 +107,7 @@ export async function prepareConfig(options: {
       config.telegram.sticker_sets = [{ alias: 'mascot', name: 'surowan_mascot' }];
     }),
   );
-  await writeTestKeyJar(directory, {
+  await writeTestKeychain(directory, {
     'e2e-builtin': E2E_SECRETS.builtin,
     'e2e-relay': E2E_SECRETS.relay,
     'e2e-relay-header': E2E_SECRETS.relayHeader,

@@ -36,7 +36,7 @@ test.describe('providers page', () => {
     await expect(keyInput).toHaveAttribute('type', 'password');
     await expect(keyInput).toHaveAttribute('autocomplete', 'new-password');
     await expect(keyInput).toHaveValue('');
-    await expect(page.getByText('Saved; leave empty to keep it')).toBeVisible();
+    await expect(page.getByText('The value is stored in the keychain', { exact: false })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Fetch models', exact: true })).toBeVisible();
     await expect(page.locator('[data-model-list] li').first()).toBeVisible();
     await expect(page.locator('[data-route-error]')).toHaveCount(0);
