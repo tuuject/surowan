@@ -59,6 +59,45 @@ test('a changed online retention window is applied, not outside serve', async ()
   }
 });
 
+test('adding and removing a deprecated key applies without a restart and only moves the warnings', async () => {
+  const fixture = await setup();
+  try {
+    const before = fixture.configStore.current().config;
+    await fixture.patch((config) => {
+      (config.agent as Record<string, unknown>).send_empty_text_fallback_enabled = true;
+    });
+    const added = await fixture.reloader.reloadFromFile();
+    expect(added.ok).toBe(true);
+    if (!added.ok) {
+      throw new Error(added.message);
+    }
+    expect(added.applied).toEqual(['agent.send_empty_text_fallback_enabled']);
+    expect(added.restartRequired).toEqual([]);
+    expect(added.outsideServe).toEqual([]);
+    const withFlag = fixture.configStore.current().config;
+    expect(withFlag.deprecated_fields).toEqual(['agent.send_empty_text_fallback_enabled']);
+    // Inert by construction: the flag does not reach the resolved agent section.
+    expect(Object.hasOwn(withFlag.agent, 'send_empty_text_fallback_enabled')).toBe(false);
+    expect(withFlag.agent.send_empty_text_strategy).toBe(before.agent.send_empty_text_strategy);
+    expect(withFlag.agent).toEqual(before.agent);
+
+    await fixture.patch((config) => {
+      delete (config.agent as Record<string, unknown>).send_empty_text_fallback_enabled;
+    });
+    const removed = await fixture.reloader.reloadFromFile();
+    expect(removed.ok).toBe(true);
+    if (!removed.ok) {
+      throw new Error(removed.message);
+    }
+    expect(removed.applied).toEqual(['agent.send_empty_text_fallback_enabled']);
+    expect(removed.restartRequired).toEqual([]);
+    expect(fixture.configStore.current().config.deprecated_fields).toEqual([]);
+    expect(fixture.configStore.current().config.agent).toEqual(before.agent);
+  } finally {
+    fixture.store.close();
+  }
+});
+
 test('keeps the active configuration when the file is invalid', async () => {
   const fixture = await setup();
   const before = fixture.configStore.current();

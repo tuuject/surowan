@@ -188,6 +188,27 @@ test('saving an unchanged explicit reject strategy writes nothing and survives o
   expect((await loadConfig(f.path)).fileConfig.agent?.send_empty_text_strategy).toBe('reject');
 });
 
+test('a harness save keeps a deprecated flag in the file and writes no unchosen strategy', async () => {
+  const f = await fixture((config) => {
+    (config.agent as Record<string, unknown>).send_empty_text_fallback_enabled = true;
+  });
+  const { revision, saved } = await f.view();
+  // The deprecated field never reaches the page's values at all.
+  expect(Object.hasOwn(saved, 'send_empty_text_fallback_enabled')).toBe(false);
+
+  const response = await f.update({ send_nudge_enabled: false }, revision);
+  expect(response.status).toBe(200);
+  const file = (await loadConfig(f.path)).fileConfig.agent;
+  // The deprecated key survives the targeted edit; no strategy is invented.
+  expect(file?.send_empty_text_fallback_enabled).toBe(true);
+  expect(Object.hasOwn(file ?? {}, 'send_empty_text_strategy')).toBe(false);
+  // And it stays inert: the resolved runtime config never carries it.
+  const active = f.configStore.current().config;
+  expect(active.agent.send_empty_text_strategy).toBe('reject');
+  expect(Object.hasOwn(active.agent, 'send_empty_text_fallback_enabled')).toBe(false);
+  expect(active.deprecated_fields).toEqual(['agent.send_empty_text_fallback_enabled']);
+});
+
 test('a value equal to the file, or to an absent default, writes nothing', async () => {
   const f = await fixture();
   const before = await readFile(f.path, 'utf8');

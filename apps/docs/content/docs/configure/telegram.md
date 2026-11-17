@@ -108,6 +108,7 @@ Bot 不会逐条回复：一个 Chat（或 Topic）的第一条新消息到达�
 - `random_text` 的文本照常遵守引用回复、文本长度、空行和重复发送等规则；同一次运行里连续抽中同一条时，第二次会被当作重复发送拦下。
 - 每条兜底文本必须是一行、含有非空白字符；贴纸、图片、文件和写了文字的发送不受任何策略影响。
 - 也可以在管理面板 Harness 页面用「Empty-text sends」下拉框切换策略，并在「Fallback texts」里一行写一条兜底文本。这些都是全局字段、无每群覆盖，属于热更新，显式应用配置后下一次 Invocation 生效。
+- 旧字段 `agent.send_empty_text_fallback_enabled` 已废弃：配置里还留着会被接受但不再有任何效果（`true` 不再推导 `random_text`），加载时会产生一条废弃字段警告；要保留旧兜底行为请改用上面的 `send_empty_text_strategy`。
 
 ## 输入状态
 

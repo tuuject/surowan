@@ -105,11 +105,26 @@ export const AgentSectionSchema = Type.Object(
     max_concurrency: Type.Optional(PositiveInteger),
     context_stop_ratio: Type.Optional(Type.Number({ exclusiveMinimum: 0, maximum: 0.8 })),
     history_messages: Type.Optional(Type.Integer({ minimum: 1 })),
+    memory_ttl_warning_days: Type.Optional(
+      Type.Integer({
+        minimum: 1,
+        deprecated: true,
+        description: 'Deprecated: still accepted but has no effect; remove the field.',
+      }),
+    ),
     send_nudge_enabled: Type.Optional(Type.Boolean()),
     send_barrier_enabled: Type.Optional(Type.Boolean()),
     allow_reply_message_multiple_times: Type.Optional(Type.Boolean({ default: false })),
     send_duplicate_guard_enabled: Type.Optional(Type.Boolean({ default: true })),
     send_empty_text_strategy: Type.Optional(EmptyTextSendStrategySchema),
+    send_empty_text_fallback_enabled: Type.Optional(
+      Type.Boolean({
+        default: false,
+        deprecated: true,
+        description:
+          'Deprecated: has no effect; set send_empty_text_strategy to "random_text" for the old fallback behaviour.',
+      }),
+    ),
     // One line each: the panel edits the list as a one-per-line textarea, so a
     // line break inside an entry could not survive a round trip there.
     send_empty_text_fallback_texts: Type.Optional(
@@ -141,6 +156,12 @@ export const VisionSectionSchema = Type.Object(
     thinking_level: Type.Optional(ThinkingLevelSchema),
     max_output_tokens: Type.Optional(PositiveInteger),
     max_concurrency: Type.Optional(PositiveInteger),
+    background_sticker_concurrency: Type.Optional(
+      Type.Literal(1, {
+        deprecated: true,
+        description: 'Deprecated: still accepted but has no effect; remove the field.',
+      }),
+    ),
     prompt_version: Type.Optional(PositiveInteger),
     daily_budget: Type.Optional(
       Type.Object({ max_tokens: Type.Optional(PositiveInteger), max_images: Type.Optional(PositiveInteger) }, Strict),

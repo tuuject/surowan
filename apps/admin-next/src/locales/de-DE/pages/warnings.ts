@@ -23,6 +23,7 @@ export const warnings: Catalog<typeof warningsEn> = {
   missingFields: 'Fehlt: {{fields}}',
   invalidApiKeys: 'Ungültige Schlüssel: {{keys}}',
   mcpDeprecatedAliases: 'Noch gesetzt bei: {{aliases}}',
+  deprecatedConfigFields: 'Noch gesetzt: {{fields}}',
   mcpNextReconnect: 'nächster Versuch <time>{{time}}</time>',
   lastFailedAt: 'Letzter Fehlschlag: <time>{{time}}</time>',
   createdAt: 'Erstellt <time>{{time}}</time>',
@@ -81,6 +82,11 @@ export const warnings: Catalog<typeof warningsEn> = {
     api_key_invalid_permissions: {
       title: 'API-Schlüssel mit ungültigen Berechtigungen',
       body: 'Ein oder mehrere API-Schlüssel haben ungültige Berechtigungen und können sich nicht anmelden. Auf der Seite API-Schlüssel für jeden einen Modus speichern.',
+    },
+    config_fields_deprecated: {
+      title: 'Veraltete Konfigurationsfelder noch gesetzt',
+      body: 'Diese Felder werden weiterhin akzeptiert, haben aber keine Wirkung mehr. Sie aus der Konfigurationsdatei entfernen.',
+      hint: 'Für das alte Fallback-Verhalten bei leeren Sends stattdessen agent.send_empty_text_strategy auf "random_text" setzen.',
     },
     mcp_required_deprecated: {
       title: 'Veraltete MCP-Option noch in der Konfiguration',

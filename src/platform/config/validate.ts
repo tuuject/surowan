@@ -1,6 +1,7 @@
 import type { JSONPath } from 'jsonc-parser';
 import Compile from 'typebox/compile';
 import type { TLocalizedValidationError } from 'typebox/error';
+import { deprecatedConfigFields } from './deprecated.ts';
 import type { FileConfig } from './index.ts';
 import { activeVisionModel, completeAgentSettings, resolveAgentSettings } from './resolve.ts';
 import { ConfigSchema, ImageSectionSchema } from './schema.ts';
@@ -68,6 +69,18 @@ export function validateFileConfig(
   if (deprecatedRequired.length > 0) {
     warnings.push(
       `mcp.servers[].required is deprecated and has no effect; remove it from: ${deprecatedRequired.join(', ')}`,
+    );
+  }
+  const deprecatedFields = deprecatedConfigFields(parsed);
+  if (deprecatedFields.length > 0) {
+    warnings.push(
+      `deprecated configuration fields have no effect and should be removed: ${deprecatedFields
+        .map((field) => field.path)
+        .join(', ')}` +
+        deprecatedFields
+          .filter((field) => field.replacement !== undefined)
+          .map((field) => `; ${field.path}: ${field.replacement}`)
+          .join(''),
     );
   }
   return { fileConfig: parsed, warnings };

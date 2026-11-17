@@ -33,6 +33,12 @@ const HOT_PATHS: ReadonlySet<string> = new Set([
   'agent.send_duplicate_guard_enabled',
   'agent.send_empty_text_strategy',
   'agent.send_empty_text_fallback_texts',
+  // Deprecated and ignored: an edit applies like any hot field so it never
+  // demands a restart, but nothing reads it — only the deprecation warnings
+  // follow the active configuration.
+  'agent.memory_ttl_warning_days',
+  'agent.send_empty_text_fallback_enabled',
+  'vision.background_sticker_concurrency',
   'agent.daily_budget',
   'agent.daily_budget.max_tokens',
   'agent.context',

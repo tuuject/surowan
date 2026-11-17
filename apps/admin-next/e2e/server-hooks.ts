@@ -4,9 +4,11 @@
  * prefix here before `AdminServer` sees it.
  */
 import { execFile } from 'node:child_process';
+import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { and, desc, eq, sql } from 'drizzle-orm';
+import { applyEdits, modify } from 'jsonc-parser';
 import {
   adminPairings,
   adminUsers,
@@ -136,6 +138,22 @@ export async function handleHook(request: Request, url: URL): Promise<Response> 
   if (request.method === 'POST' && route === '/fail-next-config-apply') {
     serverState.failNextConfigApply = true;
     return json({ ok: true });
+  }
+  if (request.method === 'POST' && route === '/deprecated-config') {
+    // Writes the deprecated-but-accepted fields into the fixture config file
+    // (or removes them) so a spec can apply the file and watch the standing
+    // warning appear and disappear like an operator's edit would.
+    const enabled = url.searchParams.get('enabled') === '1';
+    const configPath = join(serverState.directory, 'config.jsonc');
+    const text = await readFile(configPath, 'utf8');
+    const writes: [readonly string[], unknown][] = [
+      [['agent', 'memory_ttl_warning_days'], 30],
+      [['agent', 'send_empty_text_fallback_enabled'], true],
+      [['vision', 'background_sticker_concurrency'], 1],
+    ];
+    const edits = writes.flatMap(([path, value]) => modify(text, [...path], enabled ? value : undefined, {}));
+    await writeFile(configPath, applyEdits(text, edits));
+    return json({ ok: true, enabled });
   }
   if (request.method === 'POST' && route === '/shutdown') {
     setTimeout(() => void shutdown(), 50);

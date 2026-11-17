@@ -1,4 +1,5 @@
 import type { Static } from 'typebox';
+import { deprecatedConfigFields } from './deprecated.ts';
 import { resolveAgentSection, resolveTelegramSection, resolveVisionSection } from './resolve.ts';
 import type { ConfigSchema } from './schema.ts';
 import type {
@@ -126,6 +127,13 @@ export type RawConfig = Omit<FileConfig, 'agent' | 'vision' | 'telegram' | 'deve
   vision: VisionRuntimeConfig;
   telegram: TelegramRuntimeConfig;
   admin: AdminRuntimeConfig;
+  /**
+   * The deprecated file-level fields this generation carries, derived by
+   * `assembleRawConfig` from `deprecatedConfigFields`. Derived metadata rather
+   * than a configuration field: `standingWarnings` reads it for the
+   * `config_fields_deprecated` warning, nothing else does.
+   */
+  readonly deprecated_fields?: readonly string[];
 };
 export type ImageConfig = RawConfig['image'];
 export type DictionaryConfig = RawConfig['dictionary'];
@@ -162,6 +170,7 @@ export function assembleRawConfig(
     vision: resolveVisionSection(fileConfig.vision),
     admin: { ...fileConfig.admin, enabled: fileConfig.admin.enabled !== false },
     telegram: { ...telegram, chats },
+    deprecated_fields: deprecatedConfigFields(fileConfig).map((field) => field.path),
   };
 }
 

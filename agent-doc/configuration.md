@@ -62,6 +62,8 @@ node src/cli.ts check-config --config dev-data/config.jsonc
 
 其它所有路径都是 restart：改动会写进文件，但要重启才生效，包括 `telegram.token`、`data_dir`、`paths.database`、`admin.*`、Chat allowlist 中已有 Chat 的修改（新增与删除 Chat、参与策略 `participation`、主动回复 `proactive_reply` 是热变更），以及 `instructions_file`、`provider`、`model`、`thinking_level`、`ignored_user_ids`、`dictionary_injection_mode`、`group_memory`、`participation`、`proactive_reply` 以外的 Chat 字段，以及 `vision` 的 `max_concurrency`、`prompt_version`、`daily_budget`。
 
+**已废弃字段**：`agent.memory_ttl_warning_days`、`agent.send_empty_text_fallback_enabled`、`vision.background_sticker_concurrency` 仅为升级兼容保留——schema 仍接受（标注 `deprecated`），运行时完全不读取：`resolveAgentSection`/`resolveVisionSection` 不把它们带进运行时类型，`send_empty_text_fallback_enabled: true` 也不再推导 `random_text`（缺省策略仍是 `reject`）。唯一定义在 `src/platform/config/deprecated.ts`：`validateFileConfig` 据此输出加载警告（`check-config` 的 `warnings` 与 `serve` 的 `config_warnings` 事件），`assembleRawConfig` 把出现的字段路径写进 `RawConfig.deprecated_fields`，`standingWarnings` 据此发出 `config_fields_deprecated` 常态警告（Admin 警告页列出字段与替代写法）。增删改这些字段按热应用处理——不需要重启，唯一变化是警告随之出现或消失。新废弃字段按同一模式加进 `DEPRECATED_CONFIG_FIELDS` 即可。
+
 应用流程与语义：
 
 - 每次应用做两遍校验：先 `loadConfig` 校验文件本身（保证下次启动可用），再把文件的热字段与当前进程仍然生效的 restart 字段组合成 candidate，用 `validateSemantics` 校验 candidate（保证当前进程可用）。两遍都通过才发布。

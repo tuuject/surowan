@@ -285,6 +285,33 @@ test.describe('warnings', () => {
     await expect(toast(page, 'Cleared 2 warnings')).toBeVisible();
     await expect(page.getByText('No event warnings yet.')).toBeVisible();
   });
+
+  test('deprecated config fields raise a standing warning while they are set', async ({ page }) => {
+    await page.goto(await adminUrl('/warnings'));
+    await expect(page.getByText('Standing warnings', { exact: true })).toBeVisible();
+    // The fixture config has none of the deprecated keys, so the card is absent.
+    await expect(page.getByText('Deprecated configuration fields still set')).toHaveCount(0);
+
+    try {
+      await e2eFetch('/deprecated-config?enabled=1', { method: 'POST' });
+      const applied = await page.request.post(await adminUrl('/api/config/apply'));
+      expect(applied.ok()).toBeTruthy();
+
+      await page.reload();
+      await expect(page.getByText('Deprecated configuration fields still set')).toBeVisible();
+      await expect(page.getByText('agent.send_empty_text_fallback_enabled')).toBeVisible();
+      await expect(page.getByText('vision.background_sticker_concurrency')).toBeVisible();
+      await expect(page.getByText('agent.send_empty_text_strategy')).toBeVisible();
+    } finally {
+      // Removing the keys and applying again must clear the standing warning.
+      await e2eFetch('/deprecated-config?enabled=0', { method: 'POST' });
+      await page.request.post(await adminUrl('/api/config/apply'));
+    }
+
+    await page.reload();
+    await expect(page.getByText('Standing warnings', { exact: true })).toBeVisible();
+    await expect(page.getByText('Deprecated configuration fields still set')).toHaveCount(0);
+  });
 });
 
 test.describe('overview operations', () => {

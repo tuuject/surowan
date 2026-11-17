@@ -23,6 +23,7 @@ export const warnings = {
   missingFields: 'Missing: {{fields}}',
   invalidApiKeys: 'Invalid keys: {{keys}}',
   mcpDeprecatedAliases: 'Still set on: {{aliases}}',
+  deprecatedConfigFields: 'Still set: {{fields}}',
   mcpNextReconnect: 'next retry <time>{{time}}</time>',
   lastFailedAt: 'Last failure: <time>{{time}}</time>',
   createdAt: 'Created <time>{{time}}</time>',
@@ -81,6 +82,11 @@ export const warnings = {
     api_key_invalid_permissions: {
       title: 'API keys with invalid permissions',
       body: 'One or more API keys have invalid permissions and cannot sign in. Save a mode for each on the API keys page.',
+    },
+    config_fields_deprecated: {
+      title: 'Deprecated configuration fields still set',
+      body: 'These fields are still accepted but have no effect. Remove them from the configuration file.',
+      hint: 'To keep the old empty-send fallback, set agent.send_empty_text_strategy to "random_text" instead.',
     },
     mcp_required_deprecated: {
       title: 'Deprecated MCP option still in the configuration',

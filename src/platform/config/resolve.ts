@@ -75,8 +75,15 @@ export const AGENT_DEFAULTS = {
 export function resolveAgentSection(section: AgentSectionConfig | null | undefined): AgentRuntimeConfig {
   const context = section?.context;
   const rateLimits = section?.rate_limits;
+  // Deprecated file-level keys stay out of the runtime shape: inert by
+  // construction, never copied through.
+  const {
+    memory_ttl_warning_days: _deprecatedTtlWarningDays,
+    send_empty_text_fallback_enabled: _deprecatedFallbackFlag,
+    ...fileFields
+  } = section ?? {};
   return {
-    ...(section ?? {}),
+    ...fileFields,
     daily_budget: { max_tokens: section?.daily_budget?.max_tokens ?? AGENT_DEFAULTS.daily_budget.max_tokens },
     max_concurrency: section?.max_concurrency ?? AGENT_DEFAULTS.max_concurrency,
     context_stop_ratio: section?.context_stop_ratio ?? AGENT_DEFAULTS.context_stop_ratio,
