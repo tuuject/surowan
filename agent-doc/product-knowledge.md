@@ -29,7 +29,7 @@
 
 更新用户手册时检查对应索引项；先修原文再重烘焙。详细溯源、遗漏与不确定信息放在 Skill 的参考文件，不注入模型。没有 watcher、定时烘焙任务或生产 Coding Agent。回滚恢复索引与协议的版本即可，仍会触发既有 Prompt 哈希重建。
 
-`src/platform/prompts/` 下的系统 Prompt 分区由维护者决定不设硬性体积上限：测试不限制字节数，pre-commit 文件 Token 上限也豁免它们。索引仍会注入每次 system prompt，所以目标约 2000 模型 tokens 内；核心新增约束另计。每次烘焙记录字符串长度、UTF-8 字节数与 tokenizer 名称/估算口径。仓库的 `length / 4` 只能作 GC 风格粗估，中文应另外测 tokenizer，不把粗估伪装成 Provider 实际计费 tokens。真实用量仍以模型调用审计为准。
+`src/platform/prompts/` 下的系统 Prompt 分区由维护者决定不设硬性体积上限：测试不限制字节数，pre-commit 文件 Token 上限也豁免它们。索引仍会注入每次 system prompt，所以目标约 2000 模型 tokens 内；核心新增约束另计。每次烘焙记录字符串长度、UTF-8 字节数与 tokenizer 名称/估算口径。仓库的共享粗估 `estimateTextTokens`（`src/platform/token-estimate.ts`，ASCII 每 4 个字符 1 token、其余每码点 1 token）只作 GC 风格粗估；它已把中文按每字 1 token 计，但精确口径仍应另外测 tokenizer，不把粗估伪装成 Provider 实际计费 tokens。真实用量仍以模型调用审计为准。
 
 ## 验证方法
 

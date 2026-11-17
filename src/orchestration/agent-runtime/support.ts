@@ -28,6 +28,7 @@ import {
   type InvocationContext,
   unavailableCapabilities,
 } from '../../platform/invocation-context.ts';
+import { estimateTextTokens } from '../../platform/token-estimate.ts';
 import { scopedSystemResources } from '../../platform/system-resources.ts';
 import { agentMessages, buckets, invocations } from '../../store/schema/index.ts';
 import { createZzzTool, isLowDailyTokenBudget, readDailyTokenBudget } from '../../store/sleep.ts';
@@ -310,12 +311,26 @@ export function recordAgentMessage(
   return created.id;
 }
 
-export function estimateToolDefinitionCharacters(tool: AgentTool): number {
+/** The exact definition string every tool estimate reads. */
+function toolDefinitionJson(tool: AgentTool): string {
   return JSON.stringify({
     name: tool.name,
     description: tool.description,
     parameters: tool.parameters,
-  }).length;
+  });
+}
+
+export function estimateToolDefinitionTokens(tool: AgentTool): number {
+  return estimateTextTokens(toolDefinitionJson(tool));
+}
+
+export function estimateToolRegistryTokens(tools: readonly AgentTool[]): number {
+  return tools.reduce((total, tool) => total + estimateToolDefinitionTokens(tool), 0);
+}
+
+/** Character count for the injection character budget, not a token estimate. */
+function estimateToolDefinitionCharacters(tool: AgentTool): number {
+  return toolDefinitionJson(tool).length;
 }
 
 export function estimateToolRegistryCharacters(tools: readonly AgentTool[]): number {
@@ -326,8 +341,7 @@ export function validateToolRegistry(tools: readonly AgentTool[], contextWindow:
   if (tools.length > 64) {
     throw new Error(`Tool registry has ${tools.length} tools; maximum is 64`);
   }
-  const characters = estimateToolRegistryCharacters(tools);
-  if (characters / 4 > contextWindow * 0.1) {
+  if (estimateToolRegistryTokens(tools) > contextWindow * 0.1) {
     throw new Error('Tool registry exceeds 10% of the model context window');
   }
   const names = new Set<string>();

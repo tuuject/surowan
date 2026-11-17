@@ -206,6 +206,7 @@ export interface AgentRun {
   readonly tools: readonly AgentTool[];
   readonly pendingUserTags: PendingUserTag[];
   readonly toolDefinitionCharacters: number;
+  readonly toolDefinitionTokens: number;
   /**
    * Per-injector dedupe signatures the retained transcript still carries.
    * Rebuilt with the visible-sender state: a GC that drops a batch also drops

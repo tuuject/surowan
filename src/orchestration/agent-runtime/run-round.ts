@@ -1,8 +1,9 @@
 import type { AgentContext, AgentMessage } from '@earendil-works/pi-agent-core';
 import { isLowDailyTokenBudget } from '../../store/sleep.ts';
+import { estimateTextTokens } from '../../platform/token-estimate.ts';
 import {
   deferCollectingBucket,
-  estimateToolDefinitionCharacters,
+  estimateToolDefinitionTokens,
   hostFor,
   recordToolRegistry,
   validateToolRegistry,
@@ -35,7 +36,16 @@ export function createRoundControl(scope: RunScope, run: AgentRun): RoundControl
   } = scope;
   const runtime = services.conversationRuntime;
   const conversationId = identity.conversationId;
-  const { agent, tools, typing, toolDefinitionCharacters, carriedInjections, cached, carried: carriedSticker } = run;
+  const {
+    agent,
+    tools,
+    typing,
+    toolDefinitionCharacters,
+    toolDefinitionTokens,
+    carriedInjections,
+    cached,
+    carried: carriedSticker,
+  } = run;
   // One entry per user message handed to the agent, in delivery order. A batch
   // carries its bucket so it is acknowledged only once it is in the transcript.
   const { pendingUserTags } = run;
@@ -102,7 +112,7 @@ export function createRoundControl(scope: RunScope, run: AgentRun): RoundControl
     repeatedFailure.reset();
     state.estimatedInputTokens = Math.max(
       state.estimatedInputTokens,
-      estimateMessagesTokens(agent.state.messages) + Math.ceil((injection.text.length + toolDefinitionCharacters) / 4),
+      estimateMessagesTokens(agent.state.messages) + estimateTextTokens(injection.text) + toolDefinitionTokens,
     );
     logContextInjected(invocationId, identity, bucketId, injection, header.nextSeq);
     return {
@@ -165,7 +175,7 @@ export function createRoundControl(scope: RunScope, run: AgentRun): RoundControl
     if (shouldExposeZzz && zzz !== undefined) {
       nextTools.push(zzz);
       logZzzExposure(invocationId, identity.chatId, budget);
-      state.estimatedInputTokens += Math.ceil(estimateToolDefinitionCharacters(zzz) / 4);
+      state.estimatedInputTokens += estimateToolDefinitionTokens(zzz);
     }
     validateToolRegistry(nextTools, model.contextWindow);
     recordToolRegistry(services, invocationId, nextTools);
