@@ -61,6 +61,7 @@ export const messages = sqliteTable(
     index('messages_local_sequence_key')
       .on(t.conversationId, t.localSequenceNo)
       .where(sql`local_sequence_no IS NOT NULL`),
+    index('messages_conversation_history_idx').on(t.conversationId, t.telegramDate, t.telegramMessageId),
   ],
 );
 

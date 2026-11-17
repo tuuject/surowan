@@ -630,7 +630,7 @@ Messages 列表与消息详情的 Revision 在发送者姓名旁显示可复制�
 | `admin_users` | 用户名、Argon2id hash、创建/更新/最近登录时间 |
 | `admin_sessions` | Token SHA-256 摘要、所属用户、创建/过期/最近活动时间 |
 
-`admin_sessions.user_id` 级联删除；`admin_sessions_expiry_idx` 支撑过期清理。两张表不参与 `purgeExpiredData` 的在线保留窗口（`retention.online_days`）——管理员账号不是会话数据。
+`admin_sessions.user_id` 级联删除；`admin_sessions_expiry_idx` 支撑过期清理。两张表不参与 `purgeExpiredData` 的在线保留窗口（`retention.online_days`）——管理员账号不是会话数据。`last_seen_at` 在认证时刷新，但距上次写入不足 60 秒时不落盘（面板轮询下避免每个请求一次 fsync 写入），显示精度不影响会话语义。
 
 迁移 `src/store/migrations/028_admin_api_keys.sql` 建立 `admin_api_keys`：每行一个程序化 API key，`token_hash` 只存明文的 SHA-256 摘要（UNIQUE），`prefix` 是展示用前缀，`created_at`/`last_used_at`/`revoked_at` 记录生命周期；撤销设置 `revoked_at` 而不删除行，`last_used_at` 在每次通过鉴权时刷新（包括随后被权限面拒绝的请求）。该表与 `admin_users`/`admin_sessions` 一样不参与在线保留清理。语义见「程序化 API 密钥」。
 

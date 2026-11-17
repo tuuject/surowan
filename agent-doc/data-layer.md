@@ -30,6 +30,8 @@ Surowan 使用单个 SQLite 数据库保存消息、调度状态、能力索引�
 
 迁移 `046` 建立 Memo Pad：`memo_pad_entries` 与 `memo_blobs`（都随 `chats` 级联删除），给 `conversation_contexts` 加 `memo_refresh_seq`、`memo_state_json`、`memo_refresh_pending` 三个列，并把旧 `memories` 行按 `conversations.chat_id` 迁入（`summary` 与 `detail` 都取旧 `content`，保留 `expires_at`、时间戳与旧 `mem_` id），随后删除 `memories`。旧记忆按 Conversation 隔离，迁移后同一 Chat 的多个 Topic 共享同一份 Memo Pad，这是有意的语义变化。
 
+迁移 `062` 只补索引、不动表结构：`messages(conversation_id, telegram_date, telegram_message_id)` 服务 Invocation 快照历史、pending bot 消息收编、成员资料核查与场景渲染这类按 Conversation 的时间序读取；`bucket_messages(message_id)` 服务收编查询里 `NOT EXISTS` 的 message_id 反查。消息不随在线窗口清理，这些路径此前都在扫全表。
+
 SQLite 无法用 `ALTER TABLE` 放宽 `NOT NULL`，只能重建表。`chats` 是整棵消息树的级联父表（外键强制下 `DROP TABLE` 会级联删掉全部 Conversation 与 Message），`messages` 又被 NO ACTION 子表引用（同样条件下直接报错），所以重建只能在关闭外键强制的窗口里做。需要在重建表的迁移在文件里单独一行写 `-- @rebuild-tables` 显式声明：runner 只对带该指令的迁移临时关闭 `foreign_keys`，整个迁移仍在单个 IMMEDIATE transaction 内执行，提交前跑 `PRAGMA foreign_key_check`，发现违例就回滚，并在 `finally` 中恢复强制；不带该指令的迁移路径完全不变。这不是「关掉约束蒙混升级」——约束只在 DDL 窗口内让位，且提交前必须通过校验。
 
 `host_kind` 取 `telegram` 或 `playground`。任何读取 Telegram 身份列的地方都要显式表态：要么用 [src/store/host-scope.ts](../src/store/host-scope.ts) 的 `telegramHostScope()` 把查询限定在 Telegram 行上，要么把该身份列当可空处理并说明虚拟行意味着什么。禁止用 ID 符号判断群类型或宿主。

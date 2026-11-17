@@ -7,12 +7,7 @@ import type { WarningService } from '../../store/warnings.ts';
 import { everyHostReady, type HostReadiness } from '../host-scope.ts';
 import { type BucketAttachmentTarget, InvocationQueueService } from '../invocation-queue/index.ts';
 import type { ProactiveReplyGateOptions } from '../proactive-reply.ts';
-import {
-  type ActiveInvocation,
-  executeInvocation,
-  type InvocationExecutionDeps,
-  type InvocationExecutionState,
-} from './execution.ts';
+import { type ActiveInvocation, executeInvocation, type InvocationExecutionDeps } from './execution.ts';
 import { nextDelayMilliseconds as computeNextDelayMilliseconds, launchQueued, type SchedulerLoopDeps } from './loop.ts';
 
 export interface InvocationOutcome {
@@ -41,7 +36,6 @@ export class BucketScheduler {
   /** Conversation id → number of live fences holding it closed. */
   readonly #fenced = new Map<string, number>();
   #launchFences = 0;
-  readonly #executionState: InvocationExecutionState = { lastForcedGcAt: 0 };
   readonly #executionDeps: InvocationExecutionDeps;
   readonly #loopDeps: SchedulerLoopDeps;
   #running = false;
@@ -78,7 +72,6 @@ export class BucketScheduler {
       queue: this.#queue,
       handler,
       active: this.#active,
-      state: this.#executionState,
       ...(warnings === undefined ? {} : { warnings }),
       processDue: (now) => this.processDue(now),
       processTasksDue: (now) => this.processTasksDue(now),
