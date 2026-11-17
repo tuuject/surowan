@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Alert } from '@tuuject/koi-react/alert';
 import { Button } from '@tuuject/koi-react/button';
 import { Dialog } from '@tuuject/koi-react/dialog';
 import { Input } from '@tuuject/koi-react/input';
@@ -11,19 +12,24 @@ import {
   ListFooter,
   ListPageHeader,
   ListToolbar,
+  RowActions,
   TableShell,
   TimeText,
   useOffsetPagination,
 } from '@/components/business';
 import { MarkdownInput } from '@/components/prompts/markdown-input';
+import { AppLink } from '@/components/router-links';
 import type { ImageAssetInfo, ImagePromptAsset } from '@/lib/api/images.ts';
 import {
   archiveImageAsset,
   archiveImagePrompt,
   createImagePrompt,
+  getImageStatus,
   imageUrl,
   listImageAssets,
   listImagePrompts,
+  updateImageAsset,
+  updateImagePrompt,
   uploadImageAsset as uploadAsset,
 } from '@/lib/api/images.ts';
 import { errorMessage } from '@/lib/errors';
@@ -98,16 +104,80 @@ function PromptEditor({ open, onDone }: { readonly open: boolean; readonly onDon
   );
 }
 
+type AssetTarget = { readonly kind: 'prompt' | 'image'; readonly id: string; readonly name: string };
+
+/**
+ * Same mount-and-drive-by-open pattern as PromptEditor: the name field is
+ * seeded from the target on the open edge only, and the last opened target is
+ * kept after `target` returns to null, so neither the typed text nor the title
+ * blanks out during the exit transition.
+ */
+function RenameDialog({ target, onDone }: { readonly target: AssetTarget | null; readonly onDone: () => void }) {
+  const { t } = useTranslation();
+  const [name, setName] = useState('');
+  const [lastTarget, setLastTarget] = useState(target);
+  if (target !== null && lastTarget !== target) {
+    setLastTarget(target);
+    setName(target.name);
+  }
+  const rename = useMutation({
+    mutationFn: async (nextName: string) => {
+      if (lastTarget === null) {
+        return;
+      }
+      if (lastTarget.kind === 'prompt') {
+        await updateImagePrompt(lastTarget.id, { name: nextName });
+      } else {
+        await updateImageAsset(lastTarget.id, { name: nextName });
+      }
+    },
+    onSuccess: () => {
+      toast.success(t('image.assets.renamedToast'));
+      onDone();
+    },
+    onError: (error) => {
+      toast.error(errorMessage(error));
+    },
+  });
+  return (
+    <Dialog
+      open={target !== null}
+      onOpenChange={(next) => !next && !rename.isPending && onDone()}
+      title={lastTarget === null ? '' : t('image.assets.renameTitle', { name: lastTarget.name })}
+      footer={
+        <>
+          <Button variant="ghost" color="secondary" onClick={onDone} disabled={rename.isPending}>
+            {t('common.cancel')}
+          </Button>
+          <Button onClick={() => rename.mutate(name)} disabled={rename.isPending || name.trim() === ''}>
+            {rename.isPending ? t('common.submitting') : t('image.assets.rename')}
+          </Button>
+        </>
+      }
+    >
+      <Input
+        value={name}
+        onChange={(event) => setName(event.target.value)}
+        placeholder={t('image.assets.namePlaceholder')}
+        aria-label={t('image.assets.namePlaceholder')}
+        dir="auto"
+      />
+    </Dialog>
+  );
+}
+
 export default function ImageAssetsPage() {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [tab, setTab] = useState<'prompts' | 'images'>('prompts');
   const [creating, setCreating] = useState(false);
-  const [archiving, setArchiving] = useState<{ kind: 'prompt' | 'image'; id: string; name: string } | null>(null);
+  const [renaming, setRenaming] = useState<AssetTarget | null>(null);
+  const [archiving, setArchiving] = useState<AssetTarget | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
 
   const promptPagination = useOffsetPagination('prompts');
   const assetPagination = useOffsetPagination('images');
+  const status = useQuery({ queryKey: ['image-status'], queryFn: getImageStatus, staleTime: 10_000 });
   const prompts = useQuery({
     queryKey: ['image-assets', 'prompts', promptPagination.pageSize, promptPagination.offset],
     queryFn: () => listImagePrompts({ limit: promptPagination.pageSize, offset: promptPagination.offset }),
@@ -142,6 +212,8 @@ export default function ImageAssetsPage() {
       toast.success(t('image.assets.archivedToast'));
       setArchiving(null);
       queryClient.invalidateQueries({ queryKey: ['image-assets'] });
+      queryClient.invalidateQueries({ queryKey: ['image-assets-picker'] });
+      queryClient.invalidateQueries({ queryKey: ['image-prompts-picker'] });
     },
     onError: (error) => {
       toast.error(errorMessage(error));
@@ -163,6 +235,7 @@ export default function ImageAssetsPage() {
     onSuccess: () => {
       toast.success(t('image.assets.uploadedToast'));
       queryClient.invalidateQueries({ queryKey: ['image-assets'] });
+      queryClient.invalidateQueries({ queryKey: ['image-assets-picker'] });
     },
     onError: (error) => {
       toast.error(errorMessage(error));
@@ -176,20 +249,31 @@ export default function ImageAssetsPage() {
       render: (row) => <span className={css({ textStyle: 'label' })}>{row.name}</span>,
     },
     { key: 'category', title: t('image.assets.columnCategory'), render: (row) => row.category },
-    { key: 'updated', title: t('image.assets.columnUpdated'), render: (row) => <TimeText value={row.updated_at} /> },
+    { key: 'updated', title: t('image.assets.columnUpdated'), render: (row) => <TimeText value={row.updatedAt} /> },
     {
       key: 'actions',
       title: t('pages.apiKeys.actions'),
       align: 'right',
+      paddingBlock: 'none',
       render: (row) => (
-        <Button
-          size="sm"
-          variant="ghost"
-          color="secondary"
-          onClick={() => setArchiving({ kind: 'prompt', id: row.id, name: row.name })}
-        >
-          {t('image.assets.archive')}
-        </Button>
+        <RowActions>
+          <Button
+            size="sm"
+            variant="ghost"
+            color="secondary"
+            onClick={() => setRenaming({ kind: 'prompt', id: row.id, name: row.name })}
+          >
+            {t('image.assets.rename')}
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            color="secondary"
+            onClick={() => setArchiving({ kind: 'prompt', id: row.id, name: row.name })}
+          >
+            {t('image.assets.archive')}
+          </Button>
+        </RowActions>
       ),
     },
   ];
@@ -217,23 +301,46 @@ export default function ImageAssetsPage() {
       render: (row) => <span className={css({ textStyle: 'label' })}>{row.name}</span>,
     },
     { key: 'source', title: t('image.assets.columnSource'), render: (row) => row.source },
-    { key: 'created', title: t('image.assets.columnCreated'), render: (row) => <TimeText value={row.created_at} /> },
+    { key: 'created', title: t('image.assets.columnCreated'), render: (row) => <TimeText value={row.createdAt} /> },
     {
       key: 'actions',
       title: t('pages.apiKeys.actions'),
       align: 'right',
+      paddingBlock: 'none',
       render: (row) => (
-        <Button
-          size="sm"
-          variant="ghost"
-          color="secondary"
-          onClick={() => setArchiving({ kind: 'image', id: row.id, name: row.name })}
-        >
-          {t('image.assets.archive')}
-        </Button>
+        <RowActions>
+          <Button
+            size="sm"
+            variant="ghost"
+            color="secondary"
+            onClick={() => setRenaming({ kind: 'image', id: row.id, name: row.name })}
+          >
+            {t('image.assets.rename')}
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            color="secondary"
+            onClick={() => setArchiving({ kind: 'image', id: row.id, name: row.name })}
+          >
+            {t('image.assets.archive')}
+          </Button>
+        </RowActions>
       ),
     },
   ];
+
+  if (status.data !== undefined && !status.data.enabled) {
+    return (
+      <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '5' } })}>
+        <ListPageHeader title={t('image.assets.title')} />
+        <Alert tone="info">
+          {t('image.generate.disabledIntro')}
+          <AppLink to="/image-settings">{t('image.generate.disabledLink')}</AppLink>
+        </Alert>
+      </div>
+    );
+  }
 
   return (
     <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '5' } })}>
@@ -298,6 +405,17 @@ export default function ImageAssetsPage() {
         onDone={() => {
           setCreating(false);
           queryClient.invalidateQueries({ queryKey: ['image-assets'] });
+          queryClient.invalidateQueries({ queryKey: ['image-prompts-picker'] });
+        }}
+      />
+
+      <RenameDialog
+        target={renaming}
+        onDone={() => {
+          setRenaming(null);
+          queryClient.invalidateQueries({ queryKey: ['image-assets'] });
+          queryClient.invalidateQueries({ queryKey: ['image-assets-picker'] });
+          queryClient.invalidateQueries({ queryKey: ['image-prompts-picker'] });
         }}
       />
 

@@ -246,6 +246,7 @@ const paginatedRoutes = [
   // The configured sets are a short secondary table in their own Card; the index stays on the page.
   { path: '/stickers', filters: 1, cardTables: 1 },
   { path: '/image-generations', filters: 0, cardTables: 0 },
+  { path: '/image-assets', filters: 0, cardTables: 0 },
   { path: '/playground', filters: 0, cardTables: 0 },
 ] as const;
 
@@ -257,6 +258,15 @@ for (const entry of paginatedRoutes) {
       await page.route('**/api/image/generations?*', (route) =>
         route.fulfill({ json: { items: [], total: 0, limit: 20, offset: 0 } }),
       );
+    }
+    if (entry.path === '/image-assets') {
+      // Same missing image service: enabled status plus two empty lists.
+      await page.route('**/api/image/status', (route) => route.fulfill({ json: { enabled: true, models: [] } }));
+      for (const resource of ['prompts', 'images']) {
+        await page.route(`**/api/image/${resource}?*`, (route) =>
+          route.fulfill({ json: { items: [], total: 0, limit: 20, offset: 0 } }),
+        );
+      }
     }
     await page.goto(await adminUrl(entry.path));
     await expect(page.getByRole('navigation', { name: 'Pagination', exact: true }).first()).toBeVisible();

@@ -560,3 +560,5 @@ pnpm test
 图片设置浏览器回归：`pnpm run admin:build` 后执行 `pnpm run admin:test:e2e 11-image-settings`，覆盖搜索与下拉选型、自动能力、保存与回显、空密钥沿用、旧配置凭据复用与重复项合并、缺项提示但按钮可点击且不发送非法写入、目录/供应商失败重试和窄屏无横向溢出；模型目录使用固定响应，真实 OpenRouter 目录需另行只读验收。
 
 生图审计详情浏览器回归：`pnpm run admin:build` 后执行 `pnpm run admin:test:e2e 12-image-generations`，使用固定生成记录验证详情深链接、刷新、列表进入与返回；断言生成状态、Attempt 错误、上游请求编号、用量、最终 Prompt、参考图快照顺序与原图链接、无参考图及原图加载失败状态，并保证浏览过程不发起写请求或真实生图。
+
+生图素材页浏览器回归：`pnpm run admin:build` 后执行 `pnpm run admin:test:e2e 12-image-assets`，用有状态假服务验证两个标签页的种子数据、Prompt 素材的新建/改名/归档与参考图的上传/改名/归档（断言真实写方法与路径），以及 `enabled: false` 时的设置门控。

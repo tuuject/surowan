@@ -55,6 +55,7 @@ export const ROUTES = [
   { path: '/recurring-alarms', slug: 'recurring-alarms' },
   { path: '/image-generate', slug: 'image-generate' },
   { path: '/image-generations', slug: 'image-generations' },
+  { path: '/image-assets', slug: 'image-assets' },
   { path: '/image-settings', slug: 'image-settings' },
   { path: '/models', slug: 'models' },
   { path: '/providers', slug: 'providers' },

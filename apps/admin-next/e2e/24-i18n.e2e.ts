@@ -28,8 +28,8 @@ const EN_GROUPS: readonly NavGroup[] = [
   },
   {
     label: 'Media',
-    routes: ['/image-generate', '/image-generations', '/image-settings'],
-    labels: ['Image generation', 'Image generations', 'Image settings'],
+    routes: ['/image-generate', '/image-generations', '/image-assets', '/image-settings'],
+    labels: ['Image generation', 'Image generations', 'Image assets', 'Image settings'],
   },
   {
     label: 'Agent setup',
@@ -64,6 +64,7 @@ const ZH_LABELS = [
   '循环闹钟',
   '图片生成',
   '生图记录',
+  '生图素材',
   '图片设置',
   '模型',
   '供应商',
@@ -124,7 +125,7 @@ test('seven parent groups collapse, expand, preserve order and open the current 
   });
   await expect(parents).toHaveCount(7);
   await expect(parents).toHaveText(EN_GROUPS.map((group) => group.label));
-  expect(EN_GROUPS.flatMap((group) => group.routes)).toHaveLength(28);
+  expect(EN_GROUPS.flatMap((group) => group.routes)).toHaveLength(29);
   await expect(nav.getByRole('button', { name: 'Agent data', exact: true }).locator('svg').first()).toBeVisible();
 
   const current = nav.getByRole('button', { name: 'Agent data', exact: true });
@@ -145,7 +146,7 @@ test('seven parent groups collapse, expand, preserve order and open the current 
     await expect(trigger).toHaveAttribute('aria-expanded', 'true');
     await expectGroupRoutes(page, group);
   }
-  await expect(nav.getByRole('link')).toHaveCount(28);
+  await expect(nav.getByRole('link')).toHaveCount(29);
 });
 
 test('language switch re-labels parents and children immediately and persists', async ({ page }) => {

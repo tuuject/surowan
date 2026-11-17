@@ -660,4 +660,6 @@ Bot 管理员白名单不再是数据库表：迁移 `src/store/migrations/026_d
 
 `src/platform/image-models.ts` 把供应商元数据转换为可保存草稿：比例、质量取核心支持的枚举交集；图片输入/输出上限限制在核心范围内；未声明的能力保守保留自动档与单张输出。必填参考图、仅矢量输出或不接受单张生成的供应商会带 `unavailableReason`，页面禁止添加。质量仍映射到 `quality`，不会把像素 `resolution` 推断成质量档。OpenRouter adapter v2 直接发送 `aspect_ratio`，避免用固定像素 `size` 错误限制目录中的横竖比例。
 
+生图素材页（`/image-assets`，`src/pages/image-assets.tsx`，导航 Media 组）管理 `/image/prompts` 与 `/image/images` 两类素材：Prompt 素材与参考图库两个标签页各自 offset 分页，支持新建/改名/归档 Prompt 素材与上传（base64，≤20 MB）/改名/归档参考图；归档项保留历史但不再出现在 `/image-generate` 的素材选择列表。与 `/image-generate` 相同，`GET /image/status` 报 `enabled: false` 时页面只显示指向图片设置的提示。
+
 图片设置仅在提交进行中禁用保存按钮；其它缺项在按钮旁显示并在点击时提示，拦截非法请求。完全相同的旧模型定义在前端草稿中合并，空白的新增凭据行不参与校验；保存才会修改文件。

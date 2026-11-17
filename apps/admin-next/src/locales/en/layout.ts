@@ -76,6 +76,7 @@ export const layout = {
     botStickerSets: 'Bot sticker sets',
     imageGenerate: 'Image generation',
     imageGenerations: 'Image generations',
+    imageAssets: 'Image assets',
     playground: 'Playground',
     alarms: 'Alarms',
     recurringAlarms: 'Recurring alarms',

@@ -115,6 +115,9 @@ export const image = {
     tabImages: 'Images',
     emptyPrompts: 'No prompt assets',
     emptyImages: 'No images',
+    rename: 'Rename',
+    renamedToast: 'Renamed',
+    renameTitle: 'Rename {{name}}',
     archive: 'Archive',
     archiveConfirmTitle: 'Archive {{name}}',
     archiveConfirmDescription:

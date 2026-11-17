@@ -137,6 +137,9 @@ export const image: CompleteCatalog<typeof imageEn> = {
     tabImages: 'الصور',
     emptyPrompts: 'لا مواد توجيه',
     emptyImages: 'لا صور',
+    rename: 'إعادة تسمية',
+    renamedToast: 'أُعيد التسمية',
+    renameTitle: 'إعادة تسمية {{name}}',
     archive: 'أرشفة',
     archiveConfirmTitle: 'أرشفة {{name}}',
     archiveConfirmDescription:

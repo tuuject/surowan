@@ -20,8 +20,8 @@ export interface ImagePromptAsset {
   readonly body: string;
   readonly description: string;
   readonly category: string;
-  readonly created_at: string;
-  readonly updated_at: string;
+  readonly createdAt: string;
+  readonly updatedAt: string;
 }
 
 export interface ImageAssetInfo {
@@ -34,9 +34,9 @@ export interface ImageAssetInfo {
   readonly description: string;
   readonly category: string;
   readonly source: 'upload' | 'generation';
-  readonly generation_id: string | null;
-  readonly output_index: number | null;
-  readonly created_at: string;
+  readonly generationId: string | null;
+  readonly outputIndex: number | null;
+  readonly createdAt: string;
 }
 
 export interface ImageGenerationAttempt {

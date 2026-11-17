@@ -134,6 +134,18 @@ models.dev 目录缓存——`GET /providers/discover` 与 `lookup-metadata` 因
   模型接受哪些级别由 `supportedThinkingLevels` 计算，与服务端
   `src/platform/thinking-levels.ts` 是同一条规则，改一边必须改另一边。
 
+### Image assets 页（`src/pages/image-assets.tsx`）
+
+- Media 组的第三个图片页（`/image-assets`）：Prompt 素材与参考图库两个标签页，
+  各自一份 `useOffsetPagination`，列表统一挂在 `['image-assets']` 查询键下。
+- 行操作是 `RowActions` + `sm ghost` 按钮：改名走常驻 `RenameDialog`（`open` 驱动、
+  打开边沿播种当前名），归档走 `ConfirmDialog`；写成功同时失效
+  `image-assets-picker` 与 `image-prompts-picker`（`/image-generate` 的素材选择器）。
+- `GET /image/status` 返回 `enabled: false` 时整页换成指向 `/image-settings` 的
+  `Alert`，与 `/image-generate` 同一门控。
+- `e2e/12-image-assets.e2e.ts` 用有状态假服务覆盖两个标签页的种子数据、两类素材各自的
+  新建/上传 → 改名 → 归档写路径，以及禁用门控。
+
 面板 UI 文案全部经 i18next（English / 中文），新增可见文案必须同时补两个 catalog；本文档引用界面文案时用英文原文（E2E 固定 `en-US`）。
 
 ## 共享业务组件契约

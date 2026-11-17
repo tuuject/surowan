@@ -71,6 +71,7 @@ export const layout: typeof layoutEn = {
     botStickerSets: '贴纸集',
     imageGenerate: '图片生成',
     imageGenerations: '生图记录',
+    imageAssets: '生图素材',
     playground: '虚拟群聊',
     alarms: '提醒',
     recurringAlarms: '循环闹钟',

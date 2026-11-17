@@ -27,6 +27,7 @@ export type NavTo =
   | '/stickers'
   | '/image-generate'
   | '/image-generations'
+  | '/image-assets'
   | '/image-settings'
   | '/models'
   | '/providers'
@@ -100,6 +101,7 @@ export const NAV_GROUPS: readonly NavGroupDefinition[] = [
     items: [
       { titleKey: 'imageGenerate', to: '/image-generate' },
       { titleKey: 'imageGenerations', to: '/image-generations' },
+      { titleKey: 'imageAssets', to: '/image-assets' },
       { titleKey: 'imageSettings', to: '/image-settings' },
     ],
   },
