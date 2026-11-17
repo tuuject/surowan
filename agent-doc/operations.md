@@ -11,7 +11,7 @@
 - Provider API key
 - Telegram Bot Token（可选；没有它时 Telegram 停用，只运行 Admin Panel 与 Playground 虚拟房间）
 
-数据层使用 `better-sqlite3`（原生模块，随 `pnpm install` 安装）。官方为 Node LTS 提供预编译二进制；没有匹配的预编译包时会回退到本地源码编译，此时需要 `python3`、`make` 与 C++ 工具链（Docker 镜像已在 builder 阶段预置）。
+数据层使用 `better-sqlite3`（原生模块，随 `pnpm install` 安装）。官方为 Node LTS 提供预编译二进制；没有匹配的预编译包时会回退到本地源码编译，此时需要 `python3`、`make` 与 C++ 工具链（Docker 镜像内不编译：`pnpm-workspace.yaml` 拒绝 better-sqlite3 的构建脚本，生产安装又带 `--ignore-scripts`，只用随包发布的 prebuilds）。
 
 macOS（Homebrew）：
 
@@ -381,16 +381,16 @@ node src/cli.ts backup --config dev-data/config.jsonc
 
 ## Docker 部署
 
-`.github/workflows/docker.yml` 在推送 `main`、`develop` 分支和 `v*` tag 时都运行 `verify` job，并都构建 `linux/amd64` 与 `linux/arm64` 镜像，但只有 `main` 与 `v*` tag 登录并推送到 `ghcr.io/tuuject/surowan`：
+`.github/workflows/docker.yml` 在推送 `main`、`develop` 分支、`v*` tag 以及每个 pull request 上都运行 `verify` job；推送时构建 `linux/amd64` 与 `linux/arm64` 镜像，但只有 `main` 与 `v*` tag 登录并推送到 `ghcr.io/tuuject/surowan`：
 
-- `develop` 由 `docker-check` job 与 `verify` 并行构建，不登录、不推送、不建 release，只用来在进 `main` 前暴露 Dockerfile 与构建上下文问题。`develop` 的 run 共用一个 concurrency 组，新推送会取消仍在跑的旧 run；`main` 与 `v*` 每个 run 各占一组，既不取消也不排队。
+- `develop` 由 `docker-check` job 与 `verify` 并行构建，不登录、不推送、不建 release，只用来在进 `main` 前暴露 Dockerfile 与构建上下文问题；pull request 不跑 `docker-check`，`.github/workflows/docs.yml` 的 `image-smoke` 已在每个 PR 上构建同一镜像。`develop` 的 run 共用一个 concurrency 组，新推送会取消仍在跑的旧 run；PR 的 run 按 `refs/pull/<n>/merge` 分组，同一 PR 的新推送取消旧 run，不与分支或 tag 的 run 共组；`main` 与 `v*` 每个 run 各占一组，既不取消也不排队。
 - `main` 与 `v*` 由 `build` job 在 `verify` 通过后构建并推送。`main` 产出 `main` 与 `0.0.0-next-<UTC 时间戳>` tag，镜像推送成功后创建 `v0.0.0-next-<UTC 时间戳>` tag 与 GitHub Pre-release（`GITHUB_TOKEN` 推送的 tag 不会再触发 workflow），随后 `prune-next` job 对镜像 tag、git tag、Pre-release 三者的版本并集只保留最新 20 个（`KEEP`），超出的在三处一起删；删镜像用 `dataaxiom/ghcr-cleanup-action`（连同多架构子 manifest 与 attestation），要求 package 的 Manage Actions access 给本仓库 Admin 角色。`v*` 产出 `latest` 与 semver tag。
 - 两个构建 job 共用 `type=gha,mode=max` 构建缓存。仓库默认分支是 `develop`，`main` 与 tag 能读到 `develop` 导出的缓存，所以 `docker-check` 虽不产出镜像也照样导出缓存。`setup-buildx-action` 设 `cleanup: false`：托管 runner 用完即弃，post 步骤删 builder 只白耗约半分钟。
 
 镜像结构（`Dockerfile`，三个阶段都基于 `node:24-bookworm-slim`）：
 
-- assets 阶段以 `--platform=$BUILDPLATFORM` 在构建机自身架构上运行：先只复制 manifest、lockfile、patches 与 `scripts/skills-sync.ts`、`scripts/git-hooks.ts`（root `postinstall` 要用；构建上下文没有 `.git`，它们直接跳过），再 `pnpm install --frozen-lockfile` → `pnpm run admin:build` 与 `pnpm --filter @surowan/image-service build` → `node scripts/manual-prepare.ts` 把用户手册 Markdown 打包到 `src/manual/`。这三份产物都是与架构无关的 JS/Markdown；放在目标架构下跑时，arm64 要在 QEMU 里重做一遍，admin 构建比 amd64 慢约十倍。
-- builder 阶段按目标架构执行与 assets 逐条相同的依赖安装（原生模块必须匹配目标架构；目标与构建机同架构时 BuildKit 视作相同步骤只跑一次），复制源码并从 assets 取回 `apps/admin-next/dist/`、`packages/image-service/dist/` 与 `src/manual/`，删掉 `apps/docs` 后以 `pnpm install --prod --frozen-lockfile --ignore-scripts` 剪掉 devDependencies（`--ignore-scripts` 跳过 image-service 依赖 tsc 的 prepare，所以它的 `dist/` 必须先在 assets 构建）。
+- assets 阶段以 `--platform=$BUILDPLATFORM` 在构建机自身架构上运行：先只复制 manifest、lockfile、patches 与 `scripts/skills-sync.ts`、`scripts/git-hooks.ts`（root `postinstall` 要用；构建上下文没有 `.git`，它们直接跳过），再 `pnpm install --frozen-lockfile` → `pnpm run admin:build`、`pnpm --filter @surowan/image-service build` 与 `pnpm --filter @surowan/admin-surface build` → `node scripts/manual-prepare.ts` 把用户手册 Markdown 打包到 `src/manual/`。这些产物都是与架构无关的 JS/Markdown；放在目标架构下跑时，arm64 要在 QEMU 里重做一遍，admin 构建比 amd64 慢约十倍。
+- builder 阶段按目标架构运行：先 `pnpm fetch --prod` 把生产依赖按 lockfile 预取进 pnpm store（该层输入只有根 `package.json`、`pnpm-lock.yaml`、`pnpm-workspace.yaml` 与 `patches/`，源码变更而这些文件不变时整层命中缓存），再 `COPY . .` 复制源码、从 assets 取回 `apps/admin-next/dist/`、`packages/image-service/dist/`、`packages/admin-surface/dist/` 与 `src/manual/`，删掉 `apps/docs` 后以 `pnpm install --prod --frozen-lockfile --ignore-scripts --offline` 只从 store 链接 `node_modules`——`--offline` 保证不再下载；原生模块由 pnpm 按目标平台解析预编译包（better-sqlite3 自带 prebuilds 且构建脚本被 `pnpm-workspace.yaml` 拒绝）；`--ignore-scripts` 跳过 image-service 依赖 tsc 的 prepare，所以它的 `dist/` 必须先在 assets 构建；整个阶段不运行任何编译，故不预置 C 工具链。install 之前不存在 `packages/*/node_modules`（fetch 只写 store 与根 `node_modules/.pnpm`，而根 `node_modules` 被 `.dockerignore` 排除），宿主机 build context 里的依赖目录不会混进镜像。
 - runtime 阶段用 apt 装 `ffmpeg`（含 `ffprobe`）、`python3` 与 `gosu`，再 pip 装 `lottie`；因此**不需要**在宿主机准备任何媒体依赖。
 - runtime 阶段设置 `ENV SUROWAN_OFFICIAL_IMAGE=1`，用来标记官方镜像。Admin Panel 登录页据此显示 `docker compose exec … pairing create --web` 的完整命令；自建镜像没有这个标记，只显示通用提示，见 [admin-panel.md](admin-panel.md#认证)。
 - runtime 阶段接受 `SUROWAN_VERSION` build arg，用运行时自己的 `parseVersion` 推出 Channel，在 `/app/version` 写入 `Version: …` / `Channel: …`；版本号解析失败时构建直接失败，而不是让镜像静默回退到 Develop。Channel 不单独传参，所以不会出现「声明的 Channel 与版本格式不符、运行时拒绝整个文件」的情况（例如手动推送的 `v0.0.0-next-*` tag 会正确写成 Staging）。`docker.yml` 的 `main` 构建传 `v0.0.0-next-<UTC 时间戳>`，`v*` tag 构建传 tag 本身；没有 build arg 的本地 `docker build` 不生成该文件，运行时按 Git tag/commit 回退，最终回退到 `v0.0.0-develop`。Admin Panel 左下角显示这个版本号与 Channel。
