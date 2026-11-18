@@ -29,6 +29,17 @@ export interface GroupMemoryView {
   readonly idle_minutes?: number;
 }
 
+/** One per-Chat MCP binding; `null` inherits every configured server. */
+export interface McpChatBindingView {
+  readonly server: string;
+  readonly tools?: '*' | readonly string[];
+  readonly tool_policies?: readonly {
+    readonly name: string;
+    readonly read_only: boolean;
+    readonly timeout_seconds: number;
+  }[];
+}
+
 export interface ProactiveReplySettingsView {
   readonly enabled: boolean;
   readonly base_probability: number;
@@ -59,6 +70,7 @@ export interface ChatSettingsView extends ChatSettings {
   readonly proactive_reply: ProactiveReplyView | null;
   readonly effective_proactive_reply: ProactiveReplySettingsView;
   readonly timezone: string | null;
+  readonly mcp: readonly McpChatBindingView[] | null;
   readonly effective: AgentModelReference;
 }
 

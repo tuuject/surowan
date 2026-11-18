@@ -30,7 +30,7 @@ function stop(error?: unknown): void {
 // child.kill('SIGTERM') would terminate it without running its shutdown hook.
 const backend = spawn(process.execPath, [join(import.meta.dirname, 'e2e', 'server.ts')], {
   cwd: import.meta.dirname,
-  env: { ...process.env, E2E_PASSKEYS: '0' },
+  env: { ...process.env, E2E_MCP_MANAGER: '1', E2E_PASSKEYS: '0' },
   stdio: ['pipe', 'pipe', 'inherit'],
   windowsHide: true,
 });

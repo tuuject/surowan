@@ -10,6 +10,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { serve } from '@hono/node-server';
 import { ConfigReloader } from '../../../src/adapters/local-monolith/config/reload.ts';
+import { McpManager } from '../../../src/capabilities/mcp/index.ts';
 import { jarEntryDigests, mcpServerKeyDigests } from '../../../src/adapters/local-monolith/config/reload-apply.ts';
 import { CronerScheduleEngine } from '../../../src/adapters/local-monolith/recurring-schedule.ts';
 import { publishStickerSets } from '../../../src/adapters/local-monolith/runtime/sticker-sets.ts';
@@ -48,6 +49,12 @@ export async function main(): Promise<void> {
   const { store, playgroundStore, playgroundAssets, playgroundIngress } = fixtures;
 
   const secrets = new SecretStore(keychainPath(configPath));
+  // The real outbound MCP manager, but only for the specs that assert on live
+  // MCP state (`test.use({ mcpManager: true })`): the stdio fixture spawns a
+  // child process, and every other suite keeps the fixture's small footprint.
+  const mcpManager = process.env.E2E_MCP_MANAGER === '1' ? new McpManager(store, loaded.config, secrets) : null;
+  await mcpManager?.start();
+  state.mcpManager = mcpManager;
   const registry = await buildModelRegistry(loaded.config, null, secrets);
   // The fixture runs no connection manager; tests move this registry between
   // states to render the Telegram page and the standing warnings.
@@ -116,7 +123,7 @@ export async function main(): Promise<void> {
     },
     // The sticker-set publish path is the product's: the store follows the
     // file at once. No runtime runs here, so nothing is aborted or fetched.
-    onPublished: () => {
+    onPublished: async () => {
       const next = configStore.current().config;
       publishStickerSets(
         { store, abortInvocations: () => 0, stickers: () => undefined, onRefreshFailed: () => undefined },
@@ -124,6 +131,14 @@ export async function main(): Promise<void> {
         next,
       );
       publishedConfig = next;
+      // The MCP instances follow the file like `serve` does. There is no
+      // scheduler to cut over here, so the reconcile alone stands in for the
+      // cutover; a server that cannot connect degrades and retries on its own.
+      if (mcpManager !== null) {
+        await mcpManager
+          .reconcile({ config: next, generation: configStore.current().generation })
+          .catch(() => undefined);
+      }
     },
   });
   // No Scheduler runs here: Run now records its firing and task, and the
@@ -156,6 +171,12 @@ export async function main(): Promise<void> {
     requestRestart: () => {
       console.log('E2E_RESTART_REQUESTED');
     },
+    ...(mcpManager === null
+      ? {}
+      : {
+          mcpServerStates: () => mcpManager.serverStates(),
+          mcpServerTools: () => mcpManager.serverToolListings(),
+        }),
   });
 
   console.log(`E2E_READY base=http://${hostname}:${port}`);

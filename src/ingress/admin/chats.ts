@@ -337,6 +337,7 @@ function chatSettings(
         proactive_reply: chat.proactive_reply ?? null,
         effective_proactive_reply: resolveProactiveReply(config, chat),
         timezone: chat.timezone ?? null,
+        mcp: chat.mcp ?? null,
         effective: agentSettingsView(config, chat),
       };
 }

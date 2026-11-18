@@ -41,6 +41,12 @@ export async function shutdown(): Promise<void> {
     // best effort
   }
   try {
+    // Stops the stdio children before their store disappears.
+    await state.mcpManager?.stop();
+  } catch {
+    // best effort
+  }
+  try {
     state.store?.close();
   } catch {
     // best effort

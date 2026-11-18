@@ -1,3 +1,5 @@
+import type { SearchProviderRule } from '../../../platform/web-search.ts';
+import { parseChatMcpBody, updateChatMcp } from '../chat-mcp.ts';
 import { parseParticipation, updateChatParticipation } from '../chat-participation.ts';
 import type { RuntimeConfiguration, RuntimeConfigurationStore } from '../../../platform/runtime-config.ts';
 import type { MemoBlobStore } from '../../../context/memo-pad/blobs.ts';
@@ -37,6 +39,8 @@ export interface ChatsAdminDeps {
   readonly secrets: SecretStore | undefined;
   readonly memoBlobs: MemoBlobStore;
   readonly scheduler?: BucketScheduler;
+  /** The deployment's registered search providers, for MCP candidate validation. */
+  readonly searchProviders: readonly SearchProviderRule[];
 }
 
 /** `/api/chats*` — the Chat list and the per-Chat settings writes. */
@@ -68,7 +72,8 @@ export function createChatsAdminHandler(deps: ChatsAdminDeps) {
         ((request.method === 'PUT' || request.method === 'DELETE') && segments.length === 2) ||
         (request.method === 'PUT' && segments.length === 3 && segments[2] === 'participation') ||
         (request.method === 'PUT' && segments.length === 3 && segments[2] === 'group-memory') ||
-        (request.method === 'PUT' && segments.length === 3 && segments[2] === 'proactive-reply')
+        (request.method === 'PUT' && segments.length === 3 && segments[2] === 'proactive-reply') ||
+        (request.method === 'PUT' && segments.length === 3 && segments[2] === 'mcp')
       )
     ) {
       return json({ error: 'method_not_allowed', message: 'Unsupported Chat operation' }, 405);
@@ -94,6 +99,13 @@ export function createChatsAdminHandler(deps: ChatsAdminDeps) {
         edits = deleteChat(loaded.fileConfig, id);
       } else if (segments[2] === 'participation') {
         edits = updateChatParticipation(loaded.fileConfig, id, parseParticipation(await readJsonObject(request)));
+      } else if (segments[2] === 'mcp') {
+        edits = updateChatMcp(
+          loaded.fileConfig,
+          id,
+          parseChatMcpBody(await readJsonObject(request)),
+          deps.searchProviders,
+        );
       } else if (segments[2] === 'group-memory') {
         edits = updateChatGroupMemory(loaded.fileConfig, id, parseGroupMemory(await readJsonObject(request)));
       } else if (segments[2] === 'proactive-reply') {

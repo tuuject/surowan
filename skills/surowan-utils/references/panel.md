@@ -21,6 +21,7 @@ surowan-utils chat list --json                     # 已配置 Chat 的 saved/ac
 surowan-utils provider list --json                 # 磁盘上的 Provider、模型与 revision
 surowan-utils prompt versions --scope global --json
 surowan-utils search show --json
+surowan-utils mcp-server list --json            # 出站 MCP Server：状态、发现过的 Tool、绑定的 Chat（不回显任何密钥；HTTP 的 URL 只给 origin 并带 url_redacted）
 surowan-utils image config show --json
 surowan-utils telegram show --json                 # 是否已配置 token（不回显值）与消息批次节拍的 saved/active
 surowan-utils warning list --json
@@ -40,7 +41,7 @@ surowan-utils room list --json
 
 1. **目标**：哪个 Chat / Provider / 模型 / Prompt scope / 词条 / 房间，用精确 ID 或 alias 表示。
 2. **字段与值**：`harness update --set-json values.history_messages=40` 这种确切形状，而不是“调大一点”。可选字段用 `null` 表示删除该字段（回到默认），不是“设成空”。
-3. **影响范围**：是否热应用（大多数配置写入立即生效）、是否进入待重启列表、是否影响运行中的 Invocation（Prompt 写入只影响下一次 Invocation，`prompt cancel-running` 才会中断当前的；`chat group-memory` 会中止该 Chat 的运行并重建 Context；`chat delete` 会删除全部存储数据；`model set` 与改模型的 `chat update` 在还有会话用旧模型时返回 409 `model_in_use`，只有用户同意终止这些会话后才加 `--set-json abort_running=true` 重试——终止后它们正在处理的消息不再回复）。
+3. **影响范围**：是否热应用（大多数配置写入立即生效）、是否进入待重启列表、是否影响运行中的 Invocation（Prompt 写入只影响下一次 Invocation，`prompt cancel-running` 才会中断当前的；`chat group-memory` 会中止该 Chat 的运行并重建 Context；`mcp-server update` 与 `chat mcp` 的收窄改动会停掉受影响 Chat 的运行、重建 Context 并自动续跑一次，纯新增/加宽不打断；`chat delete` 会删除全部存储数据；`model set` 与改模型的 `chat update` 在还有会话用旧模型时返回 409 `model_in_use`，只有用户同意终止这些会话后才加 `--set-json abort_running=true` 重试——终止后它们正在处理的消息不再回复）。
 4. **可撤销性**：删除类操作不可撤销；Prompt 写入会追加版本，可用 `prompt versions` + `prompt restore` 回退。
 
 推荐的核对顺序：
@@ -82,6 +83,7 @@ printf '%s' "$NEW_PROMPT" | surowan-utils prompt save global --file - --json
 | --- | --- |
 | `chat delete <id>` | 从白名单移除并**删除该 Chat 的全部存储数据**：Memo Pad、Blob、Conversation Context、Message、Invocation 与发送审计。不可撤销 |
 | `chat group-memory <id>` | **不是** `--yes` 项，但切换 `enabled` 会 fence 该 Chat 的全部 Conversation、中止运行中的 Invocation 并重建 Context；确认前要说明这一点 |
+| `mcp-server delete <alias>` | 仍有 Chat 显式绑定时返回 409 `mcp_server_in_use`（列出 Chat id），先 `chat mcp <id>` 解绑；删除后 keychain 里的 Header 条目不自动回收 |
 | `model delete` / `provider delete` | 被 agent/vision/任一 Chat 引用时服务端返回 409，不会被删除；确认对象确实无人引用 |
 | `prompt cancel-running` | 只取消仍按旧 Prompt 运行的 Invocation；已发出的消息不撤回 |
 | `session cancel` | 中止全部 running/queued Invocation 并过期其 Bucket |

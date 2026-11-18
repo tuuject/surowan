@@ -146,6 +146,9 @@ export class ConfigReloader implements BotCommandConfigWriter, ConfigController 
       state: this.#state,
       withLock: (operation) => this.#withLock(operation),
       applyFile: () => this.#applyFile(),
+      // The keychain write validates the edited file before the rename; it must
+      // use the deployment's own search providers, like every other write path.
+      loadOptions: () => this.#loadOptions(),
     });
   }
 

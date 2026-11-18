@@ -18,6 +18,7 @@ import { versionUserAgent } from '../../platform/version.ts';
 import { mcpServerState } from '../../store/schema/index.ts';
 import type { McpState } from './shared.ts';
 import {
+  advertisedTools,
   CompatibleTransport,
   limitResponseBody,
   type ManagedServer,
@@ -35,6 +36,7 @@ export function managedServer(config: McpServerConfig): ManagedServer {
     config,
     semaphore: new AsyncSemaphore(1),
     definitions: [],
+    advertised: [],
     client: undefined,
     attempt: undefined,
     generation: 0,
@@ -63,8 +65,10 @@ export async function stopServer(state: McpState, server: ManagedServer): Promis
   const client = server.client;
   server.client = undefined;
   // Cleared before the close is awaited: a caller building a tool set during
-  // the close must not see the old definitions under a stopped alias.
+  // the close must not see the old definitions under a stopped alias. The
+  // advertised list describes the same discovery, so it goes with them.
   server.definitions = [];
+  server.advertised = [];
   const attempt = server.attempt;
   if (attempt !== undefined) {
     // An in-flight connect has no published client yet: cancel its handshake
@@ -181,6 +185,9 @@ export async function connect(
       }
       const definitions = selectTools(server, listed.tools);
       assertBindingsSatisfied(state, server.config, definitions);
+      // The advertised list survives the selection: the panel shows tools the
+      // server's `tools` setting does not expose, marked as such.
+      server.advertised = advertisedTools(listed.tools);
       publishCandidate(server, definitions, revalidate);
       server.client = client;
       published = true;
@@ -248,6 +255,7 @@ async function refreshTools(state: McpState, server: ManagedServer, revalidate: 
     }
     const candidate = selectTools(server, listed.tools);
     assertBindingsSatisfied(state, server.config, candidate);
+    server.advertised = advertisedTools(listed.tools);
     publishCandidate(server, candidate, revalidate);
     // The refresh itself proved the connection healthy; an armed retry from
     // an earlier failure must not fire now and replace this client mid-call.

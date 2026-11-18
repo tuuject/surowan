@@ -65,6 +65,12 @@ export async function handleHook(request: Request, url: URL): Promise<Response> 
   if (request.method === 'GET' && route === '/health') {
     return json({ ok: true });
   }
+  if (request.method === 'GET' && route === '/config-text') {
+    // The MCP servers spec writes its review artifact from the config file the
+    // server actually holds after its panel writes.
+    const text = await readFile(join(serverState.directory, 'config.jsonc'), 'utf8');
+    return json({ path: join(serverState.directory, 'config.jsonc'), text });
+  }
   if (request.method === 'POST' && route === '/telegram-connection') {
     const body = (await request.json().catch(() => null)) as {
       status?: unknown;

@@ -5,6 +5,7 @@ import { ConfigReloader } from '../../src/adapters/local-monolith/config/reload.
 import { loadConfig } from '../../src/adapters/local-monolith/config/index.ts';
 import { createControlAdminHandler } from '../../src/ingress/admin/control.ts';
 import { createChatsAdminHandler } from '../../src/ingress/admin/routes/chats.ts';
+import { BUILTIN_SEARCH_PROVIDERS } from '../../src/platform/web-search.ts';
 import type { InvocationHandler } from '../../src/orchestration/scheduler/index.ts';
 import type { FileConfig } from '../../src/platform/config/index.ts';
 import { resolveAgentSettings } from '../../src/platform/config/resolve.ts';
@@ -84,6 +85,7 @@ function withOverrideChat(config: FixtureConfig): void {
 async function switchFixture(runs: ReturnType<typeof gatedRuns>) {
   const f = await fixture(runs.handler, { transform: withOverrideChat });
   const chatsRoute = createChatsAdminHandler({
+    searchProviders: BUILTIN_SEARCH_PROVIDERS,
     store: f.store,
     configStore: f.configStore,
     configReloader: f.reloader,

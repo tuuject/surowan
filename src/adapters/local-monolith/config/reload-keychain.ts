@@ -14,6 +14,7 @@ import type {
 import { collectSecretReferences, KeychainError, readKeychain, updateKeychain } from '../../../platform/keychain.ts';
 import type { RuntimeConfigurationStore } from '../../../platform/runtime-config.ts';
 import { ConfigWriteError, readConfigRevision, writeConfigEdits } from './file.ts';
+import type { SearchProviderRule } from '../../../platform/web-search.ts';
 import type { ConfigReloadState } from './reload-apply.ts';
 
 /**
@@ -29,6 +30,8 @@ export class KeychainController {
   readonly #state: ConfigReloadState;
   readonly #lock: <T>(operation: () => Promise<T>) => Promise<T>;
   readonly #apply: () => Promise<ConfigApplyResult>;
+  /** The reloader's own validation options, so a secrets write validates the edited file the same way. */
+  readonly #loadOptions: () => { readonly searchProviders?: readonly SearchProviderRule[] };
 
   constructor(deps: {
     readonly keychainFile: string;
@@ -37,6 +40,7 @@ export class KeychainController {
     readonly state: ConfigReloadState;
     readonly withLock: <T>(operation: () => Promise<T>) => Promise<T>;
     readonly applyFile: () => Promise<ConfigApplyResult>;
+    readonly loadOptions: () => { readonly searchProviders?: readonly SearchProviderRule[] };
   }) {
     this.#file = deps.keychainFile;
     this.#path = deps.configPath;
@@ -44,6 +48,7 @@ export class KeychainController {
     this.#state = deps.state;
     this.#lock = deps.withLock;
     this.#apply = deps.applyFile;
+    this.#loadOptions = deps.loadOptions;
   }
 
   /**
@@ -208,7 +213,7 @@ export class KeychainController {
    */
   async #writeAndApply(edits: readonly ConfigEdit[], expectedRevision?: string): Promise<ConfigApplyResult> {
     try {
-      await writeConfigEdits(this.#path, edits, expectedRevision);
+      await writeConfigEdits(this.#path, edits, expectedRevision, this.#loadOptions());
     } catch (error) {
       if (error instanceof ConfigWriteError) {
         return this.#failure(error.code, error.message);

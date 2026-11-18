@@ -17,6 +17,7 @@ import {
   LibraryIcon,
   MoreIcon,
   PulseIcon,
+  PuzzleIcon,
   ScrollIcon,
   SparklesIcon,
 } from '@/components/icons';
@@ -57,6 +58,7 @@ export function ChatTable({
   onSchedule,
   onProactive,
   onGroupMemory,
+  onMcp,
   onRemove,
 }: {
   readonly view: ChatsView;
@@ -66,6 +68,7 @@ export function ChatTable({
   readonly onSchedule: (chat: ChatEntry) => void;
   readonly onProactive: (chat: ChatEntry) => void;
   readonly onGroupMemory: (chat: ChatEntry) => void;
+  readonly onMcp: (chat: ChatEntry) => void;
   readonly onRemove: (chat: ChatEntry) => void;
 }): ReactElement {
   const { t } = useTranslation();
@@ -371,6 +374,12 @@ export function ChatTable({
                       'separator' as const,
                     ]
                   : []),
+                {
+                  value: 'mcp',
+                  label: t('pages.chats.editMcp'),
+                  icon: <PuzzleIcon />,
+                  onSelect: () => onMcp(row),
+                },
                 {
                   label: t('pages.chats.quickLinks'),
                   items: [

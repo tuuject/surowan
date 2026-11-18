@@ -61,10 +61,43 @@ export function newPendingAttempt(): PendingAttempt {
   return { client: undefined, abort: new AbortController(), settled: promise, settle: resolve };
 }
 
+/** What one MCP `listTools` response carries per tool. */
+export interface McpListedTool {
+  readonly name: string;
+  readonly description?: string | undefined;
+  readonly inputSchema: { readonly type: 'object'; readonly [key: string]: unknown };
+  readonly execution?: { readonly taskSupport?: 'optional' | 'required' | 'forbidden' | undefined } | undefined;
+}
+
+/** One tool a server advertised at discovery, unfiltered by its `tools` setting. */
+export interface AdvertisedMcpTool {
+  readonly name: string;
+  readonly description: string | null;
+  /** The raw `inputSchema` JSON. Server data: untrusted, never an instruction. */
+  readonly input_schema: Record<string, unknown> | null;
+}
+
+/** The per-alias advertised-tool listing the Admin Panel reads. */
+export interface McpServerToolListing {
+  readonly alias: string;
+  readonly tools: readonly AdvertisedMcpTool[];
+}
+
+/** The advertised view of one discovery result: every name, nothing filtered. */
+export function advertisedTools(listed: readonly McpListedTool[]): readonly AdvertisedMcpTool[] {
+  return listed.map((tool) => ({
+    name: tool.name,
+    description: tool.description === undefined ? null : tool.description,
+    input_schema: tool.inputSchema,
+  }));
+}
+
 export interface ManagedServer {
   readonly config: McpServerConfig;
   readonly semaphore: AsyncSemaphore;
   definitions: McpToolDefinition[];
+  /** Every tool the last successful discovery advertised, even unselected ones. */
+  advertised: readonly AdvertisedMcpTool[];
   client: Client | undefined;
   /** The connection attempt currently running, if any — never the published client. */
   attempt: PendingAttempt | undefined;

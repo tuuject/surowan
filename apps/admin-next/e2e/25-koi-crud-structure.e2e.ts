@@ -182,6 +182,14 @@ const pages = [
     heading: 'Web search',
     action: 'Add engine',
   },
+  {
+    path: '/mcp-servers',
+    api: '/api/mcp-servers',
+    group: 'Agent setup',
+    label: 'MCP servers',
+    heading: 'MCP servers',
+    action: 'Add server',
+  },
 ] as const;
 
 for (const entry of pages) {

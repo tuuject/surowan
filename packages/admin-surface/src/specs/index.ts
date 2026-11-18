@@ -5,6 +5,7 @@ import { CONTROL_SPECS } from './control.ts';
 import { DICTIONARY_SPECS } from './dictionary.ts';
 import { IMAGE_SPECS } from './image.ts';
 import { MEMORY_SPECS } from './memory.ts';
+import { MCP_SERVER_SPECS } from './mcp-servers.ts';
 import { PLAYGROUND_SPECS } from './playground.ts';
 import { PROMPT_SPECS } from './prompts.ts';
 import { PROVIDER_SPECS } from './providers.ts';
@@ -30,6 +31,7 @@ export const ADMIN_SURFACE_SPECS: readonly EndpointSpec[] = [
   ...CHAT_SPECS,
   ...PROMPT_SPECS,
   ...SEARCH_SPECS,
+  ...MCP_SERVER_SPECS,
   ...IMAGE_SPECS,
   ...MEMORY_SPECS,
   ...TELEGRAM_SPECS,

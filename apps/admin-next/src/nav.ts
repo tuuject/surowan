@@ -33,6 +33,7 @@ export type NavTo =
   | '/providers'
   | '/prompts'
   | '/harness'
+  | '/mcp-servers'
   | '/search-settings'
   | '/telegram'
   | '/chats'
@@ -114,6 +115,7 @@ export const NAV_GROUPS: readonly NavGroupDefinition[] = [
       { titleKey: 'providers', to: '/providers' },
       { titleKey: 'prompts', to: '/prompts' },
       { titleKey: 'harness', to: '/harness' },
+      { titleKey: 'mcpServers', to: '/mcp-servers' },
       { titleKey: 'searchSettings', to: '/search-settings' },
     ],
   },

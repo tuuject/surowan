@@ -113,6 +113,18 @@ MCP Server 通过 `mcp.servers` 配置，可使用 stdio 或 Streamable HTTP。�
 - 绑定只收窄，不改连接：命令、URL、环境变量与 Header 仍属于 Server。需要两种连接就配两个 alias（Tool 名因此是 `<alias>__<tool>`）。
 - Playground 房间永远没有 MCP Tool。每个 Chat 单独检查 61 个 Tool 的上限与模型上下文窗口，不同 Chat 的集合互不影响。
 
+### 在面板里管理
+
+Admin 的「MCP servers」页（Manage → MCP servers）让运营者不碰 `config.jsonc` 就能管理出站 MCP：页面显示每个 Server 的实时状态（ready / connecting / degraded，含错误码）、连接摘要与它发现过的全部 Tool（含被 `tools` 设置隐藏的），每条改动保存后立即热应用。
+
+- **新增**只接受 Streamable HTTP Server（alias、URL、Header 密钥、Tool 选择与策略）；stdio Server 运行的是宿主机上的命令，必须在服务器的 `config.jsonc` 里手工添加。
+- **编辑**时 HTTP Server 可以改 URL 与 Header；stdio Server 只能改 Tool 选择、大小限制与策略——命令、环境变量与传输方式保持只读，页面会明确提示这些字段只在 `config.jsonc` 里维护。
+- **删除**要求先解绑：还有 Chat 显式绑定该 Server 时会返回绑定它的 Chat 列表；不写 `mcp` 字段的 Chat 继承全部 Server，删除后它们自动失去这个来源。
+- 每个服务器的工具选择来自它的显式列表，或 `tools: "*"` 时来自它实际发现（advertised）的工具名。
+- Chats 页每行的「MCP servers」入口设置该 Chat 的绑定：继承全部、完全关闭，或显式挑选 Server 并收窄 Tool。
+
+保存会触发与手改配置文件完全相同的切换：受影响 Chat 正在跑的 Invocation 会被停下并续跑，对话框里会提前说明这一点。
+
 ## 何时生效和如何确认
 
 `mcp.servers` 与每个 Chat 的 `mcp` 都可以热应用，不需要重启：在 Admin「Apply config file」或任何一次面板保存之后，新增的 Server 会被连接、删除的会被关闭、改过字段的会被替换，没改的 Server 保持连接。改变某个 Chat 能用的 Tool（删掉绑定、换 Tool 列表、改策略，或它用的 Server 被改）时，这个 Chat 正在跑的 Invocation 会被停下、该 Chat 的连续 Context 会被重建，然后自动续跑一次：模型看到的是新的聊天记录，会被告知这次是运营者改了 MCP 配置，并收到被停下时结果未知的 MCP Tool 名，避免重复副作用。只是新增 Server 或加宽 Tool 列表不会打断正在跑的对话，下一条消息就用上新的集合。

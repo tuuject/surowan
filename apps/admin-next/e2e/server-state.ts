@@ -7,6 +7,7 @@
  * module graph acyclic and the boot order in one readable place.
  */
 import type { ServerType } from '@hono/node-server';
+import type { McpManager } from '../../../src/capabilities/mcp/index.ts';
 import type { SqliteStore } from '../../../src/adapters/local-monolith/database.ts';
 import type { AdminServer } from '../../../src/ingress/admin/index.ts';
 import type { ImConnectionRegistry } from '../../../src/platform/im-connection.ts';
@@ -20,6 +21,8 @@ export const state: {
   admin: AdminServer | null;
   /** Live IM state handed to `AdminServer`; hooks move it between statuses. */
   connections: ImConnectionRegistry | null;
+  /** The outbound MCP manager; stopped before the store closes on shutdown. */
+  mcpManager: McpManager | null;
   /** Temp directory holding the config, key jar and SQLite file; removed on shutdown. */
   directory: string;
   shuttingDown: boolean;
@@ -31,6 +34,7 @@ export const state: {
   upstream: null,
   admin: null,
   connections: null,
+  mcpManager: null,
   directory: '',
   shuttingDown: false,
   failNextConfigApply: false,

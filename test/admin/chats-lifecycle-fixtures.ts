@@ -3,6 +3,7 @@ import { afterEach, vi } from 'vitest';
 import { ConfigReloader, type ImageConfigGateway } from '../../src/adapters/local-monolith/config/reload.ts';
 import { applyGroupMemoryToggles, stopRemovedChats } from '../../src/adapters/local-monolith/runtime/chat-lifecycle.ts';
 import { createChatsAdminHandler } from '../../src/ingress/admin/routes/chats.ts';
+import { BUILTIN_SEARCH_PROVIDERS } from '../../src/platform/web-search.ts';
 import { BucketScheduler, type InvocationHandler } from '../../src/orchestration/scheduler/index.ts';
 import { AgentModelSwitcher } from '../../src/platform/models/switch.ts';
 import { keychainPath } from '../../src/platform/keychain.ts';
@@ -56,6 +57,7 @@ export async function fixture(
     },
   });
   const route = createChatsAdminHandler({
+    searchProviders: BUILTIN_SEARCH_PROVIDERS,
     store: f.store,
     configStore: f.configStore,
     configReloader: reloader,
