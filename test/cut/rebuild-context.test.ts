@@ -40,7 +40,7 @@ function rebuildCommandUpdate(updateId: number, messageId: number, chatId: bigin
 function conversationIdOf(store: SqliteStore, telegramChatId: bigint, threadId = 0n): bigint | undefined {
   return store.db
     .prepare<[bigint, bigint], { id: bigint }>(
-      'SELECT v.id FROM conversations v JOIN chats c ON c.id = v.chat_id WHERE c.telegram_chat_id = ? AND v.message_thread_id = ?',
+      "SELECT v.id FROM conversations v JOIN chats c ON c.id = v.chat_id WHERE c.host_kind = 'telegram' AND c.host_chat_id = ? AND v.message_thread_id = ?",
     )
     .get(telegramChatId, threadId)?.id;
 }
@@ -125,7 +125,9 @@ describe('rebuild_context', () => {
     expect(await commands.run(rebuild!, FIRST_CHAT, ALICE)).toContain('丢弃');
     expect(
       store.db
-        .prepare<[], { telegram_message_id: bigint }>('SELECT telegram_message_id FROM conversation_context_cutoffs')
+        .prepare<[], { telegram_message_id: bigint }>(
+          'SELECT message_no AS telegram_message_id FROM conversation_context_cutoffs',
+        )
         .get()?.telegram_message_id,
     ).toBe(11n);
     expect(

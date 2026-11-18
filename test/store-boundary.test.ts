@@ -2,7 +2,7 @@ import { afterAll, expect, test } from 'vitest';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { loadConfig } from '../src/adapters/local-monolith/config/index.ts';
 import { SqliteStore } from '../src/adapters/local-monolith/database.ts';
 import { chats } from '../src/store/schema/index.ts';
@@ -17,7 +17,13 @@ afterAll(async () => {
 function insertChat(orm: Orm, id: bigint): void {
   orm
     .insert(chats)
-    .values({ telegramChatId: id, canonicalChatId: id, type: 'private', updatedAt: new Date().toISOString() })
+    .values({
+      hostKind: 'telegram',
+      hostChatId: id,
+      canonicalChatId: id,
+      type: 'private',
+      updatedAt: new Date().toISOString(),
+    })
     .run();
 }
 
@@ -41,18 +47,28 @@ test('business store provides atomic rollback and exact bigint IDs across SQLite
       store.orm
         .select()
         .from(chats)
-        .where(eq(chats.telegramChatId, largeId - 1n))
+        .where(and(eq(chats.hostKind, 'telegram'), eq(chats.hostChatId, largeId - 1n)))
         .get(),
     ).toBeUndefined();
     store.transaction(() => insertChat(store.orm, largeId));
-    expect(store.orm.select().from(chats).where(eq(chats.telegramChatId, largeId)).get()?.telegramChatId).toBe(largeId);
+    expect(
+      store.orm
+        .select()
+        .from(chats)
+        .where(and(eq(chats.hostKind, 'telegram'), eq(chats.hostChatId, largeId)))
+        .get()?.hostChatId,
+    ).toBe(largeId);
   } finally {
     native.close();
   }
   const reopened = await SqliteStore.open(config);
   try {
-    const row = reopened.orm.select().from(chats).where(eq(chats.telegramChatId, largeId)).get();
-    expect(row?.telegramChatId).toBe(largeId);
+    const row = reopened.orm
+      .select()
+      .from(chats)
+      .where(and(eq(chats.hostKind, 'telegram'), eq(chats.hostChatId, largeId)))
+      .get();
+    expect(row?.hostChatId).toBe(largeId);
     expect(typeof row?.id).toBe('bigint');
   } finally {
     reopened.close();

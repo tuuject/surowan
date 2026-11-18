@@ -156,7 +156,7 @@ export async function runtimeFixture(transform?: (config: FixtureConfig) => void
     const at = new Date().toISOString();
     store.db
       .prepare(
-        "INSERT INTO chats(id, telegram_chat_id, canonical_chat_id, type, updated_at) VALUES (1, ?, ?, 'private', ?)",
+        "INSERT INTO chats(id, host_chat_id, canonical_chat_id, type, updated_at, host_kind) VALUES (1, ?, ?, 'private', ?, 'telegram')",
       )
       .run(CHAT_ID, CHAT_ID, at);
     store.db

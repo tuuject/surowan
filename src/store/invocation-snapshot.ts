@@ -2,14 +2,15 @@ import { eq, sql } from 'drizzle-orm';
 import { bodyFromFragment } from '../platform/telegram-markdown/index.ts';
 import type { BusinessStore } from './store.ts';
 import { invocationMessages, media } from './schema/index.ts';
+import { telegramHostSql } from './host-scope.ts';
 
 export interface MessageSnapshotRow {
   readonly message_id: bigint;
   readonly conversation_id: bigint;
   readonly message_thread_id: bigint;
   readonly revision_id: bigint;
-  readonly telegram_message_id: bigint;
-  readonly telegram_date: string;
+  readonly message_no: bigint;
+  readonly sent_at: string;
   readonly sent_by_bot: bigint;
   readonly revision_no: bigint;
   readonly kind: string;
@@ -20,7 +21,7 @@ export interface MessageSnapshotRow {
   readonly reply_snapshot_json: string | null;
   readonly forward_origin_json: string | null;
   readonly media_group_id: string | null;
-  readonly sender_telegram_id: bigint | null;
+  readonly sender_host_id: bigint | null;
   readonly sender_display_name: string | null;
   readonly sender_username: string | null;
   readonly source_bucket_id: bigint | null;
@@ -50,43 +51,46 @@ export function snapshotInvocation(
   // still collecting in another batch stay out too: that batch delivers them as
   // new later, and a run opened beside it (a receipt, a resume) would otherwise
   // show them twice, once as history and once as new.
+  // This writer only knows the Telegram snapshot format: a room's messages are
+  // frozen by the Playground release path under its own format, so non-Telegram
+  // rows stay out of both reads here.
   const history = includeHistory
     ? store.orm
         .all<MessageSnapshotRow>(
           sql`SELECT m.id AS message_id, m.conversation_id, v.message_thread_id,
-                r.id AS revision_id, m.telegram_message_id, m.telegram_date, m.sent_by_bot,
+                r.id AS revision_id, m.message_no, m.sent_at, m.sent_by_bot,
                 r.revision_no, r.kind, r.text, r.caption, r.raw_fragment_json, r.reply_to_message_id, r.reply_snapshot_json,
-                r.forward_origin_json, r.media_group_id, s.telegram_id AS sender_telegram_id,
+                r.forward_origin_json, r.media_group_id, s.host_sender_id AS sender_host_id,
                 s.display_name AS sender_display_name, s.username AS sender_username, NULL AS source_bucket_id
          FROM messages m
          JOIN conversations v ON v.id = m.conversation_id
          JOIN message_revisions r ON r.id = m.current_revision_id
          LEFT JOIN senders s ON s.id = r.sender_id
-         WHERE m.conversation_id = ${conversationId} AND m.visible = 1
-           AND m.telegram_message_id > COALESCE(
-             (SELECT telegram_message_id FROM conversation_context_cutoffs WHERE conversation_id = m.conversation_id), -1)
+         WHERE m.conversation_id = ${conversationId} AND m.visible = 1 AND ${telegramHostSql('m.host_kind')}
+           AND m.message_no > COALESCE(
+             (SELECT message_no FROM conversation_context_cutoffs WHERE conversation_id = m.conversation_id), -1)
            AND NOT EXISTS (SELECT 1 FROM bucket_messages bm WHERE bm.bucket_id = ${bucketId} AND bm.message_id = m.id)
            AND m.id NOT IN (
              SELECT pending.message_id FROM bucket_messages pending
              JOIN buckets pb ON pb.id = pending.bucket_id
              WHERE pb.conversation_id = ${conversationId} AND pb.state = 'collecting')
-         ORDER BY m.telegram_date DESC, m.telegram_message_id DESC
+         ORDER BY m.sent_at DESC, m.message_no DESC
          LIMIT ${BigInt(historyMessages)}`,
         )
         .reverse()
     : [];
   const current = store.orm.all<MessageSnapshotRow>(
     sql`SELECT m.id AS message_id, m.conversation_id, v.message_thread_id,
-            r.id AS revision_id, m.telegram_message_id, m.telegram_date, m.sent_by_bot,
+            r.id AS revision_id, m.message_no, m.sent_at, m.sent_by_bot,
             r.revision_no, r.kind, r.text, r.caption, r.raw_fragment_json, r.reply_to_message_id, r.reply_snapshot_json,
-            r.forward_origin_json, r.media_group_id, s.telegram_id AS sender_telegram_id,
+            r.forward_origin_json, r.media_group_id, s.host_sender_id AS sender_host_id,
             s.display_name AS sender_display_name, s.username AS sender_username, bm.source_bucket_id
        FROM bucket_messages bm
        JOIN messages m ON m.id = bm.message_id
        JOIN conversations v ON v.id = m.conversation_id
        JOIN message_revisions r ON r.id = m.current_revision_id
        LEFT JOIN senders s ON s.id = r.sender_id
-       WHERE bm.bucket_id = ${bucketId} ORDER BY bm.sequence_no`,
+       WHERE bm.bucket_id = ${bucketId} AND ${telegramHostSql('m.host_kind')} ORDER BY bm.sequence_no`,
   );
   let sequence = options.append === true ? nextSequence(store, invocationId) : 1n;
   for (const message of history) {
@@ -149,13 +153,13 @@ function insertSnapshot(
     mediaCount: mediaRows.length,
   });
   const snapshot = JSON.stringify({
-    message_id: message.telegram_message_id.toString(),
+    message_id: message.message_no.toString(),
     message_thread_id: message.message_thread_id.toString(),
-    telegram_date: message.telegram_date,
+    telegram_date: message.sent_at,
     sent_by_bot: message.sent_by_bot === 1n,
     revision: message.revision_no.toString(),
     sender: {
-      id: message.sender_telegram_id?.toString() ?? null,
+      id: message.sender_host_id?.toString() ?? null,
       name: message.sender_display_name,
       username: message.sender_username,
     },

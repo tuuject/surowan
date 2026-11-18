@@ -11,7 +11,7 @@ export interface DeliveryTarget {
   readonly chatId: bigint;
   readonly hostKind: string;
   /** Null for a Playground room, which has no Telegram identity. */
-  readonly telegramChatId: bigint | null;
+  readonly hostChatId: bigint | null;
   readonly messageThreadId: bigint;
 }
 
@@ -22,10 +22,10 @@ export function deliveryTarget(orm: Orm, conversationId: bigint): DeliveryTarget
     .all<{
       chat_id: bigint;
       host_kind: string;
-      telegram_chat_id: bigint | null;
+      host_chat_id: bigint | null;
       message_thread_id: bigint;
     }>(
-      sql`SELECT v.chat_id, c.host_kind, c.telegram_chat_id, v.message_thread_id
+      sql`SELECT v.chat_id, c.host_kind, c.host_chat_id, v.message_thread_id
           FROM conversations v JOIN chats c ON c.id = v.chat_id WHERE v.id = ${conversationId}`,
     )
     .at(0);
@@ -35,7 +35,7 @@ export function deliveryTarget(orm: Orm, conversationId: bigint): DeliveryTarget
         conversationId,
         chatId: row.chat_id,
         hostKind: row.host_kind,
-        telegramChatId: row.telegram_chat_id,
+        hostChatId: row.host_chat_id,
         messageThreadId: row.message_thread_id,
       };
 }
@@ -57,10 +57,10 @@ export function deliveryBlockReason(
     const room = orm.select({ chatId: rooms.chatId }).from(rooms).where(eq(rooms.chatId, target.chatId)).get();
     return room === undefined ? 'chat_removed' : undefined;
   }
-  if (target.telegramChatId === null) {
+  if (target.hostChatId === null) {
     return 'chat_removed';
   }
-  const chatConfig = resolveChatConfig(config, orm, target.telegramChatId);
+  const chatConfig = resolveChatConfig(config, orm, target.hostChatId);
   if (chatConfig === undefined) {
     return 'chat_removed';
   }

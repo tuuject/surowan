@@ -162,7 +162,7 @@ test('a process with Telegram disabled runs the room round and only recovers wha
     const sleepUntil = new Date(Date.now() + 60 * 60_000).toISOString();
     const seeding = await SqliteStore.open((await loadConfig(configPath)).config);
     seeding.db.exec(`
-      INSERT INTO chats(id, host_kind, telegram_chat_id, canonical_chat_id, type, title, updated_at)
+      INSERT INTO chats(id, host_kind, host_chat_id, canonical_chat_id, type, title, updated_at)
         VALUES (900, 'telegram', 123456789, 123456789, 'supergroup', 'TG fixture', '${stamp}');
       INSERT INTO conversations(id, chat_id, message_thread_id, created_at, updated_at)
         VALUES (900, 900, 0, '${stamp}', '${stamp}');

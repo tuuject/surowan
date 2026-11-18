@@ -76,7 +76,7 @@ describe('send tool', () => {
         .all(),
       sends: fixture.store.db
         .prepare<[], { state: string; error_code: string | null; telegram_message_id: bigint | null }>(
-          'SELECT state, error_code, telegram_message_id FROM host_sends ORDER BY id',
+          'SELECT state, error_code, message_no AS telegram_message_id FROM host_sends ORDER BY id',
         )
         .all(),
     });

@@ -111,8 +111,9 @@ function seedFixture(orm: Orm): void {
   orm
     .insert(chats)
     .values({
+      hostKind: 'telegram',
       id: IDS.chat,
-      telegramChatId: 123_456_789n,
+      hostChatId: 123_456_789n,
       canonicalChatId: 123_456_789n,
       type: 'supergroup',
       title: 'Invocation media fixture',
@@ -254,11 +255,12 @@ function messageRow(id: bigint, conversationId: bigint, telegramMessageId: bigin
     id,
     conversationId,
     chatId: IDS.chat,
-    telegramMessageId,
+    hostKind: 'telegram' as const,
+    messageNo: telegramMessageId,
     currentRevisionId: null,
     visible: true,
     sentByBot: false,
-    telegramDate: AT,
+    sentAt: AT,
     receivedAt: AT,
   };
 }
@@ -295,6 +297,7 @@ function mediaRow(
     id,
     revisionId,
     kind,
+    hostKind: 'telegram' as const,
     fileId,
     fileUniqueId: `${fileId}-unique`,
     mimeType,

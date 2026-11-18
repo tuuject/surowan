@@ -221,13 +221,13 @@ export function dictionaryView(store: DictionaryStore, query: DictionaryQuery) {
  */
 export function listDictionaryChatOptions(orm: Orm) {
   return orm
-    .select({ telegramChatId: chats.telegramChatId, title: chats.title, type: chats.type })
+    .select({ telegramChatId: chats.hostChatId, title: chats.title, type: chats.type })
     .from(chats)
     .where(telegramHostScope())
-    .orderBy(chats.telegramChatId)
+    .orderBy(chats.hostChatId)
     .all()
     .map((row) => ({
-      id: telegramIdentity(row.telegramChatId, 'chats.telegram_chat_id').toString(),
+      id: telegramIdentity(row.telegramChatId, 'chats.host_chat_id').toString(),
       title: row.title,
       type: row.type,
     }));

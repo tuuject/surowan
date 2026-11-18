@@ -4,6 +4,7 @@ import { type SQL, sql } from 'drizzle-orm';
 import { completeAgentSettings, resolveAgentSettings } from '../../platform/config/resolve.ts';
 import { isConversationActive } from '../../store/participation.ts';
 import { bucketMessages, buckets } from '../../store/schema/index.ts';
+import { telegramHostSql } from '../../store/host-scope.ts';
 import { isChatPaused, resolveChatConfig } from '../../store/store.ts';
 import {
   enqueueBucketInvocation,
@@ -56,8 +57,8 @@ export function selectCatchUpMessages(
     ? sql`AND NOT EXISTS (SELECT 1 FROM bucket_messages bm WHERE bm.message_id = m.id)`
     : sql``;
   const sessionMessages = sql`
-       SELECT m.id, m.conversation_id, m.chat_id, c.telegram_chat_id, c.type AS chat_type,
-              m.telegram_message_id, m.telegram_date,
+       SELECT m.id, m.conversation_id, m.chat_id, c.host_chat_id AS telegram_chat_id, c.type AS chat_type,
+              m.message_no AS telegram_message_id, m.sent_at AS telegram_date,
               -- Only the original new message can be an ask trigger; edits keep
               -- their normal revisions but must not turn history into a wakeup.
               (SELECT original.raw_fragment_json FROM message_revisions original
@@ -73,7 +74,7 @@ export function selectCatchUpMessages(
        WHERE m.received_at >= ${startedAt.toISOString()} AND m.visible = 1 AND m.sent_by_bot = 0
          -- Only Telegram catch-up: a room's inputs are released explicitly,
          -- never swept up by a startup or runtime pass.
-         AND c.host_kind = 'telegram'
+         AND ${telegramHostSql('c.host_kind')}
          ${unbucketed}
      `;
   const selected = deps.store.orm.all<CatchUpMessageRow>(

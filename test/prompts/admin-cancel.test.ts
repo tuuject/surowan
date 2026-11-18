@@ -71,7 +71,7 @@ test('saving a prompt reports affected runs and the scoped cancel stops only tho
     ingestion.ingest(textUpdate(3, 11, 123456789, 'again chat a'), new Date());
     const running = store.db
       .prepare<[], { id: bigint; conversation_id: bigint; chat_id: bigint }>(
-        "SELECT i.id, i.conversation_id, c.telegram_chat_id AS chat_id FROM invocations i JOIN conversations v ON v.id = i.conversation_id JOIN chats c ON c.id = v.chat_id WHERE i.state = 'running'",
+        "SELECT i.id, i.conversation_id, c.host_chat_id AS chat_id FROM invocations i JOIN conversations v ON v.id = i.conversation_id JOIN chats c ON c.id = v.chat_id WHERE i.state = 'running'",
       )
       .all();
     const chatA = running.find((row) => row.chat_id === 123456789n);
@@ -105,7 +105,7 @@ test('saving a prompt reports affected runs and the scoped cancel stops only tho
     expect(invocationStates()).toEqual(['aborted', 'completed']);
     const bucketStates = store.db
       .prepare<[bigint], { chat_id: bigint; kind: string; state: string; error_code: string | null }>(
-        "SELECT c.telegram_chat_id AS chat_id, CASE WHEN b.id = ? THEN 'attached' ELSE 'batch' END AS kind, b.state, b.error_code FROM buckets b JOIN conversations v ON v.id = b.conversation_id JOIN chats c ON c.id = v.chat_id ORDER BY b.id",
+        "SELECT c.host_chat_id AS chat_id, CASE WHEN b.id = ? THEN 'attached' ELSE 'batch' END AS kind, b.state, b.error_code FROM buckets b JOIN conversations v ON v.id = b.conversation_id JOIN chats c ON c.id = v.chat_id ORDER BY b.id",
       )
       .all(attached);
     expect(bucketStates).toEqual([

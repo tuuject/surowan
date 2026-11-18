@@ -46,16 +46,16 @@ describe('startup catch-up commands', () => {
     expect(
       store.db
         .prepare<[], { chat_id: bigint }>(
-          'SELECT c.telegram_chat_id AS chat_id FROM chat_pause p JOIN chats c ON c.id = p.chat_id',
+          'SELECT c.host_chat_id AS chat_id FROM chat_pause p JOIN chats c ON c.id = p.chat_id',
         )
         .all(),
     ).toEqual([{ chat_id: BigInt(SECOND_CHAT_ID) }]);
     expect(
       store.db
         .prepare<[], { chat_id: bigint; state: string; error_code: string | null }>(
-          `SELECT c.telegram_chat_id AS chat_id, b.state, b.error_code
+          `SELECT c.host_chat_id AS chat_id, b.state, b.error_code
            FROM buckets b JOIN conversations v ON v.id = b.conversation_id JOIN chats c ON c.id = v.chat_id
-           ORDER BY c.telegram_chat_id`,
+           ORDER BY c.host_chat_id`,
         )
         .all(),
     ).toEqual([

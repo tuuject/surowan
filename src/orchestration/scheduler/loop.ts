@@ -182,7 +182,7 @@ export function launchQueued(deps: SchedulerLoopDeps): void {
     const launched = deps.store.transaction(() => {
       const candidate = deps.store.orm
         .all<InvocationRow & { host_kind: string; telegram_chat_id: bigint | null }>(
-          sql`SELECT i.id, i.bucket_id, i.conversation_id, c.host_kind, c.telegram_chat_id FROM invocations i
+          sql`SELECT i.id, i.bucket_id, i.conversation_id, c.host_kind, c.host_chat_id AS telegram_chat_id FROM invocations i
              JOIN buckets b ON b.id = i.bucket_id
              JOIN conversations v ON v.id = i.conversation_id
              JOIN chats c ON c.id = v.chat_id

@@ -47,7 +47,7 @@ test('migration 054 turns each watermark into an idle live lane and keeps every 
       ) STRICT;
       DELETE FROM schema_migrations WHERE version = 54;
 
-      INSERT INTO chats (id, host_kind, telegram_chat_id, canonical_chat_id, type, title, updated_at) VALUES
+      INSERT INTO chats (id, host_kind, host_chat_id, canonical_chat_id, type, title, updated_at) VALUES
         (1, 'telegram', -1001, -1001, 'supergroup', 'Group A', '2026-11-01T00:00:00.000Z'),
         (2, 'telegram', -1002, -1002, 'supergroup', 'Group B', '2026-11-01T00:00:00.000Z');
       INSERT INTO group_memories VALUES

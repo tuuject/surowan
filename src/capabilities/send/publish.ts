@@ -155,7 +155,7 @@ async function publishSend(
       .update(hostSends)
       .set({
         state: 'success',
-        telegramMessageId: delivered.messageId,
+        messageNo: delivered.messageId,
         responseJson: JSON.stringify({ message_id: Number(delivered.messageId) }),
         finishedAt: now,
       })

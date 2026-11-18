@@ -383,7 +383,7 @@ export async function handleHook(request: Request, url: URL): Promise<Response> 
       .select({ id: conversations.id })
       .from(conversations)
       .innerJoin(chats, eq(chats.id, conversations.chatId))
-      .where(eq(chats.telegramChatId, 123_456_789n))
+      .where(and(eq(chats.hostKind, 'telegram'), eq(chats.hostChatId, 123_456_789n)))
       .orderBy(conversations.id)
       .get();
     if (conversation === undefined) {

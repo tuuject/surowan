@@ -50,7 +50,8 @@ test('adding and removing a Chat both hot-apply and a removal drops the row imme
   f.store.orm
     .insert(chats)
     .values({
-      telegramChatId: -100100n,
+      hostKind: 'telegram',
+      hostChatId: -100100n,
       canonicalChatId: -100100n,
       title: 'Saved group',
       type: 'supergroup',
@@ -134,7 +135,8 @@ test('migration titles resolve by runtime ID while edits continue targeting the 
   f.store.orm
     .insert(chats)
     .values({
-      telegramChatId: -100200n,
+      hostKind: 'telegram',
+      hostChatId: -100200n,
       canonicalChatId: -100200n,
       type: 'supergroup',
       title: 'Migrated group',

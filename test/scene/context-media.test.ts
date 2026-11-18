@@ -40,7 +40,7 @@ describe('scene context', () => {
     const triggerRevision = store.orm
       .all<{ revision_id: bigint }>(
         sql`SELECT m.current_revision_id AS revision_id FROM messages m
-            WHERE m.chat_id = ${chatRowId(store, GROUP_CHAT)} AND m.telegram_message_id = 11`,
+            WHERE m.chat_id = ${chatRowId(store, GROUP_CHAT)} AND m.message_no = 11`,
       )
       .at(0);
     if (triggerRevision === undefined) {

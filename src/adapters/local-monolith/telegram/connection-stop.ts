@@ -11,13 +11,14 @@
 
 import { sql } from 'drizzle-orm';
 import { asRunResult, type BusinessStore } from '../../../store/store.ts';
+import { telegramHostSql } from '../../../store/host-scope.ts';
 
 /** The one reason code an instance stop writes. */
 export const TELEGRAM_STOPPED_REASON = 'telegram_stopped';
 
 /** A SQL predicate naming every conversation of the Telegram host. */
 const TELEGRAM_CONVERSATIONS = sql`(
-  SELECT v.id FROM conversations v JOIN chats c ON c.id = v.chat_id WHERE c.host_kind = 'telegram'
+  SELECT v.id FROM conversations v JOIN chats c ON c.id = v.chat_id WHERE ${telegramHostSql('c.host_kind')}
 )`;
 
 export interface AbandonedTelegramWork {
@@ -45,7 +46,7 @@ export function abandonTelegramWork(store: BusinessStore, now = new Date()): Aba
         sql`SELECT i.id FROM invocations i
           JOIN conversations v ON v.id = i.conversation_id
           JOIN chats c ON c.id = v.chat_id
-          WHERE i.state = 'running' AND c.host_kind = 'telegram'
+          WHERE i.state = 'running' AND ${telegramHostSql('c.host_kind')}
           ORDER BY i.id`,
       )
       .map((row) => row.id);
@@ -77,7 +78,7 @@ export function abandonTelegramWork(store: BusinessStore, now = new Date()): Aba
       WHERE state = 'claimed' AND invocation_id IN (
         SELECT i.id FROM invocations i
         JOIN conversations v ON v.id = i.conversation_id JOIN chats c ON c.id = v.chat_id
-        WHERE i.state = 'queued' AND c.host_kind = 'telegram'
+        WHERE i.state = 'queued' AND ${telegramHostSql('c.host_kind')}
       )`);
 
     const abortedInvocations = asRunResult(

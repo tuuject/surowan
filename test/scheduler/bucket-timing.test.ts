@@ -64,7 +64,7 @@ function complete(store: SqliteStore, invocationId: bigint): void {
 function bucketTelegramIds(store: SqliteStore, invocationId: bigint): number[] {
   return store.db
     .prepare<[bigint], { telegram_message_id: bigint }>(
-      `SELECT m.telegram_message_id FROM bucket_messages bm JOIN messages m ON m.id = bm.message_id
+      `SELECT m.message_no AS telegram_message_id FROM bucket_messages bm JOIN messages m ON m.id = bm.message_id
        WHERE bm.bucket_id = (SELECT bucket_id FROM invocations WHERE id = ?) ORDER BY bm.sequence_no`,
     )
     .all(invocationId)
@@ -75,7 +75,7 @@ function bucketTelegramIds(store: SqliteStore, invocationId: bigint): number[] {
 function expectEachMessageInOneBucket(store: SqliteStore): void {
   const rows = store.db
     .prepare<[], { telegram_message_id: bigint; buckets: bigint }>(
-      `SELECT m.telegram_message_id, COUNT(bm.bucket_id) AS buckets
+      `SELECT m.message_no AS telegram_message_id, COUNT(bm.bucket_id) AS buckets
        FROM messages m LEFT JOIN bucket_messages bm ON bm.message_id = m.id GROUP BY m.id`,
     )
     .all();

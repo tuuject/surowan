@@ -245,7 +245,7 @@ export function seedAdminToolCalls(orm: Orm): void {
       kind: 'text',
       requestJson: '{"chat_id":123456789,"text":"Hello from the seeded invocation"}',
       state: 'success',
-      telegramMessageId: 902n,
+      messageNo: 902n,
       responseJson: '{"message_id":902}',
       errorCode: null,
       createdAt: '2026-09-10T08:00:03.000Z',

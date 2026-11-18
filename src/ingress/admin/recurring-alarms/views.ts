@@ -1,6 +1,7 @@
 import { type SQL, sql } from 'drizzle-orm';
 import type { RecurringAlarmRecord } from '../../../store/recurring-alarms/records.ts';
 import { recurringAlarms } from '../../../store/schema/index.ts';
+import { telegramHostSql } from '../../../store/host-scope.ts';
 import type { Orm } from '../../../store/store.ts';
 import {
   AdminQueryError,
@@ -126,7 +127,7 @@ function targetsOf(orm: Orm, conversationIds: readonly bigint[]): Map<string, Ta
     return new Map();
   }
   const rows = orm.all<TargetRow>(
-    sql`SELECT v.id AS conversation_id, c.id AS chat_id, c.host_kind, c.telegram_chat_id, c.type AS chat_type,
+    sql`SELECT v.id AS conversation_id, c.id AS chat_id, c.host_kind, c.host_chat_id AS telegram_chat_id, c.type AS chat_type,
                c.title AS chat_title, v.message_thread_id
         FROM conversations v JOIN chats c ON c.id = v.chat_id
         WHERE v.id IN (${sql.join(
@@ -219,7 +220,7 @@ export function listRecurringAlarms(
   const snapshot = idSnapshot(orm, recurringAlarms.id, sql`a.id`, query.as_of);
   const conditions: SQL[] = [];
   if (query.chat) {
-    conditions.push(sql`c.telegram_chat_id = ${parseId(query.chat, 'chat')}`);
+    conditions.push(sql`${telegramHostSql('c.host_kind')} AND c.host_chat_id = ${parseId(query.chat, 'chat')}`);
   }
   if (query.enabled) {
     if (query.enabled !== 'true' && query.enabled !== 'false') {

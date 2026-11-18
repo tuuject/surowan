@@ -1,4 +1,5 @@
 import { and, eq, type SQL, sql } from 'drizzle-orm';
+import { telegramHostSql } from '../../../store/host-scope.ts';
 import { media, mediaAnalyses, messageRevisions, messages, senders } from '../../../store/schema/index.ts';
 import type { Orm } from '../../../store/store.ts';
 import {
@@ -50,7 +51,7 @@ interface MessageListRow {
  * that a virtual row does not have. Invocations are host-neutral and carry the
  * host in their chat summary instead.
  */
-const TELEGRAM_HOST = sql`ch.host_kind = 'telegram'`;
+const TELEGRAM_HOST = telegramHostSql('ch.host_kind');
 
 const MESSAGE_FROM = sql`FROM messages m
        JOIN conversations c ON c.id = m.conversation_id
@@ -58,11 +59,11 @@ const MESSAGE_FROM = sql`FROM messages m
        LEFT JOIN message_revisions r ON r.id = m.current_revision_id
        LEFT JOIN senders sd ON sd.id = r.sender_id`;
 
-const MESSAGE_SELECT = sql`SELECT m.id, m.telegram_message_id, m.telegram_date, m.received_at, m.visible, m.sent_by_bot,
-              ch.telegram_chat_id, ch.type AS chat_type, ch.title AS chat_title, c.message_thread_id,
+const MESSAGE_SELECT = sql`SELECT m.id, m.message_no AS telegram_message_id, m.sent_at AS telegram_date, m.received_at, m.visible, m.sent_by_bot,
+              ch.host_chat_id AS telegram_chat_id, ch.type AS chat_type, ch.title AS chat_title, c.message_thread_id,
               r.revision_no, r.kind, r.text, r.caption, r.reply_to_message_id, r.media_group_id,
-              sd.display_name AS sender_display_name, sd.telegram_id AS sender_telegram_id,
-              sd.telegram_type AS sender_telegram_type, sd.username AS sender_username, sd.is_bot AS sender_is_bot,
+              sd.display_name AS sender_display_name, sd.host_sender_id AS sender_telegram_id,
+              sd.host_sender_type AS sender_telegram_type, sd.username AS sender_username, sd.is_bot AS sender_is_bot,
               (SELECT COUNT(*) FROM message_revisions mr WHERE mr.message_id = m.id) AS revision_count,
               (SELECT COUNT(*) FROM media md WHERE md.revision_id = m.current_revision_id) AS media_count
        ${MESSAGE_FROM}`;
@@ -72,7 +73,7 @@ export function listMessages(orm: Orm, query: ListQuery): Page<Record<string, un
   const snapshot = idSnapshot(orm, messages.id, sql`m.id`, query.as_of);
   const conditions: SQL[] = [TELEGRAM_HOST];
   if (query.chat !== undefined && query.chat !== null && query.chat.length > 0) {
-    conditions.push(sql`ch.telegram_chat_id = ${parseId(query.chat, 'chat')}`);
+    conditions.push(sql`ch.host_chat_id = ${parseId(query.chat, 'chat')}`);
   }
   if (query.search !== undefined && query.search !== null && query.search.length > 0) {
     if (query.search.length > MAX_SEARCH_LENGTH) {
@@ -125,7 +126,7 @@ export function listMessages(orm: Orm, query: ListQuery): Page<Record<string, un
 
 export function getMessage(orm: Orm, id: bigint): Record<string, unknown> | null {
   const message = orm
-    .all<MessageListRow>(sql`${MESSAGE_SELECT} WHERE m.id = ${id} AND ch.host_kind = 'telegram'`)
+    .all<MessageListRow>(sql`${MESSAGE_SELECT} WHERE m.id = ${id} AND ${telegramHostSql('ch.host_kind')}`)
     .at(0);
   if (message === undefined) {
     return null;
@@ -144,8 +145,8 @@ export function getMessage(orm: Orm, id: bigint): Record<string, unknown> | null
       serviceJson: messageRevisions.serviceJson,
       createdAt: messageRevisions.createdAt,
       senderDisplayName: senders.displayName,
-      senderTelegramId: senders.telegramId,
-      senderTelegramType: senders.telegramType,
+      senderTelegramId: senders.hostSenderId,
+      senderTelegramType: senders.hostSenderType,
       senderUsername: senders.username,
     })
     .from(messageRevisions)

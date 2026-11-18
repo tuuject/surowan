@@ -24,8 +24,9 @@ export function seedAdminConversation(orm: Orm): void {
   orm
     .insert(chats)
     .values({
+      hostKind: 'telegram',
       id: T.chat,
-      telegramChatId: 123_456_789n,
+      hostChatId: 123_456_789n,
       canonicalChatId: 123_456_789n,
       type: 'supergroup',
       title: 'Surowan Test Group',
@@ -46,9 +47,10 @@ export function seedAdminConversation(orm: Orm): void {
   orm
     .insert(senders)
     .values({
+      hostKind: 'telegram',
       id: T.sender,
-      telegramType: 'user',
-      telegramId: 42n,
+      hostSenderType: 'user',
+      hostSenderId: 42n,
       displayName: 'Alice',
       username: 'alice',
       isBot: false,
@@ -62,28 +64,30 @@ export function seedAdminMessages(orm: Orm): void {
   orm
     .insert(messages)
     .values({
+      hostKind: 'telegram',
       id: T.messageA,
       conversationId: T.conversation,
       chatId: T.chat,
-      telegramMessageId: 900n,
+      messageNo: 900n,
       currentRevisionId: null,
       visible: true,
       sentByBot: false,
-      telegramDate: '2026-09-10T07:59:30.000Z',
+      sentAt: '2026-09-10T07:59:30.000Z',
       receivedAt: AT,
     })
     .run();
   orm
     .insert(messages)
     .values({
+      hostKind: 'telegram',
       id: T.messageB,
       conversationId: T.conversation,
       chatId: T.chat,
-      telegramMessageId: 901n,
+      messageNo: 901n,
       currentRevisionId: null,
       visible: true,
       sentByBot: false,
-      telegramDate: '2026-09-10T08:00:05.000Z',
+      sentAt: '2026-09-10T08:00:05.000Z',
       receivedAt: '2026-09-10T08:00:06.000Z',
     })
     .run();
@@ -171,6 +175,7 @@ export function seedAdminMessages(orm: Orm): void {
       id: T.mediaPhoto,
       revisionId: T.revisionA1,
       kind: 'photo',
+      hostKind: 'telegram',
       fileId: 'file_photo_seed_1',
       fileUniqueId: 'unique_photo_seed_1',
       mimeType: 'image/jpeg',

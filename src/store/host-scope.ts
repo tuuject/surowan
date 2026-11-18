@@ -1,4 +1,4 @@
-import { eq, type SQL } from 'drizzle-orm';
+import { eq, sql, type SQL } from 'drizzle-orm';
 import type { AnySQLiteColumn } from 'drizzle-orm/sqlite-core';
 import { chats } from './schema/index.ts';
 
@@ -17,6 +17,15 @@ import { chats } from './schema/index.ts';
  */
 export function telegramHostScope(column: AnySQLiteColumn = chats.hostKind): SQL {
   return eq(column, 'telegram');
+}
+
+/**
+ * `telegramHostScope()` for statements written with the `sql` template:
+ * `telegramHostSql('ch.host_kind')`. The expression is always a code literal
+ * naming the aliased column — never user input.
+ */
+export function telegramHostSql(hostKindExpression: string): SQL {
+  return sql.raw(`${hostKindExpression} = 'telegram'`);
 }
 
 /**

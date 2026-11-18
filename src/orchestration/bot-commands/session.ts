@@ -96,11 +96,11 @@ export function cutTopic(
     // not bring back history a newer cut already removed.
     deps.store.orm
       .insert(conversationContextCutoffs)
-      .values({ conversationId, telegramMessageId: messageId, createdAt: timestamp, updatedAt: timestamp })
+      .values({ conversationId, messageNo: messageId, createdAt: timestamp, updatedAt: timestamp })
       .onConflictDoUpdate({
         target: conversationContextCutoffs.conversationId,
         set: {
-          telegramMessageId: sql`MAX(${conversationContextCutoffs.telegramMessageId}, excluded.telegram_message_id)`,
+          messageNo: sql`MAX(${conversationContextCutoffs.messageNo}, excluded.message_no)`,
           updatedAt: timestamp,
         },
       })

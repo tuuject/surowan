@@ -249,7 +249,12 @@ test('still applies the conversation context cutoff inside a slice', async () =>
   const f = await fixture();
   f.store.orm
     .insert(conversationContextCutoffs)
-    .values({ conversationId: CONVERSATION, telegramMessageId: 900n, createdAt: at(61), updatedAt: at(61) })
+    .values({
+      conversationId: CONVERSATION,
+      messageNo: 900n,
+      createdAt: at(61),
+      updatedAt: at(61),
+    })
     .run();
 
   const scene = buildSlice(f);
@@ -259,7 +264,7 @@ test('still applies the conversation context cutoff inside a slice', async () =>
 
   f.store.orm
     .update(conversationContextCutoffs)
-    .set({ telegramMessageId: 901n })
+    .set({ messageNo: 901n })
     .where(eq(conversationContextCutoffs.conversationId, CONVERSATION))
     .run();
   expectSliceError(() => buildSlice(f), 'replay_slice_empty');

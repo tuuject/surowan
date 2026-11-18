@@ -71,7 +71,7 @@ function seedTelegramChat(store: SqliteStore, conversationId: bigint): void {
     .values({
       id: 900n,
       hostKind: 'telegram',
-      telegramChatId: 123456789n,
+      hostChatId: 123456789n,
       canonicalChatId: 123456789n,
       type: 'private',
       updatedAt: now,

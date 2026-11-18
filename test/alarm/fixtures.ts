@@ -228,7 +228,7 @@ export function ensureConversation(store: SqliteStore): bigint {
   }
   const chat = store.db
     .prepare<[string], { id: bigint }>(
-      "INSERT INTO chats(telegram_chat_id, canonical_chat_id, type, title, updated_at) VALUES (123456789, 123456789, 'private', 'Owner', ?) RETURNING id",
+      "INSERT INTO chats(host_chat_id, canonical_chat_id, type, title, updated_at, host_kind) VALUES (123456789, 123456789, 'private', 'Owner', ?, 'telegram') RETURNING id",
     )
     .get(new Date().toISOString());
   const conversation = store.db

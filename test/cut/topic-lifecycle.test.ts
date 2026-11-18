@@ -76,13 +76,17 @@ describe('cut_topic', () => {
     const recreatedCommands = new BotCommandService(store, configStore, reopened);
     expect(
       store.db
-        .prepare<[], { telegram_message_id: bigint }>('SELECT telegram_message_id FROM conversation_context_cutoffs')
+        .prepare<[], { telegram_message_id: bigint }>(
+          'SELECT message_no AS telegram_message_id FROM conversation_context_cutoffs',
+        )
         .get()?.telegram_message_id,
     ).toBe(11n);
     recreatedCommands.run({ name: 'cut_topic', messageId: 20n }, FIRST_CHAT, ALICE);
     expect(
       store.db
-        .prepare<[], { telegram_message_id: bigint }>('SELECT telegram_message_id FROM conversation_context_cutoffs')
+        .prepare<[], { telegram_message_id: bigint }>(
+          'SELECT message_no AS telegram_message_id FROM conversation_context_cutoffs',
+        )
         .get()?.telegram_message_id,
     ).toBe(20n);
     expect(
@@ -108,7 +112,9 @@ describe('cut_topic', () => {
     await commands.run({ name: 'cut_topic', messageId: 15n }, FIRST_CHAT, ALICE);
     expect(
       store.db
-        .prepare<[], { telegram_message_id: bigint }>('SELECT telegram_message_id FROM conversation_context_cutoffs')
+        .prepare<[], { telegram_message_id: bigint }>(
+          'SELECT message_no AS telegram_message_id FROM conversation_context_cutoffs',
+        )
         .get()?.telegram_message_id,
     ).toBe(20n);
     store.close();

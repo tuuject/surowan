@@ -44,7 +44,7 @@ interface ConversationContextRow {
 const CONTEXT_FIELDS = {
   id: conversationContexts.id,
   conversation_id: conversationContexts.conversationId,
-  telegram_chat_id: chats.telegramChatId,
+  telegram_chat_id: chats.hostChatId,
   chat_type: chats.type,
   chat_title: chats.title,
   message_thread_id: conversations.messageThreadId,
@@ -72,7 +72,7 @@ export function listConversationContexts(orm: Orm, query: ListQuery): Page<Recor
   const conditions: SQL[] = [telegramHostScope()];
   const chatId = optionalFilter(query.chat);
   if (chatId !== undefined) {
-    conditions.push(eq(chats.telegramChatId, parseId(chatId, 'chat')));
+    conditions.push(eq(chats.hostChatId, parseId(chatId, 'chat')));
   }
   const count = orm
     .select(snapshotCounts(snapshot))
@@ -166,7 +166,7 @@ function contextListItem(row: ConversationContextRow): Record<string, unknown> {
   return {
     id: row.id.toString(),
     conversation_id: row.conversation_id.toString(),
-    telegram_chat_id: telegramIdentity(row.telegram_chat_id, 'chats.telegram_chat_id').toString(),
+    telegram_chat_id: telegramIdentity(row.telegram_chat_id, 'chats.host_chat_id').toString(),
     chat_type: row.chat_type,
     chat_title: row.chat_title,
     message_thread_id: Number(row.message_thread_id),

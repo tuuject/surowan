@@ -258,7 +258,7 @@ describe('scene context', () => {
     const currentRevision = store.orm
       .all<{ revision_no: bigint }>(
         sql`SELECT r.revision_no FROM messages m JOIN message_revisions r ON r.id = m.current_revision_id
-            WHERE m.chat_id = ${chatRowId(store, GROUP_CHAT)} AND m.telegram_message_id = 10`,
+            WHERE m.chat_id = ${chatRowId(store, GROUP_CHAT)} AND m.message_no = 10`,
       )
       .at(0);
     expect(currentRevision?.revision_no).toBe(2n);
@@ -341,7 +341,7 @@ describe('scene context', () => {
     expect(scene.text).not.toContain('Bob');
     const stored = store.orm.all<{ text: string | null }>(
       sql`SELECT r.text FROM message_revisions r JOIN messages m ON m.current_revision_id = r.id
-          WHERE r.kind = 'service' ORDER BY m.telegram_message_id`,
+          WHERE r.kind = 'service' ORDER BY m.message_no`,
     );
     expect(stored.map((row) => row.text)).toEqual([
       'added Carol to the group',

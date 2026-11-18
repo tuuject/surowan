@@ -233,7 +233,7 @@ export function conversationIdsForTelegramChats(
   const chatRows = store.orm
     .select({ id: chats.id })
     .from(chats)
-    .where(and(eq(chats.hostKind, 'telegram'), inArray(chats.telegramChatId, runtimeIds)))
+    .where(and(eq(chats.hostKind, 'telegram'), inArray(chats.hostChatId, runtimeIds)))
     .all();
   if (chatRows.length === 0) {
     return [];

@@ -89,7 +89,7 @@ export function checkReplaySource(deps: ReplayGuardDeps, id: bigint): ReplayChec
       state: invocations.state,
       finishedAt: invocations.finishedAt,
       hostKind: chats.hostKind,
-      chatId: chats.telegramChatId,
+      chatId: chats.hostChatId,
       conversationId: conversations.id,
       threadId: conversations.messageThreadId,
     })

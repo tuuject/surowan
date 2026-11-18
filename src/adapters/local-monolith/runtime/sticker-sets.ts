@@ -3,6 +3,7 @@ import type { StickerService } from '../../../capabilities/stickers/index.ts';
 import { type ConfiguredStickerSet, reconcileStickerSets } from '../../../capabilities/stickers/sets.ts';
 import type { RawConfig } from '../../../platform/config/index.ts';
 import type { BusinessStore } from '../../../store/store.ts';
+import { telegramHostSql } from '../../../store/host-scope.ts';
 
 export interface StickerSetPublishDeps {
   readonly store: BusinessStore;
@@ -64,7 +65,7 @@ function abortRunningTelegramInvocations(
        FROM invocations i
        JOIN conversations c ON c.id = i.conversation_id
        JOIN chats ch ON ch.id = c.chat_id
-       WHERE i.state = 'running' AND ch.host_kind = 'telegram'`);
+       WHERE i.state = 'running' AND ${telegramHostSql('ch.host_kind')}`);
   return running.length === 0
     ? 0
     : abort(

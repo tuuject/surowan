@@ -154,7 +154,7 @@ export function evaluateParticipation(options: {
       expiresAt,
       triggeredAt: timestamp,
       triggerKind,
-      triggerTelegramMessageId: BigInt(telegramMessageId),
+      triggerMessageNo: BigInt(telegramMessageId),
       updatedAt: timestamp,
     })
     .onConflictDoUpdate({
@@ -163,7 +163,7 @@ export function evaluateParticipation(options: {
         expiresAt,
         triggeredAt: timestamp,
         triggerKind,
-        triggerTelegramMessageId: BigInt(telegramMessageId),
+        triggerMessageNo: BigInt(telegramMessageId),
         updatedAt: timestamp,
       },
     })

@@ -92,7 +92,7 @@ test('retention prunes old audit rows, keeps chat history, and backup keeps seve
   ).toBe(1n);
   const kept = store.db
     .prepare<[], { text: string | null; raw: string }>(
-      'SELECT r.text, r.raw_fragment_json AS raw FROM message_revisions r JOIN messages m ON m.id = r.message_id WHERE m.telegram_message_id = 10',
+      'SELECT r.text, r.raw_fragment_json AS raw FROM message_revisions r JOIN messages m ON m.id = r.message_id WHERE m.message_no = 10',
     )
     .get();
   expect(kept?.text).toContain('old private text');

@@ -120,11 +120,11 @@ describe('Bot Playground virtual delivery', () => {
     expect(secondOutcome.messages[0]!.messageId).toBe(2n);
 
     const written = roomMessages(room.conversationId);
-    expect(written.map((row) => row.localSequenceNo)).toEqual([1n, 2n]);
+    expect(written.map((row) => row.messageNo)).toEqual([1n, 2n]);
     const [question, reply] = written;
     expect(question?.id).not.toBe(1n);
     expect(reply?.localReplyToMessageId).toBe(question?.id);
-    expect(reply?.telegramMessageId).toBeNull();
+    expect(reply?.messageNo).toBe(2n);
     expect(telegramTransport).not.toHaveBeenCalled();
   });
 

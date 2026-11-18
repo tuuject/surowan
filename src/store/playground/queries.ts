@@ -26,7 +26,7 @@ export function timeline(
   const rows = deps.orm
     .select({
       messageId: messages.id,
-      seq: messages.localSequenceNo,
+      seq: messages.messageNo,
       sentByBot: messages.sentByBot,
       receivedAt: messages.receivedAt,
       kind: messageRevisions.kind,
@@ -38,7 +38,7 @@ export function timeline(
       replyToMessageId: messages.localReplyToMessageId,
       replyToSeq: sql<
         bigint | null
-      >`(SELECT m2.local_sequence_no FROM messages m2 WHERE m2.id = ${messages.localReplyToMessageId})`,
+      >`(SELECT m2.message_no FROM messages m2 WHERE m2.id = ${messages.localReplyToMessageId})`,
       inputState: sql<string | null>`(SELECT i.state FROM playground_inputs i WHERE i.message_id = ${messages.id})`,
       sendState: sql<string | null>`(SELECT hs.state FROM host_sends hs WHERE hs.message_id = ${messages.id})`,
     })
@@ -48,11 +48,10 @@ export function timeline(
     .where(
       and(
         eq(messages.chatId, chatId),
-        sql`${messages.localSequenceNo} IS NOT NULL`,
-        options.beforeSeq === undefined ? undefined : lt(messages.localSequenceNo, options.beforeSeq),
+        options.beforeSeq === undefined ? undefined : lt(messages.messageNo, options.beforeSeq),
       ),
     )
-    .orderBy(desc(messages.localSequenceNo))
+    .orderBy(desc(messages.messageNo))
     .limit(options.limit + 1)
     .all();
   const page = rows.slice(0, options.limit);
@@ -66,7 +65,7 @@ export function timeline(
   );
   const items = page.map((row) => ({
     messageId: row.messageId,
-    seq: row.seq ?? 0n,
+    seq: row.seq,
     sentByBot: row.sentByBot,
     createdAt: row.receivedAt,
     kind: row.kind,

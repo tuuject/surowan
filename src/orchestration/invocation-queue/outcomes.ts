@@ -1,5 +1,6 @@
 import { and, eq, isNull, ne, sql } from 'drizzle-orm';
 import { buckets, invocationBuckets, invocations, taskReceipts } from '../../store/schema/index.ts';
+import { telegramHostSql } from '../../store/host-scope.ts';
 import { asRunResult } from '../../store/store.ts';
 import {
   enqueueBucketInvocation,
@@ -100,7 +101,7 @@ export function suppressInvalidQueuedReceipts(deps: InvocationQueueDeps, now = n
   const store = deps.store;
   store.transaction(() => {
     const rows = store.orm.all<ReceiptRow & { invocation_id: bigint }>(
-      sql`SELECT r.task_id, r.invocation_id, t.conversation_id, v.chat_id, c.telegram_chat_id,
+      sql`SELECT r.task_id, r.invocation_id, t.conversation_id, v.chat_id, c.host_chat_id AS telegram_chat_id,
                  v.message_thread_id, c.host_kind AS host_kind,
                  json_extract(t.delivery_json, '$.bypassDailyBudget') AS bypass_daily_budget
           FROM task_receipts r JOIN long_tasks t ON t.id = r.task_id
@@ -147,12 +148,12 @@ export function skipQueuedInvocations(deps: InvocationQueueDeps, sleepUntil: str
   const store = deps.store;
   const queued = store.transaction(() => {
     const rows = store.orm.all<SleepingInvocationRow>(
-      sql`SELECT i.id, i.bucket_id, i.conversation_id, c.telegram_chat_id
+      sql`SELECT i.id, i.bucket_id, i.conversation_id, c.host_chat_id AS telegram_chat_id
        FROM invocations i
        JOIN conversations v ON v.id = i.conversation_id
        JOIN chats c ON c.id = v.chat_id
        WHERE i.state = 'queued'
-         AND c.host_kind = 'telegram'
+         AND ${telegramHostSql('c.host_kind')}
          AND ${servedConversations(deps, sql`i.conversation_id`)}
          AND NOT EXISTS (
            SELECT 1 FROM task_receipts r JOIN long_tasks t ON t.id = r.task_id

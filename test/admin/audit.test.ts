@@ -49,7 +49,7 @@ test('audit routes expose tool sessions, messages and sticker cache', async () =
     }
     store.db
       .prepare(
-        "INSERT INTO host_sends(tool_call_id, conversation_id, kind, request_json, state, telegram_message_id, created_at, finished_at) VALUES (?, (SELECT conversation_id FROM invocations WHERE id = ?), 'text', '{\"text\":\"hi\"}', 'success', 555, ?, ?)",
+        "INSERT INTO host_sends(tool_call_id, conversation_id, kind, request_json, state, message_no, created_at, finished_at) VALUES (?, (SELECT conversation_id FROM invocations WHERE id = ?), 'text', '{\"text\":\"hi\"}', 'success', 555, ?, ?)",
       )
       .run(toolRow.id, invocationId, iso, iso);
     store.db
@@ -181,7 +181,9 @@ test('audit routes expose tool sessions, messages and sticker cache', async () =
     const otherSet = await readJson(await server.handle(request('/api/stickers?set=dogs', { headers })));
     expect(otherSet.items).toHaveLength(0);
 
-    const chat = store.db.prepare<[], { id: bigint }>('SELECT id FROM chats WHERE telegram_chat_id = 123456789').get();
+    const chat = store.db
+      .prepare<[], { id: bigint }>("SELECT id FROM chats WHERE host_kind = 'telegram' AND host_chat_id = 123456789")
+      .get();
     if (chat === undefined) {
       throw new Error('Expected the chat row');
     }

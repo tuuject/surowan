@@ -278,7 +278,7 @@ describe('bot command service', () => {
           .prepare<[number], { id: bigint; state: string; completion_reason: string | null }>(
             `SELECT i.id, i.state, i.completion_reason FROM invocations i
              JOIN conversations v ON v.id = i.conversation_id JOIN chats c ON c.id = v.chat_id
-             WHERE c.telegram_chat_id = ? ORDER BY i.id LIMIT 1`,
+             WHERE c.host_kind = 'telegram' AND c.host_chat_id = ? ORDER BY i.id LIMIT 1`,
           )
           .get(telegramChatId);
       try {

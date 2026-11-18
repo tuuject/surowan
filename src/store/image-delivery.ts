@@ -12,12 +12,12 @@ export function imageDeliveryState(orm: Orm, conversationId: bigint, generationI
   }>(sql`
     SELECT asset.value AS asset_id, s.state,
       -- Both hosts record the host-native id of the delivered message in the
-      -- response: the wire id for Telegram (also in telegram_message_id), the
+      -- response: the wire id for Telegram (also in message_no), the
       -- sequence number for a room. That is the id the model may be told; the
       -- room's message_id column is a storage row id and is cleared when
       -- retention deletes the message, while the response keeps naming it.
       COALESCE(
-        s.telegram_message_id,
+        s.message_no,
         CAST(json_extract(s.response_json, '$.message_id') AS INTEGER)
       ) AS message_ref,
       COALESCE(json_extract(s.request_json, '$.asset_ids_unknown'), 0) AS unknown_assets

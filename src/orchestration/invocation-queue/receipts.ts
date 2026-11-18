@@ -20,7 +20,7 @@ export function processReceiptsDue(deps: InvocationQueueDeps, now = new Date()):
   const sleepUntil = sleepUntilFor(deps, now);
   return store.transaction(() => {
     const pending = store.orm.all<ReceiptRow>(
-      sql`SELECT r.task_id, t.conversation_id, v.chat_id, c.telegram_chat_id, v.message_thread_id,
+      sql`SELECT r.task_id, t.conversation_id, v.chat_id, c.host_chat_id AS telegram_chat_id, v.message_thread_id,
                  c.host_kind AS host_kind,
                  json_extract(t.delivery_json, '$.bypassDailyBudget') AS bypass_daily_budget
        FROM task_receipts r JOIN long_tasks t ON t.id = r.task_id

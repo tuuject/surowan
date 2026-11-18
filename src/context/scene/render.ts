@@ -40,10 +40,10 @@ export function loadHistoryWindow(
 ): { readonly newestFirst: readonly SceneMessage[]; readonly missing: number } {
   const rows = store.orm.all<HistoryRow>(
     sql`SELECT m.id AS message_id, im.snapshot_json, frozen.id AS frozen_revision_id,
-               m.telegram_message_id, m.telegram_date, m.sent_by_bot,
+               m.message_no, m.sent_at, m.sent_by_bot,
                r.id AS revision_id, r.kind, r.text, r.caption, r.raw_fragment_json, r.reply_to_message_id,
                r.reply_snapshot_json, r.forward_origin_json, r.media_group_id,
-               s.telegram_id AS sender_telegram_id, s.display_name AS sender_display_name, s.username AS sender_username
+               s.host_sender_id AS sender_host_id, s.display_name AS sender_display_name, s.username AS sender_username
         FROM messages m
         LEFT JOIN invocation_messages im ON im.message_id = m.id
           AND im.invocation_id = ${invocationId} AND im.section = 'history'
@@ -57,17 +57,17 @@ export function loadHistoryWindow(
         WHERE m.conversation_id = ${source.conversationId}
           AND m.visible = 1
           AND (im.message_id IS NOT NULL OR m.received_at <= ${source.createdAt})
-          AND m.telegram_message_id > COALESCE(
-            (SELECT telegram_message_id FROM conversation_context_cutoffs WHERE conversation_id = ${source.conversationId}),
+          AND m.message_no > COALESCE(
+            (SELECT message_no FROM conversation_context_cutoffs WHERE conversation_id = ${source.conversationId}),
             -1)
-          AND (m.telegram_date < ${last.telegram_date} OR
-            (m.telegram_date = ${last.telegram_date} AND m.telegram_message_id < ${BigInt(last.message_id)}))
+          AND (m.sent_at < ${last.telegram_date} OR
+            (m.sent_at = ${last.telegram_date} AND m.message_no < ${BigInt(last.message_id)}))
           AND m.id NOT IN (SELECT bm.message_id FROM bucket_messages bm
             JOIN invocation_buckets ib ON ib.bucket_id = bm.bucket_id WHERE ib.invocation_id = ${invocationId})
           AND m.id NOT IN (
             SELECT im.message_id FROM invocation_messages im
             WHERE im.invocation_id = ${invocationId} AND im.section = 'new')
-        ORDER BY m.telegram_date DESC, m.telegram_message_id DESC
+        ORDER BY m.sent_at DESC, m.message_no DESC
         LIMIT ${BigInt(config.agent.history_messages)}`,
   );
   return renderHistoryRows(store, rows, source, config.agent.history_messages);
@@ -120,8 +120,8 @@ export function renderHistoryRows(
       if (
         !storedSnapshotValidator.Check(parsed) ||
         row.frozen_revision_id === null ||
-        parsed.message_id !== row.telegram_message_id.toString() ||
-        parsed.telegram_date !== row.telegram_date ||
+        parsed.message_id !== row.message_no.toString() ||
+        parsed.telegram_date !== row.sent_at ||
         (parsed.message_thread_id !== undefined && parsed.message_thread_id !== source.threadId.toString())
       ) {
         throw new Error('Scene context: invalid history snapshot');
@@ -160,12 +160,12 @@ export function renderHistoryRows(
     });
     newestFirst.push({
       snapshot: {
-        message_id: row.telegram_message_id.toString(),
+        message_id: row.message_no.toString(),
         message_thread_id: source.threadId.toString(),
-        telegram_date: row.telegram_date,
+        telegram_date: row.sent_at,
         sent_by_bot: row.sent_by_bot === 1n,
         sender: {
-          id: row.sender_telegram_id?.toString() ?? null,
+          id: row.sender_host_id?.toString() ?? null,
           name: row.sender_display_name,
           username: row.sender_username,
         },

@@ -29,7 +29,9 @@ describe('cut_topic', () => {
     await commands.run(second!, FIRST_CHAT, ALICE);
     expect(
       store.db
-        .prepare<[], { telegram_message_id: bigint }>('SELECT telegram_message_id FROM conversation_context_cutoffs')
+        .prepare<[], { telegram_message_id: bigint }>(
+          'SELECT message_no AS telegram_message_id FROM conversation_context_cutoffs',
+        )
         .get()?.telegram_message_id,
     ).toBe(13n);
 

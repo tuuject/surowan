@@ -20,8 +20,8 @@ test('strict tables still reject text values in integer columns through sql temp
     expect(() => {
       // The typed layer would refuse this; reach around it to prove SQLite
       // STRICT still guards the raw boundary.
-      store.orm.run(sql`INSERT INTO chats (id, telegram_chat_id, canonical_chat_id, type, updated_at)
-        VALUES (1, ${'not-a-number'}, 123456789, 'private', '2026-09-01T00:00:00.000Z')`);
+      store.orm.run(sql`INSERT INTO chats (id, host_kind, host_chat_id, canonical_chat_id, type, updated_at)
+        VALUES (1, 'telegram', ${'not-a-number'}, 123456789, 'private', '2026-09-01T00:00:00.000Z')`);
     }).toThrow();
     const count = store.orm.select({ count: sql<bigint>`count(*)` }).from(chats).get();
     expect(count?.count).toBe(0n);
@@ -36,12 +36,27 @@ test('drizzle statements join better-sqlite3 immediate transactions and roll bac
     const now = new Date('2026-09-01T00:00:00.000Z').toISOString();
     store.orm
       .insert(chats)
-      .values({ id: 1n, telegramChatId: 123456789n, canonicalChatId: 123456789n, type: 'private', updatedAt: now })
+      .values({
+        id: 1n,
+        hostKind: 'telegram',
+        hostChatId: 123456789n,
+        canonicalChatId: 123456789n,
+        type: 'private',
+        updatedAt: now,
+      })
       .run();
     store.orm.insert(conversations).values({ id: 1n, chatId: 1n, createdAt: now, updatedAt: now }).run();
     store.orm
       .insert(messages)
-      .values({ id: 1n, conversationId: 1n, chatId: 1n, telegramMessageId: 5n, telegramDate: now, receivedAt: now })
+      .values({
+        id: 1n,
+        conversationId: 1n,
+        chatId: 1n,
+        hostKind: 'telegram',
+        messageNo: 5n,
+        sentAt: now,
+        receivedAt: now,
+      })
       .run();
     expect(() => {
       store.transaction(() => {
@@ -101,7 +116,14 @@ test('drizzle layer preserves check constraints from the sql migrations', async 
     const now = new Date('2026-09-01T00:00:00.000Z').toISOString();
     store.orm
       .insert(chats)
-      .values({ id: 1n, telegramChatId: 123456789n, canonicalChatId: 123456789n, type: 'private', updatedAt: now })
+      .values({
+        id: 1n,
+        hostKind: 'telegram',
+        hostChatId: 123456789n,
+        canonicalChatId: 123456789n,
+        type: 'private',
+        updatedAt: now,
+      })
       .run();
     store.orm.insert(conversations).values({ id: 1n, chatId: 1n, createdAt: now, updatedAt: now }).run();
     expect(() => {

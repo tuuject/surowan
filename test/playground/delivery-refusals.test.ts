@@ -164,7 +164,7 @@ describe('Bot Playground virtual delivery', () => {
       .values({
         id: 51n,
         hostKind: 'telegram',
-        telegramChatId: 999n,
+        hostChatId: 999n,
         canonicalChatId: 999n,
         type: 'private',
         title: 'telegram',

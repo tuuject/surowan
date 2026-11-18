@@ -39,8 +39,8 @@ export async function initDb(): Promise<{ store: SqliteStore; conversationId: bi
   const chatId = 1n;
   store.db
     .prepare(
-      `INSERT INTO chats(id, telegram_chat_id, canonical_chat_id, type, updated_at)
-     VALUES (?, 123, 123, 'private', '2025-01-01T00:00:00.000Z')`,
+      `INSERT INTO chats(id, host_chat_id, canonical_chat_id, type, updated_at, host_kind)
+     VALUES (?, 123, 123, 'private', '2025-01-01T00:00:00.000Z', 'telegram')`,
     )
     .run(chatId);
   const conversationId = 200n;
@@ -55,7 +55,7 @@ export async function initDb(): Promise<{ store: SqliteStore; conversationId: bi
   const roomChatId = 2n;
   store.db
     .prepare(
-      `INSERT INTO chats(id, host_kind, telegram_chat_id, canonical_chat_id, type, updated_at)
+      `INSERT INTO chats(id, host_kind, host_chat_id, canonical_chat_id, type, updated_at)
      VALUES (?, 'playground', NULL, NULL, 'group', '2025-01-01T00:00:00.000Z')`,
     )
     .run(roomChatId);

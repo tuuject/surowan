@@ -140,7 +140,7 @@ export function storeMessage(
   const telegramMessageId = BigInt(message.message_id);
   const existing = deps.store.orm
     .all<{ id: bigint; revision_no: bigint }>(
-      sql`SELECT m.id, COALESCE(MAX(r.revision_no), 0) AS revision_no FROM messages m LEFT JOIN message_revisions r ON r.message_id = m.id WHERE m.chat_id = ${internalChatId} AND m.telegram_message_id = ${telegramMessageId} GROUP BY m.id`,
+      sql`SELECT m.id, COALESCE(MAX(r.revision_no), 0) AS revision_no FROM messages m LEFT JOIN message_revisions r ON r.message_id = m.id WHERE m.chat_id = ${internalChatId} AND m.message_no = ${telegramMessageId} GROUP BY m.id`,
     )
     .at(0);
   let messageId: bigint;
@@ -151,8 +151,9 @@ export function storeMessage(
       .values({
         conversationId,
         chatId: internalChatId,
-        telegramMessageId,
-        telegramDate: new Date(message.date * 1000).toISOString(),
+        hostKind: 'telegram',
+        messageNo: telegramMessageId,
+        sentAt: new Date(message.date * 1000).toISOString(),
         receivedAt: receivedAt.toISOString(),
       })
       .returning({ id: messages.id })
@@ -217,6 +218,7 @@ export function storeMessage(
         width: media.width,
         height: media.height,
         telegramJson: media.telegramJson,
+        hostKind: 'telegram',
       })
       .run();
   }
@@ -254,22 +256,25 @@ function upsertSender(deps: TelegramMessageDeps, message: Message, receivedAt: D
   deps.store.orm
     .insert(senders)
     .values({
-      telegramType: type,
-      telegramId,
+      hostKind: 'telegram',
+      hostSenderType: type,
+      hostSenderId: telegramId,
       displayName,
       username,
       isBot,
       updatedAt: receivedAt.toISOString(),
     })
     .onConflictDoUpdate({
-      target: [senders.telegramType, senders.telegramId],
+      target: [senders.hostKind, senders.hostSenderType, senders.hostSenderId],
       set: { displayName, username, isBot, updatedAt: receivedAt.toISOString() },
     })
     .run();
   const row = deps.store.orm
     .select({ id: senders.id })
     .from(senders)
-    .where(and(eq(senders.telegramType, type), eq(senders.telegramId, telegramId)))
+    .where(
+      and(eq(senders.hostKind, 'telegram'), eq(senders.hostSenderType, type), eq(senders.hostSenderId, telegramId)),
+    )
     .get();
   if (row === undefined) {
     throw new Error('Sender upsert did not return a row');

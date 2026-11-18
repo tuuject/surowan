@@ -194,7 +194,7 @@ function writeSnapshot(
         receivedAt: messages.receivedAt,
         replyToSeq: sql<
           bigint | null
-        >`(SELECT m2.local_sequence_no FROM messages m2 WHERE m2.id = ${messages.localReplyToMessageId})`,
+        >`(SELECT m2.message_no FROM messages m2 WHERE m2.id = ${messages.localReplyToMessageId})`,
       })
       .from(messageRevisions)
       .innerJoin(messages, eq(messages.id, messageRevisions.messageId))

@@ -154,19 +154,19 @@ export function consumedBatchHistoryLimit(orm: Orm, invocationId: bigint, config
         WITH conversation AS (
           SELECT conversation_id FROM invocations WHERE id = ${invocationId}
         ), first_consumed AS (
-          SELECT m.telegram_date AS telegram_date, m.telegram_message_id AS telegram_message_id
+          SELECT m.sent_at AS telegram_date, m.message_no AS telegram_message_id
           FROM invocation_buckets ib
           JOIN bucket_messages bm ON bm.bucket_id = ib.bucket_id
           JOIN messages m ON m.id = bm.message_id
           WHERE ib.invocation_id = ${invocationId}
-          ORDER BY m.telegram_date ASC, m.telegram_message_id ASC
+          ORDER BY m.sent_at ASC, m.message_no ASC
           LIMIT 1
         )
         SELECT COUNT(*) AS consumed FROM messages m, first_consumed f
         WHERE m.conversation_id = (SELECT conversation_id FROM conversation)
           AND m.visible = 1
-          AND (m.telegram_date > f.telegram_date
-            OR (m.telegram_date = f.telegram_date AND m.telegram_message_id >= f.telegram_message_id))`)
+          AND (m.sent_at > f.telegram_date
+            OR (m.sent_at = f.telegram_date AND m.message_no >= f.telegram_message_id))`)
       .at(0)?.consumed ?? 0n,
   );
   return Math.min(Math.max(configured, consumed), HISTORY_MESSAGES_CAP);

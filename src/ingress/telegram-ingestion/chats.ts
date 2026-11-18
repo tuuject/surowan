@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import type { Message } from 'grammy/types';
 import { GroupMemoryStore } from '../../context/group-memory/store.ts';
 import type { RuntimeConfigurationStore } from '../../platform/runtime-config.ts';
@@ -87,13 +87,18 @@ export function recordMigration(deps: TelegramChatDeps, message: Message | undef
 }
 
 export function upsertChat(deps: TelegramChatDeps, chat: Message['chat'], chatId: bigint, receivedAt: Date): bigint {
-  const existing = deps.store.orm.select({ id: chats.id }).from(chats).where(eq(chats.telegramChatId, chatId)).get();
+  const existing = deps.store.orm
+    .select({ id: chats.id })
+    .from(chats)
+    .where(and(eq(chats.hostKind, 'telegram'), eq(chats.hostChatId, chatId)))
+    .get();
   const title = 'title' in chat ? (chat.title ?? null) : null;
   const username = 'username' in chat ? (chat.username ?? null) : null;
   const row = deps.store.orm
     .insert(chats)
     .values({
-      telegramChatId: chatId,
+      hostKind: 'telegram',
+      hostChatId: chatId,
       canonicalChatId: chatId,
       type: chat.type,
       title,
@@ -101,7 +106,7 @@ export function upsertChat(deps: TelegramChatDeps, chat: Message['chat'], chatId
       updatedAt: receivedAt.toISOString(),
     })
     .onConflictDoUpdate({
-      target: chats.telegramChatId,
+      target: [chats.hostKind, chats.hostChatId],
       set: { type: chat.type, title, username, updatedAt: receivedAt.toISOString() },
     })
     .returning({ id: chats.id })

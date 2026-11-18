@@ -247,8 +247,8 @@ export class SleepingService {
         ?.enabled === true &&
       this.#groupMemory.lane(batch.chatId, batch.lane)?.claimedAt === claimedAt;
     const fields = { chat_id: batch.chatId.toString(), lane: batch.lane, day: batch.day };
-    const first = batch.rows[0]?.telegramMessageId ?? 0n;
-    let read = { through: batch.rows.at(-1)?.telegramMessageId ?? first, messages: batch.rows.length, modelCalls: 0 };
+    const first = batch.rows[0]?.messageNo ?? 0n;
+    let read = { through: batch.rows.at(-1)?.messageNo ?? first, messages: batch.rows.length, modelCalls: 0 };
     let runId: bigint | undefined;
     const failRun = (
       code: string,
@@ -282,7 +282,7 @@ export class SleepingService {
           lane: batch.lane,
           day: batch.day,
           firstMessageId: first,
-          throughMessageId: batch.rows.at(-1)?.telegramMessageId ?? first,
+          throughMessageId: batch.rows.at(-1)?.messageNo ?? first,
           messages: batch.rows.length,
         },
         clock(),
@@ -405,9 +405,9 @@ export class SleepingService {
     if (oldest === undefined) {
       return;
     }
-    const timezone = resolveChatConfig(config, this.#store.orm, chat.telegram_chat_id)?.timezone ?? config.timezone;
+    const timezone = resolveChatConfig(config, this.#store.orm, chat.host_chat_id)?.timezone ?? config.timezone;
     const yesterday = previousDay(chatLocalDay(now.toISOString(), timezone));
-    if (chatLocalDay(oldest.telegramDate, timezone) >= yesterday) {
+    if (chatLocalDay(oldest.sentAt, timezone) >= yesterday) {
       return;
     }
     const splitPoint = lastMessageIdBefore(this.#store.orm, chat.id, localDayWindow(yesterday, timezone).start);
@@ -428,7 +428,7 @@ export class SleepingService {
    */
   #batchFor(config: RawConfig, candidate: LaneCandidate, now: Date): Batch | undefined {
     const row = candidate.chat;
-    const chat = resolveChatConfig(config, this.#store.orm, row.telegram_chat_id);
+    const chat = resolveChatConfig(config, this.#store.orm, row.host_chat_id);
     if (chat?.group_memory?.enabled !== true) {
       return undefined;
     }
@@ -452,15 +452,13 @@ export class SleepingService {
     }
     const timezone = chat.timezone ?? config.timezone;
     const today = chatLocalDay(now.toISOString(), timezone);
-    const day = chatLocalDay(first.telegramDate, timezone);
+    const day = chatLocalDay(first.sentAt, timezone);
     if (day > today) {
       // Clock skew or a future-dated message: wait instead of inventing a day.
       return undefined;
     }
     const window = localDayWindow(day, timezone);
-    const dayRows = pending.filter(
-      (message) => message.telegramDate >= window.start && message.telegramDate < window.end,
-    );
+    const dayRows = pending.filter((message) => message.sentAt >= window.start && message.sentAt < window.end);
     const rows = trimToBudget(dayRows);
     if (rows.length === 0) {
       return undefined;
@@ -471,11 +469,11 @@ export class SleepingService {
         return undefined;
       }
       const idleMilliseconds = (chat.group_memory.idle_minutes ?? GROUP_MEMORY_DEFAULT_IDLE_MINUTES) * 60_000;
-      if (now.getTime() - Date.parse(newest.telegramDate) < idleMilliseconds) {
+      if (now.getTime() - Date.parse(newest.sentAt) < idleMilliseconds) {
         return undefined;
       }
     }
-    return { chatId: row.id, telegramChatId: row.telegram_chat_id, lane: candidate.lane, day, rows };
+    return { chatId: row.id, telegramChatId: row.host_chat_id, lane: candidate.lane, day, rows };
   }
 
   #schedule(delay: number): void {

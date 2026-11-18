@@ -73,7 +73,7 @@ export function seedTelegramConversation(
   const telegramChatId = input.telegramChatId ?? 123456789n;
   store.db
     .prepare(
-      `INSERT INTO chats(id, host_kind, telegram_chat_id, canonical_chat_id, type, updated_at)
+      `INSERT INTO chats(id, host_kind, host_chat_id, canonical_chat_id, type, updated_at)
        VALUES (?, 'telegram', ?, ?, ?, ?)`,
     )
     .run(chatId, telegramChatId, telegramChatId, input.type ?? 'supergroup', TIMESTAMP);
@@ -101,7 +101,7 @@ export function seedPlaygroundConversation(
   const chatId = input.chatId ?? 1n;
   store.db
     .prepare(
-      `INSERT INTO chats(id, host_kind, telegram_chat_id, canonical_chat_id, type, updated_at)
+      `INSERT INTO chats(id, host_kind, host_chat_id, canonical_chat_id, type, updated_at)
        VALUES (?, 'playground', NULL, NULL, 'group', ?)`,
     )
     .run(chatId, TIMESTAMP);
@@ -166,7 +166,7 @@ export function seedMedia(
 ): bigint {
   const message = store.db
     .prepare(
-      `INSERT INTO messages(conversation_id, chat_id, host_kind, telegram_message_id, telegram_date, received_at)
+      `INSERT INTO messages(conversation_id, chat_id, host_kind, message_no, sent_at, received_at)
        VALUES (?, ?, 'telegram', 1, ?, ?)`,
     )
     .run(input.conversationId, input.chatId, TIMESTAMP, TIMESTAMP);

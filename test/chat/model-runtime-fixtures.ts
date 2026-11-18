@@ -103,7 +103,7 @@ export interface ContextMessageRow {
 export function contextMessagesByChat(store: SqliteStore): ContextMessageRow[] {
   return store.db
     .prepare<[], ContextMessageRow>(
-      `SELECT cm.context_id, c.telegram_chat_id AS chat_id, cm.seq, cm.role, cm.payload_json
+      `SELECT cm.context_id, c.host_chat_id AS chat_id, cm.seq, cm.role, cm.payload_json
        FROM context_messages cm
        JOIN conversation_contexts cc ON cc.id = cm.context_id
        JOIN conversations v ON v.id = cc.conversation_id
@@ -116,7 +116,7 @@ export function contextMessagesByChat(store: SqliteStore): ContextMessageRow[] {
 export function contextIds(store: SqliteStore): { context_id: bigint; chat_id: bigint }[] {
   return store.db
     .prepare<[], { context_id: bigint; chat_id: bigint }>(
-      `SELECT cc.id AS context_id, c.telegram_chat_id AS chat_id
+      `SELECT cc.id AS context_id, c.host_chat_id AS chat_id
        FROM conversation_contexts cc
        JOIN conversations v ON v.id = cc.conversation_id
        JOIN chats c ON c.id = v.chat_id

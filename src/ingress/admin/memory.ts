@@ -98,7 +98,7 @@ const MEMORY_LIST_FIELDS = {
   expires_at: memoPadEntries.expiresAt,
   updated_at: memoPadEntries.updatedAt,
   chat_id: chats.id,
-  telegram_chat_id: chats.telegramChatId,
+  telegram_chat_id: chats.hostChatId,
   chat_type: chats.type,
   chat_title: chats.title,
 };
@@ -113,7 +113,7 @@ export function listMemories(orm: Orm, query: ListQuery, now = new Date()): Page
   const conditions: SQL[] = [telegramHostScope()];
   const nowIso = now.toISOString();
   if (query.chat !== undefined && query.chat !== null && query.chat.length > 0) {
-    conditions.push(eq(chats.telegramChatId, parseId(query.chat, 'chat')));
+    conditions.push(eq(chats.hostChatId, parseId(query.chat, 'chat')));
   }
   if (query.state !== undefined && query.state !== null && query.state.length > 0) {
     if (query.state === 'active') {
@@ -154,17 +154,17 @@ export function listMemories(orm: Orm, query: ListQuery, now = new Date()): Page
 export function listMemoryChats(orm: Orm): readonly MemoryChatOption[] {
   return orm
     .select({
-      telegram_chat_id: chats.telegramChatId,
+      telegram_chat_id: chats.hostChatId,
       type: chats.type,
       title: chats.title,
       username: chats.username,
     })
     .from(chats)
     .where(telegramHostScope())
-    .orderBy(chats.telegramChatId)
+    .orderBy(chats.hostChatId)
     .all()
     .map((row) => ({
-      telegram_chat_id: telegramIdentity(row.telegram_chat_id, 'chats.telegram_chat_id').toString(),
+      telegram_chat_id: telegramIdentity(row.telegram_chat_id, 'chats.host_chat_id').toString(),
       type: row.type,
       title: row.title,
       username: row.username,
@@ -176,7 +176,7 @@ export function createMemory(orm: Orm, body: CreateMemoryBody, now = new Date())
   const chat = orm
     .select({ id: chats.id })
     .from(chats)
-    .where(and(telegramHostScope(), eq(chats.telegramChatId, chatId)))
+    .where(and(telegramHostScope(), eq(chats.hostChatId, chatId)))
     .get();
   if (chat === undefined) {
     throw new AdminQueryError('chat_not_found', 'This chat has not been seen by the bot', 404);
@@ -297,7 +297,7 @@ function toItem(row: MemoryListRow, nowIso: string): MemoryAdminItem {
   return {
     id: row.id,
     chat: {
-      telegram_chat_id: telegramIdentity(row.telegram_chat_id, 'chats.telegram_chat_id').toString(),
+      telegram_chat_id: telegramIdentity(row.telegram_chat_id, 'chats.host_chat_id').toString(),
       type: row.chat_type,
       title: row.chat_title,
     },

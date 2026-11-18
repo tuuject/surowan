@@ -108,7 +108,7 @@ export function resolveConversation(
         threadId: conversations.messageThreadId,
         hostKind: chats.hostKind,
         type: chats.type,
-        telegramChatId: chats.telegramChatId,
+        telegramChatId: chats.hostChatId,
       })
       .from(conversations)
       .innerJoin(chats, eq(chats.id, conversations.chatId))
@@ -128,7 +128,7 @@ export function resolveConversation(
   const chat = orm
     .select({ id: chats.id, type: chats.type })
     .from(chats)
-    .where(and(eq(chats.hostKind, 'telegram'), eq(chats.telegramChatId, target.chatId)))
+    .where(and(eq(chats.hostKind, 'telegram'), eq(chats.hostChatId, target.chatId)))
     .get();
   const conversation =
     chat === undefined

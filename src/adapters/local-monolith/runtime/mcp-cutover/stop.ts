@@ -89,7 +89,7 @@ function runningInvocations(orm: Orm, conversationIds: readonly bigint[]): Runni
     .select({
       id: invocations.id,
       conversationId: invocations.conversationId,
-      telegramChatId: chats.telegramChatId,
+      telegramChatId: chats.hostChatId,
     })
     .from(invocations)
     .innerJoin(conversations, eq(conversations.id, invocations.conversationId))

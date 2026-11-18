@@ -321,7 +321,7 @@ describe('formatted Telegram messages in the agent context', () => {
       // A fragment that no longer describes the stored body cannot supply matching text.
       store.db
         .prepare<[string]>(
-          'UPDATE message_revisions SET raw_fragment_json = ? WHERE message_id = (SELECT id FROM messages WHERE telegram_message_id = 3)',
+          'UPDATE message_revisions SET raw_fragment_json = ? WHERE message_id = (SELECT id FROM messages WHERE message_no = 3)',
         )
         .run(JSON.stringify({ rich_message: { blocks: [{ type: 'paragraph', text: 'Untrusted replacement' }] } }));
       const invocationId = processOne(scheduler, new Date(received.getTime() + 15_000));
