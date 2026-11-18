@@ -111,13 +111,16 @@ test('a symbolic link is refused instead of being replaced', async () => {
     return;
   }
   const directory = await tempDirectory();
-  const path = await writeOldJar(directory, { a: 'b' });
+  const path = keychainPath(join(directory, 'config.jsonc'));
   const target = join(directory, 'elsewhere.json');
-  await writeFile(target, '{}\n', { mode: 0o600 });
+  const oldJar = `${JSON.stringify({ a: 'b' }, null, 2)}\n`;
+  await writeFile(target, oldJar, { mode: 0o600 });
+  await chmod(target, 0o600);
   await symlink(target, path);
   await expect(migrateKeychain(path)).rejects.toThrow('symbolic link');
-  // The link and its target survive.
-  expect(await lstat(path)).toBeTruthy();
+  // The link and its target survive untouched.
+  expect((await lstat(path)).isSymbolicLink()).toBe(true);
+  expect(await readFile(target, 'utf8')).toBe(oldJar);
 });
 
 test('a corrupt file produces an error that never quotes the contents', async () => {
