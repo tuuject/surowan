@@ -23,7 +23,9 @@ test('native tool images load, enlarge and survive refresh in audit, Transcript 
     'IMG',
     'P',
   ]);
-  await page.screenshot({ path: join(tmpdir(), 'surowan-mcp-images-audit.png'), fullPage: true });
+  // Not fullPage: Chromium briefly shrinks the viewport to 1x1 for it, the (min-width: 768px) query flips, and
+  // AuditRecords remounts the table, collapsing the row this test is about to click into.
+  await result.screenshot({ path: join(tmpdir(), 'surowan-mcp-images-audit.png') });
   await result.getByRole('button', { name: 'Enlarge tool image 1' }).click();
   await expect(page.getByRole('dialog').getByRole('img')).toBeVisible();
   await expect
