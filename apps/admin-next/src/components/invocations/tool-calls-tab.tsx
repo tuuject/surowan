@@ -2,16 +2,8 @@ import { css } from '@tuuject/koi-react/styled-system/css';
 import type React from 'react';
 import type { ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
-import {
-  type ColumnSpec,
-  JsonViewer,
-  KvList,
-  MonoValue,
-  StateBadge,
-  TableShell,
-  TextValue,
-  TimeText,
-} from '@/components/business';
+import { type ColumnSpec, JsonViewer, KvList, MonoValue, StateBadge, TextValue, TimeText } from '@/components/business';
+import { AuditRecords } from '@/components/invocations/audit-records';
 import { TabContent, YesNoBadge } from '@/components/invocations/shared';
 import type { InvocationDetail, ToolCallEntry } from '@/lib/api/invocations.ts';
 import { formatDuration, kindLabel } from '@/lib/format';
@@ -106,7 +98,8 @@ export function ToolCallsTab({ invocation }: { readonly invocation: InvocationDe
   ];
   return (
     <TabContent count={invocation.tool_calls.length} message={t('invocations.invocationDetail.emptyToolCalls')}>
-      <TableShell
+      <AuditRecords
+        summaryKeys={['tool', 'call-id']}
         columns={TOOL_CALL_COLUMNS}
         data={invocation.tool_calls}
         rowKey={(row) => row.id}

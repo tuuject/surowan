@@ -51,6 +51,9 @@ export function InvocationDetailView({ id }: { readonly id: string }): ReactElem
       <InvocationReviewPanel invocation={data} />
       <section>
         <Tabs
+          className={css({
+            '& [role=tab]': { paddingInline: { base: '3', md: '4' } },
+          })}
           defaultValue="overview"
           label={t('invocations.invocationDetail.tabs.overview')}
           items={[

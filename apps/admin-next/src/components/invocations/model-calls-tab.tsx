@@ -1,7 +1,8 @@
 import { css } from '@tuuject/koi-react/styled-system/css';
 import type React from 'react';
 import { useTranslation } from 'react-i18next';
-import { type ColumnSpec, JsonViewer, StateBadge, TableShell, TextValue } from '@/components/business';
+import { type ColumnSpec, JsonViewer, StateBadge, TextValue } from '@/components/business';
+import { AuditRecords } from '@/components/invocations/audit-records';
 import { TabContent } from '@/components/invocations/shared';
 import type { InvocationDetail, ModelCallEntry } from '@/lib/api/invocations.ts';
 import { formatCost, formatDuration, formatNumber, roleLabel } from '@/lib/format';
@@ -99,7 +100,8 @@ export function ModelCallsTab({ invocation }: { readonly invocation: InvocationD
   ];
   return (
     <TabContent count={invocation.model_calls.length} message={t('invocations.invocationDetail.emptyModelCalls')}>
-      <TableShell
+      <AuditRecords
+        summaryKeys={['model', 'attempt']}
         columns={MODEL_CALL_COLUMNS}
         data={invocation.model_calls}
         rowKey={(row) => row.id}
