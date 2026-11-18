@@ -163,7 +163,7 @@ pnpm test test/prompts/template.test.ts test/prompts/markdown.test.ts test/tui-c
 | `doctor-telegram.test.ts` | Doctor 的 Telegram 三态：无 `telegram` 段、段内无 token、token 解析为空串都是 `disabled`；可解析 token 交给 `getMe` 探针；SecretRef 缺失是 `Telegram token cannot be read` 配置错误，不静默当成停用 |
 | `telegram/connection-races.test.ts` | 连接尝试重叠与补拉中断：被取代的网络重试晚醒时不清掉新实例的 holder 与 Sticker worker；重试中的意外异常只记日志、不成为 unhandled rejection；被新 token 取消或中途失败的冷启动补拉由下一次连接按冷路径续跑，marker 未清前实例不进入 long polling |
 | `admin/providers.test.ts` | Provider/模型管理、SecretRef 只写不读、修订冲突、全局模型端点保留 Chat 覆盖、阻止删除 Chat 引用（含待重启移除的运行中 Chat）的 Provider/模型且不落盘；模型健康检查的固定最小请求、真实本地 SSE、TTFB 与总耗时分离、无 hook 返回 null、响应分类与脱敏、权限/Origin/未应用配置拒绝、零重试、超时/取消/并发上限和诊断审计、不切换当前模型 |
-| `admin/chats.test.ts` | Chat 管理鉴权与 Origin、字符串 ID 与安全整数边界、Topic/模型严格校验、模型覆盖必须显式带 thinking、revision 先于 body 解析与并发写入保护、JSONC 注释及未管理字段保留、新增 Chat 热应用而删除/Topic 待重启与历史保留、模型热应用/恢复继承、迁移 ID、保存后应用失败的状态与脱敏审计 |
+| `admin/chats.test.ts` | Chat 管理鉴权与 Origin、字符串 ID 与安全整数边界、Topic/模型严格校验、模型覆盖必须显式带 thinking、revision 先于 body 解析与并发写入保护、JSONC 注释及未管理字段保留、新增 Chat 热应用而删除/Topic 待重启与历史保留、模型热应用/恢复继承、迁移 ID、保存后应用失败的状态与脱敏审计；群聊记忆 `thirty_hour_clock` 省略保留、`off` 删除字段、非法值拒绝且热应用 |
 | `prompts/admin.test.ts` | Prompt 版本按内容去重并裁剪到保留数、保存后下一次 Invocation 生效、diff 与恢复、手改文件在下次应用时成为新版本而只改注释不算、群 Prompt 的作用域校验与新建文件不覆盖已有文件 |
 | `models/switch.test.ts` | 可切换模型仅列 text 能力、`option()` 只校验不应用（未知 provider/model 与 image-only 拒绝）、`current()` 跟随 `store.publish` 变化 |
 | `bot-commands/commands.test.ts` | 命令解析与 mention 匹配、`/pause` 中止与阻断、`/resume` 恢复、`/status` 用量与 Context 行口径、`/model` 分页与切换（写配置文件并 reload）、管理员鉴权与匿名拒绝、`/whoami` 回显发送者 ID 且不限管理员、`/allowlist` 仅管理员且在未允许 Chat 由 ingestion 放行并热应用、`/ignoreme` 与 `/unignoreme` 解析/身份校验且不越过 Chat/Topic 白名单、命令只审计不入库 |
@@ -177,7 +177,7 @@ pnpm test test/prompts/template.test.ts test/prompts/markdown.test.ts test/tui-c
 | `config/reload.test.ts` | `ConfigReloader` 外部契约：generation 与两个 hash、`config_reloaded`/`config_reload_failed`/`model_switch_failed` 日志、待重启字段撤销与只改注释后 active hash 跟上文件 hash、两遍校验（热字段组合在 candidate 里一起校验并一起采纳，例如 Bucket 窗口与 idle grace）、`secret_unresolved` 的整次拒绝、待重启列表、运行中 Invocation 钉住模型与 Provider 连接（两个本地端点验证换地址后的下一轮仍走旧地址）、`/model` 写入文件（保留注释、`0600`、符号链接拒绝）、`invocations.config_hash` 在 `queued → running` 写入、Admin `POST /config/apply` 与 `PUT /model` 的响应体；Chat 覆盖切换按文件 ID 定位（reorder 后仍解析正确、保留其它 Chat 与全局默认、文件里缺该 Chat 时拒绝写入不落盘）、并发 Chat 切换互不覆盖、发布前对全局与每个选中 Chat 模型逐一校验（删除在用 Chat 模型被拒）；全局换模型仅重置继承模型且不兼容的 thinking 覆盖，覆盖最弱档不为 off、文件重排/新增 Chat、兼容档位与独立模型保留、旧 Invocation 快照不变与落盘/运行态/日志一致；自助忽略持久化/恢复、重复与并发增删、跨 Chat 隔离、迁移 Forum Chat、实时/追赶名单热应用、失败后的文件/运行态与重试审计 |
 | `dictionary/dictionary.test.ts` | 辞典词条与别名归一化、pangu 空格折叠匹配、revision 乐观锁且不改作用域、Agent 工具只写当前群、私聊只读全局、CSV 导入导出转义 |
 | `dictionary/runtime.test.ts` | 辞典注入生命周期：命中持久化、下一批去重、缓存遗忘后从数据库重新播种、GC 后刷新；禁用词条不注入；`on_demand` 双向 pangu 空格匹配 |
-| `group-memory/day.test.ts` | Chat 时区日期、UTC/Asia-Shanghai 边界、DST 23/25 小时日、日期与下一天校验 |
+| `group-memory/day.test.ts` | Chat 时区日期、UTC/Asia-Shanghai 边界、DST 23/25 小时日、日期与下一天校验；`searchDayWindow` 三种 30 小时制窗口在 DST 日按本地 06:00 切分 |
 | `group-memory/store.test.ts` | 摘要与 lane 游标原子提交、认领失效时不写、日期/关键词半数阈值/排序、Chat 隔离、认领互斥、失败退避与 stale claim 恢复、live/backfill 分流与各自退避、开启/关闭的 lane 生命周期、批次审计与重启中断 |
 | `group-memory/consolidate.test.ts` | 模型 JSON 事件范围校验（批次外/倒退拒绝，重叠与乱序接受并排序）、summary 200 字符上限、带原因的一次修复调用、供应商错误不修复、`model_calls` 审计与 `attempt` |
 | `group-memory/sleeping.test.ts` | 已完成日期立即整理与批次审计、开启时跳过历史、关闭再开启跳过关闭期间、旧积压切给 backfill 且两条 lane 恰好覆盖每条消息一次、backfill 失败不挡 live、忙碌只挡 live、跨 Chat 并行、每次扫描批次上限（含修复调用）、当天 idle 窗口、queued/running 与 collecting 跳过、禁用与全局睡眠不发模型调用、等待期间被暂停的 Chat 不再调用 |
@@ -187,7 +187,7 @@ pnpm test test/prompts/template.test.ts test/prompts/markdown.test.ts test/tui-c
 | `group-memory/recovery.test.ts` | 子进程在首次或修复请求中退出，重开数据库后批次审计保留实际调用数与消息范围 |
 | `group-memory/persistence-failures.test.ts` | 提交与成功/失败审计异常不重置调用数；摘要、游标与成功批次审计原子提交，失败不留下已提交却标错的摘要 |
 | `admin/group-memory.test.ts` | 群聊记忆列表鉴权、Chat/Day/摘要/keyset 过滤、summary 修改、删除、原文区间读取与非法 id/摘要拒绝；整理进度的 lane 游标、待整理计数、backfill 终点、24 小时批次统计与最近失败原因，批次列表过滤与非法 state 拒绝，关闭后从进度中消失 |
-| `group-memory/tools.test.ts` | `search_group_memory` 日期/范围展示、关键词零命中的放宽检索提示（有/无日期、命中与无关键词时不出现）、`read_group_messages` 回放与越界/过宽拒绝、审计行、未启用时工具缺失 |
+| `group-memory/tools.test.ts` | `search_group_memory` 日期/范围展示、关键词零命中的放宽检索提示（有/无日期、命中与无关键词时不出现）、30 小时制三种取值的带日期搜索（06:00 两侧边界、Chat 时区、首条原文缺失时按归档日期、他 Chat 同 id 消息不影响归属、按时间顺序、热应用、不带日期不受影响、结果说明覆盖时段）、`read_group_messages` 回放与越界/过宽拒绝、审计行、未启用时工具缺失 |
 | `group-memory/retention.test.ts` | 在线保留完全不删除 Message/Revision/Media，含未被任何记忆覆盖的旧消息 |
 | `memo/store.test.ts` | Chat 隔离、短期 TTL 与永久条目、搜索（关键词与半数阈值、大小写、日期范围、排序与 limit）、更新（`ttl_seconds` 与 `null` 提升为永久）、删除幂等、过期清理 |
 | `memo/injection.test.ts` | 只列短期未过期条目、10% 预算隐藏最早条目并给出隐藏数、增量新增/更新/删除与空增量、`null`/落后 `head_seq`/`pending` 触发完整刷新、列表仍在保留窗口时不刷新 |
@@ -202,7 +202,7 @@ pnpm test test/prompts/template.test.ts test/prompts/markdown.test.ts test/tui-c
 | `replay/memory.test.ts` / `replay/tools-memory*.test.ts` | 到期边界、日期上界与线上一致，两个读原语 dispatch 完整；场景图片保存后读取相同字节、缺失/跨场景拒绝、两阶段 fidelity 与生产表无写入 |
 | `apps/admin-next/e2e/04-memo-expiry.e2e.ts` | 实际页面仅改文本时省略 TTL 并保持小时级/过期/同天数/永久条目的精确 expires_at |
 | `apps/admin-next/e2e/04-writes.e2e.ts` | 全局模型切换自动重置不兼容的 Chat effort，成功弹窗列出 Chat ID 与前后档位，saved/active 一致；切回兼容模型不弹窗 |
-| `apps/admin-next/e2e/09-chats-group-memory.e2e.ts` | Chats 行开关群聊记忆、idle 分钟校验、关闭后保留 idle，以及运行态立即更新 |
+| `apps/admin-next/e2e/09-chats-group-memory.e2e.ts` | Chats 行开关群聊记忆、idle 分钟校验、30 小时制提示气泡与三档保存（截图 `group-memory-30-hour-tooltip.png`）、关闭后保留 idle 与 30 小时制，以及运行态立即更新 |
 | `apps/admin-next/e2e/18-group-memory.e2e.ts` | Group memory 页面审计、修改 summary、删除事件与 API 状态复核 |
 | `tasks/long-tasks.test.ts` | 任务/receipt 的 JSON 边界、终态 CAS 与唯一 receipt、plugin/Conversation/caller scope、quota（含取消记录）及外部 completion handle |
 | `tasks/migration.test.ts` | 使用历史迁移建立 019/020 测试库再升级至 022：ID、owner、取消后 Invocation 关联、四态迁移、NULL 创建者、丢弃旧旁路观察（含非法 payload）、canonical history/refs/正常审计与任务回执整行保留，并验证 022 为每个 receipt 建立唯一 `bucket_id`、重复打开及新库无旧表、Drizzle CHECK/partial index 与 SQLite 一致性 |

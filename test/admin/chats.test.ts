@@ -100,3 +100,63 @@ test('group memory toggle is hot and preserves unrelated Chat fields', async () 
   expect(invalid.status).toBe(400);
   expect(await invalid.json()).toMatchObject({ error: 'invalid_body' });
 });
+
+// Ways the 30-hour setting can fail through the panel: a toggle that omits it
+// silently drops it; `off` stays in the file as noise instead of restoring the
+// default; an unknown mode is written; or the change needs a restart.
+test('group memory 30-hour clock is kept unless named and off removes it', async () => {
+  const f = await fixture();
+  const groupMemory = async () => (await f.view()).items.find((item) => item.id === '-100100')?.saved?.group_memory;
+  const set = await f.write(
+    '/chats/-100100/group-memory',
+    'PUT',
+    { enabled: true, thirty_hour_clock: 'non_overlapping' },
+    (await f.view()).revision,
+  );
+  expect(set.status).toBe(200);
+  const body = (await set.json()) as { apply: { applied: readonly string[]; restart_required: readonly string[] } };
+  expect(body.apply.applied).toContain('telegram.chats[-100100].group_memory');
+  expect(body.apply.restart_required).toEqual([]);
+  expect(await groupMemory()).toEqual({ enabled: true, thirty_hour_clock: 'non_overlapping' });
+  expect(f.configStore.current().config.telegram.chats.find((chat) => chat.id === -100100)?.group_memory).toEqual({
+    enabled: true,
+    thirty_hour_clock: 'non_overlapping',
+  });
+
+  const toggled = await f.write(
+    '/chats/-100100/group-memory',
+    'PUT',
+    { enabled: false, idle_minutes: 20 },
+    (await f.view()).revision,
+  );
+  expect(toggled.status).toBe(200);
+  expect(await groupMemory()).toEqual({ enabled: false, idle_minutes: 20, thirty_hour_clock: 'non_overlapping' });
+
+  const overlapping = await f.write(
+    '/chats/-100100/group-memory',
+    'PUT',
+    { enabled: true, thirty_hour_clock: 'overlapping' },
+    (await f.view()).revision,
+  );
+  expect(overlapping.status).toBe(200);
+  expect(await groupMemory()).toEqual({ enabled: true, idle_minutes: 20, thirty_hour_clock: 'overlapping' });
+
+  const off = await f.write(
+    '/chats/-100100/group-memory',
+    'PUT',
+    { enabled: true, thirty_hour_clock: 'off' },
+    (await f.view()).revision,
+  );
+  expect(off.status).toBe(200);
+  expect(await groupMemory()).toEqual({ enabled: true, idle_minutes: 20 });
+  expect(await readFile(f.path, 'utf8')).not.toContain('thirty_hour_clock');
+
+  const invalid = await f.write(
+    '/chats/-100100/group-memory',
+    'PUT',
+    { enabled: true, thirty_hour_clock: 'thirty' },
+    (await f.view()).revision,
+  );
+  expect(invalid.status).toBe(400);
+  expect(await invalid.json()).toMatchObject({ error: 'invalid_body' });
+});

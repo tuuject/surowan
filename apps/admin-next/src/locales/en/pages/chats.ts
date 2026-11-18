@@ -111,6 +111,19 @@ export const chats = {
   groupMemoryIdleHint: '1–1440 minutes.',
   groupMemoryCutover: 'Turning group memory on or off stops running invocations in this Chat and rebuilds its context.',
   groupMemoryInvalid: 'Enter a whole number of minutes between 1 and 1440.',
+  groupMemoryThirtyHour: '30-hour clock for date searches',
+  groupMemoryThirtyHourAbout: 'About the 30-hour clock',
+  groupMemoryThirtyHourTooltip:
+    "The 30-hour clock comes from Japanese broadcasting: late-night shows stay on the previous day's schedule as 25:00, 26:00 and so on, so a broadcast day runs until 6:00 the next morning (30:00). Turned on, a group-memory search for a date splits days the same way, so chat that runs past midnight counts toward the evening it started in. An event goes with the hour of its first message. Only date searches change; summaries are still filed by calendar day.",
+  groupMemoryThirtyHourOff: 'Off',
+  groupMemoryThirtyHourOffHint: 'A date returns that day from 0:00 to 24:00.',
+  groupMemoryThirtyHourExclusive: 'On, no overlap',
+  groupMemoryThirtyHourExclusiveHint:
+    'A date returns 6:00 that day to 6:00 the next day. Neighboring days share no hours.',
+  groupMemoryThirtyHourOverlap: 'On, overlapping the previous day',
+  groupMemoryThirtyHourOverlapHint:
+    'A date returns 0:00 that day to 6:00 the next day. Its 0:00–6:00 also shows up under the previous day.',
+  groupMemoryThirtyHourSummary: '30-hour clock',
   colProactive: 'Proactive replies',
   editProactiveReply: 'Edit proactive reply chance',
   proactiveTitle: 'Proactive reply chance',

@@ -118,6 +118,19 @@ export const chats: Catalog<typeof chatsEn> = {
   groupMemoryCutover:
     'Das Ein- oder Ausschalten des Gruppengedächtnisses stoppt laufende Aufrufe in diesem Chat und baut seinen Kontext neu auf.',
   groupMemoryInvalid: 'Eine ganze Zahl Minuten zwischen 1 und 1440 eingeben.',
+  groupMemoryThirtyHour: '30-Stunden-Uhr für die Suche nach Datum',
+  groupMemoryThirtyHourAbout: 'Über die 30-Stunden-Uhr',
+  groupMemoryThirtyHourTooltip:
+    'Die 30-Stunden-Uhr stammt aus dem japanischen Rundfunk: Spätnachtsendungen bleiben im Programm des Vortags und stehen dort als 25:00, 26:00 usw., ein Sendetag endet also erst um 6:00 am nächsten Morgen (30:00). Eingeschaltet teilt die Gruppengedächtnis-Suche nach Datum die Tage genauso ein: Was nach Mitternacht weiterläuft, zählt zum Abend, an dem es begann. Ein Ereignis richtet sich nach der Uhrzeit seiner ersten Nachricht. Nur die Suche nach Datum ändert sich; Zusammenfassungen werden weiter nach Kalendertag abgelegt.',
+  groupMemoryThirtyHourOff: 'Aus',
+  groupMemoryThirtyHourOffHint: 'Ein Datum liefert diesen Tag von 0:00 bis 24:00.',
+  groupMemoryThirtyHourExclusive: 'Ein, ohne Überlappung',
+  groupMemoryThirtyHourExclusiveHint:
+    'Ein Datum liefert 6:00 an diesem Tag bis 6:00 am nächsten Tag. Benachbarte Tage teilen sich keine Stunde.',
+  groupMemoryThirtyHourOverlap: 'Ein, mit dem Vortag überlappend',
+  groupMemoryThirtyHourOverlapHint:
+    'Ein Datum liefert 0:00 an diesem Tag bis 6:00 am nächsten Tag. Seine Stunden 0:00–6:00 erscheinen auch beim Vortag.',
+  groupMemoryThirtyHourSummary: '30-Stunden-Uhr',
   colProactive: 'Proaktive Antworten',
   editProactiveReply: 'Chance auf proaktive Antwort bearbeiten',
   proactiveTitle: 'Chance auf proaktive Antwort',
