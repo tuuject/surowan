@@ -17,22 +17,14 @@ import { boundChatServers, sameMcpServerConfig, serverToolPolicy } from './bindi
 import { executeMcpTool, type McpCallDeps } from './calls.ts';
 import type { McpResultDetails, McpToolResult } from './content.ts';
 import type { McpState, ToolSetResolution } from './shared.ts';
-import { type ManagedServer, type McpToolDefinition, TOOL_NAME_PATTERN } from './support.ts';
+import { type ManagedServer, type McpListedTool, type McpToolDefinition, TOOL_NAME_PATTERN } from './support.ts';
 
 /**
  * Turns one server's discovery result into the definitions this alias exposes.
  * The server's own `tools` list bounds the set; task-only tools and names a
  * model API cannot carry fail the connection instead of disappearing silently.
  */
-export function selectTools(
-  instance: ManagedServer,
-  listed: readonly {
-    readonly name: string;
-    readonly description?: string | undefined;
-    readonly inputSchema: { readonly type: 'object'; readonly [key: string]: unknown };
-    readonly execution?: { readonly taskSupport?: 'optional' | 'required' | 'forbidden' | undefined } | undefined;
-  }[],
-): McpToolDefinition[] {
+export function selectTools(instance: ManagedServer, listed: readonly McpListedTool[]): McpToolDefinition[] {
   const server = instance.config;
   const byName = new Map<string, (typeof listed)[number]>();
   for (const tool of listed) {

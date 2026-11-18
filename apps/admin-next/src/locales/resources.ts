@@ -8,6 +8,7 @@ import { layout } from './en/layout.ts';
 import { models } from './en/models/index.ts';
 import { pages } from './en/pages.ts';
 import { playground } from './en/playground.ts';
+import { mcp } from './en/mcp.ts';
 import { search } from './en/search.ts';
 
 import { brand as brandZh } from './zh-CN/brand.ts';
@@ -20,6 +21,7 @@ import { layout as layoutZh } from './zh-CN/layout.ts';
 import { models as modelsZh } from './zh-CN/models/index.ts';
 import { pages as pagesZh } from './zh-CN/pages.ts';
 import { playgroundZh } from './zh-CN/playground.ts';
+import { mcp as mcpZh } from './zh-CN/mcp.ts';
 import { search as searchZh } from './zh-CN/search.ts';
 
 import { brand as brandDe } from './de-DE/brand.ts';
@@ -32,6 +34,7 @@ import { layout as layoutDe } from './de-DE/layout.ts';
 import { models as modelsDe } from './de-DE/models/index.ts';
 import { pages as pagesDe } from './de-DE/pages.ts';
 import { playground as playgroundDe } from './de-DE/playground.ts';
+import { mcp as mcpDe } from './de-DE/mcp.ts';
 import { search as searchDe } from './de-DE/search.ts';
 
 import { brand as brandAr } from './ar/brand.ts';
@@ -44,6 +47,7 @@ import { layout as layoutAr } from './ar/layout.ts';
 import { models as modelsAr } from './ar/models/index.ts';
 import { pages as pagesAr } from './ar/pages.ts';
 import { playground as playgroundAr } from './ar/playground.ts';
+import { mcp as mcpAr } from './ar/mcp.ts';
 import { search as searchAr } from './ar/search.ts';
 
 /**
@@ -64,6 +68,7 @@ const en = {
   harness,
   playground,
   search,
+  mcp,
 };
 
 const zhCN: typeof en = {
@@ -78,6 +83,7 @@ const zhCN: typeof en = {
   harness: harnessZh,
   playground: playgroundZh,
   search: searchZh,
+  mcp: mcpZh,
 };
 
 const deDE: typeof en = {
@@ -92,6 +98,7 @@ const deDE: typeof en = {
   harness: harnessDe,
   playground: playgroundDe,
   search: searchDe,
+  mcp: mcpDe,
 };
 
 /**
@@ -112,6 +119,7 @@ const ar: typeof en = {
   harness: harnessAr,
   playground: playgroundAr,
   search: searchAr,
+  mcp: mcpAr,
 };
 
 export { ar, deDE, en, zhCN };

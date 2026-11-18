@@ -38,7 +38,7 @@ process.on('exit', () => {
  * the previous file's server and starts a new one. The server also exits on
  * its own when its stdin closes, so a killed worker leaves nothing behind.
  */
-async function ensureServer(mcpImages = false): Promise<RunningServer> {
+async function ensureServer(mcpImages = false, mcpManager = false): Promise<RunningServer> {
   const file = base.info().file;
   if (current?.file === file) {
     return current;
@@ -53,7 +53,7 @@ async function ensureServer(mcpImages = false): Promise<RunningServer> {
     cwd: root,
     stdio: ['pipe', 'pipe', 'inherit'],
     windowsHide: true,
-    env: { ...process.env, E2E_MCP_IMAGES: mcpImages ? '1' : '0' },
+    env: { ...process.env, E2E_MCP_IMAGES: mcpImages ? '1' : '0', E2E_MCP_MANAGER: mcpManager ? '1' : '0' },
   });
   const baseURL = await waitForReady(child);
   serverCount += 1;
@@ -133,8 +133,8 @@ export async function e2eFetch<T>(path: string, init?: RequestInit): Promise<T> 
  * the real password login; specs that change the session
  * may overwrite the file and later contexts in the same file pick that up.
  */
-export async function authStoragePath(mcpImages = false): Promise<string> {
-  const server = await ensureServer(mcpImages);
+export async function authStoragePath(mcpImages = false, mcpManager = false): Promise<string> {
+  const server = await ensureServer(mcpImages, mcpManager);
   if (server.signedIn) {
     return server.authFile;
   }
@@ -173,11 +173,15 @@ export async function authStoragePath(mcpImages = false): Promise<string> {
  * The suite's `test`: `test.use({ signedIn: true })` gives every context and
  * request fixture of the spec a live admin session on the spec's own server.
  */
-export const test = base.extend<{ signedIn: boolean; mcpImages: boolean }>({
+export const test = base.extend<{ signedIn: boolean; mcpImages: boolean; mcpManager: boolean }>({
   signedIn: [false, { option: true }],
   mcpImages: [false, { option: true }],
-  storageState: async ({ signedIn, mcpImages, storageState }, use) => {
-    await use(signedIn ? await authStoragePath(mcpImages) : storageState);
+  // The outbound MCP manager (a stdio fixture child plus a degraded HTTP
+  // endpoint) runs only in the specs that assert on it, so unrelated suites
+  // keep the fixture's "no connection manager" footprint.
+  mcpManager: [false, { option: true }],
+  storageState: async ({ signedIn, mcpImages, mcpManager, storageState }, use) => {
+    await use(signedIn ? await authStoragePath(mcpImages, mcpManager) : storageState);
   },
 });
 

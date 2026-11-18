@@ -7,6 +7,7 @@ import {
   configStatusQuery,
   developerQuery,
   harnessQuery,
+  mcpServersQuery,
   providersQuery,
   telegramQuery,
 } from './queries.ts';
@@ -32,6 +33,7 @@ export function useProviderWrite(): ProviderWriteFeedback {
     void queryClient.invalidateQueries({ queryKey: developerQuery.queryKey });
     void queryClient.invalidateQueries({ queryKey: harnessQuery.queryKey });
     void queryClient.invalidateQueries({ queryKey: telegramQuery.queryKey });
+    void queryClient.invalidateQueries({ queryKey: mcpServersQuery.queryKey });
   };
   return {
     refresh,

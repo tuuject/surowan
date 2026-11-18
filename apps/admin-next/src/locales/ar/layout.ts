@@ -88,6 +88,7 @@ export const layout: CompleteCatalog<typeof layoutEn> = {
     providers: 'المزوّدون',
     imageSettings: 'إعدادات الصور',
     searchSettings: 'البحث في الويب',
+    mcpServers: 'خوادم MCP',
     telegram: 'Telegram',
     chats: 'المحادثات',
     prompts: 'التوجيهات',

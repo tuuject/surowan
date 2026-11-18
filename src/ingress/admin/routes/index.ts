@@ -28,6 +28,7 @@ import { createGroupMemoryAdminHandler } from './group-memory.ts';
 import { createImageAdminRoutes } from './image.ts';
 import { createKeychainAdminRoutes } from './keychain.ts';
 import { createMemoryAdminHandler } from './memory.ts';
+import { createMcpServersAdminRoutes } from './mcp-servers.ts';
 import { createPlaygroundAdminRoutes } from './playground.ts';
 import { createPromptsAdminHandler } from './prompts.ts';
 import { createProvidersAdminHandler } from './providers.ts';
@@ -146,6 +147,7 @@ export function createAdminRoutes(deps: AdminRoutesDeps) {
       configReloader: reloader,
       secrets,
       memoBlobs,
+      searchProviders: options.searchProviders ?? BUILTIN_SEARCH_PROVIDERS,
       ...(scheduler === undefined ? {} : { scheduler }),
     }),
     prompts: createPromptsAdminHandler({
@@ -187,6 +189,13 @@ export function createAdminRoutes(deps: AdminRoutesDeps) {
       secrets,
       configStore: options.configStore,
       searchProviders: options.searchProviders ?? BUILTIN_SEARCH_PROVIDERS,
+    }),
+    mcpServers: createMcpServersAdminRoutes({
+      configReloader: reloader,
+      secrets,
+      searchProviders: options.searchProviders ?? BUILTIN_SEARCH_PROVIDERS,
+      ...(options.mcpServerStates === undefined ? {} : { mcpServerStates: options.mcpServerStates }),
+      ...(options.mcpServerTools === undefined ? {} : { mcpServerTools: options.mcpServerTools }),
     }),
     static: createStaticAssetHandler({ staticDir }),
   };

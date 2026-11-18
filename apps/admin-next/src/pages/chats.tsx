@@ -18,6 +18,7 @@ import {
 import { ChatDialog } from '@/components/chats/chat-dialog';
 import { ChatTable } from '@/components/chats/chat-table';
 import { GroupMemoryDialog } from '@/components/chats/group-memory-dialog';
+import { McpBindingDialog } from '@/components/chats/mcp-binding-dialog';
 import { ParticipationDialog } from '@/components/chats/participation-dialog';
 import { ProactiveReplyDialog } from '@/components/chats/proactive-reply-dialog';
 import { RestartBanner } from '@/components/models/restart-banner';
@@ -67,6 +68,12 @@ export default function ChatsPage(): ReactElement {
     readonly nonce: number;
   } | null>(null);
   const [groupMemoryOpen, setGroupMemoryOpen] = useState(false);
+  const [mcpBinding, setMcpBinding] = useState<{
+    readonly view: ChatsView;
+    readonly chat: ChatEntry;
+    readonly nonce: number;
+  } | null>(null);
+  const [mcpBindingOpen, setMcpBindingOpen] = useState(false);
   const [removing, setRemoving] = useState<{ readonly chat: ChatEntry; readonly revision: string } | null>(null);
   const [removeOpen, setRemoveOpen] = useState(false);
   const remove = useMutation({
@@ -183,6 +190,10 @@ export default function ChatsPage(): ReactElement {
             setGroupMemory((previous) => ({ view, chat, nonce: (previous?.nonce ?? 0) + 1 }));
             setGroupMemoryOpen(true);
           }}
+          onMcp={(chat) => {
+            setMcpBinding((previous) => ({ view, chat, nonce: (previous?.nonce ?? 0) + 1 }));
+            setMcpBindingOpen(true);
+          }}
           onRemove={(chat) => {
             remove.reset();
             setRemoving({ chat, revision: view.revision });
@@ -223,6 +234,13 @@ export default function ChatsPage(): ReactElement {
         view={groupMemory?.view ?? view}
         chat={groupMemory?.chat ?? null}
         formKey={groupMemory?.nonce ?? 0}
+      />
+      <McpBindingDialog
+        open={mcpBindingOpen}
+        onOpenChange={setMcpBindingOpen}
+        view={mcpBinding?.view ?? view}
+        chat={mcpBinding?.chat ?? null}
+        formKey={mcpBinding?.nonce ?? 0}
       />
       {/* `open` stays apart from the snapshot so the Chat id doesn't blank out while the exit fade plays. */}
       <ConfirmDialog

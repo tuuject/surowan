@@ -9,6 +9,7 @@ import type { BucketScheduler } from '../../orchestration/scheduler/index.ts';
 import type { RawConfig } from '../../platform/config/index.ts';
 import type { ConfigController } from '../../platform/config/write.ts';
 import type { ImConnectionRegistry } from '../../platform/im-connection.ts';
+import type { McpServerToolListing } from '../../capabilities/mcp/support.ts';
 import type { AgentModelSwitcher } from '../../platform/models/switch.ts';
 import type { RuntimeConfigurationStore } from '../../platform/runtime-config.ts';
 import type { SecretStore } from '../../platform/secrets.ts';
@@ -88,6 +89,8 @@ export interface AdminServerOptions {
   readonly warnings?: WarningService;
   /** Live per-alias MCP availability for the standing warnings; absent outside `serve`. */
   readonly mcpServerStates?: (() => readonly McpServerAvailability[]) | undefined;
+  /** Advertised tools per MCP alias for the servers page; absent outside `serve`. */
+  readonly mcpServerTools?: (() => readonly McpServerToolListing[]) | undefined;
   /** Search providers registered by the loaded plugins; absent uses the bundled set. */
   readonly searchProviders?: readonly SearchProviderRule[];
   /** Override for the MCP skill directory; tests and packaged hosts may relocate it. */
@@ -335,6 +338,7 @@ export class AdminServer {
     response ??= await routes.tuning.handle(request, segments);
     response ??= await routes.dictionary.handle(request, url, segments);
     response ??= await routes.search.handle(request, url, segments, caller);
+    response ??= await routes.mcpServers.handle(request, url, segments, caller);
     response ??= await routes.groupMemory.handle(request, url, segments);
     response ??= await routes.recurringAlarms.handle(request, url, segments, username);
     response ??= await routes.memory.handle(request, url, segments);

@@ -85,6 +85,7 @@ export const layout: typeof layoutEn = {
     providers: '供应商',
     imageSettings: '图片设置',
     searchSettings: '网络搜索',
+    mcpServers: 'MCP 服务器',
     telegram: 'Telegram',
     chats: '会话',
     prompts: '提示词',

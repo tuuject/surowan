@@ -59,6 +59,7 @@ export async function startAdminServer(session: ServeContext, assembly: ServeAss
       searchProviders,
       warnings,
       mcpServerStates: () => mcpManager.serverStates(),
+      mcpServerTools: () => mcpManager.serverToolListings(),
       requestRestart,
       imageService,
       imageBridge,

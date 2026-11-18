@@ -43,6 +43,10 @@
 | `surowan_provider_preset_list` | read | 内置 Provider 预设 |
 | `surowan_developer_show` / `surowan_developer_update` / `surowan_developer_clear_payloads` | read / write | Developer 页 |
 | `surowan_search_show` / `surowan_search_update` | read / write | 网络搜索配置 |
+| `surowan_mcp_server_list` | read | 出站 MCP Server 列表：实时状态、连接摘要（stdio 只有程序名与参数个数，HTTP 有 URL 与 Header 名；URL 只给 origin 并带 `url_redacted` 标记，路径与查询可能携带密钥）、发现过的 Tool 与使用它的 Chat。`mcp_server_update` 回传读到的 origin 视为「URL 不变」，不算改地址 |
+| `surowan_mcp_server_create` / `surowan_mcp_server_update` | write | 新增（仅 streamable_http，stdio 必须写进 config.jsonc）与编辑 MCP Server；stdio 只能改 Tool 选择、上限与策略；Header 走 SecretInput，程序化凭据改 url 必须同请求重交 Header |
+| `surowan_mcp_server_delete` | write | 删除 MCP Server；有 Chat 显式绑定时 409 `mcp_server_in_use`，需 `confirm: true` |
+| `surowan_chat_mcp` | write | 设置单个 Chat 的 MCP 绑定：`{ mode: "inherit" }`、`{ mode: "none" }` 或 `{ mode: "explicit", bindings: [...] }` |
 | `surowan_telegram_show` / `surowan_telegram_token` / `surowan_telegram_token_clear` | read / write | Telegram token；`show` 还返回消息批次节拍的 `bucket_timing.saved` / `active` |
 | `surowan_telegram_bucket_timing` | write | 消息批次节拍（`bucket_window_seconds` / `bucket_max_seconds` / `bucket_bump_seconds`，0–300 整数秒，后两项 `null` 删除）；热应用，只影响之后新开的批次，正在收集的批次保持原节拍；`max < window` 或超过非零 idle grace 时 422 |
 | `surowan_bot_admin_list` / `surowan_bot_admin_add` / `surowan_bot_admin_remove` | read / write | Bot 管理员 |

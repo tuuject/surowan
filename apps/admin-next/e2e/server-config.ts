@@ -7,6 +7,7 @@
  * because production validation demands port >= 1 while tests bind an
  * OS-assigned one.
  */
+import { join } from 'node:path';
 import { type LoadedConfig, loadConfig } from '../../../src/adapters/local-monolith/config/index.ts';
 import type { AdminConfig } from '../../../src/ingress/admin/index.ts';
 import { loadModelsDevCatalog } from '../../../src/platform/models-dev.ts';
@@ -26,6 +27,9 @@ export interface PreparedConfig {
   /** The loaded config's admin block, with the bind port overridden to 0. */
   readonly adminConfig: AdminConfig;
 }
+
+/** The real stdio MCP fixture the page lists as a connected server. */
+const MCP_STDIO_FIXTURE = join(import.meta.dirname, '..', '..', '..', 'test', 'fixtures', 'mcp-server.ts');
 
 export async function prepareConfig(options: {
   readonly directory: string;
@@ -105,12 +109,40 @@ export async function prepareConfig(options: {
       // The seeded `mascot` set is configured; the seeded `legacy` row stands
       // for a set removed earlier, whose index the store keeps.
       config.telegram.sticker_sets = [{ alias: 'mascot', name: 'surowan_mascot' }];
+      // Two outbound MCP servers: the real stdio fixture (it connects and
+      // advertises echo, wait and images, of which only echo is exposed) and an
+      // unreachable HTTP endpoint that settles into `degraded`.
+      config.mcp = {
+        servers: [
+          {
+            alias: 'stdio-fixture',
+            transport: 'stdio',
+            command: [process.execPath, MCP_STDIO_FIXTURE.replaceAll('\\', '/')],
+            tools: ['echo'],
+            payload_max_bytes: 32_768,
+            result_max_bytes: 32_768,
+            tool_policies: [{ name: 'echo', read_only: true, timeout_seconds: 20 }],
+          },
+          {
+            alias: 'http-remote',
+            transport: 'streamable_http',
+            url: 'http://127.0.0.1:1/mcp',
+            follow_redirects: false,
+            tools: '*',
+            payload_max_bytes: 32_768,
+            result_max_bytes: 32_768,
+            headers: { authorization: { jar: 'e2e-mcp-header' } },
+            default_tool_policy: { read_only: true, timeout_seconds: 30 },
+          },
+        ],
+      };
     }),
   );
   await writeTestKeychain(directory, {
     'e2e-builtin': E2E_SECRETS.builtin,
     'e2e-relay': E2E_SECRETS.relay,
     'e2e-relay-header': E2E_SECRETS.relayHeader,
+    'e2e-mcp-header': 'e2e-mcp-header-secret',
   }); // `discover` and `lookup-metadata` resolve metadata against the models.dev
   // catalog. Priming it with a fixture (the module's own test seam) keeps the
   // E2E server offline.

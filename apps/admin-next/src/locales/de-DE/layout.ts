@@ -88,6 +88,7 @@ export const layout: Catalog<typeof layoutEn> = {
     providers: 'Anbieter',
     imageSettings: 'Bildeinstellungen',
     searchSettings: 'Websuche',
+    mcpServers: 'MCP-Server',
     telegram: 'Telegram',
     chats: 'Chats',
     prompts: 'Prompts',

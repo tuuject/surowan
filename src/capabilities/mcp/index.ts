@@ -27,7 +27,7 @@ import {
 } from './connection.ts';
 import { reconcile } from './reconcile.ts';
 import type { McpServerReconcileResult, McpState } from './shared.ts';
-import type { ManagedServer, RegistryValidator } from './support.ts';
+import type { ManagedServer, McpServerToolListing, RegistryValidator } from './support.ts';
 import {
   assertConfigBindings,
   buildTools,
@@ -106,6 +106,23 @@ export class McpManager {
       // A `starting` that is a retry still belongs to the outage it is
       // recovering from; a first connect after boot is not one.
       retrying: server.state === 'starting' && server.degradedNotified,
+    }));
+  }
+
+  /**
+   * Every tool each configured server advertised at its last successful
+   * discovery, unfiltered by the server's `tools` setting. The Admin Panel's
+   * server list reads this; it is read-only state, never a capability grant.
+   * An alias that has not connected yet (or stopped) lists nothing.
+   */
+  serverToolListings(): McpServerToolListing[] {
+    return [...this.#state.servers.values()].map((server) => ({
+      alias: server.config.alias,
+      tools: server.advertised.map((tool) => ({
+        name: tool.name,
+        description: tool.description,
+        input_schema: tool.input_schema,
+      })),
     }));
   }
 

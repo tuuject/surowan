@@ -276,6 +276,15 @@ test.describe('routes and deep links', () => {
     await expect(page.locator('[data-route-error]')).toHaveCount(0);
   });
 
+  test('/mcp-servers lists the configured outbound servers', async ({ page }) => {
+    await page.goto(await adminUrl('/mcp-servers'));
+    await expect(page.getByRole('heading', { name: 'MCP servers', exact: true })).toBeVisible();
+    await expect(page.locator('table tbody tr', { hasText: 'stdio-fixture' })).toBeVisible();
+    await expect(page.locator('table tbody tr', { hasText: 'http-remote' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Add server', exact: true })).toBeVisible();
+    await expect(page.locator('[data-route-error]')).toHaveCount(0);
+  });
+
   test('/preferences renders the browser-local display options', async ({ page }) => {
     await page.goto(await adminUrl('/preferences'));
     await expect(page.getByLabel('Theme', { exact: true })).toBeVisible();

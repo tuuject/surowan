@@ -25,6 +25,7 @@ import { Route as ImageGenerationsRouteImport } from './routes/image-generations
 import { Route as ImageSettingsRouteImport } from './routes/image-settings'
 import { Route as InvocationsRouteImport } from './routes/invocations'
 import { Route as KeychainRouteImport } from './routes/keychain'
+import { Route as McpServersRouteImport } from './routes/mcp-servers'
 import { Route as MemoriesRouteImport } from './routes/memories'
 import { Route as MessagesRouteImport } from './routes/messages'
 import { Route as ModelsRouteImport } from './routes/models'
@@ -122,6 +123,11 @@ const InvocationsRoute = InvocationsRouteImport.update({
 const KeychainRoute = KeychainRouteImport.update({
   id: '/keychain',
   path: '/keychain',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const McpServersRoute = McpServersRouteImport.update({
+  id: '/mcp-servers',
+  path: '/mcp-servers',
   getParentRoute: () => rootRouteImport,
 } as any)
 const MemoriesRoute = MemoriesRouteImport.update({
@@ -233,6 +239,7 @@ export interface FileRoutesByFullPath {
   '/image-settings': typeof ImageSettingsRoute
   '/invocations': typeof InvocationsRoute
   '/keychain': typeof KeychainRoute
+  '/mcp-servers': typeof McpServersRoute
   '/memories': typeof MemoriesRoute
   '/messages': typeof MessagesRoute
   '/models': typeof ModelsRoute
@@ -269,6 +276,7 @@ export interface FileRoutesByTo {
   '/image-settings': typeof ImageSettingsRoute
   '/invocations': typeof InvocationsRoute
   '/keychain': typeof KeychainRoute
+  '/mcp-servers': typeof McpServersRoute
   '/memories': typeof MemoriesRoute
   '/messages': typeof MessagesRoute
   '/models': typeof ModelsRoute
@@ -306,6 +314,7 @@ export interface FileRoutesById {
   '/image-settings': typeof ImageSettingsRoute
   '/invocations': typeof InvocationsRoute
   '/keychain': typeof KeychainRoute
+  '/mcp-servers': typeof McpServersRoute
   '/memories': typeof MemoriesRoute
   '/messages': typeof MessagesRoute
   '/models': typeof ModelsRoute
@@ -344,6 +353,7 @@ export interface FileRouteTypes {
     | '/image-settings'
     | '/invocations'
     | '/keychain'
+    | '/mcp-servers'
     | '/memories'
     | '/messages'
     | '/models'
@@ -380,6 +390,7 @@ export interface FileRouteTypes {
     | '/image-settings'
     | '/invocations'
     | '/keychain'
+    | '/mcp-servers'
     | '/memories'
     | '/messages'
     | '/models'
@@ -416,6 +427,7 @@ export interface FileRouteTypes {
     | '/image-settings'
     | '/invocations'
     | '/keychain'
+    | '/mcp-servers'
     | '/memories'
     | '/messages'
     | '/models'
@@ -453,6 +465,7 @@ export interface RootRouteChildren {
   ImageSettingsRoute: typeof ImageSettingsRoute
   InvocationsRoute: typeof InvocationsRoute
   KeychainRoute: typeof KeychainRoute
+  McpServersRoute: typeof McpServersRoute
   MemoriesRoute: typeof MemoriesRoute
   MessagesRoute: typeof MessagesRoute
   ModelsRoute: typeof ModelsRoute
@@ -585,6 +598,13 @@ declare module '@tanstack/react-router' {
       path: '/keychain'
       fullPath: '/keychain'
       preLoaderRoute: typeof KeychainRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/mcp-servers': {
+      id: '/mcp-servers'
+      path: '/mcp-servers'
+      fullPath: '/mcp-servers'
+      preLoaderRoute: typeof McpServersRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/memories': {
@@ -733,6 +753,7 @@ const rootRouteChildren: RootRouteChildren = {
   ImageSettingsRoute: ImageSettingsRoute,
   InvocationsRoute: InvocationsRoute,
   KeychainRoute: KeychainRoute,
+  McpServersRoute: McpServersRoute,
   MemoriesRoute: MemoriesRoute,
   MessagesRoute: MessagesRoute,
   ModelsRoute: ModelsRoute,

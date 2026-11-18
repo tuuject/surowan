@@ -90,6 +90,7 @@ export const layout = {
     providers: 'Providers',
     imageSettings: 'Image settings',
     searchSettings: 'Web search',
+    mcpServers: 'MCP servers',
     telegram: 'Telegram',
     chats: 'Chats',
     prompts: 'Prompts',

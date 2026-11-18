@@ -11,6 +11,7 @@ import { getDictionarySettings, listDictionary, listDictionaryChats } from './ap
 import { getGroupMemoryProgress, listGroupMemories, listGroupMemoryRuns } from './api/group-memories.ts';
 import { getInvocation, listInvocations } from './api/invocations.ts';
 import { getKeychain } from './api/keychain.ts';
+import { getMcpServers } from './api/mcp-servers.ts';
 import { listMemories, listMemoryChats } from './api/memories.ts';
 import { getMessage, listMessages } from './api/messages.ts';
 import {
@@ -233,6 +234,16 @@ export const chatsQuery = queryOptions({
   queryKey: ['chats'],
   queryFn: getChats,
   staleTime: 0,
+});
+
+export const mcpServersQuery = queryOptions({
+  queryKey: ['mcp-servers'],
+  queryFn: getMcpServers,
+  // The page writes and reads the same resource, so a cached view goes stale on
+  // every write; the mutations invalidate it explicitly. Live server state and
+  // discovery results move in the background, so the view also polls.
+  staleTime: 0,
+  refetchInterval: LIST_POLL_MS,
 });
 
 export const providersQuery = queryOptions({

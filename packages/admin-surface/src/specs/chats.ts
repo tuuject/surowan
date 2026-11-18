@@ -58,6 +58,16 @@ export const CHAT_SPECS: readonly EndpointSpec[] = [
     summary: 'Set the proactive reply override of one Chat (inherit, off or custom)',
   },
   {
+    command: 'chat mcp',
+    method: 'PUT',
+    path: 'chats/:id/mcp',
+    positional: [{ name: 'id', kind: 'decimal' }],
+    body: true,
+    revision: 'config',
+    summary:
+      'Set which MCP servers one Chat may call: inherit all, none, or explicit bindings (server plus optional tool narrowing)',
+  },
+  {
     command: 'chat group-memory',
     method: 'PUT',
     path: 'chats/:id/group-memory',

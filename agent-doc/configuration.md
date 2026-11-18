@@ -607,6 +607,8 @@ Agent 侧使用（`image_generate` 工具、图片技能、发送与审计链路
 }
 ```
 
+Admin Panel 的 **MCP servers** 页（Manage → MCP servers）可以管理这份配置并立即热应用：新增 Streamable HTTP Server（Header 走共享的 SecretInput，明文只进 keychain）、编辑 HTTP 的 URL 与 Header、编辑任一 Server 的 Tool 选择、大小限制与策略（通配 Server 的按 Tool 覆盖也在编辑器里，随保存原样保留；显式列表可以为空，等于不向该 Server 暴露任何 Tool）、删除未被显式绑定的 Server；每个 Server 的实时状态、它发现过的全部 Tool（含被 `tools` 设置隐藏的）与使用它的 Chat 都在页面上。stdio 的连接字段（`command` 与 `env`）在面板里只读：在面板上写一条外部命令或环境变量等于在宿主机上运行任意程序，所以 stdio Server 只能在服务器的 `config.jsonc` 里添加和改连接。Chats 页每行的「MCP servers」入口设置该 Chat 的绑定（继承全部、全部关闭或显式绑定），见 [admin-panel.md](admin-panel.md#mcp-servers-页)。
+
 Streamable HTTP 使用 `url` 与可选 SecretRef `headers`，且 `follow_redirects` 必须为 `false`。`url` 可以包含服务协议要求的查询参数，但禁止 URL userinfo 与 fragment；机密值应使用 SecretRef `headers`，不应写入查询参数。`tools` 为 `"*"` 时全部 Tool 共享 `default_tool_policy`；`tools` 为显式数组时，每个列出的 Tool 必须在 `tool_policies` 中提供对应策略，`default_tool_policy` 只服务于 `"*"`。策略只包含 `read_only` 与 `timeout_seconds`，没有每日调用次数上限。没有策略的 Tool 不会暴露给模型。
 
 **可用性是运行时状态，不是配置保证**：`serve` 启动不等待也不失败于 MCP——每个 Server 在后台连接，连不上或校验失败发布为 `degraded` 并按退避重连；只有 `ready` 的 Server 向模型暴露 Tool，`degraded` 期间该 Server 的 Tool 从下一次 Invocation 的注册表中消失，重连成功后恢复。`mcp_server_state` 表记录每个 alias 的状态与下次重连时间，Admin Panel 的 Warnings 页在 `degraded` 期间显示 `mcp_server_unavailable` 常驻警告。`required` 字段已**废弃且无效**（启动、热更新、doctor 都不再看它）：仍写着它的配置能正常加载，`check-config` 与 `serve` 的 `config_warnings` 会给出一个列出相关 alias 的告警，Warnings 页显示 `mcp_required_deprecated`，建议删掉。
