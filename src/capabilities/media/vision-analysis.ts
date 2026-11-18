@@ -21,8 +21,8 @@ import { defaultVisionThinkingLevel } from '../../platform/thinking-levels.ts';
 import { applyToolSchemaKeywords } from '../../platform/tool-schema.ts';
 import { dailyUsage, mediaAnalyses, modelCalls } from '../../store/schema/index.ts';
 import { isDailyTokenBudgetReached, meteredTokens, readDailyTokenBudget } from '../../store/sleep.ts';
-import { MAX_DOWNLOAD_BYTES, type MediaRow } from './image.ts';
-import { createWorkDirectory, type MediaImageInputDeps, prepareRowImage } from './image-input.ts';
+import { MAX_DOWNLOAD_BYTES } from './image.ts';
+import { createWorkDirectory, type MediaImageInputDeps, prepareRowImage, type RowImageSource } from './image-input.ts';
 
 const StickerAnalysisSchema = Type.Object(
   {
@@ -86,7 +86,7 @@ export interface MediaVisionDeps extends MediaImageInputDeps {
  */
 export async function analyzeDeduplicated(
   deps: MediaVisionDeps,
-  media: MediaRow,
+  media: RowImageSource,
   run: VisionRun,
   scope: AnalysisScope,
   signal: AbortSignal,
@@ -103,7 +103,7 @@ export async function analyzeDeduplicated(
 
 async function analyze(
   deps: MediaVisionDeps,
-  media: MediaRow,
+  media: RowImageSource,
   run: VisionRun,
   scope: AnalysisScope,
   signal: AbortSignal,

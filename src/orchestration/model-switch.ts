@@ -1,6 +1,6 @@
 import { sql } from 'drizzle-orm';
 import type { RawConfig } from '../platform/config/index.ts';
-import type { HostKind } from '../platform/im-host/identity.ts';
+import { isHostKind } from '../platform/im-host/identity.ts';
 import { type InvocationAgentSettings, resolveInvocationPolicy } from '../platform/invocation-policy.ts';
 import type { RuntimeConfigurationStore } from '../platform/runtime-config.ts';
 import { type Orm, resolveChatConfig } from '../store/store.ts';
@@ -40,7 +40,12 @@ interface RunningInvocationRow {
  * no longer configured — nothing there is running on a model a switch replaces.
  */
 function agentModelKey(orm: Orm, config: RawConfig, row: RunningInvocationRow): string | null {
-  const hostKind = row.host_kind as HostKind;
+  // A host kind this build does not know is not this switch's accounting: it
+  // can neither name nor stop what runs there, so the row affects only itself.
+  if (!isHostKind(row.host_kind)) {
+    return null;
+  }
+  const hostKind = row.host_kind;
   let agent: InvocationAgentSettings;
   try {
     agent = resolveInvocationPolicy(config, orm, {

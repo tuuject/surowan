@@ -17,9 +17,9 @@ import {
 } from '../../../orchestration/bot-commands/index.ts';
 import type { BucketScheduler } from '../../../orchestration/scheduler/index.ts';
 import {
+  parseHostKind,
   toChatId,
   toConversationId,
-  type HostKind,
   type ImConversationRef,
 } from '../../../platform/im-host/identity.ts';
 import type { ImHost } from '../../../platform/im-host/index.ts';
@@ -115,12 +115,12 @@ export function resolveConversation(
       .where(eq(conversations.id, target.conversationId))
       .get();
     if (row !== undefined) {
-      const hostKind: HostKind = row.hostKind === 'playground' ? 'playground' : 'telegram';
+      const hostKind = parseHostKind(row.hostKind);
       return {
         host: hostKind,
         id: toConversationId(row.id),
         chatId: toChatId((hostKind === 'telegram' ? row.telegramChatId : row.chatId)?.toString() ?? '0'),
-        topicId: row.threadId === 0n ? null : Number(row.threadId),
+        topicId: row.threadId === 0n ? null : row.threadId,
         scope: row.type === 'private' ? 'private' : 'group',
       };
     }
@@ -142,7 +142,7 @@ export function resolveConversation(
     host: 'telegram',
     id: toConversationId(conversation?.id ?? 0n),
     chatId: toChatId(target.chatId.toString()),
-    topicId: target.threadId === 0n ? null : Number(target.threadId),
+    topicId: target.threadId === 0n ? null : target.threadId,
     scope: chat?.type === 'private' ? 'private' : 'group',
   };
 }

@@ -1,7 +1,7 @@
 import type { Update } from 'grammy/types';
 import { describe, expect, test } from 'vitest';
 import { SqliteStore } from '../../src/adapters/local-monolith/database.ts';
-import { grammyTelegramTransport } from '../../src/adapters/local-monolith/telegram/host.ts';
+import { grammyTelegramTransport } from '../../src/adapters/local-monolith/telegram/grammy-transport.ts';
 import type { CapabilityRefResolver } from '../../src/platform/invocation-context.ts';
 import { imageDeliveryState } from '../../src/store/image-delivery.ts';
 import { invocationCapabilities, type TestInvocationContext } from '../helpers.ts';

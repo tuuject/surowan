@@ -2,6 +2,7 @@ import { readFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import Type from 'typebox';
 import { Compile } from 'typebox/compile';
+import { parseHostKind } from '../../platform/im-host/identity.ts';
 import { MAX_DOWNLOAD_BYTES } from './image.ts';
 import { createWorkDirectory, type MediaImageInputDeps, selectMediaRow } from './image-input.ts';
 
@@ -27,7 +28,7 @@ export async function readOriginalFile(
   }
   const mime = media.mimeType ?? 'image/jpeg';
   const fileName = documentName(media.telegramJson) ?? `${media.kind}-${media.id.toString()}`;
-  if (media.hostKind === 'playground') {
+  if (parseHostKind(media.hostKind) === 'playground') {
     const asset = media.localAssetId === null ? null : (deps.localAssets?.resolve(media.localAssetId) ?? null);
     if (asset === null) {
       throw new Error('Room media is unavailable');

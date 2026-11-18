@@ -1,6 +1,7 @@
 import { eq, sql } from 'drizzle-orm';
 import type { RawConfig } from '../platform/config/index.ts';
 import { completeAgentSettings, resolveAgentSettings } from '../platform/config/resolve.ts';
+import { parseHostKind } from '../platform/im-host/identity.ts';
 import { rooms } from './schema/index.ts';
 import { isChatPaused, type Orm, resolveChatConfig } from './store.ts';
 
@@ -52,7 +53,7 @@ export function deliveryBlockReason(
 ): DeliveryBlockReason | undefined {
   // A room has no Telegram chat entry, pause or topic list; it is a valid
   // destination for as long as the room itself exists.
-  if (target.hostKind === 'playground') {
+  if (parseHostKind(target.hostKind) === 'playground') {
     const room = orm.select({ chatId: rooms.chatId }).from(rooms).where(eq(rooms.chatId, target.chatId)).get();
     return room === undefined ? 'chat_removed' : undefined;
   }

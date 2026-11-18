@@ -5,7 +5,7 @@ import type {
   InvocationContext,
   JsonValue,
 } from '../../platform/invocation-context.ts';
-import type { HostKind } from '../../platform/im-host/identity.ts';
+import { parseHostKind, type HostKind } from '../../platform/im-host/identity.ts';
 import type { Orm } from '../store.ts';
 import { chats, conversations, longTasks, taskReceipts } from '../schema/index.ts';
 import { deliveryText, readDelivery } from './delivery.ts';
@@ -76,7 +76,6 @@ function canonicalIso(value: string): string {
 export class LongTaskService {
   readonly #orm: Orm;
   readonly #wake: (() => void) | undefined;
-  readonly #conversationHosts = new Map<string, HostKind>();
   /**
    * Hosts whose timer work this instance may complete. Undefined means every
    * host (the shared process); a single-host process passes its own set so a
@@ -167,18 +166,19 @@ export class LongTaskService {
   }
 
   #assertPluginHost(pluginId: string, conversationId: bigint, hosts: readonly HostKind[]): void {
-    const key = conversationId.toString();
-    let hostKind = this.#conversationHosts.get(key);
-    if (hostKind === undefined) {
-      const [row] = this.#orm
-        .select({ hostKind: chats.hostKind })
-        .from(conversations)
-        .innerJoin(chats, eq(conversations.chatId, chats.id))
-        .where(eq(conversations.id, conversationId))
-        .all();
-      hostKind = row?.hostKind === 'playground' ? 'playground' : 'telegram';
-      this.#conversationHosts.set(key, hostKind);
+    // The host is read from the stored row on every scope: conversation ids
+    // are recycled after a chat deletion, so a cached answer could admit a
+    // plugin to a conversation of a host it does not serve.
+    const [row] = this.#orm
+      .select({ hostKind: chats.hostKind })
+      .from(conversations)
+      .innerJoin(chats, eq(conversations.chatId, chats.id))
+      .where(eq(conversations.id, conversationId))
+      .all();
+    if (row === undefined) {
+      throw new Error(`Plugin ${pluginId}: conversation ${conversationId} does not exist`);
     }
+    const hostKind = parseHostKind(row.hostKind);
     if (!hosts.includes(hostKind)) {
       throw new Error(`Plugin ${pluginId} is not enabled on the ${hostKind} host`);
     }

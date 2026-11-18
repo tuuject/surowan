@@ -21,7 +21,8 @@ import { BUNDLED_MANUAL_DIR, bundledManualSpace, FileSystemDocSpaces } from './a
 import { resolveConversation } from './adapters/local-monolith/runtime/support.ts';
 import { BUNDLED_SYSTEM_RESOURCES_DIR, FileSystemResources } from './adapters/local-monolith/system-resources.ts';
 import { resolveTelegramTokenSource } from './adapters/local-monolith/telegram/connection-token.ts';
-import { createTelegramHost, grammyTelegramTransport } from './adapters/local-monolith/telegram/host.ts';
+import { grammyTelegramTransport } from './adapters/local-monolith/telegram/grammy-transport.ts';
+import { createTelegramHost } from './adapters/local-monolith/telegram/host.ts';
 import { awaitServerAttempts } from './capabilities/mcp/availability.ts';
 import { McpManager } from './capabilities/mcp/index.ts';
 import { TelegramMediaClient } from './capabilities/media/download.ts';

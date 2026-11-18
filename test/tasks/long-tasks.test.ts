@@ -102,7 +102,13 @@ describe('LongTaskService', () => {
     caller = 99n;
     expect(ownerScope.cancel(created.taskId)).toBe(false);
     expect(tasks.invocationScope('other-plugin', ctx(conversationId)).cancel(created.taskId)).toBe(false);
-    expect(tasks.invocationScope('alarm', ctx(999n)).cancel(created.taskId)).toBe(false);
+    store.db
+      .prepare(
+        `INSERT INTO conversations(id, chat_id, message_thread_id, created_at, updated_at)
+         VALUES (202, 1, 5, '2025-01-01T00:00:00.000Z', '2025-01-01T00:00:00.000Z')`,
+      )
+      .run();
+    expect(tasks.invocationScope('alarm', ctx(202n)).cancel(created.taskId)).toBe(false);
 
     caller = 42n;
     expect(ownerScope.cancel(created.taskId)).toBe(true);
