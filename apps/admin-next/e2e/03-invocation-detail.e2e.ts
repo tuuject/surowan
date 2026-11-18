@@ -9,6 +9,42 @@ import { adminUrl, e2eFetch, test } from './helpers.ts';
  */
 test.use({ signedIn: true });
 
+test('phone-width audit tabs show readable summaries and expandable details', async ({ page }, testInfo) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(await adminUrl('/invocations/4001'));
+
+  await page.getByRole('tab', { name: /Tool calls/ }).click();
+  const tools = page.getByRole('tabpanel', { name: /Tool calls/ });
+  await expect(tools.getByRole('table')).toBeHidden();
+  await expect(tools.getByText('Succeeded').first()).toBeVisible();
+  await expect(tools.getByText('call_send_001')).toBeVisible();
+  await expect(tools.getByText('Parsed send arguments')).toBeHidden();
+  await tools.getByText('send', { exact: true }).click();
+  await expect(tools.getByText('Side effect')).toBeVisible();
+  await expect(tools.getByText('Parsed send arguments')).toBeVisible();
+  await expect(tools.getByText('Hello from the seeded invocation', { exact: true }).first()).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(390);
+  await tools.screenshot({ path: testInfo.outputPath('phone-tool-calls.png') });
+
+  await page.getByRole('tab', { name: /Model calls/ }).click();
+  const models = page.getByRole('tabpanel', { name: /Model calls/ });
+  await expect(models.getByRole('table')).toBeHidden();
+  await expect(models.getByText('Attempt 1', { exact: true })).toBeVisible();
+  await expect(models.getByText('Attempt 2', { exact: true })).toBeVisible();
+  await expect(models.getByText('Last API request payload')).toBeHidden();
+  await models.getByText('Attempt 1', { exact: true }).click();
+  await expect(models.getByRole('button', { name: 'Download JSON' })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(390);
+
+  await page.getByRole('tab', { name: /Telegram sends/ }).click();
+  const sends = page.getByRole('tabpanel', { name: /Telegram sends/ });
+  await expect(sends.getByRole('table')).toBeHidden();
+  await sends.getByText('Succeeded').click();
+  await expect(sends.getByText('902', { exact: true })).toBeVisible();
+  await expect(sends.getByText('Request payload')).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(390);
+});
+
 test.describe('completed invocation (4001)', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto(await adminUrl('/invocations/4001'));

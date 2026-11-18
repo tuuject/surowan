@@ -1,15 +1,8 @@
 import { css } from '@tuuject/koi-react/styled-system/css';
 import type React from 'react';
 import { useTranslation } from 'react-i18next';
-import {
-  type ColumnSpec,
-  JsonViewer,
-  MonoValue,
-  StateBadge,
-  TableShell,
-  TextValue,
-  TimeText,
-} from '@/components/business';
+import { type ColumnSpec, JsonViewer, MonoValue, StateBadge, TextValue, TimeText } from '@/components/business';
+import { AuditRecords } from '@/components/invocations/audit-records';
 import { isRoom, TabContent } from '@/components/invocations/shared';
 import type { InvocationDetail, TelegramSendEntry } from '@/lib/api/invocations.ts';
 import { kindLabel } from '@/lib/format';
@@ -58,7 +51,8 @@ export function SendsTab({ invocation }: { readonly invocation: InvocationDetail
         room ? 'invocations.invocationDetail.emptyRoomSends' : 'invocations.invocationDetail.emptyTelegramSends',
       )}
     >
-      <TableShell
+      <AuditRecords
+        summaryKeys={['kind', 'message']}
         columns={SEND_COLUMNS}
         data={invocation.telegram_sends}
         rowKey={(row) => row.id}
