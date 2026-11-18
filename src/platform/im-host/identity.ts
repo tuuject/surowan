@@ -3,6 +3,28 @@ export type HostKind = 'telegram' | 'playground';
 
 export const HOST_KINDS = ['telegram', 'playground'] as const satisfies readonly HostKind[];
 
+/** Whether `value` is one of the host kinds this build serves. */
+export function isHostKind(value: unknown): value is HostKind {
+  return (HOST_KINDS as readonly unknown[]).includes(value);
+}
+
+/**
+ * Reads a stored `host_kind` — or fails loudly.
+ *
+ * Storage outlives the build that wrote it: a kind this build does not know
+ * must stop the read with an error that names the value, never be folded into
+ * a host it may not mean. Everything a stored kind decides for one operation
+ * — scheduling, delivery, model accounting, media access — goes through this
+ * parser; batch loops that must not let one bad row stall the rest ask
+ * {@link isHostKind} instead.
+ */
+export function parseHostKind(value: unknown): HostKind {
+  if (isHostKind(value)) {
+    return value;
+  }
+  throw new Error(`Unknown host kind: ${String(value)}`);
+}
+
 /**
  * Whether a conversation is a one-to-one chat or a shared room. Scope, not
  * channel, because Telegram and the local playground disagree about almost
@@ -58,7 +80,7 @@ export interface ImConversationRef {
   /** Internal. Never rendered into a prompt. */
   readonly chatId: ChatId;
   /** Host-side sub-conversation (a Telegram forum topic). `null` for the whole chat. */
-  readonly topicId: number | null;
+  readonly topicId: bigint | null;
   readonly scope: ConversationScope;
 }
 
@@ -95,7 +117,7 @@ export function identityConversation(
     host,
     id: toConversationId(target.conversationId),
     chatId: toChatId(target.chatId.toString()),
-    topicId: target.threadId === 0n ? null : Number(target.threadId),
+    topicId: target.threadId === 0n ? null : target.threadId,
     scope,
   };
 }

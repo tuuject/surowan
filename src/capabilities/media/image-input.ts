@@ -2,6 +2,7 @@ import { chmod, mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { ImageContent } from '@earendil-works/pi-ai';
 import { eq } from 'drizzle-orm';
+import { parseHostKind } from '../../platform/im-host/identity.ts';
 import type { DirectImage } from '../../platform/invocation-context.ts';
 import type { RuntimeConfigurationStore } from '../../platform/runtime-config.ts';
 import { media as mediaTable } from '../../store/schema/index.ts';
@@ -10,13 +11,26 @@ import type { LocalAssetResolver } from './index.ts';
 import type { MediaDownloader } from './download.ts';
 import { MAX_DOWNLOAD_BYTES, type NormalizedImage, normalizeImage, prepareMediaImage } from './image.ts';
 
-/** A stored row as `prepareMediaImage` wants it, plus the host columns the row may carry. */
-export type RowImageSource = Parameters<typeof prepareMediaImage>[0] & {
-  readonly hostKind?: string;
-  readonly localAssetId?: string | null;
-  /** Absolute path of a Memo blob; checked before host-specific sources. */
-  readonly localFile?: string;
-};
+/**
+ * A stored row as `prepareMediaImage` wants it, plus the host columns the row
+ * may carry. Every source that is not a Memo blob must name its host: the
+ * stored kind decides which reader runs, and a kind this build does not know
+ * fails loudly rather than landing in the Telegram downloader by default.
+ */
+export type RowImageSource = Parameters<typeof prepareMediaImage>[0] &
+  (
+    | {
+        /** Absolute path of a Memo blob; checked before host-specific sources. */
+        readonly localFile: string;
+        readonly hostKind?: string;
+        readonly localAssetId?: string | null;
+      }
+    | {
+        readonly localFile?: undefined;
+        readonly hostKind: string;
+        readonly localAssetId?: string | null;
+      }
+  );
 
 /**
  * What the image-input paths need from the service that owns them. Everything
@@ -152,7 +166,8 @@ export async function prepareRowImage(
   if (media.localFile !== undefined) {
     return normalizeImage(media.localFile, directory, signal);
   }
-  if (media.hostKind === 'playground') {
+  const hostKind = parseHostKind(media.hostKind);
+  if (hostKind === 'playground') {
     if (media.kind === 'sticker') {
       throw new Error('A room asset cannot be a sticker');
     }

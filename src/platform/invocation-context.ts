@@ -1,8 +1,11 @@
 /**
  * Shared invocation-context value types. This is a leaf module: it must not
- * import any other src module, because context-builder, memory, and every tool
- * boundary depend on these types.
+ * import any other src module — the one exception is the `HostKind` type
+ * below, type-only and erased at build — because context-builder, memory, and
+ * every tool boundary depend on these types.
  */
+
+import type { HostKind } from './im-host/identity.ts';
 
 // ── JSON value types (leaf, shared by store and plugins) ───────────
 
@@ -103,7 +106,7 @@ export interface InvocationContext {
    * The host this invocation runs for. A Telegram-only capability must check
    * it before reading `chatId` as a Telegram chat id.
    */
-  readonly hostKind: 'telegram' | 'playground';
+  readonly hostKind: HostKind;
   readonly chatId: bigint;
   /** Internal `chats.id`; Memo Pad and blob ownership use this, never the platform id. */
   readonly internalChatId: bigint;
@@ -129,7 +132,7 @@ export interface InvocationContext {
 export class InvocationContextState implements InvocationContext {
   readonly invocationId: bigint;
   readonly conversationId: bigint;
-  readonly hostKind: 'telegram' | 'playground';
+  readonly hostKind: HostKind;
   readonly chatId: bigint;
   readonly internalChatId: bigint;
   readonly threadId: bigint;
@@ -145,7 +148,7 @@ export class InvocationContextState implements InvocationContext {
   constructor(identity: {
     readonly invocationId: bigint;
     readonly conversationId: bigint;
-    readonly hostKind: 'telegram' | 'playground';
+    readonly hostKind: HostKind;
     readonly chatId: bigint;
     readonly internalChatId: bigint;
     readonly threadId: bigint;
@@ -235,7 +238,7 @@ export class InvocationContextState implements InvocationContext {
 }
 
 /** Neutral context for registry-time tool validation, outside any invocation. */
-export function previewContext(hostKind: InvocationContext['hostKind'] = 'telegram'): InvocationContext {
+export function previewContext(hostKind: HostKind = 'telegram'): InvocationContext {
   return {
     invocationId: 0n,
     conversationId: 0n,

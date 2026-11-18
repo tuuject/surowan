@@ -80,7 +80,7 @@ export async function prepareSend(
   const targetConversation: ImConversationRef = {
     ...environment.conversation,
     id: toConversationId(targetConversationId),
-    topicId: targetThreadId === 0n ? null : Number(targetThreadId),
+    topicId: targetThreadId === 0n ? null : targetThreadId,
   };
   // The host has to be the one this conversation belongs to. A missing or
   // mismatched pair means no host was built for it, and guessing one would

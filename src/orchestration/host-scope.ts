@@ -26,15 +26,16 @@ export function activeHosts(hosts: readonly HostKind[] | undefined, isHostReady:
 }
 
 /**
- * `column` names a conversation id of one of `hosts`; always true when every
- * known host is active, and never true when none is.
+ * `column` names a conversation id of one of `hosts`; never true when none is.
+ *
+ * The predicate always restricts to the stored kinds this build serves, even
+ * when every known host is active: a row a newer build wrote under a kind this
+ * one does not know belongs to no served host, so it stays untouched for the
+ * build that knows it instead of being launched, delivered or accounted here.
  */
 export function conversationsOfHosts(hosts: readonly HostKind[], column: SQL): SQL {
   if (hosts.length === 0) {
     return sql`1 = 0`;
-  }
-  if (hosts.length === HOST_KINDS.length) {
-    return sql`1 = 1`;
   }
   return sql`${column} IN (SELECT v.id FROM conversations v JOIN chats c ON c.id = v.chat_id
       WHERE c.host_kind IN (${sql.join(

@@ -11,13 +11,8 @@
 import type { Api, Bot } from 'grammy';
 import { type MediaDownloader, TelegramMediaClient } from '../../../capabilities/media/download.ts';
 import { PLAYGROUND_BOT_DISPLAY_NAME } from '../runtime/support.ts';
-import {
-  grammyTelegramTransport,
-  type TelegramMediaOptions,
-  type TelegramMessageOptions,
-  type TelegramSendResponse,
-  type TelegramTransport,
-} from './host.ts';
+import { grammyTelegramTransport } from './grammy-transport.ts';
+import type { TelegramMediaOptions, TelegramMessageOptions, TelegramSendResponse, TelegramTransport } from './host.ts';
 import { TelegramUnavailableError } from './host-failures.ts';
 
 /** What `getMe()` reports about the bot; the fields this process reads. */

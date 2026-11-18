@@ -1,6 +1,6 @@
 import { eq } from 'drizzle-orm';
 import type { HostReadiness } from '../orchestration/host-scope.ts';
-import type { HostKind } from '../platform/im-host/identity.ts';
+import { isHostKind, type HostKind } from '../platform/im-host/identity.ts';
 import { chats, conversations } from '../store/schema/index.ts';
 import type { BusinessStore } from '../store/store.ts';
 
@@ -34,11 +34,10 @@ export function generationEligibilityForHosts(
       .innerJoin(chats, eq(chats.id, conversations.chatId))
       .where(eq(conversations.id, conversationId))
       .get();
-    if (row === undefined) {
+    if (row === undefined || !isHostKind(row.hostKind)) {
       return false;
     }
-    const host: HostKind = row.hostKind === 'telegram' ? 'telegram' : 'playground';
-    return hosts.includes(host) && isHostReady(host);
+    return hosts.includes(row.hostKind) && isHostReady(row.hostKind);
   };
 }
 

@@ -11,7 +11,7 @@ export const PINNED_TELEGRAM_GROUP: ImConversationRef = {
   host: 'telegram',
   id: toConversationId(7n),
   chatId: toChatId('-1001234567890'),
-  topicId: 42,
+  topicId: 42n,
   scope: 'group',
 };
 

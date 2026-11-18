@@ -3,7 +3,7 @@ import { sql } from 'drizzle-orm';
 import { CAPABILITIES_PROMPT, CORE_AGENT_PROTOCOL } from '../../platform/agent-protocol.ts';
 import { type AgentPromptLayers, composeAgentPrompt } from '../../platform/agent-prompt.ts';
 import { configuredModel, type RawConfig } from '../../platform/config/index.ts';
-import type { HostKind } from '../../platform/im-host/identity.ts';
+import { parseHostKind, type HostKind } from '../../platform/im-host/identity.ts';
 import type { CompletionContext, DirectImage, VisibleSender } from '../../platform/invocation-context.ts';
 import { resolveInvocationPolicy, type InvocationPolicy } from '../../platform/invocation-policy.ts';
 import type { PromptTemplateModel, PromptTemplateValues } from '../../platform/prompt-template.ts';
@@ -34,7 +34,7 @@ export class InjectionTooLargeError extends Error {
 interface InvocationIdentityRow {
   readonly conversation_id: bigint;
   readonly chat_id: bigint;
-  readonly host_kind: HostKind;
+  readonly host_kind: string;
   readonly telegram_chat_id: bigint | null;
   readonly message_thread_id: bigint;
   readonly chat_type: string;
@@ -162,7 +162,7 @@ export class ContextBuilder {
     if (identity === undefined) {
       throw new Error(`Invocation ${invocationId} does not exist`);
     }
-    const hostKind: HostKind = identity.host_kind;
+    const hostKind = parseHostKind(identity.host_kind);
     // A Telegram chat is addressed by its platform id; a room by its internal
     // chat id. Neither is ever used as the other host's id.
     const chatId = hostKind === 'telegram' ? (identity.telegram_chat_id ?? 0n) : identity.chat_id;

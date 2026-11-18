@@ -44,9 +44,10 @@ export async function analyzeStickerForIndex(
   if (!stickerTelegramValidator.Check(telegram)) {
     throw new Error('Stored sticker metadata does not match its schema');
   }
-  const media: MediaRow = {
+  const media: MediaRow & { readonly hostKind: string } = {
     id: sticker.id,
     kind: 'sticker',
+    hostKind: 'telegram',
     fileId: sticker.fileId,
     fileUniqueId: sticker.fileUniqueId,
     mimeType:
