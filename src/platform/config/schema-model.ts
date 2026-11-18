@@ -23,8 +23,8 @@ export const ThinkingLevelSchema = Type.Union([
 ]);
 
 /**
- * A plaintext secret has no form here: it lives in the key jar next to the file
- * (`key-jar.ts`), and the configuration only names its entry.
+ * A plaintext secret has no form here: it lives in the keychain next to the
+ * file (`keychain.ts`), and the configuration only names its entry.
  */
 export const SecretRefSchema = Type.Union([
   Type.Object({ jar: Type.String({ pattern: '^[A-Za-z0-9_-]{1,64}$' }) }, Strict),

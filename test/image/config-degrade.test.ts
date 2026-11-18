@@ -3,16 +3,16 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createOpenRouterAdapter, generationCreateSchema, type ImageConfigSnapshot } from '@surowan/image-service';
 import { afterEach, beforeEach, expect, test } from 'vitest';
-import { createImageService, type ImageService } from '../../src/image/service.ts';
-import { loadConfig } from '../../src/adapters/local-monolith/config/index.ts';
 import { readConfigRevision, writeConfigEdits } from '../../src/adapters/local-monolith/config/file.ts';
-import type { ConfigEdit } from '../../src/platform/config/write.ts';
+import { loadConfig } from '../../src/adapters/local-monolith/config/index.ts';
 import { ConfigReloader } from '../../src/adapters/local-monolith/config/reload.ts';
-import { keyJarPath } from '../../src/platform/key-jar.ts';
+import { SqliteStore } from '../../src/adapters/local-monolith/database.ts';
+import { createImageService, type ImageService } from '../../src/image/service.ts';
+import type { ConfigEdit } from '../../src/platform/config/write.ts';
+import { keychainPath, updateKeychain } from '../../src/platform/keychain.ts';
 import { AgentModelSwitcher } from '../../src/platform/models/switch.ts';
 import { SecretStore } from '../../src/platform/secrets.ts';
-import { SqliteStore } from '../../src/adapters/local-monolith/database.ts';
-import { testConfigJsonc, testConfigStore, writeTestConfig, writeTestKeyJar } from '../helpers.ts';
+import { testConfigJsonc, testConfigStore, writeTestConfig, writeTestKeychain } from '../helpers.ts';
 
 // ---------------------------------------------------------------------------
 // Graceful degradation: image generation is an optional capability. A missing
@@ -82,7 +82,7 @@ async function fixture(imageSection: unknown): Promise<Fixture> {
     (config as Record<string, unknown>).image = imageSection;
   });
   await writeTestConfig(directory, configPath, jsonc);
-  await writeTestKeyJar(directory, { openrouter: 'sk-image-v1' });
+  await writeTestKeychain(directory, { openrouter: 'sk-image-v1' });
   const loaded = await loadConfig(configPath);
   const store = await SqliteStore.open(loaded.config);
   cleanup.push(() => store.close());
@@ -94,7 +94,7 @@ async function fixture(imageSection: unknown): Promise<Fixture> {
     }),
   });
   cleanup.push(() => service.stop());
-  const secrets = new SecretStore(keyJarPath(configPath));
+  const secrets = new SecretStore(keychainPath(configPath));
   const configStore = await testConfigStore(loaded);
   const reloader = new ConfigReloader({
     loaded,
@@ -185,7 +185,11 @@ test('removing a valid section disables generation again, and it can be re-enabl
   // Re-enabling must bring the secret back: removing the section garbage-collects
   // the now-unreferenced jar entry, so the panel sends the credential with the
   // edit (plaintext into the jar, a reference into the file).
-  await replaceImageSection(configPath, validImage, { openrouter: 'sk-image-v1' });
+  // Re-enabling reuses the entry the previous section carried; the keychain
+  // write for a same-named entry is a rotation, so the test passes the value
+  // through `replace` instead of `add`.
+  await updateKeychain(keychainPath(configPath), { replace: { openrouter: 'sk-image-v1' } });
+  await replaceImageSection(configPath, validImage);
   applied = await reloader.reloadFromFile();
   expect(applied.ok).toBe(true);
   expect(service.core.config.hasValidConfig()).toBe(true);

@@ -11,9 +11,9 @@ import {
   resolveTelegramTokenSource,
   type TelegramTokenSource,
 } from '../../src/adapters/local-monolith/telegram/connection-token.ts';
+import { keychainPath, updateKeychain } from '../../src/platform/keychain.ts';
 import { SecretStore } from '../../src/platform/secrets.ts';
 import { setup } from './reload-fixtures.ts';
-import { writeTestKeyJar } from '../helpers.ts';
 
 function gatewayFixture() {
   const published: TelegramTokenSource[] = [];
@@ -85,7 +85,9 @@ test('a key-jar rotation republishes the token although the file did not change'
     expect(published.at(-1)).toEqual({ kind: 'token', token: 'telegram-secret' });
 
     // Only the jar entry behind the same SecretRef moves.
-    await writeTestKeyJar(fixture.directory, { telegram: 'rotated-telegram-secret' });
+    await updateKeychain(keychainPath(fixture.configPath), {
+      replace: { telegram: 'rotated-telegram-secret' },
+    });
     expect((await fixture.reloader.reloadFromFile()).ok).toBe(true);
     expect(published.at(-1)).toEqual({ kind: 'token', token: 'rotated-telegram-secret' });
 

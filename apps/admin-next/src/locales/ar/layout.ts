@@ -83,6 +83,7 @@ export const layout: CompleteCatalog<typeof layoutEn> = {
     dictionary: 'القاموس',
     botAdmins: 'مشرفو البوت',
     apiKeys: 'مفاتيح API',
+    keychain: 'سلسلة المفاتيح',
     models: 'النماذج',
     providers: 'المزوّدون',
     imageSettings: 'إعدادات الصور',

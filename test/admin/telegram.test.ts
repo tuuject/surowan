@@ -3,20 +3,21 @@
  * case uses a real configuration file, key jar, reloader and AdminServer, so
  * the assertions cover what lands on disk, not just the response body.
  */
-import { expect, test } from 'vitest';
+
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { AdminServer } from '../../src/ingress/admin/index.ts';
+import { expect, test } from 'vitest';
 import {
   resolveTelegramTokenSource,
   type TelegramTokenSource,
 } from '../../src/adapters/local-monolith/telegram/connection-token.ts';
-import type { SecretStore } from '../../src/platform/secrets.ts';
+import { AdminServer } from '../../src/ingress/admin/index.ts';
 import { ImConnectionRegistry } from '../../src/platform/im-connection.ts';
-import { readKeyJar } from '../../src/platform/key-jar.ts';
-import { PASSWORD, post, readJson, request, sessionCookie } from './fixtures.ts';
+import { readKeychain } from '../../src/platform/keychain.ts';
+import type { SecretStore } from '../../src/platform/secrets.ts';
 import { logLines, setup } from '../config/reload-fixtures.ts';
 import { createAdminAccount } from '../fixtures/admin-account.ts';
+import { PASSWORD, post, readJson, request, sessionCookie } from './fixtures.ts';
 
 interface Panel {
   readonly fixture: Awaited<ReturnType<typeof setup>>;
@@ -87,23 +88,22 @@ test('PUT /telegram writes the token into the key jar and only a reference into 
       revision: expect.stringMatching(/^[a-f0-9]{64}$/),
       token_configured: true,
       telegram_section_present: true,
-      apply: { applied: expect.arrayContaining(['telegram.token']), restart_required: [] },
+      // The entry is used by this token alone, so the fresh key rotates it in
+      // place: the file keeps pointing at the same entry name, and the
+      // requesting path is reported as applied (the connection was rebuilt).
+      apply: { applied: ['telegram.token'], restart_required: [] },
     });
-    expect(body.revision).not.toBe(before.revision);
+    expect(body.revision).toBe(before.revision);
 
     const text = await p.configText();
     expect(text).not.toContain(token);
-    const jar = await readKeyJar(join(p.fixture.directory, 'key.json'));
-    expect(jar).not.toBeNull();
-    const entry = Object.entries(jar ?? {}).find(([, value]) => value === token);
-    expect(entry).toBeDefined();
-    // The previous reference is gone and the fresh one points at the new entry.
-    expect(jar).not.toHaveProperty('telegram');
-    expect(text).toContain(`"jar": "${entry?.[0]}"`);
+    const jar = await readKeychain(join(p.fixture.directory, 'key.json'));
+    expect(jar?.telegram).toEqual({ value: token, created_at: expect.any(String) });
+    expect(text).toContain('"jar": "telegram"');
 
     // The reloader published the resolved token; the manager would restart on it.
     expect(p.published.at(-1)).toEqual({ kind: 'token', token });
-    expect(p.fixture.configStore.current().config.telegram.token).toEqual({ jar: entry?.[0] });
+    expect(p.fixture.configStore.current().config.telegram.token).toEqual({ jar: 'telegram' });
 
     // Neither the response nor any reload log names the plaintext.
     expect(JSON.stringify(body)).not.toContain(token);
@@ -164,8 +164,9 @@ test('PUT /telegram with null removes the token and garbage-collects its jar ent
     });
     const text = await p.configText();
     expect(text).not.toContain('"token"');
-    const jar = await readKeyJar(join(p.fixture.directory, 'key.json'));
-    expect(jar).not.toHaveProperty('telegram');
+    const jar = await readKeychain(join(p.fixture.directory, 'key.json'));
+    // Nothing is reclaimed: the orphaned entry waits for an explicit purge.
+    expect(jar?.telegram?.value).toBe('telegram-secret');
     expect(p.published.at(-1)).toEqual({ kind: 'disabled' });
     expect(p.fixture.configStore.current().config.telegram.token).toBeUndefined();
 
@@ -206,8 +207,8 @@ test('PUT /telegram creates a missing telegram section from the documented defau
     expect(file.telegram.bucket_window_seconds).toBe(15);
     expect(file.telegram.chats).toEqual([]);
     expect(file.telegram.token.jar).toEqual(expect.any(String));
-    const jar = await readKeyJar(join(p.fixture.directory, 'key.json'));
-    expect(jar?.[file.telegram.token.jar]).toBe(token);
+    const jar = await readKeychain(join(p.fixture.directory, 'key.json'));
+    expect(jar?.[file.telegram.token.jar]?.value).toBe(token);
   } finally {
     await p.close();
   }

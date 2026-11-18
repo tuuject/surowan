@@ -4,19 +4,25 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { AssistantMessage } from '@earendil-works/pi-ai';
 import { afterEach, beforeAll } from 'vitest';
-import { AdminServer } from '../../src/ingress/admin/index.ts';
-import type { FileConfig, ModelFileConfig } from '../../src/platform/config/index.ts';
 import { type LoadedConfig, loadConfig } from '../../src/adapters/local-monolith/config/index.ts';
 import { ConfigReloader } from '../../src/adapters/local-monolith/config/reload.ts';
-import { keyJarPath } from '../../src/platform/key-jar.ts';
+import { SqliteStore } from '../../src/adapters/local-monolith/database.ts';
+import { AdminServer } from '../../src/ingress/admin/index.ts';
+import type { FileConfig, ModelFileConfig } from '../../src/platform/config/index.ts';
+import { keychainPath } from '../../src/platform/keychain.ts';
 import { AgentModelSwitcher } from '../../src/platform/models/switch.ts';
 import { loadModelsDevCatalog, resetModelsDevCatalogCache } from '../../src/platform/models-dev.ts';
 import { buildModelRegistry } from '../../src/platform/providers.ts';
 import type { RuntimeConfigurationStore } from '../../src/platform/runtime-config.ts';
 import { SecretStore } from '../../src/platform/secrets.ts';
-import { SqliteStore } from '../../src/adapters/local-monolith/database.ts';
-import { type FixtureConfig, testConfigJsonc, testConfigStore, writeTestConfig, writeTestKeyJar } from '../helpers.ts';
 import { createAdminAccount } from '../fixtures/admin-account.ts';
+import {
+  type FixtureConfig,
+  testConfigJsonc,
+  testConfigStore,
+  writeTestConfig,
+  writeTestKeychain,
+} from '../helpers.ts';
 
 const PASSWORD = 'correct-horse-battery';
 const directories: string[] = [];
@@ -107,12 +113,12 @@ export async function adminFixture(options: FixtureOptions = {}): Promise<Fixtur
       options.transform?.(config);
     }),
   );
-  await writeTestKeyJar(directory, { header: 'header-secret-value', builtin: 'builtin-secret' });
+  await writeTestKeychain(directory, { header: 'header-secret-value', builtin: 'builtin-secret' });
   const loaded = await loadConfig(configPath);
   // Kept so the restart test can restore a loadable file after breaking it.
   await writeFile(join(directory, 'original.jsonc'), await readFile(configPath, 'utf8'));
   const store = await SqliteStore.open(loaded.config);
-  const secrets = new SecretStore(keyJarPath(configPath));
+  const secrets = new SecretStore(keychainPath(configPath));
   const registry = await buildModelRegistry(loaded.config, null, secrets);
   const configStore = await testConfigStore(loaded, registry);
   const switcher = new AgentModelSwitcher(configStore);
@@ -158,14 +164,16 @@ export async function adminFixture(options: FixtureOptions = {}): Promise<Fixtur
     file: () => JSON.parse(readFileSync(configPath, 'utf8')) as FileConfig,
     secret: (reference) => {
       const name = (reference as { jar?: unknown } | undefined)?.jar;
-      return typeof name === 'string' ? readJar(directory)[name] : undefined;
+      return typeof name === 'string' ? readJar(directory).entries[name]?.value : undefined;
     },
-    jarNames: () => Object.keys(readJar(directory)).sort(),
+    jarNames: () => Object.keys(readJar(directory).entries ?? {}).sort(),
   };
 }
 
-function readJar(directory: string): Record<string, string> {
-  return JSON.parse(readFileSync(join(directory, 'key.json'), 'utf8')) as Record<string, string>;
+function readJar(directory: string): { entries: Record<string, { value: string }> } {
+  return JSON.parse(readFileSync(join(directory, 'key.json'), 'utf8')) as {
+    entries: Record<string, { value: string }>;
+  };
 }
 
 export function request(path: string, init: RequestInit = {}): Request {

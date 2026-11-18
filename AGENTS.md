@@ -183,7 +183,7 @@ pnpm run skills:sync
 - Telegram 发送只能经过 `send` Tool（`send_reply` 把每一条交给同一 `send` 管线，不是第二条通道）；普通 Assistant Message 是私有推理记录。
 - `read` 只能读取 `system:///` 树内 Markdown 文档；`execute` 只 dispatch 组合根注册的内部能力，原语与 MCP Tool 不可经它调用；任何 Skill 文档都不能覆盖 Tool 约束或授权规则。
 - 图片和 Reply 只能引用当前 Conversation Context 授权且未过期的 capability；引用按 Conversation 隔离，永不跨 Conversation 解析；禁止接受任意 file ID、Chat ID 或 Topic ID。Memo Blob 严格归属一个 Chat（各 Topic 共用），`pwblob://` URI 本身不授予访问权；Agent 读取时按当前 `internalChatId` 校验，Admin 读取需要面板 Session。
-- `config.jsonc` 不接受明文 Secret：明文只存在配置同目录的 `key.json`（`{ "jar": "<name>" }` 引用），其余用环境变量或受限 command SecretRef；错误输出必须经 `SecretStore.redact`。排查配置读 `config.jsonc` 即可，不要读取 `key.json`。
+- `config.jsonc` 不接受明文 Secret：明文只存在配置同目录的 `key.json`（keychain，`{ "jar": "<name>" }` 引用；条目有稳定名字、可原地轮换、多处共用，孤儿只由面板 keychain 管理页显式清理），其余用环境变量或受限 command SecretRef；错误输出必须经 `SecretStore.redact`。排查配置读 `config.jsonc` 即可，不要读取 `key.json`。
 - MCP HTTP 禁止重定向和 URL 凭据；stdio 仅执行配置中的固定 argv。
 - 非 Windows 系统上，`serve` 与 `doctor` 都要求配置文件 `0600`、其父目录 `0700`；`data_dir` 不得授予 group/other 权限只由 `doctor` 检查（`serve` 仅在目录缺失时以 `0700` 创建）。
 - Admin Panel 密码只以 Argon2id hash 存储；Session Token 只存 SHA-256 摘要，Cookie 为 `HttpOnly` + `SameSite=Strict`。

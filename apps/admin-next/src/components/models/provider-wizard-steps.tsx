@@ -12,10 +12,12 @@ import { MonoValue } from '@/components/business';
 import { HeaderFields } from '@/components/models/header-fields';
 import { ModelDraftList } from '@/components/models/model-draft-list';
 import type { DraftSelection } from '@/components/models/use-draft-selection';
+import { SecretField } from '@/components/secret-input/secret-field.tsx';
 import type { DiscoveredModel, ProviderApi, ProviderKind, ProviderPresetView } from '@/lib/api/providers.ts';
 import { PROVIDER_APIS } from '@/lib/api/providers.ts';
 import type { HeaderRow } from '@/lib/header-rows.ts';
 import { providerApiLabel, requestErrorMessage } from '@/lib/model-manager.ts';
+import type { SecretDraft } from '@/lib/secret-draft.ts';
 
 /** Koi Field's label, for the few controls that share one label with a status line or a second control. */
 const fieldLabel = field().label;
@@ -179,42 +181,49 @@ export function WizardConnectionStep({
 
 /** Step two: the credential the listing and the provider will use, plus optional headers. */
 export function WizardCredentialsStep({
-  apiKey,
-  onApiKeyChange,
+  keyDraft,
+  onKeyDraftChange,
   headers,
   onHeadersChange,
   custom,
+  alias,
+  keychainEntries,
 }: {
-  readonly apiKey: string;
-  readonly onApiKeyChange: (value: string) => void;
+  readonly keyDraft: SecretDraft;
+  readonly onKeyDraftChange: (draft: SecretDraft) => void;
   readonly headers: readonly HeaderRow[];
   readonly onHeadersChange: (rows: readonly HeaderRow[]) => void;
   /** Only a custom connection sends headers of its own. */
   readonly custom: boolean;
+  readonly alias: string;
+  readonly keychainEntries: readonly string[];
 }): ReactElement {
   const { t } = useTranslation();
   return (
     <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '4' } })}>
-      <Field
-        id="wizard-api-key"
+      <SecretField
         label={t('models.models.connection.apiKey')}
-        help={t('models.models.wizard.apiKeyHint')}
-      >
-        <Input
-          type="password"
-          autoComplete="new-password"
-          value={apiKey}
-          onChange={(event) => onApiKeyChange(event.target.value)}
-          dir="ltr"
-        />
-      </Field>
+        draft={keyDraft}
+        source={null}
+        entries={keychainEntries}
+        suggestedName={alias}
+        onChange={onKeyDraftChange}
+        idPrefix="wizard-api-key"
+      />
       {custom ? (
         <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
           <p className={css({ textStyle: 'label' })}>{t('models.models.wizard.headersOptional')}</p>
           <p className={css({ margin: '0', textStyle: 'small', color: 'text-muted' })}>
             {t('models.models.connection.headersHint')}
           </p>
-          <HeaderFields rows={headers} onChange={onHeadersChange} valuesRequired={false} />
+          <HeaderFields
+            rows={headers}
+            onChange={onHeadersChange}
+            valuesRequired={false}
+            nameBase={alias}
+            keychainEntries={keychainEntries}
+            keySources={{}}
+          />
         </div>
       ) : null}
     </div>

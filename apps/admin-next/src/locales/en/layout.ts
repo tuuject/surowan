@@ -85,6 +85,7 @@ export const layout = {
     dictionary: 'Dictionary',
     botAdmins: 'Bot admins',
     apiKeys: 'API keys',
+    keychain: 'Keychain',
     models: 'Models',
     providers: 'Providers',
     imageSettings: 'Image settings',

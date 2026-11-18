@@ -31,7 +31,7 @@ export const search: typeof searchEn = {
   fieldKey: '密钥',
   keyKeep: '保留已配置的密钥',
   keyNew: '输入新密钥',
-  keyReuse: '复用 DeepSeek 模型密钥',
+  keyEntry: '选用已有条目',
   keyPlaceholder: '粘贴 API 密钥',
   keyForbidden: '该服务商不需要密钥。',
   keyOptional: '密钥选填，不填则使用免费接口。',

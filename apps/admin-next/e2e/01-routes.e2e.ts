@@ -250,6 +250,16 @@ test.describe('routes and deep links', () => {
     await expect(page.locator('[data-route-error]')).toHaveCount(0);
   });
 
+  test('/keychain lists the seeded entries and the external reference list', async ({ page }) => {
+    await page.goto(await adminUrl('/keychain'));
+    await expect(page.getByRole('heading', { name: 'Keychain' })).toBeVisible();
+    // The fixture keychain seeds named entries; values never appear anywhere.
+    await expect(page.getByRole('cell', { name: 'telegram', exact: true })).toBeVisible();
+    await expect(page.getByText('Values are never shown anywhere')).toBeVisible();
+    await expect(page.getByText('No environment or command references')).toBeVisible();
+    await expect(page.locator('[data-route-error]')).toHaveCount(0);
+  });
+
   test('/developer renders the recording switch and cleanup action', async ({ page }) => {
     await page.goto(await adminUrl('/developer'));
     await expect(page.getByRole('switch', { name: 'Record raw request payloads for debugging' })).not.toBeChecked();

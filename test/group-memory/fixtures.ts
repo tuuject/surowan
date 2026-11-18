@@ -6,7 +6,7 @@ import { and, eq, sql } from 'drizzle-orm';
 import { type LoadedConfig, loadConfig } from '../../src/adapters/local-monolith/config/index.ts';
 import { SqliteStore } from '../../src/adapters/local-monolith/database.ts';
 import { GroupMemoryStore } from '../../src/context/group-memory/store.ts';
-import { keyJarPath } from '../../src/platform/key-jar.ts';
+import { keychainPath } from '../../src/platform/keychain.ts';
 import type { RuntimeConfigurationStore } from '../../src/platform/runtime-config.ts';
 import { SecretStore } from '../../src/platform/secrets.ts';
 import { conversations, messageRevisions, messages, senders } from '../../src/store/schema/index.ts';
@@ -217,7 +217,7 @@ export async function groupMemoryFixture(
     loaded,
     store,
     configStore,
-    secrets: new SecretStore(keyJarPath(loaded.configPath)),
+    secrets: new SecretStore(keychainPath(loaded.configPath)),
     groupMemory,
     chatId: seeded.chatId,
     telegramChatId: seeded.telegramChatId,

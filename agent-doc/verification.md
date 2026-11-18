@@ -65,7 +65,7 @@ pnpm test test/prompts/template.test.ts test/prompts/markdown.test.ts test/tui-c
 
 产品知识改动还需按 [产品知识烘焙](product-knowledge.md#验证方法) 做五类轻量模型探针；固定文本断言不能证明模型会查文档。`manual-pack.test.ts` 检查烘焙索引的字节上限与所有来源路径在实际手册包中可读取。Full ReplayRunner 当前阻断文档能力，不能独立完成 grounding 验收。
 
-上面的命令按改动范围组织；新增测试文件时同步补充对应命令与下表契约。测试按主题放在 `test/<主题>/` 目录里，文件名不再重复主题前缀，按目录过滤即可覆盖整组，例如 `pnpm test test/alarm` 会运行该目录下全部测试；上面的单文件命令只运行该文件保留的部分。`pnpm test` 运行 `vitest.config.ts` 覆盖的全部测试（`test/**/*.test.ts`、`apps/admin-next/src/**/*.test.ts` 与 `packages/image-service/test/**/*.test.ts`），文件间串行（`fileParallelism: false`）。配置分两个 project：`shared` project 内的文件共用模块注册表（`isolate: false`，共享 fixture 的清理经 `onTestFinished` 绑定到创建资源的测试），7 个 `vi.mock` 外部模块的文件在 `isolated` project 保持逐文件隔离。全量约 12 分钟。
+上面的命令按改动范围组织；新增测试文件时同步补充对应命令与下表契约。测试按主题放在 `test/<主题>/` 目录里，文件名不再重复主题前缀，按目录过滤即可覆盖整组，例如 `pnpm test test/alarm` 会运行该目录下全部测试；上面的单文件命令只运行该文件保留的部分。`pnpm test` 运行 `vitest.config.ts` 覆盖的全部测试（`test/**/*.test.ts`、`apps/admin-next/src/**/*.test.ts` 与 `packages/image-service/test/**/*.test.ts`），文件间串行（`fileParallelism: false`）。配置分两个 project：`shared` project 内的文件共用模块注册表（`isolate: false`，共享 fixture 的清理经 `onTestFinished` 绑定到创建资源的测试），8 个 `vi.mock` 外部模块的文件在 `isolated` project 保持逐文件隔离。全量约 12 分钟。
 
 | 测试 | 主要契约 |
 | --- | --- |
@@ -73,7 +73,7 @@ pnpm test test/prompts/template.test.ts test/prompts/markdown.test.ts test/tui-c
 | `foundation/foundation.test.ts` | 严格配置（含 `agent.context` 与 `agent.rate_limits`）、`allow_reply_message_multiple_times` 可选且仅接受 boolean、Secret 脱敏（含前缀与重叠值）、迁移与备份 |
 | `packages/image-service/test/*.test.ts` | 图片域核心（包内测试自带连接）：意图档位/能力校验、引用展开与去重、幂等重放/冲突、retry 全轮、透明像素校验由 adapter 决定、部分成功与未知上游结果不自动重试、崩溃恢复、关停缺项、并发上限、单 Worker 串行化 |
 | `test/image/models.test.ts` / `test/image/admin-server.test.ts` | 图片模型目录鉴权、禁用时发现、真实路由标签、能力映射、非法/超大/错误响应、自动配置到 adapter 的参数契约、配置回显与凭据保留、模型备注的文件往返及非法备注拒绝不落盘、复用 OpenRouter SecretRef 修复旧空凭据、重复模型/未知凭据/错误来源在写入前拒绝、修订冲突拒绝及 Origin 边界 |
-| `test/image/admin.test.ts` | 图片管理处理器：写入段前状态为禁用、禁用时移除配置段并回收 key jar 条目、资产 CRUD 与二进制往返、Admin 提交以 admin actor 运行并进入审计列表 |
+| `test/image/admin.test.ts` | 图片管理处理器：写入段前状态为禁用、禁用时移除配置段（条目不自动回收）、资产 CRUD 与二进制往返、Admin 提交以 admin actor 运行并进入审计列表 |
 | `test/image/config-reload.test.ts` / `test/image/config-degrade.test.ts` | 图片配置热更新与同名密钥轮换、在途轮次固定快照、候选校验与并发应用；仅改备注发布新版本且不调用上游；空/1000 字符边界通过、结构非法的图片段被剥离、修复后恢复 |
 | `test/image/service-store.test.ts` | 宿主借入连接下的图片域：safe-integer 列返回 number 且 JSON 无 BigInt、迁移 024 在有数据的既有库重放、宿主事务回滚核心写入、启动对账（claimed→interrupted、queued→恢复）、优雅关停中断落盘、备份图片快照成对轮换与恢复字节一致 |
 | `test/image/startup.test.ts` | 真实 `serve` 本地启动流程在首次 Telegram 调用前发布已保存图片配置，第二次启动自动恢复；缺失/结构错误/无法解析凭据仅禁用图片能力，启动日志与实际快照一致且不泄露凭据。Telegram 边界使用 mock，无外部连接 |
@@ -225,7 +225,7 @@ pnpm test test/prompts/template.test.ts test/prompts/markdown.test.ts test/tui-c
 - `config.test.ts`：整段可省略、开关与「禁用所有引擎」等价、未知服务商、缺失/禁止的密钥、SearXNG 必填地址、重复引擎 ID、非法 URL 与正则、明文密钥、条数与超时边界，以及注入的已注册服务商集合生效。
 - `plugin.test.ts`：能力与 Skill 索引同步可见、重复服务商标识在加载时报错、`scope.steer` 贯通到能力。
 - `availability.test.ts`：禁用搜索时按 id 停下所有运行中的 Invocation，无运行时不发信号。
-- `admin.test.ts`：`GET/PUT /search/config` 的密钥不回显、写入 key jar、保留引用、删除引擎回收密钥、revision 冲突、缺失 `If-Match`、未注册服务商被拒、DeepSeek 密钥复用、无密钥 SearXNG 保存。
+- `admin.test.ts`：`GET/PUT /search/config` 的密钥不回显、写入 keychain、保留引用、程序化凭据改地址须重交密钥、revision 冲突、缺失 `If-Match`、未注册服务商被拒、条目复用、无密钥 SearXNG 保存。
 
 ## 配置验证
 

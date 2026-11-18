@@ -6,19 +6,29 @@
  * the saved timing and the revision come from the file on disk — the panel
  * edits the file, so a hand-edited value must be visible before it is applied.
  * The running timing comes from the published configuration. A plaintext token
- * travels only into the key jar; the response never contains it.
+ * travels only into the keychain; the response never contains it.
  */
 import Compile from 'typebox/compile';
-import type { FileConfig, RawConfig } from '../../platform/config/index.ts';
+import type { FileConfig, RawConfig, SecretRef } from '../../platform/config/index.ts';
 import { ConfigSchema } from '../../platform/config/schema.ts';
-import type { ConfigController, ConfigEdit } from '../../platform/config/write.ts';
+import type { ConfigController, ConfigEdit, SecretWrite } from '../../platform/config/write.ts';
 import { secretEdit } from '../../platform/config/write.ts';
 import type { ImConnectionRegistry } from '../../platform/im-connection.ts';
+import { KEYCHAIN_NAME_PATTERN, KeychainError } from '../../platform/keychain.ts';
 import type { RuntimeConfigurationStore } from '../../platform/runtime-config.ts';
 import type { SecretStore } from '../../platform/secrets.ts';
-import { json, readJsonObject, redact, requiredRevision, revisionRequired } from './http.ts';
 import { AdminQueryError } from './audit/shared.ts';
 import { CONFIG_WRITE_STATUS, readConfigFile } from './config-file.ts';
+import { json, readJsonObject, redact, requiredRevision, revisionRequired } from './http.ts';
+import { keychainErrorStatus } from './keychain-error.ts';
+import {
+  type CallerClass,
+  resolveSecretInput,
+  SecretAllocator,
+  type SecretInput,
+  sameSecretRef,
+  secretSourceOf,
+} from './secret-input.ts';
 
 export interface TelegramAdminDeps {
   readonly connections: Pick<ImConnectionRegistry, 'get'>;
@@ -55,17 +65,18 @@ interface TelegramViewSource {
 }
 
 /**
- * The panel-facing view. `token_configured` is a boolean by design: the value
- * may come from a jar, an environment variable or a command, and none of those
- * should be distinguishable from the response.
+ * The panel-facing view. `token_configured` is a boolean for every caller;
+ * a panel session additionally learns where the token comes from so the form
+ * can show "provided by env var X" — the value itself never travels back.
  */
-function telegramView(source: TelegramViewSource) {
+function telegramView(source: TelegramViewSource, withSource: boolean) {
   const telegram = source.file.telegram;
   return {
     revision: source.revision,
     status: source.connections.get('telegram'),
     telegram_section_present: telegram !== undefined,
     token_configured: telegram?.token !== undefined,
+    ...(withSource ? { token_source: secretSourceOf(telegram?.token) } : {}),
     bucket_timing: {
       saved: bucketTimingValues(source.saved.telegram),
       active: bucketTimingValues(source.active.telegram),
@@ -90,31 +101,47 @@ function isBucketTimingField(key: string): key is BucketTimingField {
   return Object.hasOwn(BUCKET_TIMING_FIELDS, key);
 }
 
-/** The only body a token write accepts: `token` is a new plaintext or `null` to clear it. */
-function parseToken(body: Record<string, unknown>): string | null {
+/** The only body a token write accepts: a secret input, or `null` to clear it. */
+function parseToken(body: Record<string, unknown>): SecretInput | null {
   const keys = Object.keys(body);
   if (keys.length !== 1 || !Object.hasOwn(body, 'token')) {
-    throw new AdminQueryError('invalid_body', 'Expected { token: string | null }');
+    throw new AdminQueryError('invalid_body', 'Expected { token: SecretInput | null }');
   }
   const token = body.token;
   if (token === null) {
     return null;
   }
-  // A Bot Token never carries whitespace or control characters; accepting them
-  // would only produce a valid file that Telegram rejects forever.
-  if (
-    typeof token !== 'string' ||
-    token.length === 0 ||
-    token.length > 4_096 ||
-    /\s/u.test(token) ||
-    /\p{Cc}/u.test(token)
-  ) {
+  if (typeof token === 'string') {
+    validatePlaintextToken(token);
+    return token;
+  }
+  if (typeof token === 'object' && token !== null && !Array.isArray(token)) {
+    const record = token as Record<string, unknown>;
+    if (typeof record.value === 'string') {
+      validatePlaintextToken(record.value);
+      if (record.name !== undefined && (typeof record.name !== 'string' || !KEYCHAIN_NAME_PATTERN.test(record.name))) {
+        throw new AdminQueryError('invalid_body', 'token.name must use 1-64 letters, digits, "_" or "-"');
+      }
+      return record.name === undefined ? { value: record.value } : { value: record.value, name: record.name };
+    }
+    if (typeof record.entry === 'string' && KEYCHAIN_NAME_PATTERN.test(record.entry)) {
+      return { entry: record.entry };
+    }
+  }
+  throw new AdminQueryError(
+    'invalid_body',
+    'token must be a string, { value, name? } or { entry }, or null to clear it',
+  );
+}
+
+/** A Bot Token never carries whitespace or control characters; accepting them would only produce a valid file that Telegram rejects forever. */
+function validatePlaintextToken(token: string): void {
+  if (token.length === 0 || token.length > 4_096 || /\s/u.test(token) || /\p{Cc}/u.test(token)) {
     throw new AdminQueryError(
       'invalid_body',
       'token must be a non-empty string without whitespace, or null to clear it',
     );
   }
-  return token;
 }
 
 /**
@@ -177,20 +204,24 @@ function bucketTimingEdits(
 export function createTelegramAdminHandler(deps: TelegramAdminDeps) {
   const { connections, configStore, configReloader, secrets } = deps;
 
-  const viewOf = (file: Awaited<ReturnType<typeof readConfigFile>>) =>
-    telegramView({
-      file: file.loaded.fileConfig,
-      saved: file.loaded.config,
-      active: configStore.current().config,
-      revision: file.revision,
-      connections,
-    });
+  const viewOf = async (file: Awaited<ReturnType<typeof readConfigFile>>, withSource: boolean) =>
+    telegramView(
+      {
+        file: file.loaded.fileConfig,
+        saved: file.loaded.config,
+        active: configStore.current().config,
+        revision: file.revision,
+        connections,
+      },
+      withSource,
+    );
 
   /** Applies edits like every other configuration write and answers with the fresh view. */
   const writeAndRespond = async (
     reloader: ConfigController,
     edits: readonly ConfigEdit[],
     revision: string,
+    withSource: boolean,
   ): Promise<Response> => {
     const result = await reloader.writeAndApply(edits, revision);
     if (!result.ok) {
@@ -200,44 +231,103 @@ export function createTelegramAdminHandler(deps: TelegramAdminDeps) {
       return json({ error: result.code, message: redact(secrets, message) }, CONFIG_WRITE_STATUS[result.code] ?? 409);
     }
     return json({
-      ...viewOf(await readConfigFile(reloader, secrets)),
+      ...(await viewOf(await readConfigFile(reloader, secrets), withSource)),
       apply: { applied: result.applied, restart_required: result.restartRequired, outside_serve: result.outsideServe },
     });
   };
 
-  const writeToken = async (reloader: ConfigController, request: Request): Promise<Response> => {
+  const writeToken = async (reloader: ConfigController, request: Request, caller: CallerClass): Promise<Response> => {
     const revision = requiredRevision(request);
     if (revision === null) {
       return revisionRequired();
     }
-    const token = parseToken(await readJsonObject(request));
+    const input = parseToken(await readJsonObject(request));
     const current = await readConfigFile(reloader, secrets);
     if (revision !== current.revision) {
       return json({ error: 'config_conflict', message: 'The configuration file changed; reload before editing' }, 409);
     }
-    if (token === null) {
+    const withSource = caller === 'session';
+    if (input === null) {
       if (current.loaded.fileConfig.telegram?.token === undefined) {
         // Idempotent clear: the token is already absent, and writing an
         // undefined value would fail as a no-op edit.
         return json({
-          ...viewOf(current),
+          ...(await viewOf(current, withSource)),
           apply: { applied: [], restart_required: reloader.status().restartRequired, outside_serve: [] },
         });
       }
-      return await writeAndRespond(reloader, [{ path: ['telegram', 'token'], value: undefined }], revision);
+      return await writeAndRespond(reloader, [{ path: ['telegram', 'token'], value: undefined }], revision, withSource);
     }
-    // Registered before the write so every later error path can redact it.
-    secrets?.remember(token);
-    // `config-file.ts` creates a missing `telegram` section from
-    // `TELEGRAM_DEFAULTS` (chats: []) before applying this edit.
-    return await writeAndRespond(reloader, [secretEdit(['telegram', 'token'], token)], revision);
+    const currentRef: SecretRef | undefined = current.loaded.fileConfig.telegram?.token;
+    const resolved = resolveSecretInput(
+      input,
+      {
+        path: 'telegram.token',
+        editPath: ['telegram', 'token'],
+        current: currentRef,
+        suggestedName: 'telegram',
+      },
+      caller,
+      new SecretAllocator(
+        new Set((await reloader.keychainSnapshot()).entries.map((entry) => entry.name)),
+        // The token path is the only use that matters here; a raw-file usage
+        // report would answer it, but an unparsable file must not silently
+        // allocate a new entry either, so the exclusive-use re-check inside
+        // `writeSecretsAndApply` makes the final call.
+        { telegram: ['telegram.token'] },
+      ),
+    );
+    if (resolved.kind !== 'reuse') {
+      secrets?.remember(resolved.plaintext);
+    }
+    const edits: ConfigEdit[] = [];
+    if (resolved.kind === 'new' && !sameSecretRef(resolved.ref, currentRef)) {
+      edits.push(secretEdit(['telegram', 'token'], resolved.plaintext, resolved.name));
+    } else if (resolved.kind === 'reuse' && !sameSecretRef(resolved.ref, currentRef)) {
+      edits.push({ path: ['telegram', 'token'], value: resolved.ref });
+    }
+    const secretsWrite: SecretWrite = {
+      ...(resolved.kind === 'repair' ? { add: { [resolved.name]: resolved.plaintext } } : {}),
+      ...(resolved.kind === 'rotate'
+        ? { replace: [{ name: resolved.name, value: resolved.plaintext, requestedBy: 'telegram.token' }] }
+        : {}),
+    };
+    try {
+      // One lock hold: revision check, exclusive-use re-check, keychain write
+      // (with rollback), file edit (if any), apply.
+      const result = await reloader.writeSecretsAndApply(edits, secretsWrite, revision);
+      if (!result.ok) {
+        const message = result.fileWritten
+          ? `config.jsonc was updated but not applied: ${result.message}`
+          : result.message;
+        return json({ error: result.code, message: redact(secrets, message) }, CONFIG_WRITE_STATUS[result.code] ?? 409);
+      }
+      return json({
+        ...(await viewOf(await readConfigFile(reloader, secrets), withSource)),
+        apply: {
+          applied: result.applied,
+          restart_required: result.restartRequired,
+          outside_serve: result.outsideServe,
+        },
+      });
+    } catch (error) {
+      if (error instanceof KeychainError) {
+        return json({ error: error.code, message: redact(secrets, error.message) }, keychainErrorStatus(error));
+      }
+      throw error;
+    }
   };
 
   /**
    * Saves the bucket timing. The fields are hot: the next batch opens with
    * them, while a batch already collecting keeps the timing it opened with.
    */
-  const writeBucketTiming = async (reloader: ConfigController, request: Request): Promise<Response> => {
+  const writeBucketTiming = async (
+    reloader: ConfigController,
+    request: Request,
+    caller: CallerClass,
+  ): Promise<Response> => {
+    void caller;
     const revision = requiredRevision(request);
     if (revision === null) {
       return revisionRequired();
@@ -249,13 +339,16 @@ export function createTelegramAdminHandler(deps: TelegramAdminDeps) {
     }
     const edits = bucketTimingEdits(current.loaded.fileConfig.telegram, values);
     if (edits.length === 0) {
-      return json({ ...viewOf(current), apply: { applied: [], restart_required: [], outside_serve: [] } });
+      return json({
+        ...(await viewOf(current, false)),
+        apply: { applied: [], restart_required: [], outside_serve: [] },
+      });
     }
-    return await writeAndRespond(reloader, edits, revision);
+    return await writeAndRespond(reloader, edits, revision, false);
   };
 
   return {
-    async handle(request: Request, segments: readonly string[]): Promise<Response | undefined> {
+    async handle(request: Request, segments: readonly string[], caller: CallerClass): Promise<Response | undefined> {
       const route = segments.join('/');
       if (route !== 'telegram' && route !== 'telegram/bucket-timing') {
         return undefined;
@@ -266,14 +359,14 @@ export function createTelegramAdminHandler(deps: TelegramAdminDeps) {
       }
       if (route === 'telegram/bucket-timing') {
         return request.method === 'PUT'
-          ? await writeBucketTiming(reloader, request)
+          ? await writeBucketTiming(reloader, request, caller)
           : json({ error: 'method_not_allowed', message: 'Unsupported bucket timing operation' }, 405);
       }
       if (request.method === 'GET') {
-        return json(viewOf(await readConfigFile(reloader, secrets)));
+        return json(await viewOf(await readConfigFile(reloader, secrets), caller === 'session'));
       }
       if (request.method === 'PUT') {
-        return await writeToken(reloader, request);
+        return await writeToken(reloader, request, caller);
       }
       return json({ error: 'method_not_allowed', message: 'Unsupported Telegram operation' }, 405);
     },

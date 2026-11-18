@@ -52,7 +52,7 @@ export async function resolveTelegramTokenSource(
 
 /**
  * A comparable identity for one source. A reload compares this instead of the
- * SecretRef so rotating a key-jar entry (the file itself did not change) is
+ * SecretRef so rotating a keychain entry (the file itself did not change) is
  * also noticed; the plaintext never leaves this function in a loggable form.
  */
 export function telegramTokenIdentity(source: TelegramTokenSource): string {

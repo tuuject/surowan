@@ -1,12 +1,29 @@
+import type { ConfigController, ConfigEdit, PersistedConfig, SecretWrite } from '../../../platform/config/write.ts';
+import { KeychainError } from '../../../platform/keychain.ts';
 import type { RuntimeConfigurationStore } from '../../../platform/runtime-config.ts';
 import type { SecretStore } from '../../../platform/secrets.ts';
-import type { ConfigController, ConfigEdit, PersistedConfig } from '../../../platform/config/write.ts';
 import type { BusinessStore } from '../../../store/store.ts';
+import { AdminQueryError } from '../audit/shared.ts';
 import { CONFIG_WRITE_STATUS } from '../config-file.ts';
 import { decodeSegments, json, readJsonObject, redact, requiredRevision, revisionRequired } from '../http.ts';
-import { AdminQueryError } from '../audit/shared.ts';
+import { keychainErrorStatus } from '../keychain-error.ts';
 import { checkModelHealth, parseHealthCheckBody } from '../model-health.ts';
 import { discover, lookupMetadata } from '../providers/discover.ts';
+import {
+  PROVIDER_BODY_MAX_BYTES,
+  type ProvidersView,
+  type ProviderWriteContext,
+  parseAlias,
+  parseCreateProviderBody,
+  parseDeleteModelsBody,
+  parseDiscoverBody,
+  parseLookupMetadataBody,
+  parseModelBody,
+  parseModelsBody,
+  parseThinkingLevelBody,
+  parseUpdateProviderBody,
+  parseVisionBody,
+} from '../providers/index.ts';
 import { listProviders } from '../providers/read.ts';
 import {
   appendModels,
@@ -19,21 +36,7 @@ import {
   updateProvider,
   visionEdits,
 } from '../providers/write.ts';
-import {
-  PROVIDER_BODY_MAX_BYTES,
-  type ProviderWriteContext,
-  type ProvidersView,
-  parseAlias,
-  parseCreateProviderBody,
-  parseDiscoverBody,
-  parseDeleteModelsBody,
-  parseLookupMetadataBody,
-  parseModelBody,
-  parseModelsBody,
-  parseThinkingLevelBody,
-  parseUpdateProviderBody,
-  parseVisionBody,
-} from '../providers/index.ts';
+import type { CallerClass } from '../secret-input.ts';
 
 export interface ProvidersAdminDeps {
   readonly store: BusinessStore;
@@ -44,6 +47,16 @@ export interface ProvidersAdminDeps {
   readonly healthSignal: AbortSignal;
   /** Live in-flight health checks; `stop()` awaits this same set. */
   readonly healthChecks: Set<Promise<unknown>>;
+}
+
+/** What one provider write does: file edits plus in-place value rotations. */
+interface WritePlan {
+  readonly edits: readonly ConfigEdit[];
+  readonly secrets: SecretWrite;
+}
+
+function asWritePlan(build: ConfigEdit[] | WritePlan): WritePlan {
+  return Array.isArray(build) ? { edits: build, secrets: {} } : build;
 }
 
 /**
@@ -60,7 +73,8 @@ export function createProvidersAdminHandler(deps: ProvidersAdminDeps) {
    */
   const providerWrite = async (
     request: Request,
-    build: (context: ProviderWriteContext) => Promise<ConfigEdit[]> | ConfigEdit[],
+    caller: CallerClass,
+    build: (context: ProviderWriteContext) => Promise<ConfigEdit[] | WritePlan> | ConfigEdit[] | WritePlan,
   ): Promise<Response> => {
     if (configReloader === undefined || secrets === undefined) {
       return json({ error: 'providers_unavailable', message: 'Provider management is not wired' }, 503);
@@ -71,40 +85,56 @@ export function createProvidersAdminHandler(deps: ProvidersAdminDeps) {
     }
     let context: ProviderWriteContext;
     try {
-      context = await providerContext(configReloader);
+      context = await providerContext(configReloader, caller);
     } catch (error) {
       return json({ error: 'config_invalid', message: redact(secrets, error) }, 422);
     }
-    let edits: readonly ConfigEdit[];
+    let plan: WritePlan;
     try {
-      edits = await build(context);
+      plan = asWritePlan(await build(context));
     } catch (error) {
       if (error instanceof AdminQueryError) {
         return json({ error: error.code, message: error.message }, error.status);
       }
       return json({ error: 'provider_write_failed', message: redact(secrets, error) }, 500);
     }
-    const result = await configReloader.writeAndApply(edits, revision);
-    if (!result.ok) {
-      const message = result.fileWritten
-        ? `config.jsonc was updated but not applied: ${result.message}`
-        : result.message;
-      return json({ error: result.code, message }, CONFIG_WRITE_STATUS[result.code] ?? 409);
+    try {
+      // One lock hold covers the keychain changes (repairs, in-place
+      // rotations), the revision check, the file edits and the apply.
+      const result = await configReloader.writeSecretsAndApply(plan.edits, plan.secrets, revision);
+      if (!result.ok) {
+        const message = result.fileWritten
+          ? `config.jsonc was updated but not applied: ${result.message}`
+          : result.message;
+        return json({ error: result.code, message }, CONFIG_WRITE_STATUS[result.code] ?? 409);
+      }
+      return json({
+        ...(await providersView(configReloader, caller)),
+        apply: {
+          applied: result.applied,
+          restart_required: result.restartRequired,
+          outside_serve: result.outsideServe,
+        },
+      });
+    } catch (error) {
+      if (error instanceof KeychainError) {
+        return json({ error: error.code, message: error.message }, keychainErrorStatus(error));
+      }
+      throw error;
     }
-    return json({
-      ...(await providersView(configReloader)),
-      apply: { applied: result.applied, restart_required: result.restartRequired, outside_serve: result.outsideServe },
-    });
   };
 
   /** A read-shaped POST: provider discovery and metadata lookup write nothing. */
-  const providerResponse = async (build: (context: ProviderWriteContext) => Promise<unknown>): Promise<Response> => {
+  const providerResponse = async (
+    caller: CallerClass,
+    build: (context: ProviderWriteContext) => Promise<unknown>,
+  ): Promise<Response> => {
     if (configReloader === undefined || secrets === undefined) {
       return json({ error: 'providers_unavailable', message: 'Provider management is not wired' }, 503);
     }
     let context: ProviderWriteContext;
     try {
-      context = await providerContext(configReloader);
+      context = await providerContext(configReloader, caller);
     } catch (error) {
       return json({ error: 'config_invalid', message: redact(secrets, error) }, 422);
     }
@@ -119,19 +149,32 @@ export function createProvidersAdminHandler(deps: ProvidersAdminDeps) {
     }
   };
 
-  const providerContext = async (reloader: ConfigController): Promise<ProviderWriteContext> => {
+  const providerContext = async (reloader: ConfigController, caller: CallerClass): Promise<ProviderWriteContext> => {
     if (secrets === undefined) {
       throw new Error('Provider management is not wired');
     }
     const loaded = await reloader.readPersisted();
-    return { file: loaded.fileConfig, secrets, snapshot: configStore.current() };
+    const keychain = await reloader.keychainSnapshot();
+    return {
+      file: loaded.fileConfig,
+      secrets,
+      snapshot: configStore.current(),
+      keychain: {
+        entries: new Set(keychain.entries.map((entry) => entry.name)),
+        // An unparsable file reports no usage: reuse decisions then take the
+        // conservative path instead of trusting an incomplete reference set.
+        usage: keychain.usage.file ?? {},
+      },
+      caller,
+    };
   };
 
   /**
    * The panel reads the file, not the active configuration: a pending restart
    * must be visible as what is on disk, and the revision is the file's own.
+   * Panel sessions additionally see where each secret comes from.
    */
-  const providersView = async (reloader: ConfigController): Promise<ProvidersView> => {
+  const providersView = async (reloader: ConfigController, caller: CallerClass): Promise<ProvidersView> => {
     let loaded: PersistedConfig;
     try {
       loaded = await reloader.readPersisted();
@@ -139,7 +182,7 @@ export function createProvidersAdminHandler(deps: ProvidersAdminDeps) {
       throw new AdminQueryError('config_invalid', redact(secrets, error), 422);
     }
     const revision = await reloader.revision();
-    return listProviders(loaded.fileConfig, revision, reloader.status().restartRequired);
+    return listProviders(loaded.fileConfig, revision, reloader.status().restartRequired, caller === 'session');
   };
 
   /**
@@ -149,7 +192,7 @@ export function createProvidersAdminHandler(deps: ProvidersAdminDeps) {
    * is decoded afterwards: `PUT /providers/:alias/models/:id` only matches when
    * the client encoded the id.
    */
-  const providers = async (request: Request, segments: readonly string[]): Promise<Response> => {
+  const providers = async (request: Request, segments: readonly string[], caller: CallerClass): Promise<Response> => {
     const reloader = configReloader;
     if (reloader === undefined || secrets === undefined) {
       return json({ error: 'providers_unavailable', message: 'Provider management is not wired' }, 503);
@@ -168,7 +211,7 @@ export function createProvidersAdminHandler(deps: ProvidersAdminDeps) {
       const body = parseHealthCheckBody(await readJsonObject(request));
       let context: ProviderWriteContext;
       try {
-        context = await providerContext(reloader);
+        context = await providerContext(reloader, caller);
       } catch (error) {
         return json({ error: 'config_invalid', message: redact(secrets, error) }, 422);
       }
@@ -194,64 +237,68 @@ export function createProvidersAdminHandler(deps: ProvidersAdminDeps) {
       return revisionRequired();
     }
     if (parts.length === 1 && request.method === 'GET') {
-      return json(await providersView(reloader));
+      return json(await providersView(reloader, caller));
     }
     if (parts.length === 3 && second === 'models' && third === 'delete' && request.method === 'POST') {
       const body = parseDeleteModelsBody(await readJsonObject(request, PROVIDER_BODY_MAX_BYTES));
-      return await providerWrite(request, (context) => deleteModels(context, body));
+      return await providerWrite(request, caller, (context) => deleteModels(context, body));
     }
     if (parts.length === 1 && request.method === 'POST') {
       const body = parseCreateProviderBody(await readJsonObject(request, PROVIDER_BODY_MAX_BYTES));
-      return await providerWrite(request, (context) => createProvider(context, body));
+      return await providerWrite(request, caller, (context) => createProvider(context, body));
     }
     if (parts.length === 2 && second === 'discover' && request.method === 'POST') {
       const body = parseDiscoverBody(await readJsonObject(request, PROVIDER_BODY_MAX_BYTES));
-      return await providerResponse((context) => discover(context, body));
+      return await providerResponse(caller, (context) => discover(context, body));
     }
     if (parts.length === 2 && second === 'lookup-metadata' && request.method === 'POST') {
       const body = parseLookupMetadataBody(await readJsonObject(request, PROVIDER_BODY_MAX_BYTES));
-      return await providerResponse((context) => lookupMetadata(body, context.snapshot, context.secrets));
+      return await providerResponse(caller, (context) => lookupMetadata(body, context.snapshot, context.secrets));
     }
     if (parts.length === 2 && second !== undefined && request.method === 'PUT') {
       const alias = parseAlias(second);
       const body = parseUpdateProviderBody(await readJsonObject(request, PROVIDER_BODY_MAX_BYTES));
-      return await providerWrite(request, (context) => updateProvider(context, alias, body));
+      return await providerWrite(request, caller, (context) => updateProvider(context, alias, body));
     }
     if (parts.length === 2 && second !== undefined && request.method === 'DELETE') {
       const alias = parseAlias(second);
-      return await providerWrite(request, (context) => deleteProvider(context, alias));
+      return await providerWrite(request, caller, (context) => deleteProvider(context, alias));
     }
     if (parts.length === 3 && second !== undefined && third === 'models' && request.method === 'POST') {
       const alias = parseAlias(second);
       const models = parseModelsBody(await readJsonObject(request, PROVIDER_BODY_MAX_BYTES));
-      return await providerWrite(request, (context) => appendModels(context, alias, models));
+      return await providerWrite(request, caller, (context) => appendModels(context, alias, models));
     }
     if (parts.length === 4 && second !== undefined && third === 'models' && fourth !== undefined) {
       const alias = parseAlias(second);
       if (request.method === 'PUT') {
         const model = parseModelBody(await readJsonObject(request, PROVIDER_BODY_MAX_BYTES));
-        return await providerWrite(request, (context) => replaceModel(context, alias, fourth, model));
+        return await providerWrite(request, caller, (context) => replaceModel(context, alias, fourth, model));
       }
       if (request.method === 'DELETE') {
-        return await providerWrite(request, (context) => deleteModel(context, alias, fourth));
+        return await providerWrite(request, caller, (context) => deleteModel(context, alias, fourth));
       }
     }
     return json({ error: 'not_found', message: 'Unknown providers route' }, 404);
   };
 
   /** `/api/providers*`, `/api/vision` and `/api/thinking-level`; `undefined` leaves the path alone. */
-  const handle = async (request: Request, segments: readonly string[]): Promise<Response | undefined> => {
+  const handle = async (
+    request: Request,
+    segments: readonly string[],
+    caller: CallerClass,
+  ): Promise<Response | undefined> => {
     if (segments[0] === 'providers') {
-      return await providers(request, segments);
+      return await providers(request, segments, caller);
     }
     const route = segments.join('/');
     if (route === 'vision' && request.method === 'PUT') {
       const body = parseVisionBody(await readJsonObject(request));
-      return await providerWrite(request, (context) => visionEdits(context, body));
+      return await providerWrite(request, caller, (context) => visionEdits(context, body));
     }
     if (route === 'thinking-level' && request.method === 'PUT') {
       const body = parseThinkingLevelBody(await readJsonObject(request));
-      return await providerWrite(request, (context) => thinkingLevelEdits(context, body));
+      return await providerWrite(request, caller, (context) => thinkingLevelEdits(context, body));
     }
     return undefined;
   };

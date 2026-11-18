@@ -1,4 +1,5 @@
 import { call, writeHeaders } from './core.ts';
+import type { SecretInput, SecretSource } from './keychain.ts';
 import type { ModelSwitchRequest, ThinkingLevel } from './models.ts';
 import type { ToolModelView } from './tools.ts';
 
@@ -94,6 +95,9 @@ export interface ProviderView {
   /** Header names only; the values never leave the process. */
   readonly header_names: readonly string[];
   readonly models: readonly ProviderModelConfig[];
+  /** Panel sessions only: where the key and each header come from. */
+  readonly api_key_source?: SecretSource;
+  readonly header_sources?: Readonly<Record<string, SecretSource>>;
 }
 
 export interface ProviderModelReference {
@@ -204,8 +208,8 @@ export interface CreateProviderRequest {
   readonly provider?: string;
   readonly base_url?: string;
   readonly api?: ProviderApi;
-  readonly api_key: string;
-  readonly headers?: Readonly<Record<string, string>>;
+  readonly api_key: SecretInput;
+  readonly headers?: Readonly<Record<string, SecretInput>>;
   readonly models: readonly ProviderModelConfig[];
 }
 
@@ -213,8 +217,8 @@ export interface CreateProviderRequest {
 export interface UpdateProviderRequest {
   readonly base_url?: string;
   readonly api?: ProviderApi;
-  readonly api_key?: string;
-  readonly headers?: Readonly<Record<string, string | null>>;
+  readonly api_key?: SecretInput;
+  readonly headers?: Readonly<Record<string, SecretInput | null>>;
 }
 
 export interface DiscoverRequest {

@@ -5,7 +5,7 @@ import { applyGroupMemoryToggles, stopRemovedChats } from '../../src/adapters/lo
 import { createChatsAdminHandler } from '../../src/ingress/admin/routes/chats.ts';
 import { BucketScheduler, type InvocationHandler } from '../../src/orchestration/scheduler/index.ts';
 import { AgentModelSwitcher } from '../../src/platform/models/switch.ts';
-import { keyJarPath } from '../../src/platform/key-jar.ts';
+import { keychainPath } from '../../src/platform/keychain.ts';
 import { SecretStore } from '../../src/platform/secrets.ts';
 import { LongTaskService } from '../../src/store/long-tasks/index.ts';
 import { buckets, invocationBuckets, invocations, toolCalls } from '../../src/store/schema/index.ts';
@@ -42,7 +42,7 @@ export async function fixture(
     loaded: f.loaded,
     store: f.configStore,
     modelSwitcher: new AgentModelSwitcher(f.configStore),
-    secrets: new SecretStore(keyJarPath(f.loaded.configPath)),
+    secrets: new SecretStore(keychainPath(f.loaded.configPath)),
     validateAgentModel: () => undefined,
     ...(options.imageConfig === undefined ? {} : { imageConfig: options.imageConfig }),
     onPublished: async () => {

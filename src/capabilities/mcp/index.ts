@@ -8,7 +8,6 @@
  * model fit) and the public surface the composition root uses.
  */
 import type { AgentTool } from '@earendil-works/pi-agent-core';
-import type { ManagedServer, RegistryValidator } from './support.ts';
 import type { RawConfig } from '../../platform/config/index.ts';
 import { hostExecutionProfile } from '../../platform/host-profile.ts';
 import { type InvocationContext, previewContext } from '../../platform/invocation-context.ts';
@@ -28,6 +27,7 @@ import {
 } from './connection.ts';
 import { reconcile } from './reconcile.ts';
 import type { McpServerReconcileResult, McpState } from './shared.ts';
+import type { ManagedServer, RegistryValidator } from './support.ts';
 import {
   assertConfigBindings,
   buildTools,
@@ -150,11 +150,14 @@ export class McpManager {
    * server alias is added, replaced or stopped on its own. An unchanged alias
    * keeps its client — and any call running on it — untouched.
    */
-  async reconcile(published: {
-    readonly config: RawConfig;
-    readonly generation: number;
-  }): Promise<McpServerReconcileResult> {
-    return await reconcile(this.#state, published, this.#revalidate);
+  async reconcile(
+    published: {
+      readonly config: RawConfig;
+      readonly generation: number;
+    },
+    rotated: ReadonlySet<string> = new Set(),
+  ): Promise<McpServerReconcileResult> {
+    return await reconcile(this.#state, published, this.#revalidate, rotated);
   }
 
   async stop(): Promise<void> {

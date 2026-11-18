@@ -3,19 +3,24 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createOpenRouterAdapter } from '@surowan/image-service';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
+import { loadConfig } from '../../src/adapters/local-monolith/config/index.ts';
+import { ConfigReloader } from '../../src/adapters/local-monolith/config/reload.ts';
+import { SqliteStore } from '../../src/adapters/local-monolith/database.ts';
 import { createImageBridge } from '../../src/image/bridge.ts';
 import { createImageService } from '../../src/image/service.ts';
 import { AdminServer } from '../../src/ingress/admin/index.ts';
-
-import { loadConfig } from '../../src/adapters/local-monolith/config/index.ts';
-import { ConfigReloader } from '../../src/adapters/local-monolith/config/reload.ts';
-import { keyJarPath } from '../../src/platform/key-jar.ts';
+import { keychainPath } from '../../src/platform/keychain.ts';
 import { AgentModelSwitcher } from '../../src/platform/models/switch.ts';
 import { SecretStore } from '../../src/platform/secrets.ts';
-import { SqliteStore } from '../../src/adapters/local-monolith/database.ts';
 import { LongTaskService } from '../../src/store/long-tasks/index.ts';
-import { type FixtureConfig, testConfigJsonc, testConfigStore, writeTestConfig, writeTestKeyJar } from '../helpers.ts';
 import { createAdminAccount } from '../fixtures/admin-account.ts';
+import {
+  type FixtureConfig,
+  testConfigJsonc,
+  testConfigStore,
+  writeTestConfig,
+  writeTestKeychain,
+} from '../helpers.ts';
 
 // ---------------------------------------------------------------------------
 // Regression: the image dispatch used `'bytes' in response` to detect the
@@ -87,7 +92,7 @@ async function fixture(transform?: (config: FixtureConfig) => void): Promise<Fix
       transform?.(config);
     }),
   );
-  await writeTestKeyJar(directory, {});
+  await writeTestKeychain(directory, {});
   const loaded = await loadConfig(configPath);
   const store = await SqliteStore.open(loaded.config);
   cleanup.push(() => store.close());
@@ -105,9 +110,9 @@ async function fixture(transform?: (config: FixtureConfig) => void): Promise<Fix
     loaded,
     store: storeForConfig,
     modelSwitcher: new AgentModelSwitcher(storeForConfig),
-    secrets: new SecretStore(keyJarPath(configPath)),
+    secrets: new SecretStore(keychainPath(configPath)),
     imageConfig: {
-      prepare: (candidate) => service.prepareConfig(candidate, new SecretStore(keyJarPath(configPath))),
+      prepare: (candidate) => service.prepareConfig(candidate, new SecretStore(keychainPath(configPath))),
       publish: (snapshot) => service.publishConfig(snapshot as Parameters<typeof service.publishConfig>[0]),
     },
     validateAgentModel: () => undefined,
@@ -125,7 +130,7 @@ async function fixture(transform?: (config: FixtureConfig) => void): Promise<Fix
     store,
     configStore: storeForConfig,
     configReloader: reloader,
-    secrets: new SecretStore(keyJarPath(configPath)),
+    secrets: new SecretStore(keychainPath(configPath)),
     imageService: service,
     imageBridge: bridge,
   });
@@ -287,7 +292,7 @@ test('image settings discovery requires auth, supports disabled images and enfor
   }
 });
 
-test('repairs missing image credentials with a saved OpenRouter reference and rejects invalid drafts before writing', async () => {
+test('rejects invalid image drafts before writing and enables with a submitted credential', async () => {
   const model = {
     id: 'legacy-image',
     name: 'Legacy Image',
@@ -309,8 +314,7 @@ test('repairs missing image credentials with a saved OpenRouter reference and re
   const view = await app.server.handle(
     new Request('http://admin.test/api/image/config', { headers: { cookie: app.cookie } }),
   );
-  const projection = (await view.json()) as { credential_providers: string[]; credentials: string[] };
-  expect(projection.credential_providers).toEqual(['saved-router']);
+  const projection = (await view.json()) as { credentials: string[] };
   expect(projection.credentials).toEqual([]);
   expect(JSON.stringify(projection)).not.toContain('agent-secret');
   expect(JSON.stringify(projection)).not.toContain('jar');
@@ -325,19 +329,15 @@ test('repairs missing image credentials with a saved OpenRouter reference and re
   const revision = await app.revision();
   const before = await readFile(app.configPath, 'utf8');
   for (const body of [
+    // A model needs its credential to exist.
     { enabled: true, credentials: {}, models: [model] },
-    { enabled: true, credentials: {}, credential_sources: { openrouter: 'saved-router' }, models: [model, model] },
-    { enabled: true, credentials: {}, credential_sources: { openrouter: 'agent' }, models: [model] },
-    { enabled: true, credentials: {}, credential_sources: { openrouter: 123 }, models: [model] },
-    { enabled: true, credentials: {}, credential_sources: { openrouter: 'toString' }, models: [model] },
   ]) {
     expect((await request(body)).status).toBe(400);
     expect(await readFile(app.configPath, 'utf8')).toBe(before);
   }
   const saved = await request({
     enabled: true,
-    credentials: {},
-    credential_sources: { openrouter: 'saved-router' },
+    credentials: { openrouter: 'openrouter-secret' },
     models: [model],
   });
   expect(saved.status).toBe(200);
@@ -346,8 +346,12 @@ test('repairs missing image credentials with a saved OpenRouter reference and re
     apply: { applied: ['image.credentials.openrouter', 'image.models'] },
   });
   const loaded = await loadConfig(app.configPath);
-  expect(loaded.fileConfig.image?.credentials).toEqual({ openrouter: { jar: 'agent' } });
+  expect(loaded.fileConfig.image?.credentials).toEqual({ openrouter: { jar: 'openrouter' } });
   expect(loaded.fileConfig.image?.models).toEqual([model]);
+  const keychain = JSON.parse(await readFile(keychainPath(app.configPath), 'utf8')) as {
+    entries: Record<string, { value: string }>;
+  };
+  expect(keychain.entries.openrouter?.value).toBe('openrouter-secret');
   const status = await app.server.handle(
     new Request('http://admin.test/api/image/status', { headers: { cookie: app.cookie } }),
   );

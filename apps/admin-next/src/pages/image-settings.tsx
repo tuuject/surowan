@@ -20,6 +20,8 @@ import {
   putImageConfig,
 } from '@/lib/api/images.ts';
 import { errorMessage } from '@/lib/errors';
+import { keychainQuery } from '@/lib/queries';
+import { initialSecretDraft, secretValueOf } from '@/lib/secret-draft.ts';
 import { toast } from '@/lib/toast.ts';
 
 export default function ImageSettingsPage() {
@@ -70,17 +72,12 @@ function ImageSettingsForm({ initial }: { initial: ImageConfigView }) {
     (credentialNames.length > 0 ? credentialNames : ['openrouter']).map((name) => ({
       key: crypto.randomUUID(),
       name,
-      secret: '',
       saved: initial.credentials.includes(name),
-      source: initial.credentials.includes(name)
-        ? ''
-        : initial.credential_providers.includes(name)
-          ? name
-          : initial.credential_providers.length === 1
-            ? (initial.credential_providers[0] ?? '')
-            : '',
+      draft: initialSecretDraft(initial.credential_key_sources?.[name] ?? null, name),
     })),
   );
+  const keychain = useQuery(keychainQuery);
+  const keychainEntries = (keychain.data?.entries ?? []).map((entry) => entry.name);
   const [models, setModels] = useState<EditableModel[]>(() =>
     [...new Map(initial.models.map((model) => [JSON.stringify(model), model])).values()].map((model) => ({
       ...model,
@@ -131,10 +128,16 @@ function ImageSettingsForm({ initial }: { initial: ImageConfigView }) {
     !alreadyAdded &&
     models.length < 64;
   const editedCredentials = credentials.filter(
-    (entry) => entry.saved || entry.name.trim() || entry.secret.trim() || entry.source,
+    (entry) => entry.saved || entry.name.trim() || entry.draft.mode !== 'external',
   );
   const invalidName = editedCredentials.find((entry) => !/^[a-zA-Z0-9_-]{1,80}$/.test(entry.name));
-  const missingKey = editedCredentials.find((entry) => !entry.saved && !entry.secret.trim() && !entry.source);
+  const missingKey = editedCredentials.find(
+    (entry) =>
+      !entry.saved &&
+      (entry.draft.mode === 'external' ||
+        (entry.draft.mode === 'new' && !entry.draft.value.trim()) ||
+        (entry.draft.mode === 'entry' && !entry.draft.entry)),
+  );
   const missingReference = models.find(
     (model) => !editedCredentials.some((entry) => entry.name === model.credentialRef),
   );
@@ -167,15 +170,14 @@ function ImageSettingsForm({ initial }: { initial: ImageConfigView }) {
           enabled,
           ...(enabled
             ? {
+                // A submitted key (new plaintext or a picked entry) travels as
+                // the shared SecretInput; a row left on its stored reference
+                // is omitted, so the server keeps it.
                 credentials: Object.fromEntries(
-                  editedCredentials
-                    .filter((entry) => entry.secret.trim() !== '')
-                    .map((entry) => [entry.name, entry.secret.trim()]),
-                ),
-                credential_sources: Object.fromEntries(
-                  editedCredentials
-                    .filter((entry) => entry.source !== '' && entry.secret.trim() === '')
-                    .map((entry) => [entry.name, entry.source]),
+                  editedCredentials.flatMap((entry) => {
+                    const value = secretValueOf(entry.draft, entry.name.trim() || entry.name);
+                    return value === null ? [] : [[entry.name.trim() || entry.name, value] as const];
+                  }),
                 ),
                 models: models.map(toModelPayload),
               }
@@ -186,7 +188,12 @@ function ImageSettingsForm({ initial }: { initial: ImageConfigView }) {
     },
     onSuccess: async (result) => {
       toast.success(result.enabled ? t('image.settings.appliedToast') : t('image.settings.disabledToast'));
-      setCredentials((current) => current.map((entry) => ({ ...entry, secret: '' })));
+      setCredentials((current) =>
+        current.map((entry) => ({
+          ...entry,
+          draft: { ...entry.draft, ...(entry.draft.mode === 'new' ? { value: '' } : {}) },
+        })),
+      );
       await Promise.all(
         ['image-config', 'image-status', 'providers', 'config-status'].map((key) =>
           queryClient.invalidateQueries({ queryKey: [key] }),
@@ -232,8 +239,8 @@ function ImageSettingsForm({ initial }: { initial: ImageConfigView }) {
             credentials={credentials}
             setCredentials={setCredentials}
             models={models}
-            savedNames={initial.credentials}
-            credentialProviders={initial.credential_providers}
+            keychainEntries={keychainEntries}
+            keySources={initial.credential_key_sources ?? {}}
           />
         </fieldset>
       </Panel>

@@ -1,14 +1,16 @@
 /** Local process composition root: owns transport, files, locks and lifecycle. */
-import { assertConfigPermissions, loadConfig } from '../config/index.ts';
-import { keyJarPath } from '../../../platform/key-jar.ts';
+
+import { keychainPath, migrateKeychain } from '../../../platform/keychain.ts';
 import { SecretStore } from '../../../platform/secrets.ts';
-import { connectServeHosts, runServeLoop, startAdminServer, startCoreRuntime } from './serve-run.ts';
-import { openServeEnvironment, startServeServices } from './serve.ts';
-import { RESTART_EXIT_CODE, logEvent, type ServeContext, type ServeState } from './support.ts';
-import { resolveTelegramTokenSource } from '../telegram/connection-token.ts';
 import { BUILTIN_PLUGINS } from '../../../plugins/builtin.ts';
 import { loadPlugins } from '../../../plugins/plugin.ts';
 import { WEB_SEARCH_PROVIDERS } from '../../../plugins/web-search/extension.ts';
+import { assertConfigPermissions, loadConfig } from '../config/index.ts';
+import { resolveTelegramTokenSource } from '../telegram/connection-token.ts';
+import { openServeEnvironment, startServeServices } from './serve.ts';
+import { connectServeHosts, startCoreRuntime } from './serve-run.ts';
+import { runServeLoop, startAdminServer } from './serve-run-admin.ts';
+import { logEvent, RESTART_EXIT_CODE, type ServeContext, type ServeState } from './support.ts';
 
 export interface ServeOptions {
   /** Ask a running instance on the same data directory to stop first. */
@@ -25,7 +27,10 @@ export async function serve(configPath: string, options: ServeOptions = {}): Pro
     searchProviders: pluginDefinitions.extensions(WEB_SEARCH_PROVIDERS).map((provider) => provider.rule),
   });
   await assertConfigPermissions(loaded.configPath);
-  const secrets = new SecretStore(keyJarPath(loaded.configPath));
+  // The one-time format migration: an old flat key jar becomes a keychain
+  // before anything resolves a secret from it.
+  await migrateKeychain(keychainPath(loaded.configPath));
+  const secrets = new SecretStore(keychainPath(loaded.configPath));
   // Both halves of the product may be off, but not both at once: rooms are
   // reachable only through the panel, and a panel-only process with no IM has
   // nothing to do. Only a disabled Telegram counts (no token, or an empty one);

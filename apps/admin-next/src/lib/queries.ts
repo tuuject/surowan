@@ -1,7 +1,6 @@
 import { infiniteQueryOptions, type Query, queryOptions } from '@tanstack/react-query';
 import { listApiKeys, listBotAdmins } from './api/admin.ts';
 import { listAlarms } from './api/alarms.ts';
-import { listRecurringAlarms } from './api/recurring-alarms.ts';
 import { getSession, listPasskeys } from './api/auth.ts';
 import { getChats } from './api/chats.ts';
 import { getConfigStatus, getDeveloperSettings, getHarnessSettings } from './api/config.ts';
@@ -11,6 +10,7 @@ import type { DictionaryScope } from './api/dictionary.ts';
 import { getDictionarySettings, listDictionary, listDictionaryChats } from './api/dictionary.ts';
 import { getGroupMemoryProgress, listGroupMemories, listGroupMemoryRuns } from './api/group-memories.ts';
 import { getInvocation, listInvocations } from './api/invocations.ts';
+import { getKeychain } from './api/keychain.ts';
 import { listMemories, listMemoryChats } from './api/memories.ts';
 import { getMessage, listMessages } from './api/messages.ts';
 import {
@@ -23,6 +23,7 @@ import {
 import type { PromptScopeRef } from './api/prompts.ts';
 import { getPromptDiff, getPromptDocument, getPromptVersions } from './api/prompts.ts';
 import { getProviderPresets, getProviders } from './api/providers.ts';
+import { listRecurringAlarms } from './api/recurring-alarms.ts';
 import { listStickerSets, listStickers } from './api/stickers.ts';
 import { getTelegram } from './api/telegram.ts';
 import { getOverview } from './api/usage.ts';
@@ -85,6 +86,11 @@ export const telegramQuery = queryOptions({
   queryKey: ['telegram'],
   queryFn: getTelegram,
   refetchInterval: 10_000,
+});
+
+export const keychainQuery = queryOptions({
+  queryKey: ['keychain'],
+  queryFn: getKeychain,
 });
 
 export function warningsQuery(position: SnapshotPosition) {

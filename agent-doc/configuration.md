@@ -46,7 +46,7 @@ node src/cli.ts check-config --config dev-data/config.jsonc
 | `telegram.chats[<id>].group_memory`（含 `enabled`、`idle_minutes`） | 该 Chat 的群聊记忆开关与空闲阈值；增删字段或改值都热应用，下一次 sleeping 扫描使用新值。开关状态变化时先 fence 该 Chat 的全部 Conversation（期间排队的 Invocation 不启动），中止 running Invocation，等它们真正落定后才驱逐 Agent 缓存并重建全部 Conversation Context；关闭只停止后续整理并让新 Invocation 不再拿到回忆工具，已写入的记忆与原文保留 |
 | `telegram.sticker_sets`（整个列表，含 `alias`、`note`） | 发布时先把 Set 对账进 `sticker_sets` 表（按 Telegram 名称大小写不敏感地识别，`alias`/`note` 只是复制，改名保留同一行与索引），再由运行中的 Sticker worker 在后台拉取未同步的 Set；没有 Telegram 连接时只对账存储。Set 的增删（按名称）立即中止所有运行中的 Telegram Invocation（原因 `sticker_sets_changed`，Playground 房间不受影响），只改昵称或备注不中止，下一次注入的贴纸目录即用新值。Admin「Bot sticker sets」页编辑，见 [admin-panel.md](admin-panel.md#sticker-sets-页端点) |
 | `telegram.bucket_window_seconds`、`telegram.bucket_max_seconds`、`telegram.bucket_bump_seconds` | Bucket 节拍。ingestion 开新 Bucket 时读一次当前发布值，写进该 Bucket 行的 `window_seconds` / `max_seconds` / `bump_seconds`（迁移 `057`）；之后的消息延长与三处推迟（轮结束、Scheduler 轮中途、运行结束）都只读这一行。因此修改只作用于之后新开的 Bucket，正在收集的 Bucket 按开桶时的节拍走完，运行中 Invocation 的配置快照也不会替它决定窗口。与 `agent.context.idle_grace_seconds` 同为热字段，两者在 candidate 里一起校验。Admin「Telegram」页编辑，见 [admin-panel.md](admin-panel.md#api) |
-| `mcp`、`mcp.servers`（整段；增删 alias、任意字段变化） | MCP 客户端按 alias 对账发布后的配置：新增 alias 连接它，删除 alias 关闭它，字段变化替换该实例，未变化的 alias 不重连（运行中的调用不受影响）。受影响 Chat 的 Conversation 会经历一次切替（fence → abort → 等落定 → 重建 Context → 换实例 → 续跑），规则见 [telegram-agent-flow.md](telegram-agent-flow.md#mcp-tool-与按-chat-绑定)。连不上或校验失败的新实例发布为 `degraded` 并按退避重试，不阻断本次应用 |
+| `mcp`、`mcp.servers`（整段；增删 alias、任意字段变化） | MCP 客户端按 alias 对账发布后的配置：新增 alias 连接它，删除 alias 关闭它，字段变化替换该实例，未变化的 alias 不重连（运行中的调用不受影响）。被 MCP Server 使用的 keychain 条目轮换时，这些 alias 被视作字段变化并重连（新密钥在重连时解析）；受影响 Chat 的 Conversation 会经历一次切替（fence → abort → 等落定 → 重建 Context → 换实例 → 续跑），规则见 [telegram-agent-flow.md](telegram-agent-flow.md#mcp-tool-与按-chat-绑定)。连不上或校验失败的新实例发布为 `degraded` 并按退避重试，不阻断本次应用 |
 | `telegram.chats[<id>].mcp`（整个绑定列表及其子字段） | 该 Chat 的 MCP 绑定；增删字段都热应用。绑定收窄（少了一个 Tool、被绑定的服务器消失或变化）会停掉该 Chat 的 running Invocation、重建其 Conversation Context 并续跑；纯增宽（新增服务器、新增绑定、更长的 `tools` 列表、只给新暴露的 Tool 加策略）不打断运行，下一次 Invocation 直接拿到更大的集合。绑定写出的 Tool 名必须存在于对应 Server：显式列表在配置校验时检查，`"*"` Server 在发现阶段检查；只改绑定的热应用会拿已连接且未变化的 Server 的发现结果再查一次，写错名字直接拒绝本次应用 |
 | `telegram.admins` | Bot 管理员白名单（`/pause`、`/resume`、`/model`、`/cut_topic`、`/rebuild_context`、`/allowlist` 的唯一事实源）；运行期判定直接读运行中的配置，下一次命令执行就用新列表 |
 | `dictionary`（整段，含 `injection_mode`） | 全局辞典注入模式；下一次 Invocation 生效 |
@@ -80,7 +80,7 @@ node src/cli.ts check-config --config dev-data/config.jsonc
 - 例外是 `publish_incomplete`：配置与注册表已经发布，但组合根的发布钩子（例如群聊记忆开关的 Context 切替）失败。此时新配置已 active，错误同样记在 `lastError`；`ConfigReloader` 记下「发布未完成」，下一次应用即使文件未变也会重跑钩子，钩子必须可对同一配置重复执行。群聊记忆切替为此单独维护自己的基线配置，只在切替成功后推进。
 - `/model` 在写入文件之前就被拒绝时（模型不存在、不可用，或文件无法写入），没有发生 reload：只输出 `model_switch_failed` 日志并把错误返回给调用方，不改变 `lastError`。写入之后应用失败才按上一条处理。
 - 没有任何待重启字段时 `active_hash` 等于文件哈希，可以直接与 `check-config` 的输出比对。只改注释或格式、或者把待重启字段改回原值后应用，都会发布一次内容相同的配置，让 `active_hash` 跟上新的文件哈希。有待重启字段时，`active_hash` 是 candidate RawConfig 的 JSON 序列化的 SHA-256；若本次应用没有任何热字段变化（只改注释、只有 restart 字段变化），它保持不变，不会跟上文件哈希。
-- 写入配置文件（如 `/model`、`/ignoreme`、`/unignoreme`）由 `src/adapters/local-monolith/config/file.ts` 的 `writeConfigEdits` 完成：只替换 JSONC 的值，保留注释与格式；先写同目录临时文件并完整校验，再 rename 覆盖，因此读者只会看到旧文件或完整合法的新文件。配置文件是符号链接时拒绝写入（`config_symlink`）。带 Secret 的写入（`src/platform/config/write.ts` 的 `secretEdit`）把明文写进 key jar，文件里只留条目名，见 [SecretRef](#secretref)。
+- 写入配置文件（如 `/model`、`/ignoreme`、`/unignoreme`）由 `src/adapters/local-monolith/config/file.ts` 的 `writeConfigEdits` 完成：只替换 JSONC 的值，保留注释与格式；先写同目录临时文件并完整校验，再 rename 覆盖，因此读者只会看到旧文件或完整合法的新文件。配置文件是符号链接时拒绝写入（`config_symlink`）。带 Secret 的写入（`src/platform/config/write.ts` 的 `secretEdit`）把明文写进 keychain，文件里只留条目名，见 [SecretRef](#secretref)。
 - Admin「Chats」管理 Chat/Topic 白名单与按 Chat 的模型覆盖：列表分别显示磁盘 Saved settings 与进程 Running settings。新增与删除 Chat 保存后立即热应用（删除会停止该 Chat 的运行，面板删除还会立即清除其 Memo Pad/Blob/会话数据）；Topic 范围修改保存后等待重启，已有 active Chat 的模型/thinking 覆盖热应用；最后一个配置 Chat 不允许删除。编辑只更新这四项管理字段，不覆盖 `instructions_file`、参与策略等其它设置。
 - 端点、状态码与响应体见 [admin-panel.md](admin-panel.md#api)。
 
@@ -90,7 +90,7 @@ Telegram Token、Provider API key、MCP Header/环境变量都使用同一 Secre
 
 ```jsonc
 [
-  // key jar：值在配置文件同目录的 key.json 里，这里只写条目名
+  // keychain：值在配置文件同目录的 key.json 里，这里只写条目名
   { "jar": "3f9a2c1d8e7b6a50" },
   // 环境变量
   { "env": "GOOGLE_API_KEY" },
@@ -99,15 +99,18 @@ Telegram Token、Provider API key、MCP Header/环境变量都使用同一 Secre
 ]
 ```
 
-`config.jsonc` 不接受明文字符串形式的 SecretRef：这样配置文件可以被阅读、比对、贴给别人或交给 agent 检查，而不会带出任何 Secret。`loadConfig` 遇到明文时直接报错，并列出还是明文的字段路径（`telegram.token`、`providers.<alias>.api_key` / `headers.*`、`mcp.servers[].env.*` / `headers.*`）。仓库的 `.claude/settings.json` 用 `Read(**/key.json)` 拒绝 Claude Code 读取 key jar；它只是 Claude Code 这一侧的护栏，管不到其他 agent 和进程，所以 AGENTS.md 里「不要读取 `key.json`」的约定仍然有效。
+`config.jsonc` 不接受明文字符串形式的 SecretRef：这样配置文件可以被阅读、比对、贴给别人或交给 agent 检查，而不会带出任何 Secret。`loadConfig` 遇到明文时直接报错，并列出还是明文的字段路径（`telegram.token`、`providers.<alias>.api_key` / `headers.*`、`mcp.servers[].env.*` / `headers.*`）。仓库的 `.claude/settings.json` 用 `Read(**/key.json)` 拒绝 Claude Code 读取 keychain 文件；它只是 Claude Code 这一侧的护栏，管不到其他 agent 和进程，所以 AGENTS.md 里「不要读取 `key.json`」的约定仍然有效。
 
-key jar（`src/platform/key-jar.ts`）：
+keychain（`src/platform/keychain.ts`）：
 
-- 固定为配置文件同目录下的 `key.json`，一个值全为非空字符串的 JSON 对象：`{ "<name>": "<secret>" }`。条目名匹配 `^[A-Za-z0-9_-]{1,64}$`。一个目录里的 `key.json` 只属于这个目录里的 `config.jsonc`。
+- 固定为配置文件同目录下的 `key.json`，带版本号的结构：`{ "version": 1, "entries": { "<name>": { "value": "<secret>", "created_at": "<ISO 时间>" } } }`。条目名匹配 `^[A-Za-z0-9_-]{1,64}$`，名字就是条目的身份。一个目录里的 `key.json` 只属于这个目录里的 `config.jsonc`。
+- 旧版扁平格式（值全为非空字符串的对象）由 `serve`、`configure` 与 `doctor` 启动时一次性原地迁移（原子临时文件加 rename、`0600`、拒绝符号链接），条目名保留；其它读路径只认新格式，遇到旧格式报出可操作的错误。迁移是单向的：旧版本程序读不了迁移后的文件，也没有备份副本——原子 rename 保证读者只看到旧文件或完整的新文件。
 - 非 Windows 系统上文件必须是 `0600`，否则解析失败（与配置文件同一要求；Docker entrypoint 会顺手 `chmod`）。文件缺失、条目缺失、JSON 无效或权限不对都是 `SecretResolutionError`，reload 时报 `secret_unresolved`；错误信息只含路径和条目名，从不引用文件内容（JSON 解析错误本身会回显出错位置附近的文本）。
 - 每次 `resolve` 都重新读文件，所以面板刚写进去的条目下一次 reload 就能解析到。
-- 面板和 `configure` 录入的明文都进 key jar，名字是新生成的 16 位十六进制串；换 key 总是写**新条目**、换新名字，而不是覆盖旧条目的值。这是必须的：reload 按 SecretRef 判断连接是否变化，名字不变就不会重新解析。反过来，手工改 `key.json` 里某个现有条目的值不会被热应用识别，要么换一个新条目名再改配置，要么重启。`configure` 在输入时就写入条目（「获取模型列表」要能解析到它），退出时删掉本次新增或原文件用过、但最终留在磁盘上的文件不再引用的条目；磁盘上的文件解析出错时跳过这一步，避免按不完整的引用集合误删密钥。`configure` 保存与面板走同一个 `writeConfigEdits`：先写同目录临时文件、`loadConfig` 校验通过后再原子 rename，校验失败时原文件保持不变；它还带上会话开始时读到的 revision，期间文件被别人改过就拒绝保存，不会覆盖。因此保存同样要求配置文件 `0600`、目录 `0700` 且不是符号链接。
-- 写入顺序由 `writeConfigEdits` 保证：新条目在配置文件 rename 之前加入，新文件因此从不引用不存在的条目；新文件不再引用的旧条目在 rename 之后删除（尽力而为，删不掉只会留下一个没人用的值，不算写入失败）。没被当前配置引用过的手工条目不会被清理。
+- 条目名稳定，轮换是在原条目上替换值（`replace`，保留 `created_at`），同一把密钥可以被多处共用。热应用除了比较 SecretRef，还比较被引用条目的值摘要（内存里的 SHA-256，不落盘、不进日志、不出现在任何 API 响应）：值变了，使用它的 Provider 连接就重建，被 MCP Server 使用的条目按热 MCP 路径重连对应 Server（与其字段变化同一套切换规则），下一次 Invocation 用新值；运行中的 Invocation 继续它启动时的快照。`env` / `command` 引用不参与值检测——不会为了检测去执行外部命令。
+- 面板与 `configure` 录入时二选一：填新密钥（自动建条目，名字按使用处推导——Provider 别名、`telegram`、`search-<engine id>`、`<image 凭据名>`；重名依次加 `-2`、`-3`；指定的名字重名直接报冲突）或选用已有条目。填新密钥时，若该输入处当前指向的条目只被这一处使用，就在原条目上替换值（配置文件不变，走 keychain `replace` 加一次应用）；若还被别处使用，则新建条目并把这一处改指过去。
+- 没有任何自动回收：写入配置不再删除不再被引用的条目，`configure` 退出时也不清理。孤儿（磁盘配置文件与运行中配置都不引用的条目）只由面板 keychain 管理页的显式清理移除；孤儿判断看配置文件原始内容（被忽略的 `image` 段里的引用也算数）加运行中的 active 配置，配置文件无法解析时拒绝清理。`configure` 保存与面板走同一个 `writeConfigEdits`：先写同目录临时文件、`loadConfig` 校验通过后再原子 rename，校验失败时原文件保持不变，且会回滚本次新建的条目；它还带上会话开始时读到的 revision，期间文件被别人改过就拒绝保存。因此保存同样要求配置文件 `0600`、目录 `0700` 且不是符号链接。
+- 写入顺序由 `writeConfigEdits` 保证：新条目在配置文件 rename 之前加入，新文件因此从不引用不存在的条目。
 
 command SecretRef：
 
@@ -501,7 +504,7 @@ Agent 不再配置 `max_output_tokens`：每次请求的输出上限直接使用
 
 字段语义：
 
-- `credentials`: 凭据名 → SecretRef，与 Provider 的 SecretRef 同一机制（明文只能进 key jar，文件里写 `{jar}` / `{env}` / `{command}` 引用）。Admin 设置页保存时，编辑请求里附带的明文凭据写入 jar，文件只留条目名；删除段后不再被任何 `credentialRef` 引用的 jar 条目会被回收。
+- `credentials`: 凭据名 → SecretRef，与 Provider 的 SecretRef 同一机制（明文只能进 keychain，文件里写 `{jar}` / `{env}` / `{command}` 引用）。Admin 设置页保存时，提交的新密钥或选用的条目写入 keychain，文件只留条目名；条目不会随段删除被回收，孤儿等显式清理。
 - `models[]`: 可路由的生图模型，上限 64 个。`id` 是模型在 Admin 下拉与 Agent 工具参数里的标识；`credentialRef` 必须指向 `credentials` 里的条目；`provider`/`providerTag` 描述经哪个 Provider 连接与上游打标；`upstreamModel` 是上游真实模型 ID。`description` 可选（最长 1000 字符，可空）：该模型路由的独立备注，说明它适用的画风/任务与提示词风格。备注只作为 Agent 选型与编写提示词的指导——系统不自动拼接备注原文、不把它作为独立字段发送给生图上游、也不能覆盖任何工具授权；Agent 经只读的 `list_image_models` 能力读取（见 [telegram-agent-flow.md](telegram-agent-flow.md#image-生成)），Admin「图片设置」的模型卡片可直接编辑并随保存热应用。`capabilities` 由 image-service 包在准备快照时做能力契约校验（host schema 只做结构校验）：`imageInput` 决定能否携带参考图，`maxInputImages`/`maxOutputs` 约束参考图数量与单次输出数，`aspectRatios`/`resolutionClasses` 是参数白名单——模型接受的取值必须列在这里，否则该次提交在参数校验阶段就被拒绝。
 - **软校验降级**：`loadConfig` 对 `image` 段单独校验，结构不合法的段被剥离（记录 warning），进程以「图片生成禁用」状态启动——坏掉的 image 段永远不会阻止 bot 上线，管理员随后经 Admin 面板修复或启用。剥离信息记录在 `LoadedConfig.warnings`，Admin 配置状态页可见。
 - 图片快照随每次 reload 原子发布：reload 重新解析 `credentials` 的 SecretRef 并重建快照，同一轮生成的凭据在轮次开始时固定（轮次中途轮换密钥不影响进行中的生成）；运行中的生成不受 reload 影响，下一次提交才用新配置。

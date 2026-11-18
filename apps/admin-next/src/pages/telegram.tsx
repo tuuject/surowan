@@ -1,19 +1,23 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Alert } from '@tuuject/koi-react/alert';
 import { Button } from '@tuuject/koi-react/button';
-import { Field } from '@tuuject/koi-react/field';
-import { Input } from '@tuuject/koi-react/input';
 import { css } from '@tuuject/koi-react/styled-system/css';
 import { type ReactElement, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ConfirmDialog, KvList, ListPageHeader, MonoValue, TimeText } from '@/components/business';
 import { Panel } from '@/components/layout/panel';
+import {
+  initialSecretDraft,
+  type SecretDraft,
+  SecretField,
+  secretValueOf,
+} from '@/components/secret-input/secret-field.tsx';
 import { BucketTimingPanel } from '@/components/telegram/bucket-timing.tsx';
 import { TelegramStatusBadge, TelegramStatusReason, telegramBotLabel } from '@/components/telegram/telegram-status.tsx';
 import type { TelegramConnectionState, TelegramView } from '@/lib/api/telegram.ts';
 import { putTelegram } from '@/lib/api/telegram.ts';
 import { errorMessage } from '@/lib/errors';
-import { telegramQuery } from '@/lib/queries';
+import { keychainQuery, telegramQuery } from '@/lib/queries';
 import { toast } from '@/lib/toast.ts';
 
 function BotIdentity({ state }: { readonly state: TelegramConnectionState }): ReactElement {
@@ -35,7 +39,11 @@ function BotIdentity({ state }: { readonly state: TelegramConnectionState }): Re
 function TelegramSettings({ view }: { readonly view: TelegramView }): ReactElement {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
-  const [token, setToken] = useState('');
+  const keychain = useQuery(keychainQuery);
+  const entries = (keychain.data?.entries ?? []).map((entry) => entry.name);
+  const [tokenDraft, setTokenDraft] = useState<SecretDraft>(() =>
+    initialSecretDraft(view.token_source ?? null, 'telegram'),
+  );
   const [clearOpen, setClearOpen] = useState(false);
 
   const refresh = async (): Promise<void> => {
@@ -47,9 +55,9 @@ function TelegramSettings({ view }: { readonly view: TelegramView }): ReactEleme
   };
 
   const save = useMutation({
-    mutationFn: (revision: string) => putTelegram(token.trim(), revision),
+    mutationFn: (revision: string) => putTelegram(secretValueOf(tokenDraft, 'telegram'), revision),
     onSuccess: async () => {
-      setToken('');
+      setTokenDraft(initialSecretDraft(view.token_source ?? null, 'telegram'));
       toast.success(t('pages.telegram.saved'));
       await refresh();
     },
@@ -75,7 +83,8 @@ function TelegramSettings({ view }: { readonly view: TelegramView }): ReactEleme
   });
 
   const pending = save.isPending || clear.isPending;
-  const trimmed = token.trim();
+  // `null` (leave the field alone) must not submit; only a real input does.
+  const submittedToken = secretValueOf(tokenDraft, 'telegram');
 
   return (
     <>
@@ -109,7 +118,7 @@ function TelegramSettings({ view }: { readonly view: TelegramView }): ReactEleme
           className={css({ display: 'flex', flexDirection: 'column', gap: '4', maxWidth: '480px' })}
           onSubmit={(event) => {
             event.preventDefault();
-            if (trimmed.length > 0 && !pending) {
+            if (submittedToken !== null && !pending) {
               save.mutate(view.revision);
             }
           }}
@@ -117,19 +126,16 @@ function TelegramSettings({ view }: { readonly view: TelegramView }): ReactEleme
           {view.telegram_section_present ? null : (
             <p className={css({ margin: '0', color: 'text-muted' })}>{t('pages.telegram.sectionMissing')}</p>
           )}
-          <Field label={t('pages.telegram.tokenLabel')} help={t('pages.telegram.tokenHint')}>
-            <Input
-              type="password"
-              autoComplete="new-password"
-              placeholder={t('pages.telegram.tokenPlaceholder')}
-              value={token}
-              disabled={pending}
-              onChange={(event) => {
-                setToken(event.target.value);
-              }}
-              dir="ltr"
-            />
-          </Field>
+          <SecretField
+            label={t('pages.telegram.tokenLabel')}
+            draft={tokenDraft}
+            source={view.token_source ?? null}
+            entries={entries}
+            suggestedName="telegram"
+            disabled={pending}
+            onChange={setTokenDraft}
+            idPrefix="telegram-token"
+          />
           <div
             className={css({
               display: 'flex',
@@ -141,7 +147,7 @@ function TelegramSettings({ view }: { readonly view: TelegramView }): ReactEleme
           >
             <Button
               type="submit"
-              disabled={trimmed.length === 0 || clear.isPending}
+              disabled={submittedToken === null || clear.isPending}
               loading={save.isPending}
               loadingLabel={t('pages.telegram.saving')}
             >

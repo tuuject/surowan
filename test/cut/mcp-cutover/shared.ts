@@ -9,27 +9,35 @@
  * the handoff and queue behaviour, and `continuation.test.ts` where the
  * follow-up batch or its task completion comes from.
  */
-import { eq, sql } from 'drizzle-orm';
-import { afterAll, vi } from 'vitest';
-import { mkdtemp, rm } from 'node:fs/promises';
+
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { eq, sql } from 'drizzle-orm';
+import { afterAll, vi } from 'vitest';
 import { loadConfig } from '../../../src/adapters/local-monolith/config/index.ts';
 import { SqliteStore } from '../../../src/adapters/local-monolith/database.ts';
 import { createMcpCutover } from '../../../src/adapters/local-monolith/runtime/mcp-cutover/index.ts';
-import { awaitServerAttempts } from '../../../src/capabilities/mcp/availability.ts';
 import type { McpConfigPublishResult } from '../../../src/adapters/local-monolith/runtime/mcp-cutover/shared.ts';
+import { awaitServerAttempts } from '../../../src/capabilities/mcp/availability.ts';
 import { McpManager } from '../../../src/capabilities/mcp/index.ts';
 import { ConversationContextStore } from '../../../src/context/store/index.ts';
 import { ConversationRuntime } from '../../../src/orchestration/conversation-runtime.ts';
 import { BucketScheduler, type InvocationHandler } from '../../../src/orchestration/scheduler/index.ts';
 import type { McpServerConfig, RawConfig } from '../../../src/platform/config/index.ts';
 import { type InvocationContext, previewContext } from '../../../src/platform/invocation-context.ts';
-import { keyJarPath } from '../../../src/platform/key-jar.ts';
+import { keychainPath } from '../../../src/platform/keychain.ts';
 import type { RuntimeConfigurationStore } from '../../../src/platform/runtime-config.ts';
 import { SecretStore } from '../../../src/platform/secrets.ts';
 import { invocations } from '../../../src/store/schema/index.ts';
-import { afterThisTest, testConfigJsonc, testConfigStore, trackTempDirectory, writeTestConfig } from '../../helpers.ts';
+import {
+  afterThisTest,
+  testConfigJsonc,
+  testConfigStore,
+  trackTempDirectory,
+  writeTestConfig,
+  writeTestKeychain,
+} from '../../helpers.ts';
 import { seedInvocation } from '../../memo/fixtures.ts';
 
 const directories: string[] = [];
@@ -76,8 +84,12 @@ export interface Fixture {
   /** Ends the round early, as a run that answered and now waits for messages would. */
   endRound(conversationId: bigint): void;
   conversationOf(invocationId: bigint): bigint | undefined;
+  /** `mcp_server_state` row for one alias. */
+  stateOf(alias: string): { readonly state: string; readonly reconnect_attempt: bigint } | undefined;
+  /** The fixture server's process id, read from the pid file it wrote. */
+  pidOf(alias: string): Promise<number>;
   /** Publishes `next` the way `ConfigReloader` does, then runs the serialized cutover. */
-  apply(next: RawConfig): Promise<McpConfigPublishResult>;
+  apply(next: RawConfig, rotated?: ReadonlySet<string>): Promise<McpConfigPublishResult>;
 }
 
 export async function fixture(): Promise<Fixture> {
@@ -85,21 +97,46 @@ export async function fixture(): Promise<Fixture> {
   trackTempDirectory(directories, directory);
   const configPath = join(directory, 'config.jsonc');
   const pid = (alias: string) => join(directory, `${alias}.pid`);
+  const marker = join(directory, 'scripted-marker.txt');
+  const commandSecret = `require('node:fs').writeFileSync('${marker.split(String.fromCharCode(92)).join('/')}', 'started');console.log('ok');`;
   await writeTestConfig(
     directory,
     configPath,
     testConfigJsonc(directory, (config) => {
-      config.mcp = { servers: [server('alpha', pid('alpha')), server('beta', pid('beta'))] };
+      const alpha = { ...server('alpha', pid('alpha')), env: { ALPHA_KEY: { jar: 'alpha-key' } } };
+      const delta = {
+        ...server('scripted', pid('scripted')),
+        env: { DELTA_KEY: { command: [process.execPath, '-e', commandSecret] } },
+      };
+      config.mcp = {
+        servers: [
+          alpha,
+          server('beta', pid('beta')),
+          {
+            alias: 'remote',
+            transport: 'streamable_http',
+            url: 'http://127.0.0.1:1/mcp',
+            follow_redirects: false,
+            tools: '*',
+            payload_max_bytes: 32768,
+            result_max_bytes: 32768,
+            default_tool_policy: { read_only: true, timeout_seconds: 5 },
+            headers: { 'x-key': { jar: 'gamma-key' } },
+          },
+          delta,
+        ],
+      };
       config.telegram.chats = [
         { id: CHAT_A, instructions_file: 'chat-instructions.md', mcp: [{ server: 'alpha' }] },
         { id: CHAT_B, instructions_file: 'chat-instructions.md', mcp: [{ server: 'beta' }] },
       ];
     }),
   );
+  await writeTestKeychain(directory, { 'alpha-key': 'alpha-key-v1', 'gamma-key': 'gamma-key-v1' });
   const loaded = await loadConfig(configPath);
   const configStore = await testConfigStore(loaded);
   const store = await SqliteStore.open(loaded.config);
-  const manager = new McpManager(store, loaded.config, new SecretStore(keyJarPath(loaded.configPath)));
+  const manager = new McpManager(store, loaded.config, new SecretStore(keychainPath(loaded.configPath)));
   const runtime = new ConversationRuntime({ agentCacheSize: () => 8 });
   const conversationOf = (invocationId: bigint): bigint | undefined =>
     store.orm.select({ id: invocations.conversationId }).from(invocations).where(eq(invocations.id, invocationId)).get()
@@ -198,7 +235,14 @@ export async function fixture(): Promise<Fixture> {
     },
     endRound: (conversationId) => runtime.endRound(conversationId),
     conversationOf,
-    apply: async (next) => {
+    pidOf: async (alias) => Number(await readFile(pid(alias), 'utf8')),
+    stateOf: (alias) =>
+      store.db
+        .prepare<[string], { state: string; reconnect_attempt: bigint }>(
+          'SELECT state, reconnect_attempt FROM mcp_server_state WHERE alias = ?',
+        )
+        .get(alias),
+    apply: async (next, rotated) => {
       const previous = configStore.current();
       generation += 1;
       configStore.publish({
@@ -207,7 +251,7 @@ export async function fixture(): Promise<Fixture> {
         models: previous.models,
         visionModel: previous.visionModel,
       });
-      return await cutover.publish(previous.config, next, generation);
+      return await cutover.publish(previous.config, next, generation, rotated);
     },
   };
 }

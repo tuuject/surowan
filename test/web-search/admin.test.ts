@@ -9,11 +9,11 @@ import { SqliteStore } from '../../src/adapters/local-monolith/database.ts';
 import { AdminServer } from '../../src/ingress/admin/index.ts';
 import type { SearchConfigView } from '../../src/ingress/admin/search.ts';
 import type { FileConfig } from '../../src/platform/config/index.ts';
-import { keyJarPath } from '../../src/platform/key-jar.ts';
+import { keychainPath } from '../../src/platform/keychain.ts';
 import { AgentModelSwitcher } from '../../src/platform/models/switch.ts';
 import { SecretStore } from '../../src/platform/secrets.ts';
-import { testConfigJsonc, testConfigStore, writeTestConfig, writeTestKeyJar } from '../helpers.ts';
 import { createAdminAccount } from '../fixtures/admin-account.ts';
+import { testConfigJsonc, testConfigStore, writeTestConfig, writeTestKeychain } from '../helpers.ts';
 
 const cleanup: Array<() => Promise<void>> = [];
 afterEach(async () => {
@@ -54,11 +54,11 @@ async function fixture(options: { readonly search?: FileConfig['web_search']; re
       }
     }),
   );
-  await writeTestKeyJar(directory, options.deepseek === true ? { deepseek: 'deepseek-key' } : {});
+  await writeTestKeychain(directory, options.deepseek === true ? { deepseek: 'deepseek-key' } : {});
   const loaded = await loadConfig(path);
   const configStore = await testConfigStore(loaded);
   const store = await SqliteStore.open(loaded.config);
-  const secrets = new SecretStore(keyJarPath(path));
+  const secrets = new SecretStore(keychainPath(path));
   const reloader = new ConfigReloader({
     loaded,
     store: configStore,
@@ -90,8 +90,8 @@ async function fixture(options: { readonly search?: FileConfig['web_search']; re
       headers: { 'if-match': revision ?? '' },
       body: JSON.stringify(body),
     });
-  const jar = async (): Promise<Record<string, string>> =>
-    JSON.parse(await readFile(keyJarPath(path), 'utf8')) as Record<string, string>;
+  const jar = async (): Promise<Record<string, { value: string }>> =>
+    (JSON.parse(await readFile(keychainPath(path), 'utf8')) as { entries: Record<string, { value: string }> }).entries;
   return { directory, path, loaded, configStore, store, reloader, call, view, save, jar };
 }
 
@@ -104,7 +104,6 @@ const TAVILY = {
   note: 'Chinese developer blogs',
   api_key: 'tvly-new',
   keep_api_key: false,
-  key_source: null,
   enabled: true,
 };
 
@@ -113,10 +112,9 @@ test('the view lists providers and never returns a configured key', async () => 
     search: { engines: [{ id: 'main', provider: 'tavily', api_key: { jar: 'search-key' } }] },
     deepseek: true,
   });
-  await writeTestKeyJar(f.directory, { deepseek: 'deepseek-key', 'search-key': 'tvly-stored' });
+  await writeTestKeychain(f.directory, { deepseek: 'deepseek-key', 'search-key': 'tvly-stored' });
   const view = await f.view();
   expect(view.engines).toEqual([expect.objectContaining({ id: 'main', provider: 'tavily', key_configured: true })]);
-  expect(view.deepseek_keys).toEqual(['deepseek']);
   expect(JSON.stringify(view)).not.toContain('tvly-stored');
   expect(JSON.stringify(view)).not.toContain('deepseek-key');
 });
@@ -136,7 +134,7 @@ test('saving an engine writes a key-jar entry and applies immediately', async ()
   const file = await readFile(f.path, 'utf8');
   expect(file).not.toContain('tvly-new');
   const jar = await f.jar();
-  expect(Object.values(jar)).toContain('tvly-new');
+  expect(Object.values(jar).map((entry) => entry.value)).toContain('tvly-new');
   const stored = after.engines[0];
   expect(JSON.stringify(after)).not.toContain('tvly-new');
   expect(stored?.key_configured).toBe(true);
@@ -186,13 +184,14 @@ test('a kept key never follows an engine to a different provider', async () => {
 test('removing an engine recycles the credential it referenced', async () => {
   const f = await fixture();
   await f.save({ enabled: true, url_filters: [], engines: [TAVILY] }, (await f.view()).revision);
-  expect(Object.values(await f.jar())).toContain('tvly-new');
+  expect(Object.values(await f.jar()).map((entry) => entry.value)).toContain('tvly-new');
   const cleared = await f.save({ enabled: false, url_filters: [], engines: [] }, (await f.view()).revision);
   expect(cleared.status).toBe(200);
   const after = (await cleared.json()) as SearchConfigView;
   expect(after.engines).toEqual([]);
   expect(after.active).toBe(false);
-  expect(Object.values(await f.jar())).not.toContain('tvly-new');
+  // Automatic reclamation is gone: the orphaned entry waits for an explicit purge.
+  expect(Object.values(await f.jar()).map((entry) => entry.value)).toContain('tvly-new');
 });
 
 test('a stale revision is refused and leaves the file untouched', async () => {
@@ -270,7 +269,7 @@ test('an unregistered provider is rejected with a panel error', async () => {
   expect((await loadConfig(f.path)).fileConfig.web_search).toBeUndefined();
 });
 
-test('a DeepSeek engine can reuse the model provider key', async () => {
+test('an engine can reuse an existing keychain entry', async () => {
   const f = await fixture({ deepseek: true });
   const jarBefore = await f.jar();
   const response = await f.save(
@@ -282,8 +281,7 @@ test('a DeepSeek engine can reuse the model provider key', async () => {
           ...TAVILY,
           id: 'ds',
           provider: 'deepseek',
-          api_key: null,
-          key_source: 'deepseek',
+          api_key: { entry: 'deepseek' },
         },
       ],
     },
@@ -311,7 +309,6 @@ test('a keyless SearXNG engine saves with an address and no credential', async (
           note: null,
           api_key: null,
           keep_api_key: false,
-          key_source: null,
           enabled: true,
         },
       ],

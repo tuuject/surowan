@@ -1,4 +1,5 @@
 import { type Api, getSupportedThinkingLevels, type Model, type ModelThinkingLevel } from '@earendil-works/pi-ai';
+import { withAgentModel, withChatModel } from '../../../orchestration/model-switch.ts';
 import type { RawConfig } from '../../../platform/config/index.ts';
 import type {
   BotCommandConfigWriter,
@@ -8,9 +9,13 @@ import type {
   ConfigEdit,
   ConfigErrorCode,
   ConfigStatus,
+  KeychainChange,
+  KeychainPurgeResult,
+  KeychainSnapshot,
+  SecretWrite,
 } from '../../../platform/config/write.ts';
+import { keychainPath } from '../../../platform/keychain.ts';
 import { type AgentModelSwitcher, ModelSwitchError } from '../../../platform/models/switch.ts';
-import { withAgentModel, withChatModel } from '../../../orchestration/model-switch.ts';
 import type { RuntimeConfigurationStore } from '../../../platform/runtime-config.ts';
 import type { SecretStore } from '../../../platform/secrets.ts';
 import type { SearchProviderRule } from '../../../platform/web-search.ts';
@@ -25,6 +30,7 @@ import {
   writeChatThinkingLevel,
   writeChatUserIgnored,
 } from './reload-chat.ts';
+import { KeychainController } from './reload-keychain.ts';
 
 /**
  * The image configuration gateway. The reloader prepares a candidate snapshot
@@ -62,11 +68,20 @@ export interface ConfigReloaderOptions {
    */
   readonly validateAgentModel: (config: RawConfig, model: Model<Api>) => void;
   /** Called after every successful publish; awaited so cutovers finish before apply returns. */
-  readonly onPublished: () => void | Promise<void>;
+  readonly onPublished: (info: { readonly rotatedMcpAliases: readonly string[] }) => void | Promise<void>;
   /** Optional image configuration gateway; present when the image service runs. */
   readonly imageConfig?: ImageConfigGateway;
   /** Optional Telegram token gateway; present when this process serves Telegram. */
   readonly telegramConfig?: TelegramConfigGateway;
+  /**
+   * Per-alias SecretRef digest the startup registry was built from, and the
+   * per-entry digests of the startup configuration. The first reload compares
+   * against these instead of rebuilding everything. Omitting them seeds the
+   * state lazily on the first apply, without flagging rotations.
+   */
+  readonly providerKeyDigests?: Readonly<Record<string, string>>;
+  readonly jarDigests?: Readonly<Record<string, string>>;
+  readonly mcpServerKeyDigests?: Readonly<Record<string, string>>;
   /**
    * Search providers registered by the loaded plugins. Every read of the file
    * — reload, panel write, panel read — validates engine ids against this set,
@@ -90,7 +105,7 @@ export class ConfigReloader implements BotCommandConfigWriter, ConfigController 
   readonly #modelSwitcher: AgentModelSwitcher;
   readonly #secrets: SecretStore;
   readonly #validateAgentModel: (config: RawConfig, model: Model<Api>) => void;
-  readonly #onPublished: () => void | Promise<void>;
+  readonly #onPublished: (info: { readonly rotatedMcpAliases: readonly string[] }) => void | Promise<void>;
   readonly #imageConfig: ImageConfigGateway | undefined;
   readonly #telegramConfig: TelegramConfigGateway | undefined;
   readonly #searchProviders: readonly SearchProviderRule[] | undefined;
@@ -116,8 +131,50 @@ export class ConfigReloader implements BotCommandConfigWriter, ConfigController 
       lastError: null,
       imageSnapshotId: null,
       telegramTokenId: null,
+      providerKeyDigests: options.providerKeyDigests ?? {},
+      jarDigests: options.jarDigests ?? {},
+      digestsSeeded: options.providerKeyDigests !== undefined,
+      mcpServerKeyDigests: options.mcpServerKeyDigests ?? {},
+      mcpDigestsSeeded: options.mcpServerKeyDigests !== undefined,
+      pendingMcpRotations: new Set(),
       publicationPending: false,
     };
+    this.keychain = new KeychainController({
+      keychainFile: keychainPath(options.loaded.configPath),
+      configPath: options.loaded.configPath,
+      store: options.store,
+      state: this.#state,
+      withLock: (operation) => this.#withLock(operation),
+      applyFile: () => this.#applyFile(),
+    });
+  }
+
+  keychainSnapshot(): Promise<KeychainSnapshot> {
+    return this.keychain.keychainSnapshot();
+  }
+
+  writeSecretsAndApply(
+    edits: readonly ConfigEdit[],
+    secrets: SecretWrite,
+    expectedRevision?: string,
+  ): Promise<ConfigApplyResult> {
+    return this.keychain.writeSecretsAndApply(edits, secrets, expectedRevision);
+  }
+
+  keychainWrite(change: KeychainChange): Promise<void> {
+    return this.keychain.keychainWrite(change);
+  }
+
+  keychainRotate(name: string, value: string): Promise<ConfigApplyResult> {
+    return this.keychain.keychainRotate(name, value);
+  }
+
+  keychainDelete(name: string): Promise<void> {
+    return this.keychain.keychainDelete(name);
+  }
+
+  keychainPurge(names: readonly string[]): Promise<KeychainPurgeResult> {
+    return this.keychain.keychainPurge(names);
   }
 
   status(): ConfigStatus {
@@ -150,6 +207,8 @@ export class ConfigReloader implements BotCommandConfigWriter, ConfigController 
   get configPath(): string {
     return this.#configPath;
   }
+
+  readonly keychain: KeychainController;
 
   /** Options every read of the file shares; the provider set is part of validation. */
   #loadOptions(): { readonly searchProviders?: readonly SearchProviderRule[] } {
@@ -337,7 +396,7 @@ export class ConfigReloader implements BotCommandConfigWriter, ConfigController 
       telegramConfig: this.#telegramConfig,
       ...(this.#searchProviders === undefined ? {} : { searchProviders: this.#searchProviders }),
       validateAgentModel: (config, model) => this.#validateAgentModel(config, model),
-      onPublished: () => this.#onPublished(),
+      onPublished: (info) => this.#onPublished(info),
       failure: (code, message, fileWritten) => this.#failure(code, message, fileWritten),
       applied: (applied, restartRequired, outsideServe) => this.#applied(applied, restartRequired, outsideServe),
       logReloaded: (applied, restartRequired, outsideServe) =>

@@ -7,7 +7,7 @@ const TEST_GLOBS = [
 ];
 
 // Files that vi.mock a module other suites also evaluate (node:fs/promises,
-// grammy, src/platform/subprocess.ts). Under a shared module registry the mock
+// grammy, src/platform/subprocess.ts, @inquirer/prompts). Under a shared module registry the mock
 // factory only applies while the file that registered it is running, so these
 // keep per-file isolation — each gets its own worker, exactly as before.
 const ISOLATED_FILES = [
@@ -18,6 +18,7 @@ const ISOLATED_FILES = [
   'test/memo/blobs.test.ts',
   'test/memo/image.test.ts',
   'test/playground/only.test.ts',
+  'test/tui-secret-ref.test.ts',
 ];
 
 export default defineConfig({

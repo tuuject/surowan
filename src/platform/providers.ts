@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import {
   type Api,
   createModels,
@@ -15,12 +16,19 @@ import { googleGenerativeAIApi } from '@earendil-works/pi-ai/api/google-generati
 import { openAICompletionsApi } from '@earendil-works/pi-ai/api/openai-completions.lazy';
 import { openAIResponsesApi } from '@earendil-works/pi-ai/api/openai-responses.lazy';
 import { builtinModelApi, findBuiltinProvider } from './builtin-providers.ts';
-import type { FileConfig, ModelCompatConfig, ModelFileConfig, RawConfig, ThinkingLevelConfig } from './config/index.ts';
 import { deepEqual } from './config/diff-merge.ts';
+import type {
+  FileConfig,
+  ModelCompatConfig,
+  ModelFileConfig,
+  RawConfig,
+  SecretRef,
+  ThinkingLevelConfig,
+} from './config/index.ts';
+import { activeVisionModel, completeAgentSettings, resolveAgentSettings } from './config/resolve.ts';
 import type { ConfigurationModels } from './runtime-config.ts';
 import type { SecretStore } from './secrets.ts';
 import { thinkingLevelMap } from './thinking-levels.ts';
-import { activeVisionModel, completeAgentSettings, resolveAgentSettings } from './config/resolve.ts';
 
 type ProviderFileConfig = FileConfig['providers'][string];
 
@@ -33,11 +41,14 @@ const CUSTOM_ADAPTERS: Record<string, () => ProviderStreams> = {
 
 /**
  * The registry a reload starts from: the file layer the running process was
- * built from, and the providers it registered.
+ * built from, the providers it registered, and a digest of the SecretRef
+ * values each provider was built from.
  */
 export interface PreviousRegistry {
   readonly file: FileConfig;
   readonly models: Models;
+  /** Per-alias connection digest at the time the running provider was built. */
+  readonly keyDigests?: Readonly<Record<string, string>>;
 }
 
 /**
@@ -47,8 +58,10 @@ export interface PreviousRegistry {
  * A provider whose connection fields are unchanged keeps its resolved connection
  * and auth, so credentials are never resolved twice — a `command` SecretRef runs
  * a process, and only an explicitly requested reload of a new or changed
- * connection may have that side effect. `previous` is `null` at startup, which
- * builds every provider from the file.
+ * connection may have that side effect. A rotation is a change the file does not
+ * show: when the previous registry records a different digest for the alias's
+ * SecretRefs, the provider is rebuilt too. `previous` is `null` at startup,
+ * which builds every provider from the file.
  *
  * Builtin providers keep Pi's base URL, headers and provider-specific logic, but
  * their model list comes from the configuration alone: the catalog decides what
@@ -60,8 +73,11 @@ export async function buildModelRegistry(
   secrets: SecretStore,
 ): Promise<ConfigurationModels> {
   const models = createModels();
+  const keyDigests: Record<string, string> = {};
   for (const [alias, configured] of Object.entries(config.providers)) {
-    const existing = reusableProvider(previous, alias, configured);
+    const digest = await connectionKeyDigest(configured, secrets);
+    keyDigests[alias] = digest;
+    const existing = reusableProvider(previous, alias, configured, digest);
     if (existing !== null) {
       // The model list is built once and closed over, exactly as the provider it
       // replaces did: a lookup must not rebuild the objects on every call.
@@ -106,13 +122,13 @@ export async function buildModelRegistry(
   }
   const vision = activeVisionModel(config.vision);
   if (vision === undefined) {
-    return { models, visionModel: undefined };
+    return { models, visionModel: undefined, keyDigests };
   }
   const visionModel = requireModel(models, vision.provider, vision.model, ['image']);
   if (config.vision.max_output_tokens > visionModel.maxTokens) {
     throw new Error('Vision max_output_tokens exceeds registered model limit');
   }
-  return { models, visionModel };
+  return { models, visionModel, keyDigests };
 }
 
 /** Selected model/thinking pairs, deduplicated across the default and every Chat. */
@@ -181,12 +197,16 @@ export function modelsForTelegramChats(
 
 /**
  * The registered provider to keep for one configured alias, or `null` when the
- * alias has to be built from scratch.
+ * alias has to be built from scratch. The connection digest must match the one
+ * the running provider was built from as well: a keychain rotation changes the
+ * value without touching the file, and reusing the old connection would keep
+ * serving the rotated-away secret.
  */
 function reusableProvider(
   previous: PreviousRegistry | null,
   alias: string,
   configured: ProviderFileConfig,
+  digest: string,
 ): Provider | null {
   if (previous === null) {
     return null;
@@ -195,7 +215,33 @@ function reusableProvider(
   if (previousConfig === undefined || !sameConnection(previousConfig, configured)) {
     return null;
   }
+  // Without a recorded digest (a caller that does not track rotations, or the
+  // first reload of a process started before this state existed) the file
+  // comparison alone decides.
+  const recorded = previous.keyDigests?.[alias];
+  if (recorded !== undefined && recorded !== digest) {
+    return null;
+  }
   return previous.models.getProvider(alias) ?? null;
+}
+
+/**
+ * One digest for every SecretRef a provider's connection carries. Values under
+ * `env` and `command` digest to a constant, so only a keychain rotation can
+ * change the result — and checking for one never runs a command.
+ */
+/** One digest for a list of SecretRefs, in order; values never leave memory. */
+export async function secretRefsDigest(references: readonly SecretRef[], secrets: SecretStore): Promise<string> {
+  const digests: string[] = [];
+  for (const reference of references) {
+    digests.push(await secrets.digestOf(reference));
+  }
+  return createHash('sha256').update(JSON.stringify(digests)).digest('hex');
+}
+
+async function connectionKeyDigest(configured: ProviderFileConfig, secrets: SecretStore): Promise<string> {
+  const headerRefs: readonly SecretRef[] = configured.kind === 'custom' ? Object.values(configured.headers ?? {}) : [];
+  return await secretRefsDigest([configured.api_key, ...headerRefs], secrets);
 }
 
 /**

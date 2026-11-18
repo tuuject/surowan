@@ -3,8 +3,8 @@ import type { FileConfig } from '../../platform/config/index.ts';
 import { addProvider, editProvider, selectProviderAlias } from './provider.ts';
 import type { ProviderAction, ProviderConfig } from './support.ts';
 
-/** `keyJar` is the path of the key jar that typed secrets are stored in. */
-export async function runProviderWizard(config: FileConfig, keyJar: string): Promise<FileConfig> {
+/** `keychain` is the keychain file that typed secrets are stored in. */
+export async function runProviderWizard(config: FileConfig, keychain: string): Promise<FileConfig> {
   let providers: Record<string, ProviderConfig> = { ...(config.providers as Record<string, ProviderConfig>) };
   let exit = false;
   while (!exit) {
@@ -19,7 +19,7 @@ export async function runProviderWizard(config: FileConfig, keyJar: string): Pro
     const action = await select<ProviderAction>({ message: 'Configure providers', choices });
     switch (action) {
       case 'add': {
-        const provider = await addProvider(keyJar);
+        const provider = await addProvider(keychain);
         if (provider !== undefined) {
           const config = provider.config as ProviderConfig;
           providers = { ...providers, [provider.alias]: config };
@@ -30,7 +30,7 @@ export async function runProviderWizard(config: FileConfig, keyJar: string): Pro
         const alias = await selectProviderAlias(providers);
         if (alias !== undefined) {
           const toEdit = providers[alias] as ProviderConfig;
-          const updated: ProviderConfig | undefined = await editProvider(toEdit, keyJar);
+          const updated: ProviderConfig | undefined = await editProvider(toEdit, keychain, alias);
           if (updated !== undefined) {
             providers = { ...providers, [alias]: updated };
           }

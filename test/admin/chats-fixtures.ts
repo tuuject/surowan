@@ -7,7 +7,7 @@ import { AdminServer } from '../../src/ingress/admin/index.ts';
 import { loadConfig } from '../../src/adapters/local-monolith/config/index.ts';
 import { ConfigReloader } from '../../src/adapters/local-monolith/config/reload.ts';
 import { AgentModelSwitcher } from '../../src/platform/models/switch.ts';
-import { keyJarPath } from '../../src/platform/key-jar.ts';
+import { keychainPath } from '../../src/platform/keychain.ts';
 import { SecretStore } from '../../src/platform/secrets.ts';
 import { SqliteStore } from '../../src/adapters/local-monolith/database.ts';
 import { afterThisTest, type FixtureConfig, testConfigJsonc, testConfigStore, writeTestConfig } from '../helpers.ts';
@@ -57,7 +57,7 @@ export async function fixture(transform?: (config: FixtureConfig) => void) {
     },
   );
   const configStore = await testConfigStore(loaded);
-  const secrets = new SecretStore(keyJarPath(path));
+  const secrets = new SecretStore(keychainPath(path));
   const switcher = new AgentModelSwitcher(configStore);
   const validate = vi.fn();
   const reloader = new ConfigReloader({

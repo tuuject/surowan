@@ -13,7 +13,7 @@ import { loadConfig } from '../../src/adapters/local-monolith/config/index.ts';
 import { previewContext } from '../../src/platform/invocation-context.ts';
 import { buildModelRegistry } from '../../src/platform/providers.ts';
 import { RuntimeConfigurationStore, type InvocationConfigSnapshot } from '../../src/platform/runtime-config.ts';
-import { keyJarPath } from '../../src/platform/key-jar.ts';
+import { keychainPath } from '../../src/platform/keychain.ts';
 import { SecretStore } from '../../src/platform/secrets.ts';
 import { emptySystemResources } from '../../src/platform/system-resources.ts';
 import { SqliteStore } from '../../src/adapters/local-monolith/database.ts';
@@ -89,7 +89,7 @@ async function setup(): Promise<Fixture> {
   await writeTestConfig(directory, configPath, jsonc);
   const loaded = await loadConfig(configPath);
   const store = await SqliteStore.open(loaded.config);
-  const registry = await buildModelRegistry(loaded.config, null, new SecretStore(keyJarPath(configPath)));
+  const registry = await buildModelRegistry(loaded.config, null, new SecretStore(keychainPath(configPath)));
   const configStore = new RuntimeConfigurationStore({ config: loaded.config, hash: loaded.hash, ...registry });
   const sends: string[] = [];
   let messageId = 900;

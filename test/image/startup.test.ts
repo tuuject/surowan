@@ -9,7 +9,7 @@ import {
   stopFixtureServer,
   testConfigJsonc,
   writeTestConfig,
-  writeTestKeyJar,
+  writeTestKeychain,
 } from '../helpers.ts';
 
 const { getMe } = vi.hoisted(() => ({ getMe: vi.fn() }));
@@ -126,7 +126,7 @@ test('serve loads persisted image configuration before the Telegram attempt and 
   timeout: 30_000,
 }, async () => {
   const configPath = await writeConfig(imageConfig);
-  await writeTestKeyJar(directory, { 'image-startup': 'fixture-image-secret' });
+  await writeTestKeychain(directory, { 'image-startup': 'fixture-image-secret' });
   const create = vi.spyOn(imageService, 'createImageService');
   const events = recordEvents();
 

@@ -18,24 +18,24 @@ export function EngineEditor({
   draft,
   providers,
   provider,
-  deepseekKeys,
+  entries,
   disabled,
   onChange,
 }: {
   readonly draft: EngineDraft;
   readonly providers: readonly SearchProviderView[];
   readonly provider: SearchProviderView | undefined;
-  readonly deepseekKeys: readonly string[];
+  /** Keychain entries the panel session may pick for this engine. */
+  readonly entries: readonly string[];
   readonly disabled: boolean;
   readonly onChange: (change: Partial<EngineDraft>) => void;
 }): ReactElement {
   const { t } = useTranslation();
   const idPrefix = `search-engine-${draft.key}`;
-  const canReuseModelKey = provider?.id === 'deepseek' && deepseekKeys.length > 0;
   const keyModes: KeyMode[] = [
     ...(canKeepKey(draft) ? (['keep'] as const) : []),
     'new',
-    ...(canReuseModelKey ? (['alias'] as const) : []),
+    ...(entries.length > 0 ? (['entry'] as const) : []),
   ];
   const keyMode: KeyMode = keyModes.includes(draft.keyMode) ? draft.keyMode : (keyModes[0] ?? 'new');
   // Only "new" available means no choice to make: show the paste field alone.
@@ -135,12 +135,12 @@ export function EngineEditor({
               className={css({ width: '100%', md: { width: '288px' } })}
               value={keyMode}
               onChange={(event) => {
-                // Entering alias mode stores the alias the picker shows, so a
-                // single available alias needs no extra pick before saving.
+                // Entering entry mode preselects the first available entry, so a
+                // single candidate needs no extra pick before saving.
                 const value = event.target.value;
                 onChange(
-                  value === 'alias' && draft.keyAlias === ''
-                    ? { keyMode: 'alias', keyAlias: deepseekKeys[0] ?? '' }
+                  value === 'entry' && draft.keyEntry === ''
+                    ? { keyMode: 'entry', keyEntry: entries[0] ?? '' }
                     : { keyMode: value as KeyMode },
                 );
               }}
@@ -148,7 +148,7 @@ export function EngineEditor({
             >
               {keyModes.includes('keep') ? <option value="keep">{t('search.keyKeep')}</option> : null}
               {keyModes.includes('new') ? <option value="new">{t('search.keyNew')}</option> : null}
-              {keyModes.includes('alias') ? <option value="alias">{t('search.keyReuse')}</option> : null}
+              {keyModes.includes('entry') ? <option value="entry">{t('search.keyEntry')}</option> : null}
             </Select>
           ) : null}
           {keyMode === 'new' ? (
@@ -164,16 +164,16 @@ export function EngineEditor({
               dir="ltr"
             />
           ) : null}
-          {keyMode === 'alias' ? (
+          {keyMode === 'entry' ? (
             <Select
               className={css({ width: '100%', md: { width: '288px' } })}
-              value={draft.keyAlias}
-              onChange={(event) => onChange({ keyAlias: event.target.value })}
+              value={draft.keyEntry}
+              onChange={(event) => onChange({ keyEntry: event.target.value })}
               disabled={disabled}
             >
-              {deepseekKeys.map((alias) => (
-                <option key={alias} value={alias}>
-                  {alias}
+              {entries.map((name) => (
+                <option key={name} value={name}>
+                  {name}
                 </option>
               ))}
             </Select>

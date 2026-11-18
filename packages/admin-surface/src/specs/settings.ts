@@ -28,7 +28,7 @@ export const TELEGRAM_SPECS: readonly EndpointSpec[] = [
     body: true,
     revision: 'config',
     nullClearedBy: { token: 'telegram token clear' },
-    summary: 'Save a new Bot Token into the key jar',
+    summary: 'Save a new Bot Token into the keychain',
   },
   {
     command: 'telegram token clear',

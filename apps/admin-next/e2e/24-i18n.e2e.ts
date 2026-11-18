@@ -43,8 +43,8 @@ const EN_GROUPS: readonly NavGroup[] = [
   },
   {
     label: 'System',
-    routes: ['/api-keys', '/developer', '/settings', '/preferences'],
-    labels: ['API keys', 'Developer', 'Settings', 'Panel preferences'],
+    routes: ['/api-keys', '/keychain', '/developer', '/settings', '/preferences'],
+    labels: ['API keys', 'Keychain', 'Developer', 'Settings', 'Panel preferences'],
   },
 ] as const;
 
@@ -76,6 +76,7 @@ const ZH_LABELS = [
   '机器人管理员',
   '贴纸集',
   'API 密钥',
+  '密钥',
   '开发者',
   '设置',
   '面板偏好',
@@ -125,7 +126,7 @@ test('seven parent groups collapse, expand, preserve order and open the current 
   });
   await expect(parents).toHaveCount(7);
   await expect(parents).toHaveText(EN_GROUPS.map((group) => group.label));
-  expect(EN_GROUPS.flatMap((group) => group.routes)).toHaveLength(29);
+  expect(EN_GROUPS.flatMap((group) => group.routes)).toHaveLength(30);
   await expect(nav.getByRole('button', { name: 'Agent data', exact: true }).locator('svg').first()).toBeVisible();
 
   const current = nav.getByRole('button', { name: 'Agent data', exact: true });
@@ -146,7 +147,7 @@ test('seven parent groups collapse, expand, preserve order and open the current 
     await expect(trigger).toHaveAttribute('aria-expanded', 'true');
     await expectGroupRoutes(page, group);
   }
-  await expect(nav.getByRole('link')).toHaveCount(29);
+  await expect(nav.getByRole('link')).toHaveCount(30);
 });
 
 test('language switch re-labels parents and children immediately and persists', async ({ page }) => {

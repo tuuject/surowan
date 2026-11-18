@@ -34,7 +34,7 @@ export const search = {
   fieldKey: 'Credential',
   keyKeep: 'Keep the configured key',
   keyNew: 'Enter a new key',
-  keyReuse: 'Reuse a DeepSeek model key',
+  keyEntry: 'Use an existing entry',
   keyPlaceholder: 'Paste the API key',
   keyForbidden: 'This provider takes no credential.',
   keyOptional: 'The key is optional; without one the free endpoint is used.',

@@ -3,23 +3,20 @@
  * the loops that keep the process alive until the shutdown path resolves.
  */
 
-import type { Context } from 'grammy';
 import { reconcileStickerSets } from '../../../capabilities/stickers/sets.ts';
+import type { Context } from 'grammy';
 import { ConversationContextStore } from '../../../context/store/index.ts';
-import type { ImageService } from '../../../image/service.ts';
-import { AdminQueryError } from '../../../ingress/admin/audit/shared.ts';
-import { AdminServer } from '../../../ingress/admin/index.ts';
-import type { TelegramIngestion } from '../../../ingress/telegram-ingestion/index.ts';
-import { BotCommandService } from '../../../orchestration/bot-commands/index.ts';
-import { ReplayError, ReplayRunner } from '../../../orchestration/replay/index.ts';
-import { type CoreRuntime, createCoreRuntime } from '../../../orchestration/runtime.ts';
-import type { ImHost } from '../../../platform/im-host/index.ts';
 import { previewContext } from '../../../platform/invocation-context.ts';
-import { webSearchAvailable } from '../../../platform/web-search.ts';
 import { WEB_SEARCH_PROVIDERS } from '../../../plugins/web-search/extension.ts';
-import { runRuntimeCatchUp } from '../../../runtime-catch-up.ts';
 import { runStartupCatchUp } from '../../../startup-catch-up.ts';
 import { recordPromptVersionsFromConfig } from '../../../store/prompt-versions.ts';
+import type { ImageService } from '../../../image/service.ts';
+import type { TelegramIngestion } from '../../../ingress/telegram-ingestion/index.ts';
+import { BotCommandService } from '../../../orchestration/bot-commands/index.ts';
+import { type CoreRuntime, createCoreRuntime } from '../../../orchestration/runtime.ts';
+import type { ImHost } from '../../../platform/im-host/index.ts';
+import { webSearchAvailable } from '../../../platform/web-search.ts';
+import { runRuntimeCatchUp } from '../../../runtime-catch-up.ts';
 import { activeSleepUntil } from '../../../store/sleep.ts';
 import { ConfigReloader } from '../config/reload.ts';
 import { imageDeliveryResolver } from '../host-tooling.ts';
@@ -38,8 +35,8 @@ import {
 } from './chat-lifecycle.ts';
 import { createMcpPublication } from './mcp-publication.ts';
 import type { ServeAssembly, ServeHosts, ServeServices } from './serve.ts';
-import { ALLOWED_UPDATES, logEvent, replyToCommand, resolveConversation, type ServeContext } from './support.ts';
 import { publishStickerSets } from './sticker-sets.ts';
+import { ALLOWED_UPDATES, logEvent, replyToCommand, resolveConversation, type ServeContext } from './support.ts';
 import { abortRunningInvocationsOnSearchDisable } from './web-search-availability.ts';
 
 /** The wired runtime, its scheduler and the command path the panel shares. */
@@ -203,6 +200,9 @@ export async function startCoreRuntime(session: ServeContext, assembly: ServeAss
     store: configStore,
     modelSwitcher,
     secrets,
+    providerKeyDigests: assembly.providerKeyDigests,
+    jarDigests: assembly.jarDigests,
+    mcpServerKeyDigests: assembly.mcpServerKeyDigests,
     imageConfig: {
       prepare: (candidate) =>
         imageService === undefined ? Promise.resolve(undefined) : imageService.prepareConfig(candidate, secrets),
@@ -217,7 +217,7 @@ export async function startCoreRuntime(session: ServeContext, assembly: ServeAss
     searchProviders,
     validateAgentModel: (candidate, model) => mcpPublication.validateModel(candidate, model),
     // A raised max_concurrency only takes effect on the next scheduler tick.
-    onPublished: async () => {
+    onPublished: async ({ rotatedMcpAliases }) => {
       const nextConfig = configStore.current().config;
       const removedChats = removedTelegramChatIds(publishedConfig, nextConfig);
       if (removedChats.length > 0) {
@@ -269,8 +269,14 @@ export async function startCoreRuntime(session: ServeContext, assembly: ServeAss
       }
       // MCP servers and per-Chat bindings are adopted here: the affected Chats
       // are stopped and rebuilt before the server instances move, and the
-      // consequences are logged as one event per publish.
-      await mcpPublication.publish(publishedConfig, nextConfig, configStore.current().generation);
+      // consequences are logged as one event per publish. Aliases whose secret
+      // references rotated reconnect the same way.
+      await mcpPublication.publish(
+        publishedConfig,
+        nextConfig,
+        configStore.current().generation,
+        new Set(rotatedMcpAliases),
+      );
       publishedConfig = nextConfig;
       if (addedChats.length > 0) {
         // A Chat can be removed and added again while its stored Memo Pad
@@ -363,125 +369,4 @@ export async function startCoreRuntime(session: ServeContext, assembly: ServeAss
   assembly.sleeping.start();
   state.sleeping = assembly.sleeping;
   return { runtime, startedScheduler, conversationRuntime, configReloader, commands };
-}
-
-/** Starts the Admin panel when the config enables it; a no-op otherwise. */
-export async function startAdminServer(session: ServeContext, assembly: ServeAssembly, core: ServeCore): Promise<void> {
-  const { loaded, secrets, requestRestart, replayShutdown, state } = session;
-  const {
-    store,
-    configStore,
-    tasks,
-    recurringAlarms,
-    modelSwitcher,
-    media,
-    mediaClient,
-    modelGate,
-    systemResources,
-    imageService,
-    imageBridge,
-    playgroundAssets,
-    playgroundStore,
-    playgroundIngress,
-    skillVisibleForHost,
-    plugins,
-    warnings,
-    connections,
-    mcpManager,
-  } = assembly;
-  const searchProviders = plugins.extensions(WEB_SEARCH_PROVIDERS).map((provider) => provider.rule);
-  const { runtime, startedScheduler, configReloader } = core;
-  if (loaded.config.admin.enabled) {
-    const replay = new ReplayRunner({
-      store,
-      configStore,
-      secrets,
-      systemResources,
-      modelGate,
-      shutdownSignal: replayShutdown.signal,
-      toolDefinitions: (context, config) => runtime.sceneToolDefinitions(context, config),
-      skillVisibility: (skill, target) => skillVisibleForHost(skill, target),
-      imageLoader: async (mediaId, signal) => {
-        const image = await media.prepareSceneImage(mediaId, signal);
-        return { type: 'image', data: image.base64, mimeType: image.mime };
-      },
-    });
-    const adminServer = new AdminServer({
-      store,
-      configStore,
-      connections,
-      scheduler: startedScheduler,
-      tasks,
-      recurringAlarms,
-      modelSwitcher,
-      configReloader,
-      secrets,
-      searchProviders,
-      warnings,
-      mcpServerStates: () => mcpManager.serverStates(),
-      requestRestart,
-      imageService,
-      imageBridge,
-      playground: {
-        store,
-        rooms: playgroundStore,
-        ingress: playgroundIngress,
-        assets: playgroundAssets,
-      },
-      mediaDownloader: mediaClient,
-      shutdownSignal: replayShutdown.signal,
-      replayPreflight: (id, selection) => {
-        try {
-          return replay.inspect(id, selection);
-        } catch (error) {
-          if (error instanceof ReplayError) {
-            throw new AdminQueryError(error.code, error.message, error.status);
-          }
-          throw error;
-        }
-      },
-      invocationPrompts: (id) => {
-        try {
-          return replay.prompts(id);
-        } catch (error) {
-          if (error instanceof ReplayError) {
-            throw new AdminQueryError(error.code, error.message, error.status);
-          }
-          throw error;
-        }
-      },
-      replayInvocation: async (id, input, signal) => {
-        try {
-          return await replay.run(id, input, signal);
-        } catch (error) {
-          if (error instanceof ReplayError) {
-            throw new AdminQueryError(error.code, error.message, error.status);
-          }
-          throw error;
-        }
-      },
-    });
-    state.admin = adminServer;
-    const listening = await adminServer.start();
-    logEvent('admin_started', { host: listening.hostname, port: listening.port });
-  }
-}
-
-/**
- * Blocks until a signal, takeover or panel restart resolves the idle promise.
- * Long polling belongs to the connection manager, so there is never a bot loop
- * for this function to await: Telegram may be disabled, connecting or running
- * and the process stays alive for the panel and rooms either way.
- */
-export async function runServeLoop(session: ServeContext, assembly: ServeAssembly): Promise<void> {
-  const { loaded, idle } = session;
-  const state = assembly.connections.get('telegram');
-  const identity = assembly.telegram.identity;
-  logEvent('serve_started', {
-    mode: state.status,
-    ...(state.status === 'config_error' ? { reason: state.reason } : {}),
-    bot_id: identity === undefined ? null : String(identity.id),
-    config_hash: loaded.hash,
-  });
-  await idle;
 }

@@ -24,7 +24,7 @@ import { TelegramReadiness } from '../../src/adapters/local-monolith/telegram/co
 import type { TelegramIdentity } from '../../src/adapters/local-monolith/telegram/instance.ts';
 import { TelegramInstanceHolder } from '../../src/adapters/local-monolith/telegram/instance.ts';
 import { ImConnectionRegistry, type ImConnectionState } from '../../src/platform/im-connection.ts';
-import { keyJarPath } from '../../src/platform/key-jar.ts';
+import { keychainPath } from '../../src/platform/keychain.ts';
 import { SecretStore } from '../../src/platform/secrets.ts';
 import type { TelegramIngestion } from '../../src/ingress/telegram-ingestion/index.ts';
 import type { StickerService } from '../../src/capabilities/stickers/index.ts';
@@ -224,7 +224,7 @@ export async function openConnectionFixture(options: FixtureOptions = {}): Promi
   const loaded = await loadConfig(configPath);
   const store = await SqliteStore.open(loaded.config);
   const configStore = await testConfigStore({ config: loaded.config, hash: loaded.hash, configPath });
-  const secrets = new SecretStore(keyJarPath(configPath));
+  const secrets = new SecretStore(keychainPath(configPath));
   const connections = new ImConnectionRegistry(() => new Date(NOW));
   const readiness = new TelegramReadiness(connections);
   const holder = new TelegramInstanceHolder();

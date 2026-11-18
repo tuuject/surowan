@@ -1,49 +1,49 @@
-import { noMemoReads } from '../src/platform/invocation-context.ts';
 import { access, chmod, rm, writeFile } from 'node:fs/promises';
-import { onTestFinished } from 'vitest';
 import { dirname, join } from 'node:path';
 import { type Api, createModels, type FauxProviderHandle, type Model, type Models } from '@earendil-works/pi-ai';
-import { serve, type ServerType } from '@hono/node-server';
-import type { AgentSectionConfig, FileConfig, RawConfig, ThinkingLevelConfig } from '../src/platform/config/index.ts';
-import { buildModelRegistry } from '../src/platform/providers.ts';
-import { RuntimeConfigurationStore } from '../src/platform/runtime-config.ts';
-import { keyJarPath } from '../src/platform/key-jar.ts';
-import { SecretStore } from '../src/platform/secrets.ts';
-import type { SystemResources } from '../src/platform/system-resources.ts';
+import { type ServerType, serve } from '@hono/node-server';
+import { onTestFinished } from 'vitest';
 import { BUNDLED_SYSTEM_RESOURCES_DIR, FileSystemResources } from '../src/adapters/local-monolith/system-resources.ts';
-import { BUILTIN_PLUGINS } from '../src/plugins/builtin.ts';
-import { loadPlugins } from '../src/plugins/plugin.ts';
-import type {
-  DirectImage,
-  InvocationContext,
-  CapabilityRefResolver,
-  VisibleSender,
-} from '../src/platform/invocation-context.ts';
-import type { PromptTemplateModel } from '../src/platform/prompt-template.ts';
-import {
-  identityConversation,
-  type ConversationScope,
-  type ImConversationRef,
-} from '../src/platform/im-host/identity.ts';
-import type { ImSendRatePolicy } from '../src/platform/im-host/policy.ts';
 import {
   createTelegramHost,
   type TelegramHost,
   type TelegramTransport,
 } from '../src/adapters/local-monolith/telegram/host.ts';
+import type { AgentSectionConfig, FileConfig, RawConfig, ThinkingLevelConfig } from '../src/platform/config/index.ts';
+import {
+  type ConversationScope,
+  type ImConversationRef,
+  identityConversation,
+} from '../src/platform/im-host/identity.ts';
+import type { ImSendRatePolicy } from '../src/platform/im-host/policy.ts';
+import type {
+  CapabilityRefResolver,
+  DirectImage,
+  InvocationContext,
+  VisibleSender,
+} from '../src/platform/invocation-context.ts';
+import { noMemoReads } from '../src/platform/invocation-context.ts';
+import { keychainPath } from '../src/platform/keychain.ts';
+import type { PromptTemplateModel } from '../src/platform/prompt-template.ts';
+import { buildModelRegistry } from '../src/platform/providers.ts';
+import { RuntimeConfigurationStore } from '../src/platform/runtime-config.ts';
+import { SecretStore } from '../src/platform/secrets.ts';
+import type { SystemResources } from '../src/platform/system-resources.ts';
+import { BUILTIN_PLUGINS } from '../src/plugins/builtin.ts';
+import { loadPlugins } from '../src/plugins/plugin.ts';
 
 export type { TelegramHost, TelegramTransport };
 
+import { eq } from 'drizzle-orm';
+import type { SqliteStore } from '../src/adapters/local-monolith/database.ts';
 import { ContextBuilder, type Injection } from '../src/context/builder/index.ts';
 import type { ContextInjector } from '../src/context/injector.ts';
 import { ContextRefStore, createCapabilityResolver } from '../src/context/refs.ts';
 import { ConversationContextStore } from '../src/context/store/index.ts';
 import type { ContextHeader } from '../src/context/store/types.ts';
-import type { SqliteStore } from '../src/adapters/local-monolith/database.ts';
-import { invocations } from '../src/store/schema/index.ts';
-import { eq } from 'drizzle-orm';
-import { KEY_JAR_FILE } from '../src/platform/config/validate.ts';
 import type { AgentRuntimeOptions } from '../src/orchestration/agent-runtime/types.ts';
+import { KEY_JAR_FILE } from '../src/platform/config/validate.ts';
+import { invocations } from '../src/store/schema/index.ts';
 
 /**
  * Reference resolver bound to one Conversation Context, exactly as the runtime
@@ -360,7 +360,7 @@ export async function testConfigStore(
   registry?: TestRegistry,
 ): Promise<RuntimeConfigurationStore> {
   const resolved =
-    registry ?? (await buildModelRegistry(initial.config, null, new SecretStore(keyJarPath(initial.configPath))));
+    registry ?? (await buildModelRegistry(initial.config, null, new SecretStore(keychainPath(initial.configPath))));
   return new RuntimeConfigurationStore({ ...initial, ...resolved });
 }
 
@@ -406,7 +406,7 @@ export async function writeTestConfig(
   await writeFile(join(directory, 'agent-system-prompt.md'), systemPrompt);
   await writeFile(join(directory, 'chat-instructions.md'), chatInstructions);
   await writeFile(configPath, jsonc);
-  await writeTestKeyJar(dirname(configPath));
+  await writeTestKeychain(dirname(configPath));
   if (process.platform !== 'win32') {
     // Reload and the config writer demand mode 0600, like `serve` does. Tests
     // that exercise the permission check change this themselves.
@@ -415,19 +415,26 @@ export async function writeTestConfig(
 }
 
 /** The entries `testConfigJsonc` references; a test adds its own through `entries`. */
-export const TEST_KEY_JAR: Readonly<Record<string, string>> = {
+export const TEST_KEYCHAIN: Readonly<Record<string, string>> = {
   telegram: 'telegram-secret',
   agent: 'agent-secret',
   vision: 'vision-secret',
 };
 
-/** Writes `key.json` into a config directory with the mode the key jar demands. */
-export async function writeTestKeyJar(
+/** Writes `key.json` in the keychain format, with the mode the file demands. */
+export async function writeTestKeychain(
   directory: string,
   entries: Readonly<Record<string, string>> = {},
 ): Promise<void> {
   const path = join(directory, KEY_JAR_FILE);
-  await writeFile(path, `${JSON.stringify({ ...TEST_KEY_JAR, ...entries }, null, 2)}\n`, { mode: 0o600 });
+  const created = new Date(0).toISOString();
+  const keychain = {
+    version: 1,
+    entries: Object.fromEntries(
+      Object.entries({ ...TEST_KEYCHAIN, ...entries }).map(([name, value]) => [name, { value, created_at: created }]),
+    ),
+  };
+  await writeFile(path, `${JSON.stringify(keychain, null, 2)}\n`, { mode: 0o600 });
   await chmod(path, 0o600);
 }
 

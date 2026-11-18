@@ -1,13 +1,13 @@
-import { afterEach, describe, expect, test } from 'vitest';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { parseCli } from '../src/cli-options.ts';
+import { afterEach, describe, expect, test } from 'vitest';
 import { loadConfig } from '../src/adapters/local-monolith/config/index.ts';
+import { parseCli } from '../src/cli-options.ts';
 import { extractThinkingLevels, type ModelsDevModel } from '../src/platform/models-dev.ts';
 import { assertBaseUrl, fetchProviderModels, planModelsEndpoint } from '../src/platform/provider-models.ts';
-import { agentThinkingLevels, saveConfig } from '../src/tui/configure.ts';
 import { THINKING_LEVELS } from '../src/platform/thinking-levels.ts';
+import { agentThinkingLevels, saveConfig } from '../src/tui/configure.ts';
 import { startFixtureServer, stopFixtureServer, writeTestConfig } from './helpers.ts';
 
 const directories: string[] = [];

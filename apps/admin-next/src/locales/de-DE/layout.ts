@@ -83,6 +83,7 @@ export const layout: Catalog<typeof layoutEn> = {
     dictionary: 'Wörterbuch',
     botAdmins: 'Bot-Administratoren',
     apiKeys: 'API-Schlüssel',
+    keychain: 'Keychain',
     models: 'Modelle',
     providers: 'Anbieter',
     imageSettings: 'Bildeinstellungen',

@@ -2,38 +2,38 @@ import { join, resolve } from 'node:path';
 import type { ModelThinkingLevel } from '@earendil-works/pi-ai';
 import { type ServerType, serve } from '@hono/node-server';
 import type { MediaDownloader } from '../../capabilities/media/download.ts';
+import type { MemoBlobStore } from '../../context/memo-pad/blobs.ts';
 import type { ImageBridge } from '../../image/bridge.ts';
 import type { ImageService } from '../../image/service.ts';
-import type { AgentModelSwitcher } from '../../platform/models/switch.ts';
 import type { BucketScheduler } from '../../orchestration/scheduler/index.ts';
 import type { RawConfig } from '../../platform/config/index.ts';
-import type { ImConnectionRegistry } from '../../platform/im-connection.ts';
-import type { McpServerAvailability } from '../../platform/warning-catalog.ts';
 import type { ConfigController } from '../../platform/config/write.ts';
+import type { ImConnectionRegistry } from '../../platform/im-connection.ts';
+import type { AgentModelSwitcher } from '../../platform/models/switch.ts';
 import type { RuntimeConfigurationStore } from '../../platform/runtime-config.ts';
 import type { SecretStore } from '../../platform/secrets.ts';
+import type { McpServerAvailability } from '../../platform/warning-catalog.ts';
+import type { SearchProviderRule } from '../../platform/web-search.ts';
 import type { LongTaskService } from '../../store/long-tasks/index.ts';
 import type { RecurringAlarmService } from '../../store/recurring-alarms/index.ts';
-import type { MemoBlobStore } from '../../context/memo-pad/blobs.ts';
 import type { BusinessStore } from '../../store/store.ts';
 import { WarningService } from '../../store/warnings.ts';
-import { type AdminRoutes, createAdminRoutes } from './routes/index.ts';
-import { closeServer, json, parseOriginHost, redact } from './http.ts';
+import { authenticateApiKey, invalidApiKeys } from './api-keys.ts';
 import { AdminQueryError, parseId } from './audit/shared.ts';
 import { AdminAuth, AdminAuthError } from './auth.ts';
-import { AdminPasskeys } from './passkeys.ts';
-import type { PlaygroundAdminDeps } from './playground/index.ts';
-import type { SearchProviderRule } from '../../platform/web-search.ts';
-import { authenticateApiKey, invalidApiKeys } from './api-keys.ts';
+import { claimPairing } from './clients/pairing.ts';
+import { authenticateClientRequest } from './clients/signature.ts';
 import {
-  type ProgrammaticCredential,
   credentialLabel,
   gateProgrammaticCredential,
   isSignatureAuthorization,
+  type ProgrammaticCredential,
 } from './credential-gate.ts';
-import { authenticateClientRequest } from './clients/signature.ts';
-import { claimPairing } from './clients/pairing.ts';
+import { closeServer, json, parseOriginHost, redact } from './http.ts';
 import { McpEndpoint } from './mcp/index.ts';
+import { AdminPasskeys } from './passkeys.ts';
+import type { PlaygroundAdminDeps } from './playground/index.ts';
+import { type AdminRoutes, createAdminRoutes } from './routes/index.ts';
 
 export type AdminConfig = NonNullable<RawConfig['admin']>;
 
@@ -311,40 +311,44 @@ export class AdminServer {
       return authenticated.response;
     }
     const username = authenticated.session.username;
-    const response = await this.#dispatchAuthenticated(request, url, segments, username);
+    const response = await this.#dispatchAuthenticated(request, url, segments, username, 'session');
     return response ?? json({ error: 'not_found', message: 'Unknown admin API route' }, 404);
   }
 
   /**
-   * The authenticated dispatch shared by panel sessions and API keys. `apiKey`
-   * is the caller's own plaintext key, scrubbed from inspection output even
-   * when no SecretStore remembers it.
+   * The authenticated dispatch shared by panel sessions and API keys. `caller`
+   * is the credential class: programmatic credentials cannot reuse keychain
+   * entries and must re-enter keys when they move an address. `apiKey` is the
+   * caller's own plaintext key, scrubbed from inspection output even when no
+   * SecretStore remembers it.
    */
   async #dispatchAuthenticated(
     request: Request,
     url: URL,
     segments: readonly string[],
     username: string,
+    caller: 'session' | 'programmatic',
     apiKey?: string,
   ): Promise<Response | undefined> {
     const routes = this.#routes;
     let response = await routes.control.handle(request, segments, username);
     response ??= await routes.tuning.handle(request, segments);
     response ??= await routes.dictionary.handle(request, url, segments);
-    response ??= await routes.search.handle(request, url, segments);
+    response ??= await routes.search.handle(request, url, segments, caller);
     response ??= await routes.groupMemory.handle(request, url, segments);
     response ??= await routes.recurringAlarms.handle(request, url, segments, username);
     response ??= await routes.memory.handle(request, url, segments);
     response ??= await routes.admins.handle(request, segments);
     response ??= await routes.stickerSets.handle(request, segments);
-    response ??= await routes.providers.handle(request, segments);
+    response ??= await routes.providers.handle(request, segments, caller);
     response ??= await routes.chats.handle(request, segments);
     // `GET prompts/global` / `prompts/group` stay on the shared inspection
     // surface; this dispatch returns `undefined` for them.
     response ??= await routes.prompts.handle(request, url, segments, username);
     response ??= await routes.playground.handle(request, url, segments, username);
-    response ??= await routes.image.handle(request, url, segments, username);
-    response ??= await routes.telegram.handle(request, segments);
+    response ??= await routes.image.handle(request, url, segments, username, caller);
+    response ??= await routes.telegram.handle(request, segments, caller);
+    response ??= await routes.keychain.handle(request, url, segments);
     response ??= await routes.warnings.handle(request, url, segments);
     if (response !== undefined) {
       return response;
@@ -424,6 +428,7 @@ export class AdminServer {
         url,
         segments,
         `${actor}:${credential.id.toString()}`,
+        'programmatic',
         credential.secret ?? undefined,
       )) ?? json({ error: 'forbidden', message: `${credentialLabel(credential)} cannot access this route` }, 403)
     );

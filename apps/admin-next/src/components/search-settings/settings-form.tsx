@@ -1,4 +1,4 @@
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Alert } from '@tuuject/koi-react/alert';
 import { Button, IconButton } from '@tuuject/koi-react/button';
 import { Dialog } from '@tuuject/koi-react/dialog';
@@ -25,7 +25,7 @@ import { putSearchConfig, type SearchConfigView } from '@/lib/api/search.ts';
 import { errorMessage } from '@/lib/errors';
 import { useListQuery } from '@/lib/list-query';
 import { isConfigConflict } from '@/lib/model-manager';
-import { configStatusQuery } from '@/lib/queries';
+import { configStatusQuery, keychainQuery } from '@/lib/queries';
 import { toast } from '@/lib/toast.ts';
 import { activeEngineCount, buildPayload, type EngineDraft, emptyDraft, toDraft, validate } from './draft.ts';
 import { EngineEditor } from './engine-editor.tsx';
@@ -37,6 +37,8 @@ const EMPTY_FILTERS = { search: '' };
 export function SearchSettingsForm({ initial }: { initial: SearchConfigView }): ReactElement {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
+  const keychain = useQuery(keychainQuery);
+  const entries = (keychain.data?.entries ?? []).map((entry) => entry.name);
   const [enabled, setEnabled] = useState(initial.enabled);
   const [engines, setEngines] = useState<EngineDraft[]>(() => initial.engines.map(toDraft));
   const [filters, setFilters] = useState(initial.url_filters.join('\n'));
@@ -299,7 +301,7 @@ export function SearchSettingsForm({ initial }: { initial: SearchConfigView }): 
             draft={editing.draft}
             providers={providers}
             provider={providerById.get(editing.draft.provider)}
-            deepseekKeys={initial.deepseek_keys}
+            entries={entries}
             disabled={save.isPending}
             onChange={(change) => {
               setEditingErrors([]);

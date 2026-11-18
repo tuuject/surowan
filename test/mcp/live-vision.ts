@@ -19,7 +19,7 @@ import { loadToolImages, projectCompletionsToolImages } from '../../src/capabili
 import { encodeContextMessage } from '../../src/context/codec.ts';
 import { ConversationContextStore } from '../../src/context/store/index.ts';
 import { previewContext } from '../../src/platform/invocation-context.ts';
-import { keyJarPath } from '../../src/platform/key-jar.ts';
+import { keychainPath } from '../../src/platform/keychain.ts';
 import { scrubModelRequestAuditJson } from '../../src/platform/models/request-audit.ts';
 import { buildModelRegistry } from '../../src/platform/providers.ts';
 import { SecretStore } from '../../src/platform/secrets.ts';
@@ -35,7 +35,7 @@ if (values.KEY) {
 
 async function check(configPath: string, stage: 'initial' | 'restored', evidenceDir: string): Promise<void> {
   const loaded = await loadConfig(configPath);
-  const registry = await buildModelRegistry(loaded.config, null, new SecretStore(keyJarPath(configPath)));
+  const registry = await buildModelRegistry(loaded.config, null, new SecretStore(keychainPath(configPath)));
   const model = registry.models.getModel('agent', values.MODEL!) as Model<Api>;
   const store = await SqliteStore.open(loaded.config);
   try {
@@ -225,7 +225,7 @@ async function main(): Promise<void> {
     );
     const loaded = await loadConfig(configPath);
     const store = await SqliteStore.open(loaded.config);
-    const manager = new McpManager(store, loaded.config, new SecretStore(keyJarPath(configPath)));
+    const manager = new McpManager(store, loaded.config, new SecretStore(keychainPath(configPath)));
     try {
       const seed = seedAdminFixture(store);
       const contexts = new ConversationContextStore(store);

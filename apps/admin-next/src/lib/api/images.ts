@@ -1,4 +1,5 @@
 import { call, writeHeaders } from './core.ts';
+import type { SecretInput, SecretSource } from './keychain.ts';
 import type { ModelApplySummary } from './models.ts';
 
 // ---------------------------------------------------------------------------
@@ -133,7 +134,8 @@ export interface ImageConfigView {
   revision: string;
   enabled: boolean;
   credentials: string[];
-  credential_providers: string[];
+  /** Panel sessions only: where each credential's key comes from, by name. */
+  credential_key_sources?: Readonly<Record<string, SecretSource>>;
   models: ImageModelConfig[];
 }
 
@@ -269,7 +271,7 @@ export function retryImageGeneration(id: string): Promise<{ generation: ImageGen
 }
 
 export function putImageConfig(
-  body: { enabled: boolean; credentials?: Record<string, string>; models?: ImageModelConfig[] },
+  body: { enabled: boolean; credentials?: Record<string, SecretInput | null>; models?: ImageModelConfig[] },
   revision: string,
 ): Promise<{ enabled: boolean; apply: ModelApplySummary }> {
   return call('/image/config', {

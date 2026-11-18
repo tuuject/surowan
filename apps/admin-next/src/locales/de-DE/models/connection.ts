@@ -4,6 +4,7 @@ export const headers = {
   keepPlaceholder: 'Gespeichert; leer lassen, um ihn zu behalten',
   valuesRequired: 'Nach dem Ändern der API-Adresse alle Header-Werte erneut eingeben',
   add: 'Header hinzufügen',
+  remove: 'Header entfernen',
   needsName: 'Jeder Header braucht einen Namen',
   listedTwice: 'Header {{name}} ist doppelt aufgeführt',
   needsValue: 'Header {{name}} braucht einen Wert',
@@ -21,8 +22,6 @@ export const connection = {
     'Die meisten Anbieter unterstützen dieses API-Format nicht. Bei Unsicherheit OpenAI (Chat Completions) wählen.',
   builtinProvider: 'Integrierter Anbieter',
   apiKey: 'API-Schlüssel',
-  keepHint: 'Gespeichert; leer lassen, um ihn zu behalten',
-  keepHintChanged: 'nach dem Ändern der API-Adresse erneut eingeben',
   headersTitle: 'Eigene Header',
   headersHint:
     'Nur nötig, wenn der Anbieter es verlangt, etwa ein zusätzliches Token, das manche Relay-Dienste voraussetzen.',

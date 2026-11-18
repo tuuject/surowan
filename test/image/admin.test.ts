@@ -6,19 +6,19 @@ import { eq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 import sharp from 'sharp';
 import { afterEach, beforeEach, expect, test } from 'vitest';
+import { readConfigRevision, writeConfigEdits } from '../../src/adapters/local-monolith/config/file.ts';
+import { loadConfig } from '../../src/adapters/local-monolith/config/index.ts';
+import { ConfigReloader } from '../../src/adapters/local-monolith/config/reload.ts';
+import { SqliteStore } from '../../src/adapters/local-monolith/database.ts';
 import { createImageBridge } from '../../src/image/bridge.ts';
 import { createImageService } from '../../src/image/service.ts';
 import { createImageAdminHandler, type ImageAdminResponse } from '../../src/ingress/admin/image.ts';
-import { loadConfig } from '../../src/adapters/local-monolith/config/index.ts';
-import { readConfigRevision, writeConfigEdits } from '../../src/adapters/local-monolith/config/file.ts';
-import { ConfigReloader } from '../../src/adapters/local-monolith/config/reload.ts';
-import { keyJarPath } from '../../src/platform/key-jar.ts';
+import { keychainPath } from '../../src/platform/keychain.ts';
 import { AgentModelSwitcher } from '../../src/platform/models/switch.ts';
 import { SecretStore } from '../../src/platform/secrets.ts';
-import { SqliteStore } from '../../src/adapters/local-monolith/database.ts';
 import { LongTaskService } from '../../src/store/long-tasks/index.ts';
 import { chats, conversations } from '../../src/store/schema/index.ts';
-import { testConfigJsonc, testConfigStore, writeTestConfig, writeTestKeyJar } from '../helpers.ts';
+import { testConfigJsonc, testConfigStore, writeTestConfig, writeTestKeychain } from '../helpers.ts';
 
 // ---------------------------------------------------------------------------
 // M5: the Admin panel's image API — asset management, resolve preview,
@@ -64,7 +64,7 @@ async function fixture(): Promise<{
     configPath,
     testConfigJsonc(directory, () => undefined),
   );
-  await writeTestKeyJar(directory, {});
+  await writeTestKeychain(directory, {});
   const loaded = await loadConfig(configPath);
   const store = await SqliteStore.open(loaded.config);
   cleanup.push(() => store.close());
@@ -101,15 +101,15 @@ async function fixture(): Promise<{
     loaded,
     store: storeForConfig,
     modelSwitcher: new AgentModelSwitcher(storeForConfig),
-    secrets: new SecretStore(keyJarPath(configPath)),
+    secrets: new SecretStore(keychainPath(configPath)),
     imageConfig: {
-      prepare: (candidate) => service.prepareConfig(candidate, new SecretStore(keyJarPath(configPath))),
+      prepare: (candidate) => service.prepareConfig(candidate, new SecretStore(keychainPath(configPath))),
       publish: (snapshot) => service.publishConfig(snapshot as Parameters<typeof service.publishConfig>[0]),
     },
     validateAgentModel: () => undefined,
     onPublished: () => undefined,
   });
-  const secrets = new SecretStore(keyJarPath(configPath));
+  const secrets = new SecretStore(keychainPath(configPath));
   const handle = createImageAdminHandler({ service, bridge });
   const applyImageConfig = async (body: Record<string, unknown>): Promise<ImageAdminResponse> => {
     const enabled = body.enabled;
@@ -212,8 +212,12 @@ test('status reports disabled until the section is written, then enabled', async
   const file = await readFile(fixtureRef.configPath, 'utf8');
   expect(file).toContain('"jar": "openrouter"');
   expect(file).not.toContain('sk-live-1');
-  const jar = JSON.parse(await readFile(keyJarPath(fixtureRef.configPath), 'utf8')) as Record<string, string>;
-  expect(jar.openrouter).toBe('sk-live-1');
+  const jar = (
+    JSON.parse(await readFile(keychainPath(fixtureRef.configPath), 'utf8')) as {
+      entries: Record<string, { value: string }>;
+    }
+  ).entries;
+  expect(jar.openrouter?.value).toBe('sk-live-1');
 
   const after = await call(fixtureRef, 'GET', 'image/status');
   expect((after.body as { enabled: boolean }).enabled).toBe(true);

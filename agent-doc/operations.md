@@ -379,6 +379,10 @@ node src/cli.ts backup --config dev-data/config.jsonc
 
 也可以像本地开发一样直接在宿主机运行 `node src/cli.ts serve`。仓库不提供对应的服务单元；进程监督、FFmpeg/python-lottie 依赖和定期备份都需要自行准备。
 
+## keychain 文件格式升级（单向）
+
+`key.json` 的扁平格式（`{ "<name>": "<secret>" }`）升级为带版本号的 keychain 格式（`{ "version": 1, "entries": { "<name>": { "value", "created_at" } } }`）。`serve`、`configure` 与 `doctor` 启动时把旧格式一次性原地迁移：原子临时文件加 rename、`0600`、拒绝符号链接，条目名保留，不改动 `config.jsonc`。迁移是单向的——迁移后的文件旧版本程序读不了，且没有备份副本（原子 rename 保证读者只看到旧文件或完整的新文件）；降级前必须手工把文件改回扁平格式或换回旧版本并接受其无法读取新文件。其它读路径遇到旧格式会报出可操作的错误，提示先跑一次 `serve` 或 `configure`。
+
 ## Docker 部署
 
 `.github/workflows/docker.yml` 在推送 `main`、`develop` 分支、`v*` tag 以及每个 pull request 上都运行 `verify` job；推送时构建 `linux/amd64` 与 `linux/arm64` 镜像，但只有 `main` 与 `v*` tag 登录并推送到 `ghcr.io/tuuject/surowan`：
@@ -403,7 +407,7 @@ node src/cli.ts backup --config dev-data/config.jsonc
 | 容器路径 | 用途 |
 | --- | --- |
 | `/config/config.jsonc` | 配置文件（bind mount） |
-| `/config/key.json` | key jar：配置里 `{ "jar": "<name>" }` 引用的 Secret，面板写入的 key 也在这里；见[配置：SecretRef](configuration.md#secretref) |
+| `/config/key.json` | keychain：配置里 `{ "jar": "<name>" }` 引用的 Secret，每个条目带名字、值与创建时间；见[配置：SecretRef](configuration.md#secretref) |
 | `/config/*.md` | Prompt 文件；`system_prompt_file`、`instructions_file` 相对配置文件解析，必须和 `config.jsonc` 放在一起 |
 | `/data` | `data_dir`、SQLite、媒体缓存与备份 |
 
@@ -434,7 +438,7 @@ docker compose logs -f          # 确认 serve_started 与 config_hash
 `docker-entrypoint.sh` 以 root 启动，做三件事后才降权：
 
 1. 按 `PUID`/`PGID`（默认 `1000`）重映射容器内 `surowan` 用户，避免 bind mount 的属主冲突。
-2. `chown -R` 挂载卷，并把 `/config`、`/data` 设为 `0700`、`/config/config.jsonc` 与 `/config/key.json` 设为 `0600` —— 这是为了满足 `assertConfigPermissions`（配置文件与其父目录）、key jar（`key.json`）与 `doctor` 对 `data_dir` 的权限检查，宿主机上不必手动 chmod。
+2. `chown -R` 挂载卷，并把 `/config`、`/data` 设为 `0700`、`/config/config.jsonc` 与 `/config/key.json` 设为 `0600` —— 这是为了满足 `assertConfigPermissions`（配置文件与其父目录）、keychain（`key.json`）与 `doctor` 对 `data_dir` 的权限检查，宿主机上不必手动 chmod。
 3. `exec gosu surowan node /app/src/cli.ts "$@"`。
 
 因为最后一步把参数原样传给 CLI，其它子命令都能用同一镜像跑：

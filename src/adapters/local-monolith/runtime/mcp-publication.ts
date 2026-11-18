@@ -50,7 +50,12 @@ export interface McpPublication {
    */
   validateRegistry(): void;
   /** Runs the serialized cutover for one published configuration. */
-  publish(previous: RawConfig, next: RawConfig, generation: number): Promise<McpConfigPublishResult>;
+  publish(
+    previous: RawConfig,
+    next: RawConfig,
+    generation: number,
+    rotated?: ReadonlySet<string>,
+  ): Promise<McpConfigPublishResult>;
 }
 
 export function createMcpPublication(options: McpPublicationOptions): McpPublication {
@@ -96,10 +101,10 @@ export function createMcpPublication(options: McpPublicationOptions): McpPublica
         runtime.validateAdditionalTools(preview, [], model);
       }
     },
-    async publish(previous, next, generation) {
+    async publish(previous, next, generation, rotated = new Set<string>()) {
       // The generation keeps a handed-off cutover from rolling the instances
       // back to its own configuration.
-      return await cutover.publish(previous, next, generation);
+      return await cutover.publish(previous, next, generation, rotated);
     },
   };
 }

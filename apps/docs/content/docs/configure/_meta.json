@@ -3,6 +3,7 @@
   "telegram",
   "models",
   "admin",
+  "admin-keychain",
   "admin-harness-tuning",
   "admin-developer",
   "admin-prompts",

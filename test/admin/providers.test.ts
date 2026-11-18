@@ -191,7 +191,7 @@ test('creates, updates, and deletes a provider through the configuration file', 
     expect(text).not.toContain('relay-secret');
     expect(text).not.toContain('relay-header');
     const createdRelay = fixture.file().providers.relay;
-    expect(createdRelay?.api_key).toEqual({ jar: expect.stringMatching(/^[0-9a-f]{16}$/) });
+    expect(createdRelay?.api_key).toEqual({ jar: 'relay' });
     expect(fixture.secret(createdRelay?.api_key)).toBe('relay-secret');
     expect(createdRelay?.kind === 'custom' && fixture.secret(createdRelay.headers?.['x-route'])).toBe('relay-header');
     expect(JSON.stringify(createdView)).not.toContain('relay-secret');
@@ -215,17 +215,28 @@ test('creates, updates, and deletes a provider through the configuration file', 
     expect(duplicate.status).toBe(409);
     expect(await readJson(duplicate)).toMatchObject({ error: 'provider_exists' });
 
-    // Changing the address forces the credentials to be re-entered (C5).
+    // A panel session may move the address without re-entering the credentials:
+    // the entry picker makes the old guard moot for the admin themselves.
     const withoutKey = await write(
       fixture,
       '/api/providers/relay',
       'PUT',
-      { base_url: 'https://attacker.example.test/v1' },
+      { base_url: 'https://relay.example.test/v1b' },
       await revisionOf(fixture),
     );
-    expect(withoutKey.status).toBe(400);
-    expect(await readJson(withoutKey)).toMatchObject({ error: 'credentials_required' });
-    expect(fixture.file().providers.relay).toMatchObject({ base_url: 'https://relay.example.test/v1' });
+    expect(withoutKey.status).toBe(200);
+    expect(fixture.file().providers.relay).toMatchObject({ base_url: 'https://relay.example.test/v1b' });
+    // The key and headers survive the move untouched.
+    expect(fixture.secret(fixture.file().providers.relay?.api_key)).toBe('relay-secret');
+
+    const revert = await write(
+      fixture,
+      '/api/providers/relay',
+      'PUT',
+      { base_url: 'https://relay.example.test/v1' },
+      await revisionOf(fixture),
+    );
+    expect(revert.status).toBe(200);
 
     const withKey = await write(
       fixture,
@@ -242,8 +253,10 @@ test('creates, updates, and deletes a provider through the configuration file', 
     // The connection change is hot: the same reload adopts the new address, key
     // and headers, and the registry serves them from now on.
     const withKeyView = await readJson(withKey);
+    // The re-submitted key rotates the provider's own entry in place, so the
+    // file changes only where the connection fields move.
     expect(withKeyView.apply).toMatchObject({
-      applied: ['providers.relay.api_key.jar', 'providers.relay.base_url', 'providers.relay.headers.x-route.jar'],
+      applied: ['providers.relay.base_url'],
       restart_required: [],
     });
     expect(fixture.configStore.current().models.getProvider('relay')?.baseUrl).toBe('https://relay.example.test/v2');
@@ -251,11 +264,16 @@ test('creates, updates, and deletes a provider through the configuration file', 
     expect(updated).toMatchObject({ base_url: 'https://relay.example.test/v2' });
     expect(fixture.secret(updated?.api_key)).toBe('relay-secret-2');
     expect(updated?.kind === 'custom' && fixture.secret(updated.headers?.['x-route'])).toBe('relay-header-2');
-    // A replaced secret gets a new entry, and the one it replaced is gone.
-    expect(updated?.api_key).not.toEqual(createdRelay?.api_key);
-    expect(Object.values(JSON.parse(await readFile(join(fixture.directory, 'key.json'), 'utf8')))).not.toContain(
-      'relay-secret',
-    );
+    // The entry was used by this provider alone, so the fresh key rotated it in
+    // place: the name stays and the old value is gone.
+    expect(updated?.api_key).toEqual({ jar: 'relay' });
+    const keychain = (
+      JSON.parse(await readFile(join(fixture.directory, 'key.json'), 'utf8')) as {
+        entries: Record<string, { value: string }>;
+      }
+    ).entries;
+    expect(keychain.relay?.value).toBe('relay-secret-2');
+    expect(Object.values(keychain).map((entry) => entry.value)).not.toContain('relay-secret');
 
     // A header is dropped with `null`; the key stays when it is omitted.
     const dropped = await write(
@@ -273,8 +291,9 @@ test('creates, updates, and deletes a provider through the configuration file', 
     const removed = await write(fixture, '/api/providers/relay', 'DELETE', {}, await revisionOf(fixture));
     expect(removed.status).toBe(200);
     expect(fixture.file().providers.relay).toBeUndefined();
-    // Only the entries the fixture configuration itself references are left.
-    expect(fixture.jarNames()).toEqual(['agent', 'builtin', 'header', 'telegram', 'vision']);
+    // Nothing is reclaimed: the deleted provider's entries stay for an
+    // explicit purge, alongside the entries the fixture never used.
+    expect(fixture.jarNames()).toEqual(['agent', 'builtin', 'header', 'relay', 'relay-x-route', 'telegram', 'vision']);
   } finally {
     fixture.store.close();
   }
@@ -352,7 +371,9 @@ test('refuses a builtin provider edit that is not its key', async () => {
     );
     expect(key.status).toBe(200);
     expect(fixture.secret(fixture.file().providers.builtin?.api_key)).toBe('rotated');
-    expect(fixture.jarNames()).not.toContain('builtin');
+    // The rotation happened in place: the entry the provider already had keeps
+    // its name.
+    expect(fixture.file().providers.builtin?.api_key).toEqual({ jar: 'builtin' });
   } finally {
     fixture.store.close();
   }

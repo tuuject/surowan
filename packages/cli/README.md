@@ -50,6 +50,10 @@ npm install -g ./dist/npm/tuuject-surowan-utils-0.1.0.tgz   # 文件名以实际
 
 包以单个自包含的 ESM 文件分发（Rolldown 打包，目标 Node.js 24），没有运行时依赖（只用标准库 `node:util` parseArgs 与全局 `fetch`）。构建配置位于 `rolldown.config.ts`，`build` 通过 `rolldown -c` 加载，`prepack` 复用 `build`；配置中的 `cleanDir` 负责清理旧产物。源码内的相对导入带 `.ts` 后缀，打包后已内联，因此 `node_modules` 内不会出现 Node type stripping 拒绝的 `.ts` 文件，也不会留下指向其他 workspace 包的 `import`。
 
+## 密钥与面板写入
+
+配置里不写明文密钥：`config.jsonc` 写 `{ "jar": "<name>" }` 引用，明文放在服务器配置目录的 `key.json`（keychain，每个条目有稳定名字、可原地轮换、可多处共用）。CLI 或 MCP 提交的写入只能带**新密钥明文**（服务端按使用处自动命名并存入 keychain），不能选用已有条目；修改连接地址（Provider `base_url`、搜索引擎 `endpoint`）时必须在同一次请求里重新提交密钥。这些限制只约束外部凭据——面板会话与服务器上的 `configure` 可以选用已有条目，面板改地址也不需要重交密钥。密钥条目的查看、轮换与清理在面板「密钥」页完成，CLI 与 MCP 不提供这些端点。
+
 ## 用法
 
 ### 使用 API key

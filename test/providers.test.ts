@@ -6,11 +6,11 @@ import { afterEach, describe, expect, test } from 'vitest';
 import { findBuiltinProvider } from '../src/platform/builtin-providers.ts';
 import type { RawConfig } from '../src/platform/config/index.ts';
 import { type LoadedConfig, loadConfig } from '../src/adapters/local-monolith/config/index.ts';
-import { keyJarPath } from '../src/platform/key-jar.ts';
+import { keychainPath } from '../src/platform/keychain.ts';
 import { buildModelRegistry, configuredAgentModels } from '../src/platform/providers.ts';
 import { SecretStore } from '../src/platform/secrets.ts';
 import { supportedThinkingLevels } from '../src/platform/thinking-levels.ts';
-import { type FixtureConfig, testConfigJsonc, writeTestConfig, writeTestKeyJar } from './helpers.ts';
+import { type FixtureConfig, testConfigJsonc, writeTestConfig, writeTestKeychain } from './helpers.ts';
 
 const directories: string[] = [];
 
@@ -23,7 +23,7 @@ async function loadFixture(transform: (config: FixtureConfig) => void): Promise<
   directories.push(directory);
   const configPath = join(directory, 'config.jsonc');
   await writeTestConfig(directory, configPath, testConfigJsonc(directory, transform));
-  await writeTestKeyJar(directory, { builtin: 'builtin-secret', custom: 'custom-secret', rotated: 'rotated-secret' });
+  await writeTestKeychain(directory, { builtin: 'builtin-secret', custom: 'custom-secret', rotated: 'rotated-secret' });
   return await loadConfig(configPath);
 }
 
@@ -66,7 +66,7 @@ describe('model registry', () => {
         { id: -5, provider: 'vision', model: 'vision-model', thinking_level: 'off' },
       ];
     });
-    const registry = await buildModelRegistry(loaded.config, null, new SecretStore(keyJarPath(loaded.configPath)));
+    const registry = await buildModelRegistry(loaded.config, null, new SecretStore(keychainPath(loaded.configPath)));
     expect(
       configuredAgentModels(loaded.config, registry.models).map(({ model, thinkingLevel }) => ({
         provider: model.provider,
@@ -92,7 +92,7 @@ describe('model registry', () => {
       draft.agent!.model = 'deepseek-chat';
       draft.agent!.thinking_level = 'off';
     });
-    const registry = await buildModelRegistry(loaded.config, null, new SecretStore(keyJarPath(loaded.configPath)));
+    const registry = await buildModelRegistry(loaded.config, null, new SecretStore(keychainPath(loaded.configPath)));
     const registered = registry.models.getModels('deepseek');
     expect(registered.map((model) => model.id)).toEqual(['deepseek-chat']);
     // Pi's catalog carries this id; the configuration does not enable it.
@@ -118,7 +118,7 @@ describe('model registry', () => {
       draft.agent!.model = 'deepseek-chat';
       draft.agent!.thinking_level = 'off';
     });
-    const registry = await buildModelRegistry(loaded.config, null, new SecretStore(keyJarPath(loaded.configPath)));
+    const registry = await buildModelRegistry(loaded.config, null, new SecretStore(keychainPath(loaded.configPath)));
     const provider = registry.models.getProvider('mine');
     const model = registry.models.getModel('mine', 'deepseek-chat');
     expect(provider).toBeDefined();
@@ -163,7 +163,7 @@ describe('model registry', () => {
       draft.agent!.model = 'deepseek-chat';
       draft.agent!.thinking_level = 'off';
     });
-    const secrets = new CountingSecrets(keyJarPath(loaded.configPath));
+    const secrets = new CountingSecrets(keychainPath(loaded.configPath));
     const registry = await buildModelRegistry(loaded.config, null, secrets);
     const resolvedAtStartup = secrets.resolutions;
     expect(resolvedAtStartup).toBeGreaterThan(0);
@@ -205,7 +205,7 @@ describe('model registry', () => {
       draft.agent!.model = 'deepseek-chat';
       draft.agent!.thinking_level = 'off';
     });
-    const secrets = new CountingSecrets(keyJarPath(loaded.configPath));
+    const secrets = new CountingSecrets(keychainPath(loaded.configPath));
     const registry = await buildModelRegistry(loaded.config, null, secrets);
     const resolvedAtStartup = secrets.resolutions;
 
@@ -235,7 +235,7 @@ describe('model registry', () => {
       draft.agent!.model = 'deepseek-chat';
       draft.agent!.thinking_level = 'off';
     });
-    const secrets = new CountingSecrets(keyJarPath(loaded.configPath));
+    const secrets = new CountingSecrets(keychainPath(loaded.configPath));
     const registry = await buildModelRegistry(loaded.config, null, secrets);
     const resolvedAtStartup = secrets.resolutions;
 
@@ -267,7 +267,7 @@ describe('model registry', () => {
       ];
       draft.agent!.model = 'undeclared';
     });
-    const registry = await buildModelRegistry(loaded.config, null, new SecretStore(keyJarPath(loaded.configPath)));
+    const registry = await buildModelRegistry(loaded.config, null, new SecretStore(keychainPath(loaded.configPath)));
     const configured = loaded.config.providers.agent?.models ?? [];
     expect(configured).toHaveLength(2 + declared.length);
     for (const model of configured) {
@@ -309,7 +309,7 @@ describe('model registry', () => {
         ],
       };
     });
-    const registry = await buildModelRegistry(loaded.config, null, new SecretStore(keyJarPath(loaded.configPath)));
+    const registry = await buildModelRegistry(loaded.config, null, new SecretStore(keychainPath(loaded.configPath)));
     const model = registry.models.getModel('agent', 'agent-model');
     expect(model).toMatchObject({
       api: 'openai-completions',
@@ -326,7 +326,7 @@ describe('model registry', () => {
       }
       provider.headers = { 'x-route': { jar: 'custom' } };
     });
-    const registry = await buildModelRegistry(loaded.config, null, new SecretStore(keyJarPath(loaded.configPath)));
+    const registry = await buildModelRegistry(loaded.config, null, new SecretStore(keychainPath(loaded.configPath)));
     // Pi's request path only reads headers from the model, so the resolved
     // connection headers must travel with every registered model.
     expect(registry.models.getModels('agent').map((model) => model.headers)).toEqual([{ 'x-route': 'custom-secret' }]);
@@ -340,7 +340,7 @@ describe('model registry', () => {
       }
       provider.headers = { 'x-route': { jar: 'custom' } };
     });
-    const secrets = new CountingSecrets(keyJarPath(loaded.configPath));
+    const secrets = new CountingSecrets(keychainPath(loaded.configPath));
     const registry = await buildModelRegistry(loaded.config, null, secrets);
     const resolvedAtStartup = secrets.resolutions;
     expect(resolvedAtStartup).toBeGreaterThan(0);

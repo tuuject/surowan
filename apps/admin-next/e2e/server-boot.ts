@@ -10,11 +10,12 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { serve } from '@hono/node-server';
 import { ConfigReloader } from '../../../src/adapters/local-monolith/config/reload.ts';
-import { publishStickerSets } from '../../../src/adapters/local-monolith/runtime/sticker-sets.ts';
+import { jarEntryDigests, mcpServerKeyDigests } from '../../../src/adapters/local-monolith/config/reload-apply.ts';
 import { CronerScheduleEngine } from '../../../src/adapters/local-monolith/recurring-schedule.ts';
+import { publishStickerSets } from '../../../src/adapters/local-monolith/runtime/sticker-sets.ts';
 import { AdminServer } from '../../../src/ingress/admin/index.ts';
 import { ImConnectionRegistry } from '../../../src/platform/im-connection.ts';
-import { keyJarPath } from '../../../src/platform/key-jar.ts';
+import { keychainPath } from '../../../src/platform/keychain.ts';
 import { AgentModelSwitcher } from '../../../src/platform/models/switch.ts';
 import { buildModelRegistry } from '../../../src/platform/providers.ts';
 import { RuntimeConfigurationStore } from '../../../src/platform/runtime-config.ts';
@@ -46,7 +47,7 @@ export async function main(): Promise<void> {
   const fixtures = await openFixtures(loaded, directory);
   const { store, playgroundStore, playgroundAssets, playgroundIngress } = fixtures;
 
-  const secrets = new SecretStore(keyJarPath(configPath));
+  const secrets = new SecretStore(keychainPath(configPath));
   const registry = await buildModelRegistry(loaded.config, null, secrets);
   // The fixture runs no connection manager; tests move this registry between
   // states to render the Telegram page and the standing warnings.
@@ -100,6 +101,11 @@ export async function main(): Promise<void> {
     store: configStore,
     modelSwitcher,
     secrets,
+    // Seed the rotation digests like production: the startup build resolved
+    // these secrets once, so the first apply must not flag anything rotated.
+    providerKeyDigests: registry.keyDigests ?? {},
+    jarDigests: await jarEntryDigests(loaded.config, secrets),
+    mcpServerKeyDigests: await mcpServerKeyDigests(loaded.config, secrets),
     // This fixture runs no agent runtime, so there is no tool registry to fit
     // into the model's context window; production wires the real validator.
     validateAgentModel: () => {

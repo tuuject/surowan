@@ -16,6 +16,12 @@ export interface ConfigurationModels {
    * undefined when no vision model is configured.
    */
   readonly visionModel: Model<Api> | undefined;
+  /**
+   * Per-alias digest of the SecretRef values this registry was built from.
+   * A reload compares against it to detect a keychain rotation the file does
+   * not show; the digests never leave memory. Hand-built inputs omit it.
+   */
+  readonly keyDigests?: Readonly<Record<string, string>>;
 }
 
 /** What a store is created or republished with: a configuration and its registry. */

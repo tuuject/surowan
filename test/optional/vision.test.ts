@@ -2,8 +2,8 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, describe, expect, test } from 'vitest';
-import { type LoadedConfig, loadConfig } from '../../src/adapters/local-monolith/config/index.ts';
 import { writeConfigEdits } from '../../src/adapters/local-monolith/config/file.ts';
+import { type LoadedConfig, loadConfig } from '../../src/adapters/local-monolith/config/index.ts';
 import { SqliteStore } from '../../src/adapters/local-monolith/database.ts';
 import type { MediaDownloader } from '../../src/capabilities/media/download.ts';
 import { MediaService } from '../../src/capabilities/media/index.ts';
@@ -204,7 +204,13 @@ describe('optional vision section', () => {
     const loaded = await loadWithVision(null);
     const configStore = await testConfigStore(loaded);
     const edits = visionEdits(
-      { file: loaded.fileConfig, secrets: new SecretStore(), snapshot: configStore.current() },
+      {
+        file: loaded.fileConfig,
+        secrets: new SecretStore(),
+        snapshot: configStore.current(),
+        keychain: { entries: new Set(), usage: {} },
+        caller: 'session',
+      },
       { provider: 'vision', model: 'vision-model' },
     );
     await writeConfigEdits(loaded.configPath, edits);

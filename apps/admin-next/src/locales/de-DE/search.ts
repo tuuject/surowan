@@ -35,7 +35,7 @@ export const search: Catalog<typeof searchEn> = {
   fieldKey: 'Zugangsdaten',
   keyKeep: 'Konfigurierten Schlüssel behalten',
   keyNew: 'Neuen Schlüssel eingeben',
-  keyReuse: 'Ein DeepSeek-Modellschlüssel wiederverwenden',
+  keyEntry: 'Vorhandenen Eintrag verwenden',
   keyPlaceholder: 'API-Schlüssel einfügen',
   keyForbidden: 'Dieser Anbieter benötigt keine Zugangsdaten.',
   keyOptional: 'Der Schlüssel ist optional; ohne ihn wird der kostenlose Endpunkt genutzt.',

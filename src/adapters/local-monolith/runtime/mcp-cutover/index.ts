@@ -41,13 +41,13 @@ export function createMcpCutover(deps: McpCutoverDeps): McpCutover {
   let tail: Promise<void> = Promise.resolve();
   const queueWait = deps.waitMilliseconds ?? CUTOVER_WAIT_MILLISECONDS;
   return {
-    async publish(previous, next, generation) {
+    async publish(previous, next, generation, rotated = new Set<string>()) {
       const previousCutover = tail;
       const slot = Promise.withResolvers<void>();
       tail = slot.promise;
       if (await settlesWithin(previousCutover, queueWait)) {
         try {
-          const result = await publishMcpConfig(deps, previous, next, generation);
+          const result = await publishMcpConfig(deps, previous, next, generation, rotated);
           // The queue releases only when the whole cutover finished, including a
           // handed-off remainder; this caller still gets its early result.
           void result.completion.then(slot.resolve, slot.resolve);
@@ -65,7 +65,7 @@ export function createMcpCutover(deps: McpCutoverDeps): McpCutover {
       const completion = previousCutover
         .catch(() => undefined)
         .then(async () => {
-          const result = await publishMcpConfig(deps, previous, next, generation);
+          const result = await publishMcpConfig(deps, previous, next, generation, rotated);
           await result.completion;
         })
         .catch((error: unknown) => logEvent('mcp_cutover_failed', { error: deps.redactError(error) }))
@@ -110,11 +110,12 @@ async function publishMcpConfig(
   previous: RawConfig,
   next: RawConfig,
   generation: number,
+  rotated: ReadonlySet<string>,
 ): Promise<McpConfigPublishResult> {
-  const affectedChats = affectedMcpChatIds(previous, next);
+  const affectedChats = affectedMcpChatIds(previous, next, rotated);
   const affectedChatIds = affectedChats.map((id) => BigInt(id));
   if (conversationIdsForTelegramChats(deps.store, affectedChatIds).length === 0) {
-    const servers = await deps.mcp.reconcile({ config: next, generation });
+    const servers = await deps.mcp.reconcile({ config: next, generation }, rotated);
     const result: McpConfigPublishResult = {
       affectedChats,
       conversations: 0,
@@ -140,7 +141,7 @@ async function publishMcpConfig(
       const completion = deps.scheduler
         .settleInvocations(stop.pending)
         .then(async () => {
-          const finished = await finishCutover(deps, state, next, generation);
+          const finished = await finishCutover(deps, state, next, generation, rotated);
           logCutover({
             ...finished,
             affectedChats,
@@ -166,7 +167,7 @@ async function publishMcpConfig(
       logCutover(pending);
       return pending;
     }
-    const finished = await finishCutover(deps, state, next, generation);
+    const finished = await finishCutover(deps, state, next, generation, rotated);
     const result: McpConfigPublishResult = {
       ...finished,
       affectedChats,
