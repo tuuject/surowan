@@ -10,7 +10,6 @@ export const picker = {
   idsLabel: 'Model IDs (one per line, or separated by commas)',
   metadataUnavailable:
     "Model details couldn't be looked up ({{error}}). You can still add the models, but context length, max output and accepted input have to be filled in by hand.",
-  lookingUp: 'Looking up…',
   adding: 'Adding…',
   addOne: 'Add {{count}} model',
   addMany: 'Add {{count}} models',

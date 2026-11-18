@@ -1,8 +1,10 @@
 import { Button } from '@tuuject/koi-react/button';
 import { Checkbox } from '@tuuject/koi-react/checkbox';
+import { SearchIcon } from '@tuuject/koi-react/icons';
 import { Input } from '@tuuject/koi-react/input';
+import { Skeleton } from '@tuuject/koi-react/skeleton';
 import { css } from '@tuuject/koi-react/styled-system/css';
-import type { ReactElement } from 'react';
+import type { ReactElement, ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { MonoValue, ToneBadge } from '@/components/business';
 import { EditIcon } from '@/components/icons';
@@ -30,11 +32,76 @@ function Metric({ label, value }: { readonly label: string; readonly value: Reac
   );
 }
 
+const listClass = css({
+  maxHeight: '320px',
+  '& > :not(:last-child)': { borderBottomWidth: '1px', borderColor: 'divider' },
+  overflowY: 'auto',
+  borderRadius: 'lg',
+  borderWidth: '1px',
+  borderColor: 'border',
+});
+
+const rowClass = css({ display: 'flex', alignItems: 'flex-start', gap: '3', padding: '3' });
+
+/** A 12px bar: a line of small text without its leading. */
+export const lineSkeletonClass = css({ display: 'block', height: '12px', maxWidth: '100%', borderRadius: 'sm' });
+
+/** Widths of the id, metadata and source lines, varied so the rows don't read as one stamped block. */
+const SKELETON_ROWS = [
+  ['55%', '85%', '45%'],
+  ['40%', '70%', '50%'],
+  ['60%', '80%', '35%'],
+] as const;
+
+/** The list's own outline with placeholder rows, shaped like the real ones, while the drafts are on their way. */
+function DraftListSkeleton(): ReactElement {
+  const { t } = useTranslation();
+  return (
+    <div role="status">
+      <span className={css({ srOnly: true })}>{t('common.loading')}</span>
+      <div className={listClass}>
+        {SKELETON_ROWS.map((widths) => (
+          <div key={widths.join()} className={rowClass}>
+            {/* The checkbox's own 16px box. */}
+            <Skeleton
+              className={css({
+                flexShrink: '0',
+                width: '16px',
+                height: '16px',
+                marginBlockStart: '1',
+                borderRadius: 'sm',
+              })}
+            />
+            <div
+              className={css({
+                minWidth: '0',
+                flex: '1 1 0%',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '3',
+                paddingBlock: '1',
+              })}
+            >
+              {widths.map((width) => (
+                <Skeleton key={width} className={lineSkeletonClass} style={{ width }} />
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 /**
  * The discovered / looked-up model list: checkboxes, a one-line metadata preview
  * with the match it came from, and the marker for drafts the admin still has to
  * confirm. Per-field provenance belongs to the edit dialog, which is where a
  * value is actually accepted.
+ *
+ * While `loading`, the search stays where it is and the rows are placeholders,
+ * so the dialog keeps its shape when the listing lands. `toolbarEnd` sits beside
+ * the search at the same height, for actions on the whole list.
  */
 export function ModelDraftList({
   drafts,
@@ -45,6 +112,8 @@ export function ModelDraftList({
   search,
   onSearchChange,
   emptyText,
+  loading = false,
+  toolbarEnd,
 }: {
   readonly drafts: readonly DiscoveredModel[];
   readonly selected: ReadonlySet<string>;
@@ -54,37 +123,38 @@ export function ModelDraftList({
   readonly search: string;
   readonly onSearchChange: (value: string) => void;
   readonly emptyText: string;
+  readonly loading?: boolean;
+  readonly toolbarEnd?: ReactNode;
 }): ReactElement {
   const { t } = useTranslation();
   return (
     <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '3' } })}>
-      <Input
-        aria-label={t('models.models.drafts.search')}
-        placeholder={t('models.models.drafts.search')}
-        value={search}
-        onChange={(event) => onSearchChange(event.target.value)}
-        dir="auto"
-      />
-      {drafts.length === 0 ? (
+      <div className={css({ display: 'flex', alignItems: 'center', gap: '2' })}>
+        <Input
+          className={css({ flex: '1', minWidth: '0' })}
+          aria-label={t('models.models.drafts.search')}
+          placeholder={t('models.models.drafts.search')}
+          value={search}
+          onChange={(event) => onSearchChange(event.target.value)}
+          iconStart={<SearchIcon />}
+          disabled={loading}
+          dir="auto"
+        />
+        {toolbarEnd}
+      </div>
+      {loading ? (
+        <DraftListSkeleton />
+      ) : drafts.length === 0 ? (
         <p className={css({ textStyle: 'body', color: 'text-muted', paddingBlock: '6', textAlign: 'center' })}>
           {emptyText}
         </p>
       ) : (
-        <ul
-          className={css({
-            maxHeight: '320px',
-            '& > :not(:last-child)': { borderBottomWidth: '1px', borderColor: 'divider' },
-            overflowY: 'auto',
-            borderRadius: 'lg',
-            borderWidth: '1px',
-            borderColor: 'border',
-          })}
-        >
+        <ul className={listClass}>
           {drafts.map((draft) => {
             const confirmed = resolved[draft.id] !== undefined;
             const needsConfirmation = draftNeedsConfirmation(draft) && !confirmed;
             return (
-              <li key={draft.id} className={css({ display: 'flex', alignItems: 'flex-start', gap: '3', padding: '3' })}>
+              <li key={draft.id} className={rowClass}>
                 <span className={css({ flexShrink: '0', paddingBlockStart: '1' })}>
                   <Checkbox
                     aria-label={t('models.models.shared.select', { id: draft.id })}

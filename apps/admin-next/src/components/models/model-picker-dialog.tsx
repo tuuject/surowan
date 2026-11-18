@@ -1,13 +1,16 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { Button } from '@tuuject/koi-react/button';
+import { Alert } from '@tuuject/koi-react/alert';
+import { Button, IconButton } from '@tuuject/koi-react/button';
 import { Dialog } from '@tuuject/koi-react/dialog';
 import { Field } from '@tuuject/koi-react/field';
-import { css } from '@tuuject/koi-react/styled-system/css';
+import { Skeleton } from '@tuuject/koi-react/skeleton';
+import { css, cx } from '@tuuject/koi-react/styled-system/css';
 import { Textarea } from '@tuuject/koi-react/textarea';
 import { type ReactElement, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { MonoValue } from '@/components/business';
-import { ModelDraftList } from '@/components/models/model-draft-list';
+import { RefreshIcon } from '@/components/icons';
+import { lineSkeletonClass, ModelDraftList } from '@/components/models/model-draft-list';
 import { ModelEditDialog } from '@/components/models/model-edit-dialog';
 import { useDraftSelection } from '@/components/models/use-draft-selection';
 import { useOpenSession } from '@/hooks/use-open-session.ts';
@@ -168,8 +171,17 @@ export function ModelPickerDialog({
   }
 
   const fetchPending = mode === 'discover' ? discovery.isFetching : lookup.isPending;
-  const shownFetchError = mode === 'discover' ? (discovery.isError ? discovery.error : null) : fetchError;
-  const blocked = selection.selectedCount === 0 || selection.models === null;
+  // A retry keeps the query in its error state until it answers; the skeleton
+  // already says it is trying again.
+  const shownFetchError =
+    mode === 'discover' ? (discovery.isError && !discovery.isFetching ? discovery.error : null) : fetchError;
+  // Discovery shows the list from the moment it starts fetching; only a first
+  // fetch that failed leaves it without one, and the error carries the retry.
+  const listShown = mode === 'discover' ? fetchPending || discovery.data !== undefined : selection.drafts.length > 0;
+  const blocked = fetchPending || selection.selectedCount === 0 || selection.models === null;
+  const refetch = (): void => {
+    void discovery.refetch();
+  };
 
   return (
     <>
@@ -220,26 +232,16 @@ export function ModelPickerDialog({
       >
         <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '4' } })}>
           {mode === 'discover' ? (
-            <div className={css({ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '2' })}>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                color="secondary"
-                disabled={fetchPending}
-                onClick={() => {
-                  void discovery.refetch();
-                }}
-              >
-                {fetchPending ? t('models.models.picker.fetching') : t('models.models.picker.fetchAgain')}
-              </Button>
-              {endpoint === null ? null : (
-                <span className={css({ textStyle: 'small', color: 'text-muted' })}>
-                  {t('models.models.picker.endpointLabel')}
-                  <MonoValue value={endpoint} />
-                </span>
-              )}
-            </div>
+            endpoint === null ? (
+              fetchPending ? (
+                <Skeleton className={cx(lineSkeletonClass, css({ width: '60%', marginBlock: '1' }))} />
+              ) : null
+            ) : (
+              <p className={css({ textStyle: 'small', color: 'text-muted' })}>
+                {t('models.models.picker.endpointLabel')}
+                <MonoValue value={endpoint} />
+              </p>
+            )
           ) : (
             <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '3' } })}>
               <Field label={t('models.models.picker.idsLabel')}>
@@ -256,30 +258,39 @@ export function ModelPickerDialog({
                 size="sm"
                 variant="outline"
                 color="secondary"
-                disabled={fetchPending}
+                loading={fetchPending}
                 onClick={() => {
                   setFetchError(null);
                   lookup.mutate(session.current);
                 }}
               >
-                {fetchPending ? t('models.models.picker.lookingUp') : t('models.models.wizard.lookup')}
+                {t('models.models.wizard.lookup')}
               </Button>
             </div>
           )}
 
           {shownFetchError === null ? null : (
-            <p className={css({ textStyle: 'body', color: 'error-text', overflowWrap: 'anywhere' })}>
-              {requestErrorMessage(shownFetchError)}
-            </p>
+            <Alert
+              tone="error"
+              action={
+                listShown || mode !== 'discover' ? undefined : (
+                  <Button size="sm" variant="ghost" color="secondary" iconStart={<RefreshIcon />} onClick={refetch}>
+                    {t('models.models.picker.fetchAgain')}
+                  </Button>
+                )
+              }
+            >
+              <span className={css({ overflowWrap: 'anywhere' })}>{requestErrorMessage(shownFetchError)}</span>
+            </Alert>
           )}
 
-          {metadataError === null ? null : (
+          {metadataError === null || fetchPending ? null : (
             <p className={css({ textStyle: 'small', color: 'text-muted', overflowWrap: 'anywhere' })}>
               {t('models.models.picker.metadataUnavailable', { error: metadataError })}
             </p>
           )}
 
-          {selection.drafts.length === 0 ? null : (
+          {listShown ? (
             <>
               <ModelDraftList
                 drafts={selection.visibleDrafts}
@@ -290,32 +301,45 @@ export function ModelPickerDialog({
                 search={selection.search}
                 onSearchChange={selection.setSearch}
                 emptyText={t('models.models.shared.emptyList')}
+                loading={mode === 'discover' && fetchPending}
+                toolbarEnd={
+                  mode === 'discover' ? (
+                    <IconButton
+                      label={t('models.models.picker.fetchAgain')}
+                      icon={<RefreshIcon />}
+                      disabled={fetchPending}
+                      onClick={refetch}
+                    />
+                  ) : undefined
+                }
               />
-              <div className={css({ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '2' })}>
-                <p className={css({ margin: '0', textStyle: 'small', color: 'text-muted' })}>
-                  {t('models.models.shared.selectedCount', { count: selection.selectedCount })}
-                </p>
-                {selection.unresolved.length === 0 ? null : (
+              {fetchPending ? null : (
+                <div className={css({ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '2' })}>
                   <p className={css({ margin: '0', textStyle: 'small', color: 'text-muted' })}>
-                    {t('models.models.shared.unresolvedSuffix', {
-                      ids: selection.unresolved.map((draft) => draft.id).join(', '),
-                    })}
+                    {t('models.models.shared.selectedCount', { count: selection.selectedCount })}
                   </p>
-                )}
-                {selection.confirmable === 0 ? null : (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    color="secondary"
-                    size="sm"
-                    onClick={selection.confirmSelected}
-                  >
-                    {t('models.models.shared.acceptListed', { count: selection.confirmable })}
-                  </Button>
-                )}
-              </div>
+                  {selection.unresolved.length === 0 ? null : (
+                    <p className={css({ margin: '0', textStyle: 'small', color: 'text-muted' })}>
+                      {t('models.models.shared.unresolvedSuffix', {
+                        ids: selection.unresolved.map((draft) => draft.id).join(', '),
+                      })}
+                    </p>
+                  )}
+                  {selection.confirmable === 0 ? null : (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      color="secondary"
+                      size="sm"
+                      onClick={selection.confirmSelected}
+                    >
+                      {t('models.models.shared.acceptListed', { count: selection.confirmable })}
+                    </Button>
+                  )}
+                </div>
+              )}
             </>
-          )}
+          ) : null}
           {appendError === null ? null : (
             <p className={css({ textStyle: 'body', color: 'error-text', overflowWrap: 'anywhere' })}>
               {requestErrorMessage(appendError)}
