@@ -11,7 +11,6 @@ export const picker = {
   idsLabel: 'Modell-IDs (eine pro Zeile oder durch Kommas getrennt)',
   metadataUnavailable:
     'Modelldetails konnten nicht nachgeschlagen werden ({{error}}). Die Modelle lassen sich trotzdem hinzufügen, aber Kontextlänge, maximale Ausgabe und akzeptierte Eingabe müssen von Hand gefüllt werden.',
-  lookingUp: 'Wird nachgeschlagen…',
   adding: 'Wird hinzugefügt…',
   addOne: '{{count}} Modell hinzufügen',
   addMany: '{{count}} Modelle hinzufügen',

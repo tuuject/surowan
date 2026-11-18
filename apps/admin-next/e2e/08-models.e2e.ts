@@ -85,6 +85,58 @@ test.describe('providers page', () => {
     expect(JSON.stringify(view)).not.toContain('e2e-rotated-builtin-key');
   });
 
+  test('discovery holds its layout with placeholder rows, and a failed first fetch retries from the error', async ({
+    page,
+  }) => {
+    // The first listing is held so the loading state can be looked at, then
+    // fails once; the retry goes through to the loopback upstream.
+    let release = (): void => {};
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let failed = false;
+    await page.route('**/api/providers/discover', async (route) => {
+      if (failed) {
+        await route.continue();
+        return;
+      }
+      failed = true;
+      await held;
+      await route.fulfill({ status: 502, json: { error: 'discovery_failed', message: 'Upstream unavailable' } });
+    });
+    await page.goto(await adminUrl('/providers'));
+    await page.getByRole('button', { name: `Provider ${E2E_RELAY_ALIAS}` }).click();
+    await page.getByRole('button', { name: 'Fetch models' }).click();
+
+    const dialog = page.getByRole('dialog', { name: 'Fetch models' });
+    const search = dialog.getByRole('textbox', { name: 'Search models' });
+    const refresh = dialog.getByRole('button', { name: 'Fetch again' });
+    // Search and refresh are already in place; only the rows are placeholders,
+    // and no button stands in for the wait with a "Fetching…" label.
+    await expect(dialog.getByRole('status')).toContainText('Loading…');
+    await expect(search).toBeDisabled();
+    await expect(refresh).toBeDisabled();
+    await expect(dialog.getByText('Fetching…')).toHaveCount(0);
+    await page.screenshot({ path: test.info().outputPath('discovery-loading.png'), animations: 'disabled' });
+
+    release();
+    // Nothing was listed, so there is no list to refresh: the error carries the retry.
+    const alert = dialog.getByRole('alert');
+    await expect(alert).toContainText('Upstream unavailable');
+    await expect(search).toHaveCount(0);
+    await page.screenshot({ path: test.info().outputPath('discovery-failed.png'), animations: 'disabled' });
+
+    await alert.getByRole('button', { name: 'Fetch again' }).click();
+    await expect(dialog.locator('li').filter({ hasText: E2E_RELAY_COMPLETE_MODEL })).toBeVisible();
+    await expect(alert).toHaveCount(0);
+    await expect(search).toBeEnabled();
+    await expect(refresh).toBeEnabled();
+    await expect(dialog.getByRole('status')).toHaveCount(0);
+    await page.screenshot({ path: test.info().outputPath('discovery-listed.png'), animations: 'disabled' });
+    await dialog.getByRole('button', { name: 'Cancel' }).click();
+    await expect(dialog).toHaveCount(0);
+  });
+
   test('discovery fetches on open, fills matched details and asks only for missing key fields', async ({ page }) => {
     await page.goto(await adminUrl('/providers'));
     await page.getByRole('button', { name: `Provider ${E2E_RELAY_ALIAS}` }).click();

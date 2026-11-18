@@ -9,7 +9,6 @@ export const picker = {
   idsLabel: '模型 ID（每行一个，或用逗号分隔）',
   metadataUnavailable:
     '暂时查不到模型参数（{{error}}）。模型仍然可以添加，但上下文长度、最长输出和输入类型需要手动填写。',
-  lookingUp: '查询中…',
   adding: '添加中…',
   addOne: '添加 {{count}} 个模型',
   addMany: '添加 {{count}} 个模型',
