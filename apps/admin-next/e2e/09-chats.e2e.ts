@@ -171,18 +171,40 @@ test('saved-but-not-applied errors refresh both views and Settings can apply the
   await expect(chatRow(page).getByText('Active', { exact: true })).toBeVisible();
 });
 
-test('mobile dark layout keeps the form and actions usable without page overflow', async ({ page }) => {
-  await page.setViewportSize({ width: 390, height: 844 });
+test('mobile Chat edit keeps all fields inside the dialog with long model IDs', async ({ page }, testInfo) => {
+  await page.setViewportSize({ width: 360, height: 844 });
+  const view = await viewOf(page);
+  const longModel = {
+    provider: 'openrouter',
+    model: 'example/long-context-reasoning-model-preview-2026-11-18',
+    name: 'Long context model',
+    thinking_levels: ['off'],
+  };
+  await page.route('**/api/chats', (route) =>
+    route.fulfill({ json: { ...view, models: [...view.models, longModel] } }),
+  );
   await page.evaluate(() => {
     localStorage.setItem('admin-theme', 'dark');
   });
   await page.reload();
   await expect(page.getByText('Chat allowlist')).toBeVisible();
-  await page.getByRole('button', { name: 'Add Chat', exact: true }).click();
-  await expect(page.getByLabel('Telegram Chat ID')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Save Chat' })).toBeInViewport();
+  await chatRow(page).getByRole('button', { name: 'Edit', exact: true }).click();
+  const dialog = page.getByRole('dialog');
+  await dialog.getByRole('combobox', { name: 'Agent model' }).selectOption({
+    label: `${longModel.provider} / ${longModel.model}`,
+  });
+  const screenshot = testInfo.outputPath('mobile-chat-edit.png');
+  await dialog.screenshot({ path: screenshot, animations: 'disabled' });
+  await testInfo.attach('mobile-chat-edit', { path: screenshot, contentType: 'image/png' });
+  const formWidth = await dialog.locator('form').evaluate((form) => ({
+    content: form.scrollWidth,
+    available: form.clientWidth,
+  }));
+  expect(formWidth.content).toBeLessThanOrEqual(formWidth.available);
+  await expect(dialog.getByRole('button', { name: 'Save Chat' })).toBeInViewport();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
-  await page.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
+  expect((await viewOf(page)).revision).toBe(view.revision);
 });
 
 test('quick links open chat-scoped pages', async ({ page }) => {
