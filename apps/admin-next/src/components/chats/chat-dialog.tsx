@@ -200,7 +200,10 @@ function ChatForm({
         submit();
       }}
     >
-      <fieldset disabled={save.isPending} className={css({ '& > :not(:last-child)': { marginBlockEnd: '5' } })}>
+      <fieldset
+        disabled={save.isPending}
+        className={css({ minInlineSize: '0', '& > :not(:last-child)': { marginBlockEnd: '5' } })}
+      >
         <Field label={t('pages.chats.chatIdLabel')} help={t('pages.chats.chatIdHint')}>
           <Input
             value={id}
