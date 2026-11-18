@@ -141,7 +141,7 @@ function generatedPictureOf(
         eq(hostSends.conversationId, messages.conversationId),
         eq(hostSends.kind, 'image'),
         eq(hostSends.state, 'success'),
-        or(eq(hostSends.telegramMessageId, messages.telegramMessageId), eq(hostSends.messageId, messages.id)),
+        or(eq(hostSends.messageNo, messages.messageNo), eq(hostSends.messageId, messages.id)),
       ),
     )
     .where(and(eq(media.id, mediaId), eq(messages.sentByBot, true)))

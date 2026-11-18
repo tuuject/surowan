@@ -175,7 +175,7 @@ function logInvocationDiagnostic(
     const now = new Date();
     const row = deps.store.orm
       .all<InvocationDiagnosticRow>(
-        sql`SELECT c.host_kind, c.telegram_chat_id,
+        sql`SELECT c.host_kind, c.host_chat_id AS telegram_chat_id,
                   (SELECT COUNT(*) FROM bucket_messages bm WHERE bm.bucket_id = ${invocation.bucket_id}) AS bucket_message_count,
                   (SELECT COUNT(*) FROM buckets pb WHERE pb.state IN ('collecting', 'queued')) AS pending_bucket_count,
                   (SELECT COUNT(*) FROM buckets pb

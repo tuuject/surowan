@@ -46,7 +46,7 @@ describe('scene context', () => {
     // Rewrite the clock so only the opening-batch filter can keep it out.
     const attachedMessage = store.orm
       .all<{ id: bigint }>(
-        sql`SELECT id FROM messages WHERE chat_id = ${chatRowId(store, GROUP_CHAT)} AND telegram_message_id = 11`,
+        sql`SELECT id FROM messages WHERE chat_id = ${chatRowId(store, GROUP_CHAT)} AND message_no = 11`,
       )
       .at(0);
     if (attachedMessage === undefined) {

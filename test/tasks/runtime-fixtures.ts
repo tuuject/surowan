@@ -67,7 +67,7 @@ export function addConversation(
   const at = '2026-01-01T00:00:00.000Z';
   store.db
     .prepare(
-      'INSERT OR IGNORE INTO chats(id, telegram_chat_id, canonical_chat_id, type, updated_at) VALUES (?, ?, ?, ?, ?)',
+      "INSERT OR IGNORE INTO chats(id, host_chat_id, canonical_chat_id, type, updated_at, host_kind) VALUES (?, ?, ?, ?, ?, 'telegram')",
     )
     .run(chatId, telegramChatId, telegramChatId, type, at);
   store.db

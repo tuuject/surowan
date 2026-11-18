@@ -163,13 +163,12 @@ export function createPlaygroundDelivery(deps: PlaygroundDeliveryDeps): ImDelive
         conversationId: request.target.conversation.id,
         chatId: resolved.chatId,
         hostKind: 'playground',
-        telegramMessageId: null,
+        messageNo: sequenceNo,
         visible: true,
         sentByBot: true,
-        telegramDate: stamp,
+        sentAt: stamp,
         receivedAt: stamp,
         localReplyToMessageId: replyTo,
-        localSequenceNo: sequenceNo,
       })
       .returning({ id: messages.id })
       .get();

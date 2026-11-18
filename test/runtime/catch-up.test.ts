@@ -99,10 +99,10 @@ describe('runtime catch-up', () => {
     expect(
       fixture.store.db
         .prepare<[], { chat_id: bigint; count: bigint; first: bigint; last: bigint }>(
-          `SELECT c.telegram_chat_id AS chat_id, COUNT(*) AS count,
-                  MIN(m.telegram_message_id) AS first, MAX(m.telegram_message_id) AS last
+          `SELECT c.host_chat_id AS chat_id, COUNT(*) AS count,
+                  MIN(m.message_no) AS first, MAX(m.message_no) AS last
            FROM messages m JOIN chats c ON c.id = m.chat_id
-           GROUP BY c.telegram_chat_id ORDER BY c.telegram_chat_id`,
+           GROUP BY c.host_chat_id ORDER BY c.host_chat_id`,
         )
         .all(),
     ).toEqual([
@@ -122,14 +122,14 @@ describe('runtime catch-up', () => {
     expect(
       fixture.store.db
         .prepare<[], { chat_id: bigint; count: bigint; first: bigint; last: bigint }>(
-          `SELECT c.telegram_chat_id AS chat_id, COUNT(*) AS count,
-                  MIN(m.telegram_message_id) AS first, MAX(m.telegram_message_id) AS last
+          `SELECT c.host_chat_id AS chat_id, COUNT(*) AS count,
+                  MIN(m.message_no) AS first, MAX(m.message_no) AS last
            FROM invocation_messages im
            JOIN invocations i ON i.id = im.invocation_id
            JOIN conversations v ON v.id = i.conversation_id
            JOIN chats c ON c.id = v.chat_id
            JOIN messages m ON m.id = im.message_id
-           GROUP BY c.telegram_chat_id ORDER BY c.telegram_chat_id`,
+           GROUP BY c.host_chat_id ORDER BY c.host_chat_id`,
         )
         .all(),
     ).toEqual([
@@ -171,7 +171,7 @@ describe('runtime catch-up', () => {
     expect(
       fixture.store.db
         .prepare<[], { first: bigint; last: bigint }>(
-          'SELECT MIN(telegram_message_id) AS first, MAX(telegram_message_id) AS last FROM messages',
+          'SELECT MIN(message_no) AS first, MAX(message_no) AS last FROM messages',
         )
         .get(),
     ).toEqual({ first: 15n, last: 114n });
@@ -296,9 +296,9 @@ describe('runtime catch-up', () => {
     expect(
       fixture.store.db
         .prepare<[], { telegram_message_id: bigint; revisions: bigint }>(
-          `SELECT m.telegram_message_id, COUNT(r.id) AS revisions
+          `SELECT m.message_no AS telegram_message_id, COUNT(r.id) AS revisions
            FROM messages m JOIN message_revisions r ON r.message_id = m.id
-           GROUP BY m.telegram_message_id ORDER BY m.telegram_message_id`,
+           GROUP BY m.message_no ORDER BY m.message_no`,
         )
         .all(),
     ).toEqual(
@@ -331,12 +331,12 @@ describe('runtime catch-up', () => {
       expect(
         fixture.store.db
           .prepare<[], { telegram_chat_id: bigint; invocations: bigint; buckets: bigint }>(
-            `SELECT c.telegram_chat_id, COUNT(DISTINCT i.id) AS invocations, COUNT(DISTINCT ib.bucket_id) AS buckets
+            `SELECT c.host_chat_id AS telegram_chat_id, COUNT(DISTINCT i.id) AS invocations, COUNT(DISTINCT ib.bucket_id) AS buckets
              FROM invocations i
              JOIN invocation_buckets ib ON ib.invocation_id = i.id
              JOIN conversations v ON v.id = i.conversation_id
              JOIN chats c ON c.id = v.chat_id
-             GROUP BY c.telegram_chat_id ORDER BY c.telegram_chat_id`,
+             GROUP BY c.host_chat_id ORDER BY c.host_chat_id`,
           )
           .all(),
       ).toEqual([

@@ -28,6 +28,7 @@ import type { MediaDownloader } from '../../../capabilities/media/download.ts';
 import type { SenderId } from '../../../platform/im-host/identity.ts';
 import type { ImMemberProfile, ImMemberProfileRequest, ImMemberProfiles } from '../../../platform/im-host/profiles.ts';
 import type { BusinessStore } from '../../../store/store.ts';
+import { telegramHostSql } from '../../../store/host-scope.ts';
 
 /**
  * The subset of the Bot API this reader asks for, so a test can stand in for
@@ -117,7 +118,7 @@ function knownMember(store: BusinessStore, conversationId: bigint, userId: bigin
     FROM messages m
     JOIN message_revisions r ON r.id = m.current_revision_id
     JOIN senders s ON s.id = r.sender_id
-    WHERE m.conversation_id = ${conversationId} AND s.telegram_type = 'user' AND s.telegram_id = ${userId}
+    WHERE m.conversation_id = ${conversationId} AND ${telegramHostSql('s.host_kind')} AND s.host_sender_type = 'user' AND s.host_sender_id = ${userId}
     LIMIT 1`);
   return row !== undefined;
 }

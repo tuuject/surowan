@@ -121,7 +121,7 @@ export function completeInvocation(store: SqliteStore, invocationId: bigint, at:
 export function chatOfInvocation(store: SqliteStore, invocationId: bigint): bigint | undefined {
   return store.db
     .prepare<[bigint], { chat_id: bigint }>(
-      'SELECT c.telegram_chat_id AS chat_id FROM invocations i JOIN conversations v ON v.id = i.conversation_id JOIN chats c ON c.id = v.chat_id WHERE i.id = ?',
+      'SELECT c.host_chat_id AS chat_id FROM invocations i JOIN conversations v ON v.id = i.conversation_id JOIN chats c ON c.id = v.chat_id WHERE i.id = ?',
     )
     .get(invocationId)?.chat_id;
 }

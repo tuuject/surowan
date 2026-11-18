@@ -268,7 +268,7 @@ describe('participation gate', () => {
     expect(
       store.db
         .prepare<[], { count: bigint }>(
-          'SELECT COUNT(*) AS count FROM message_revisions WHERE message_id = (SELECT id FROM messages WHERE telegram_message_id = 10)',
+          'SELECT COUNT(*) AS count FROM message_revisions WHERE message_id = (SELECT id FROM messages WHERE message_no = 10)',
         )
         .get()?.count,
     ).toBe(2n);

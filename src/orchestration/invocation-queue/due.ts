@@ -114,7 +114,7 @@ export function attachDueBucket(
   // Paused chats never reach here: the due query excludes them.
   const chat = store.orm
     .all<{ chat_id: bigint; telegram_chat_id: bigint; type: string }>(
-      sql`SELECT c.id AS chat_id, c.telegram_chat_id, c.type FROM conversations v JOIN chats c ON c.id = v.chat_id WHERE v.id = ${bucket.conversation_id}`,
+      sql`SELECT c.id AS chat_id, c.host_chat_id AS telegram_chat_id, c.type FROM conversations v JOIN chats c ON c.id = v.chat_id WHERE v.id = ${bucket.conversation_id}`,
     )
     .at(0);
   if (chat === undefined) {
@@ -204,7 +204,7 @@ export function queueCollectingBucket(
   const store = deps.store;
   const chat = store.orm
     .all<{ chat_id: bigint; telegram_chat_id: bigint; type: string; paused: bigint }>(
-      sql`SELECT c.id AS chat_id, c.telegram_chat_id, c.type,
+      sql`SELECT c.id AS chat_id, c.host_chat_id AS telegram_chat_id, c.type,
               EXISTS(SELECT 1 FROM chat_pause p WHERE p.chat_id = c.id) AS paused
        FROM conversations v JOIN chats c ON c.id = v.chat_id WHERE v.id = ${bucket.conversation_id}`,
     )

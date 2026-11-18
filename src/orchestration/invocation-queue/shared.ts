@@ -189,7 +189,7 @@ export function receiptCancelReason(deps: InvocationQueueDeps, receipt: ReceiptR
     conversationId: receipt.conversation_id,
     chatId: receipt.chat_id,
     hostKind: receipt.host_kind,
-    telegramChatId: receipt.telegram_chat_id,
+    hostChatId: receipt.telegram_chat_id,
     messageThreadId: receipt.message_thread_id,
   });
 }

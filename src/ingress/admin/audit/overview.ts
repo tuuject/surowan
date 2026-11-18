@@ -2,6 +2,7 @@ import { eq, sql } from 'drizzle-orm';
 import { dailyUsage, mediaAnalyses, messages } from '../../../store/schema/index.ts';
 import { storedSleepUntil } from '../../../store/sleep.ts';
 import type { Orm } from '../../../store/store.ts';
+import { telegramHostSql } from '../../../store/host-scope.ts';
 
 interface PausedChatRow {
   readonly telegram_chat_id: bigint;
@@ -40,10 +41,11 @@ export function overview(orm: Orm, now = new Date()): Record<string, unknown> {
     .all();
   const storedSleep = storedSleepUntil(orm);
   const sleepUntil = storedSleep !== null && storedSleep > now.toISOString() ? storedSleep : null;
-  const pausedChats = orm.all<PausedChatRow>(sql`SELECT c.telegram_chat_id, c.type, c.title, c.username, p.paused_at
+  const pausedChats =
+    orm.all<PausedChatRow>(sql`SELECT c.host_chat_id AS telegram_chat_id, c.type, c.title, c.username, p.paused_at
        FROM chat_pause p JOIN chats c ON c.id = p.chat_id
-       WHERE c.host_kind = 'telegram'
-       ORDER BY p.paused_at, c.telegram_chat_id`);
+       WHERE ${telegramHostSql('c.host_kind')}
+       ORDER BY p.paused_at, c.host_chat_id`);
   const messageCount = orm.select({ count: sql<bigint>`count(*)` }).from(messages).get();
   const analysisCount = orm
     .select({ count: sql<bigint>`count(*)` })

@@ -1,7 +1,7 @@
 import { type SQL, sql } from 'drizzle-orm';
 import type { RawConfig } from '../../../platform/config/index.ts';
 import { HOST_KINDS, type HostKind } from '../../../platform/im-host/identity.ts';
-import { telegramIdentity } from '../../../store/host-scope.ts';
+import { telegramHostSql, telegramIdentity } from '../../../store/host-scope.ts';
 import { invocations } from '../../../store/schema/index.ts';
 import type { Orm } from '../../../store/store.ts';
 import {
@@ -57,7 +57,7 @@ export interface InvocationListRow {
 /** `model_calls.model` is stored verbatim; the bound matches the replay override. */
 const MAX_MODEL_FILTER_LENGTH = 256;
 
-export const INVOCATION_CHAT_COLUMNS = sql`ch.host_kind, ch.id AS chat_id, ch.telegram_chat_id, ch.type AS chat_type,
+export const INVOCATION_CHAT_COLUMNS = sql`ch.host_kind, ch.id AS chat_id, ch.host_chat_id AS telegram_chat_id, ch.type AS chat_type,
               ch.title AS chat_title, ch.username AS chat_username, c.message_thread_id`;
 
 export function listInvocations(orm: Orm, query: ListQuery, config?: RawConfig): Page<Record<string, unknown>> {
@@ -75,7 +75,7 @@ export function listInvocations(orm: Orm, query: ListQuery, config?: RawConfig):
     conditions.push(sql`ch.host_kind = ${host}`);
   }
   if (query.chat !== undefined && query.chat !== null && query.chat.length > 0) {
-    conditions.push(sql`ch.telegram_chat_id = ${parseId(query.chat, 'chat')}`);
+    conditions.push(sql`${telegramHostSql('ch.host_kind')} AND ch.host_chat_id = ${parseId(query.chat, 'chat')}`);
   }
   const model = optionalFilter(query.model);
   if (model !== undefined) {
@@ -161,7 +161,7 @@ export function invocationChat(row: InvocationListRow): Record<string, unknown> 
   const telegram = row.host_kind === 'telegram';
   return {
     host_kind: row.host_kind,
-    telegram_chat_id: telegram ? telegramIdentity(row.telegram_chat_id, 'chats.telegram_chat_id').toString() : null,
+    telegram_chat_id: telegram ? telegramIdentity(row.telegram_chat_id, 'chats.host_chat_id').toString() : null,
     room_id: telegram ? null : row.chat_id.toString(),
     type: row.chat_type,
     title: row.chat_title,

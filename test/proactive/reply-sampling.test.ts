@@ -132,7 +132,7 @@ describe('proactive reply probability', () => {
     ).toHaveLength(1);
     const rows = harness.store.db
       .prepare<[], { telegram_chat_id: bigint; consecutive_misses: bigint }>(
-        `SELECT c.telegram_chat_id, s.consecutive_misses
+        `SELECT c.host_chat_id AS telegram_chat_id, s.consecutive_misses
          FROM proactive_reply_state s JOIN chats c ON c.id = s.chat_id`,
       )
       .all();

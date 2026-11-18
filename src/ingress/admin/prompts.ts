@@ -401,7 +401,7 @@ export function affectedRunningInvocations(
     WHERE i.state = 'running' AND i.config_hash <> ${activeHash}${
       telegramIds === undefined
         ? sql``
-        : sql` AND v.chat_id IN (SELECT c.id FROM chats c WHERE c.telegram_chat_id IN (${sql.join(
+        : sql` AND v.chat_id IN (SELECT c.id FROM chats c WHERE c.host_kind = 'telegram' AND c.host_chat_id IN (${sql.join(
             telegramIds.map((id) => sql`${id}`),
             sql`, `,
           )}))`

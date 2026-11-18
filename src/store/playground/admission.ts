@@ -125,10 +125,9 @@ export function submit(deps: PlaygroundDeps, chatId: bigint, input: SubmitInput)
         chatId,
         conversationId: room.conversationId,
         hostKind: 'playground',
-        telegramMessageId: null,
-        telegramDate: now,
+        messageNo: seq,
+        sentAt: now,
         receivedAt: now,
-        localSequenceNo: seq,
         localReplyToMessageId: replyMessageId,
       })
       .returning({ id: messages.id })
@@ -223,7 +222,7 @@ function messageIdAtSeq(deps: PlaygroundDeps, chatId: bigint, seq: bigint): bigi
     deps.orm
       .select({ id: messages.id })
       .from(messages)
-      .where(and(eq(messages.chatId, chatId), eq(messages.localSequenceNo, seq)))
+      .where(and(eq(messages.chatId, chatId), eq(messages.messageNo, seq)))
       .get()?.id ?? null
   );
 }

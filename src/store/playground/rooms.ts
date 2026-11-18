@@ -148,7 +148,7 @@ function createRoomInside(
       hostKind: 'playground',
       type: 'group',
       title: input.title,
-      telegramChatId: null,
+      hostChatId: null,
       canonicalChatId: null,
       updatedAt: now,
     })
@@ -187,8 +187,8 @@ function createParticipantInside(
     .insert(senders)
     .values({
       hostKind: 'playground',
-      telegramId: null,
-      telegramType: null,
+      hostSenderId: null,
+      hostSenderType: null,
       displayName: name,
       username: null,
       isBot: false,

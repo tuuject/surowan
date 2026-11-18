@@ -70,7 +70,7 @@ export async function setup(
   const at = new Date().toISOString();
   store.db
     .prepare(
-      "INSERT INTO chats(id, telegram_chat_id, canonical_chat_id, type, title, updated_at) VALUES (1, ?, ?, 'private', 'Owner', ?)",
+      "INSERT INTO chats(id, host_chat_id, canonical_chat_id, type, title, updated_at, host_kind) VALUES (1, ?, ?, 'private', 'Owner', ?, 'telegram')",
     )
     .run(CHAT_ID, CHAT_ID, at);
   store.db

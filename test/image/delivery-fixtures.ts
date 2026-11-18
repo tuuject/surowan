@@ -281,7 +281,7 @@ export interface SendRow {
 export function sendRows(store: SqliteStore): SendRow[] {
   return store.db
     .prepare<[], SendRow>(
-      'SELECT id, state, error_code, telegram_message_id, request_json, conversation_id FROM host_sends ORDER BY id',
+      'SELECT id, state, error_code, message_no AS telegram_message_id, request_json, conversation_id FROM host_sends ORDER BY id',
     )
     .all();
 }

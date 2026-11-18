@@ -106,7 +106,7 @@ export function chatStatus(deps: BotCommandStatusDeps, telegramChatId: bigint, n
  * how many sends are inside the GC window, and when the last collection ran.
  */
 function contextLines(deps: BotCommandStatusDeps, telegramChatId: bigint): string[] {
-  const rows = listConversationContexts(deps.store, { telegramChatId });
+  const rows = listConversationContexts(deps.store, { hostChatId: telegramChatId });
   if (rows.length === 0) {
     return ['Context: 尚未建立'];
   }
@@ -130,7 +130,7 @@ function participationLine(
   const chat = deps.store.orm
     .select({ type: chats.type })
     .from(chats)
-    .where(eq(chats.telegramChatId, telegramChatId))
+    .where(and(eq(chats.hostKind, 'telegram'), eq(chats.hostChatId, telegramChatId)))
     .get();
   if (chat === undefined) {
     return null;

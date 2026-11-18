@@ -85,7 +85,7 @@ function snapshotRows(f: Harness, invocationId: bigint) {
 
 function messageId(f: Harness, telegramMessageId: number): bigint {
   return f.store.db
-    .prepare<[number], { id: bigint }>('SELECT id FROM messages WHERE telegram_message_id = ?')
+    .prepare<[number], { id: bigint }>('SELECT id FROM messages WHERE message_no = ?')
     .get(telegramMessageId)!.id;
 }
 
@@ -255,7 +255,7 @@ test('a resume is refused unless it is the newest terminal failure of a Telegram
 
   // The Telegram chat leaves the configuration.
   f.store.db.prepare("UPDATE invocations SET state = 'aborted' WHERE id = ?").run(completed);
-  f.store.db.prepare('UPDATE chats SET telegram_chat_id = 1, canonical_chat_id = 1 WHERE id = 1').run();
+  f.store.db.prepare('UPDATE chats SET host_chat_id = 1, canonical_chat_id = 1 WHERE id = 1').run();
   expect(await refusal(completed)).toEqual({ status: 409, error: 'resume_chat_removed' });
 
   // A Playground room retries through its Release ledger instead.

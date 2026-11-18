@@ -1,5 +1,5 @@
 import { botCommandToken } from '../../platform/bot-command.ts';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import type { Message } from 'grammy/types';
 import { ConversationContextStore } from '../../context/store/index.ts';
 import type { RawConfig } from '../../platform/config/index.ts';
@@ -278,8 +278,11 @@ export class BotCommandService {
 
   #internalChatId(telegramChatId: bigint): bigint | null {
     return (
-      this.#store.orm.select({ id: chats.id }).from(chats).where(eq(chats.telegramChatId, telegramChatId)).get()?.id ??
-      null
+      this.#store.orm
+        .select({ id: chats.id })
+        .from(chats)
+        .where(and(eq(chats.hostKind, 'telegram'), eq(chats.hostChatId, telegramChatId)))
+        .get()?.id ?? null
     );
   }
 

@@ -61,7 +61,7 @@ export function seedChat(store: SqliteStore, telegramChatId: bigint, threadId = 
     .insert(chats)
     .values({
       hostKind: 'telegram',
-      telegramChatId,
+      hostChatId: telegramChatId,
       canonicalChatId: telegramChatId,
       type: telegramChatId > 0n ? 'private' : 'supergroup',
       updatedAt: now,

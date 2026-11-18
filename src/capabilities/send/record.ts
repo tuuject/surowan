@@ -50,15 +50,16 @@ export function recordOutgoingMessage(
   environment.store.orm
     .insert(senders)
     .values({
-      telegramType: 'user',
-      telegramId: environment.bot.id,
+      hostKind: 'telegram',
+      hostSenderType: 'user',
+      hostSenderId: environment.bot.id,
       displayName: environment.bot.displayName,
       username: environment.bot.username,
       isBot: true,
       updatedAt: recordedAt,
     })
     .onConflictDoUpdate({
-      target: [senders.telegramType, senders.telegramId],
+      target: [senders.hostKind, senders.hostSenderType, senders.hostSenderId],
       set: {
         displayName: sql`excluded.display_name`,
         username: sql`excluded.username`,
@@ -70,7 +71,13 @@ export function recordOutgoingMessage(
   const sender = environment.store.orm
     .select({ id: senders.id })
     .from(senders)
-    .where(and(eq(senders.telegramType, 'user'), eq(senders.telegramId, environment.bot.id)))
+    .where(
+      and(
+        eq(senders.hostKind, 'telegram'),
+        eq(senders.hostSenderType, 'user'),
+        eq(senders.hostSenderId, environment.bot.id),
+      ),
+    )
     .get();
   if (sender === undefined) {
     throw new Error('Bot sender row is missing after upsert');
@@ -78,7 +85,7 @@ export function recordOutgoingMessage(
   const chat = environment.store.orm
     .select({ id: chats.id })
     .from(chats)
-    .where(eq(chats.telegramChatId, environment.context.chatId))
+    .where(and(eq(chats.hostKind, 'telegram'), eq(chats.hostChatId, environment.context.chatId)))
     .get();
   if (chat === undefined) {
     throw new Error('Outgoing chat row does not exist');
@@ -88,10 +95,11 @@ export function recordOutgoingMessage(
     .values({
       conversationId,
       chatId: chat.id,
-      telegramMessageId: delivered.messageId,
+      hostKind: 'telegram',
+      messageNo: delivered.messageId,
       visible: true,
       sentByBot: true,
-      telegramDate: new Date(delivered.sentAtSeconds * 1000).toISOString(),
+      sentAt: new Date(delivered.sentAtSeconds * 1000).toISOString(),
       receivedAt: recordedAt,
     })
     .returning({ id: messages.id })
@@ -139,6 +147,7 @@ export function recordOutgoingMessage(
         width: BigInt(sentPhoto.width),
         height: BigInt(sentPhoto.height),
         telegramJson: JSON.stringify({ sent: true, generated: true }),
+        hostKind: 'telegram',
       })
       .run();
   }
@@ -158,6 +167,7 @@ export function recordOutgoingMessage(
           fileUniqueId: sticker.fileUniqueId,
           mimeType: 'image/webp',
           telegramJson: JSON.stringify({ sent: true }),
+          hostKind: 'telegram',
         })
         .run();
     }

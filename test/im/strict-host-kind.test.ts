@@ -127,7 +127,7 @@ test('a delivery target with an unknown host_kind is rejected, not delivered as 
       conversationId: 1n,
       chatId: 1n,
       hostKind: 'discord',
-      telegramChatId: 123456789n,
+      hostChatId: 123456789n,
       messageThreadId: 0n,
     }),
   ).toThrow(/host kind/i);

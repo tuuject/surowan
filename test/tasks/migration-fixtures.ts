@@ -158,6 +158,13 @@ function ledgerTable(db: Database.Database): string {
 
 export function canonicalSnapshot(db: Database.Database) {
   const ledger = ledgerTable(db);
+  const ledgerColumns = new Set(
+    db
+      .prepare(`PRAGMA table_info(${ledger})`)
+      .all()
+      .map((row) => (row as { name: string }).name),
+  );
+  const messageNo = ledgerColumns.has('message_no') ? 'message_no' : 'telegram_message_id';
   return {
     // Memo injection state is sidecar protocol state, not canonical history.
     headers: db
@@ -173,7 +180,7 @@ export function canonicalSnapshot(db: Database.Database) {
     toolCalls: db.prepare('SELECT * FROM tool_calls ORDER BY id').all(),
     sends: db
       .prepare(
-        `SELECT id, tool_call_id, conversation_id, kind, request_json, state, telegram_message_id,
+        `SELECT id, tool_call_id, conversation_id, kind, request_json, state, ${messageNo} AS telegram_message_id,
                 response_json, error_code, created_at, finished_at
            FROM ${ledger} ORDER BY id`,
       )

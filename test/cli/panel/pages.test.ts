@@ -79,7 +79,7 @@ describe('surowan-utils panel pages', () => {
       // the panel's Chat dropdown is fed by the same stored rows.
       fixture.store.db
         .prepare(
-          'INSERT INTO chats (host_kind, telegram_chat_id, canonical_chat_id, type, title, updated_at) VALUES (?, ?, ?, ?, ?, ?)',
+          'INSERT INTO chats (host_kind, host_chat_id, canonical_chat_id, type, title, updated_at) VALUES (?, ?, ?, ?, ?, ?)',
         )
         .run('telegram', 123456789n, 123456789n, 'group', 'Fixture chat', new Date().toISOString());
       const chats = await runCli(['memo', 'chats', '--json'], fixture);

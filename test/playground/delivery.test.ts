@@ -46,11 +46,10 @@ describe('Bot Playground virtual delivery', () => {
     expect(written).toHaveLength(1);
     const message = written[0]!;
     // A delivery reports the room's own message id, its sequence number.
-    expect(published?.messageId).toBe(message.localSequenceNo);
+    expect(published?.messageId).toBe(message.messageNo);
     expect(message.hostKind).toBe('playground');
-    expect(message.telegramMessageId).toBeNull();
     expect(message.sentByBot).toBe(true);
-    expect(message.localSequenceNo).toBe(1n);
+    expect(message.messageNo).toBe(1n);
     const revision = store.orm.select().from(messageRevisions).where(eq(messageRevisions.messageId, message.id)).get();
     expect(revision?.text).toBe('hello room');
     expect(revision?.revisionNo).toBe(1n);
@@ -62,7 +61,7 @@ describe('Bot Playground virtual delivery', () => {
     expect(ledger?.state).toBe('success');
     expect(ledger?.messageId).toBe(message.id);
     // A room never claims a Telegram response.
-    expect(ledger?.telegramMessageId).toBeNull();
+    expect(ledger?.messageNo).toBeNull();
 
     // The sequence advanced exactly once; bot output never moves the room
     // revision that guards inputs and Release.

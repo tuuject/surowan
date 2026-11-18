@@ -98,9 +98,10 @@ export async function fixture(): Promise<Fixture> {
   store.orm
     .insert(senders)
     .values({
+      hostKind: 'telegram',
       id: BOT_SENDER,
-      telegramType: 'user',
-      telegramId: 999n,
+      hostSenderType: 'user',
+      hostSenderId: 999n,
       displayName: 'Surowan',
       username: 'surowan_test',
       isBot: true,
@@ -114,7 +115,7 @@ export async function fixture(): Promise<Fixture> {
     .run();
   store.orm
     .update(messages)
-    .set({ telegramDate: at(55), receivedAt: at(55) })
+    .set({ sentAt: at(55), receivedAt: at(55) })
     .where(eq(messages.id, MESSAGE_OPENING))
     .run();
   store.orm
@@ -178,13 +179,14 @@ export function insertMessage(store: SqliteStore, input: MessageInput): void {
   store.orm
     .insert(messages)
     .values({
+      hostKind: 'telegram',
       id: input.id,
       conversationId: input.conversationId ?? CONVERSATION,
       chatId: CHAT,
-      telegramMessageId: input.telegramMessageId,
+      messageNo: input.telegramMessageId,
       visible: input.visible ?? true,
       sentByBot,
-      telegramDate: input.at,
+      sentAt: input.at,
       receivedAt: input.receivedAt ?? input.at,
     })
     .run();
@@ -269,9 +271,9 @@ function snapshotFor(store: SqliteStore, messageId: bigint, revisionId: bigint):
       sender_display_name: string | null;
       sender_username: string | null;
     }>(
-      sql`SELECT m.telegram_message_id, m.telegram_date, m.sent_by_bot, v.message_thread_id,
+      sql`SELECT m.message_no AS telegram_message_id, m.sent_at AS telegram_date, m.sent_by_bot, v.message_thread_id,
                  r.revision_no, r.kind, r.text, r.caption, r.reply_to_message_id, r.reply_snapshot_json,
-                 r.forward_origin_json, r.media_group_id, s.telegram_id AS sender_telegram_id,
+                 r.forward_origin_json, r.media_group_id, s.host_sender_id AS sender_telegram_id,
                  s.display_name AS sender_display_name, s.username AS sender_username
           FROM messages m
           JOIN conversations v ON v.id = m.conversation_id
@@ -364,7 +366,7 @@ export function insertSend(store: SqliteStore, input: SendInput): void {
       kind: 'text',
       requestJson: '{}',
       state: input.state ?? 'success',
-      telegramMessageId: input.telegramMessageId,
+      messageNo: input.telegramMessageId,
       responseJson: input.telegramMessageId === null ? null : `{"message_id":${input.telegramMessageId}}`,
       errorCode: null,
       createdAt: input.createdAt,

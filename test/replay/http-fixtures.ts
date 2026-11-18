@@ -135,7 +135,7 @@ export async function fixture() {
   // supplies complete snapshots; no historical model payload is installed.
   store.orm
     .update(messages)
-    .set({ telegramDate: '2026-09-10T07:59:40.000Z', receivedAt: '2026-09-10T07:59:40.000Z' })
+    .set({ sentAt: '2026-09-10T07:59:40.000Z', receivedAt: '2026-09-10T07:59:40.000Z' })
     .where(eq(messages.id, opening))
     .run();
   const revision = store.orm

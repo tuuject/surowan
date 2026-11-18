@@ -43,7 +43,7 @@ test('search_group_memory returns summaries with ranges, then read_group_message
       senderTelegramId: 12,
     });
     f.store.orm.run(
-      sql`INSERT INTO chats (id, host_kind, telegram_chat_id, canonical_chat_id, type, updated_at)
+      sql`INSERT INTO chats (id, host_kind, host_chat_id, canonical_chat_id, type, updated_at)
           VALUES (2, 'telegram', 987654321, 987654321, 'supergroup', '2026-01-01T00:00:00.000Z')`,
     );
     seedMessage(

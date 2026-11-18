@@ -179,9 +179,9 @@ function adoptPendingBotMessages(deps: TelegramBucketDeps, conversationId: bigin
            AND m.received_at >= COALESCE(
              (SELECT MAX(first_received_at) FROM buckets WHERE conversation_id = ${conversationId} AND id <> ${bucketId}),
              '')
-           AND m.telegram_message_id > COALESCE(
-             (SELECT telegram_message_id FROM conversation_context_cutoffs WHERE conversation_id = m.conversation_id), -1)
-         ORDER BY m.telegram_date DESC, m.telegram_message_id DESC
+           AND m.message_no > COALESCE(
+             (SELECT message_no FROM conversation_context_cutoffs WHERE conversation_id = m.conversation_id), -1)
+         ORDER BY m.sent_at DESC, m.message_no DESC
          LIMIT ${BigInt(deps.configStore.current().config.agent.history_messages)}`,
     )
     .reverse();

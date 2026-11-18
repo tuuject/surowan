@@ -80,7 +80,7 @@ const ITEM_FIELDS = {
   last_message_id: groupMemories.lastMessageId,
   created_at: groupMemories.createdAt,
   chat_id: chats.id,
-  telegram_chat_id: chats.telegramChatId,
+  telegram_chat_id: chats.hostChatId,
   chat_type: chats.type,
   chat_title: chats.title,
 };
@@ -106,7 +106,7 @@ export function listGroupMemories(
   const snapshot = timeSnapshot(orm, groupMemories.createdAt, groupMemories.createdAt, query.as_of);
   const conditions: SQL[] = [telegramHostScope()];
   if (query.chat !== undefined && query.chat !== null && query.chat.length > 0) {
-    conditions.push(eq(chats.telegramChatId, parseId(query.chat, 'chat')));
+    conditions.push(eq(chats.hostChatId, parseId(query.chat, 'chat')));
   }
   if (query.day !== undefined && query.day !== null && query.day.length > 0) {
     try {
@@ -212,7 +212,7 @@ function toItem(row: GroupMemoryRow): GroupMemoryAdminItem {
   return {
     id: row.id,
     chat: {
-      telegram_chat_id: telegramIdentity(row.telegram_chat_id, 'chats.telegram_chat_id').toString(),
+      telegram_chat_id: telegramIdentity(row.telegram_chat_id, 'chats.host_chat_id').toString(),
       type: row.chat_type,
       title: row.chat_title,
     },
@@ -265,7 +265,7 @@ export function groupMemoryProgress(orm: Orm, now = new Date()): { readonly item
   const laneRows = orm
     .select({
       lane: groupMemoryLanes,
-      telegram_chat_id: chats.telegramChatId,
+      telegram_chat_id: chats.hostChatId,
       chat_type: chats.type,
       chat_title: chats.title,
     })
@@ -309,7 +309,7 @@ export function groupMemoryProgress(orm: Orm, now = new Date()): { readonly item
       .where(eq(groupMemories.chatId, chatId))
       .get();
     const newest = orm
-      .select({ at: sql<string | null>`max(${messages.telegramDate})` })
+      .select({ at: sql<string | null>`max(${messages.sentAt})` })
       .from(messages)
       .where(eq(messages.chatId, chatId))
       .get();
@@ -337,7 +337,7 @@ export function groupMemoryProgress(orm: Orm, now = new Date()): { readonly item
       .get();
     return {
       chat: {
-        telegram_chat_id: telegramIdentity(head.telegram_chat_id, 'chats.telegram_chat_id').toString(),
+        telegram_chat_id: telegramIdentity(head.telegram_chat_id, 'chats.host_chat_id').toString(),
         type: head.chat_type,
         title: head.chat_title,
       },
@@ -398,7 +398,7 @@ export function listGroupMemoryRuns(
   const snapshot = idSnapshot(orm, groupMemoryRuns.id, groupMemoryRuns.id, query.as_of);
   const conditions: SQL[] = [telegramHostScope()];
   if (query.chat !== undefined && query.chat !== null && query.chat.length > 0) {
-    conditions.push(eq(chats.telegramChatId, parseId(query.chat, 'chat')));
+    conditions.push(eq(chats.hostChatId, parseId(query.chat, 'chat')));
   }
   if (query.state !== undefined && query.state !== null && query.state.length > 0) {
     if (!RUN_STATES.has(query.state)) {
@@ -415,7 +415,7 @@ export function listGroupMemoryRuns(
   const rows = orm
     .select({
       run: groupMemoryRuns,
-      telegram_chat_id: chats.telegramChatId,
+      telegram_chat_id: chats.hostChatId,
       chat_type: chats.type,
       chat_title: chats.title,
     })
@@ -431,7 +431,7 @@ export function listGroupMemoryRuns(
       ({ run, telegram_chat_id, chat_type, chat_title }): GroupMemoryRunItem => ({
         id: run.id.toString(),
         chat: {
-          telegram_chat_id: telegramIdentity(telegram_chat_id, 'chats.telegram_chat_id').toString(),
+          telegram_chat_id: telegramIdentity(telegram_chat_id, 'chats.host_chat_id').toString(),
           type: chat_type,
           title: chat_title,
         },

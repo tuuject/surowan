@@ -75,7 +75,7 @@ describe('Telegram ingestion', () => {
     expect(
       store.db
         .prepare<[], { telegram_type: string; is_bot: bigint }>(
-          'SELECT telegram_type, is_bot FROM senders WHERE telegram_id = 123456789',
+          "SELECT host_sender_type AS telegram_type, is_bot FROM senders WHERE host_kind = 'telegram' AND host_sender_id = 123456789",
         )
         .get(),
     ).toEqual({ telegram_type: 'sender_chat', is_bot: 0n });
@@ -173,7 +173,7 @@ describe('Telegram ingestion', () => {
     const bucketRows = (store: SqliteStore) =>
       store.db
         .prepare<[], { bucket_id: bigint; sequence_no: bigint; telegram_message_id: bigint }>(
-          `SELECT bm.bucket_id, bm.sequence_no, m.telegram_message_id
+          `SELECT bm.bucket_id, bm.sequence_no, m.message_no AS telegram_message_id
            FROM bucket_messages bm JOIN messages m ON m.id = bm.message_id
            ORDER BY bm.bucket_id, bm.sequence_no`,
         )

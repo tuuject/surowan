@@ -82,15 +82,16 @@ export function seedMessage(
   const existingSender = store.orm
     .select({ id: senders.id })
     .from(senders)
-    .where(eq(senders.telegramId, senderTelegramId))
+    .where(and(eq(senders.hostKind, 'telegram'), eq(senders.hostSenderId, senderTelegramId)))
     .get();
   const senderId =
     existingSender?.id ??
     store.orm
       .insert(senders)
       .values({
-        telegramType: 'user',
-        telegramId: senderTelegramId,
+        hostKind: 'telegram',
+        hostSenderType: 'user',
+        hostSenderId: senderTelegramId,
         displayName: input.senderName ?? 'Alice',
         username: null,
         isBot: input.sentByBot === true,
@@ -105,12 +106,13 @@ export function seedMessage(
   const message = store.orm
     .insert(messages)
     .values({
+      hostKind: 'telegram',
       conversationId,
       chatId: seeded.chatId,
-      telegramMessageId: BigInt(input.telegramMessageId),
+      messageNo: BigInt(input.telegramMessageId),
       visible: true,
       sentByBot: input.sentByBot === true,
-      telegramDate: input.date.toISOString(),
+      sentAt: input.date.toISOString(),
       receivedAt: input.date.toISOString(),
     })
     .returning({ id: messages.id })
@@ -177,7 +179,7 @@ export async function groupMemoryFixture(
   // `chats` has no seeded row yet; insert it with an explicit id so tests can
   // reason about the Chat-scoped rows directly.
   store.orm.run(
-    sql`INSERT INTO chats (id, host_kind, telegram_chat_id, canonical_chat_id, type, title, updated_at)
+    sql`INSERT INTO chats (id, host_kind, host_chat_id, canonical_chat_id, type, title, updated_at)
         VALUES (1, 'telegram', 123456789, 123456789, 'supergroup', 'Test group', '2026-01-01T00:00:00.000Z')`,
   );
   const conversation = store.orm
@@ -196,7 +198,7 @@ export async function groupMemoryFixture(
   const extraChats = (options.extraChatIds ?? []).map((telegramChatId, index): SeededGroupChat => {
     const chatId = BigInt(index + 2);
     store.orm.run(
-      sql`INSERT INTO chats (id, host_kind, telegram_chat_id, canonical_chat_id, type, title, updated_at)
+      sql`INSERT INTO chats (id, host_kind, host_chat_id, canonical_chat_id, type, title, updated_at)
           VALUES (${chatId}, 'telegram', ${telegramChatId}, ${telegramChatId}, 'supergroup', 'Extra group', '2026-01-01T00:00:00.000Z')`,
     );
     return {

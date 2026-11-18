@@ -38,7 +38,7 @@ interface StickerCatalogRow {
 
 interface SenderIdentityRow {
   readonly message_id: bigint;
-  readonly telegram_id: bigint | null;
+  readonly sender_id: bigint | null;
   readonly display_name: string;
   readonly username: string | null;
 }
@@ -87,12 +87,12 @@ export function renderInjection(deps: RenderDependencies, config: RawConfig, inp
   // member ids are internal. Each host keeps its own sender projection.
   const senderRows = deps.orm.all<SenderIdentityRow>(
     identity.hostKind === 'telegram'
-      ? sql`SELECT im.message_id, s.telegram_id, s.display_name, s.username
+      ? sql`SELECT im.message_id, s.host_sender_id AS sender_id, s.display_name, s.username
            FROM invocation_messages im
            JOIN message_revisions r ON r.id = im.revision_id
            JOIN senders s ON s.id = r.sender_id
-           WHERE im.invocation_id = ${identity.invocationId} AND s.telegram_type = 'user'`
-      : sql`SELECT im.message_id, NULL AS telegram_id, s.display_name, NULL AS username
+           WHERE im.invocation_id = ${identity.invocationId} AND s.host_sender_type = 'user'`
+      : sql`SELECT im.message_id, NULL AS sender_id, s.display_name, NULL AS username
            FROM invocation_messages im
            JOIN message_revisions r ON r.id = im.revision_id
            JOIN senders s ON s.id = r.sender_id
@@ -100,11 +100,11 @@ export function renderInjection(deps: RenderDependencies, config: RawConfig, inp
   );
   const senderByMessage = new Map<string, VisibleSender>();
   for (const sender of senderRows) {
-    if (sender.telegram_id === null) {
+    if (sender.sender_id === null) {
       continue;
     }
     senderByMessage.set(sender.message_id.toString(), {
-      userId: sender.telegram_id,
+      userId: sender.sender_id,
       displayName: sender.display_name,
       username: sender.username,
     });

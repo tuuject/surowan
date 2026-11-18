@@ -42,8 +42,8 @@ export const chats = sqliteTable(
      * playground rows are virtual rooms with no transport identifier at all.
      * Nothing may infer the kind from the sign of an id.
      */
-    hostKind: text('host_kind').$type<HostKind>().notNull().default('telegram'),
-    telegramChatId: sqliteBigInt('telegram_chat_id'),
+    hostKind: text('host_kind').$type<HostKind>().notNull(),
+    hostChatId: sqliteBigInt('host_chat_id'),
     canonicalChatId: sqliteBigInt('canonical_chat_id'),
     type: text('type').notNull(),
     title: text('title'),
@@ -51,13 +51,9 @@ export const chats = sqliteTable(
     updatedAt: text('updated_at').notNull(),
   },
   (t) => [
-    check(
-      'chats_host_identity_check',
-      sql`(host_kind = 'telegram' AND telegram_chat_id IS NOT NULL AND canonical_chat_id IS NOT NULL) OR (host_kind = 'playground' AND telegram_chat_id IS NULL AND canonical_chat_id IS NULL)`,
-    ),
     // Plain UNIQUE, not partial: NULLs stay distinct so virtual rooms never
     // collide, and the constraint remains a usable ON CONFLICT target.
-    uniqueIndex('chats_telegram_chat_id_key').on(t.telegramChatId),
+    uniqueIndex('chats_host_chat_id_key').on(t.hostKind, t.hostChatId),
   ],
 );
 
@@ -92,7 +88,7 @@ export const conversationContextCutoffs = sqliteTable('conversation_context_cuto
   conversationId: sqliteBigIntId('conversation_id')
     .primaryKey()
     .references(() => conversations.id, { onDelete: 'cascade' }),
-  telegramMessageId: sqliteBigInt('telegram_message_id').notNull(),
+  messageNo: sqliteBigInt('message_no').notNull(),
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at').notNull(),
 });
@@ -111,7 +107,7 @@ export const conversationAttention = sqliteTable(
     expiresAt: text('expires_at').notNull(),
     triggeredAt: text('triggered_at').notNull(),
     triggerKind: text('trigger_kind').notNull(),
-    triggerTelegramMessageId: sqliteBigInt('trigger_telegram_message_id'),
+    triggerMessageNo: sqliteBigInt('trigger_message_no'),
     updatedAt: text('updated_at').notNull(),
   },
   (t) => [

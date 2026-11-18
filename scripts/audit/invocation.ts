@@ -86,7 +86,7 @@ function loadInvocation(database: Database.Database, id: number): InvocationRow 
       `SELECT i.id, i.state, i.config_hash, i.prompt_version, i.started_at, i.finished_at,
               i.completion_reason, i.error_code, i.sends_used, i.tool_calls_used, i.turns_used,
               i.bucket_id, b.kind AS bucket_kind, b.state AS bucket_state, b.first_received_at, b.deadline_at,
-              i.conversation_id, v.message_thread_id, c.telegram_chat_id, c.title AS chat_title, c.type AS chat_type
+              i.conversation_id, v.message_thread_id, c.host_chat_id AS telegram_chat_id, c.title AS chat_title, c.type AS chat_type
        FROM invocations i
        JOIN buckets b ON b.id = i.bucket_id
        JOIN conversations v ON v.id = i.conversation_id
@@ -127,7 +127,7 @@ function loadToolCalls(database: Database.Database, id: number): ToolCallRow[] {
 function loadSends(database: Database.Database, id: number): SendRow[] {
   return database
     .prepare<[number], SendRow>(
-      `SELECT s.id, s.kind, s.state, s.telegram_message_id, s.error_code, s.created_at,
+      `SELECT s.id, s.kind, s.state, s.message_no AS telegram_message_id, s.error_code, s.created_at,
               substr(s.request_json, 1, 300) AS request_json
        FROM host_sends s JOIN tool_calls t ON t.id = s.tool_call_id
        WHERE t.invocation_id = ? ORDER BY s.id`,

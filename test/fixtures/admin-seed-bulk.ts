@@ -65,18 +65,20 @@ export function seedAdminBulkRows(store: SqliteStore): AdminBulkSeedIds {
     .insert(senders)
     .values([
       {
+        hostKind: 'telegram',
         id: 5_002n,
-        telegramType: 'sender_chat',
-        telegramId: -1009876543210n,
+        hostSenderType: 'sender_chat',
+        hostSenderId: -1009876543210n,
         displayName: 'Anonymous channel',
         username: null,
         isBot: false,
         updatedAt: AT,
       },
       {
+        hostKind: 'telegram',
         id: 5_003n,
-        telegramType: 'user',
-        telegramId: 43n,
+        hostSenderType: 'user',
+        hostSenderId: 43n,
         displayName: 'Bob',
         username: null,
         isBot: false,
@@ -140,14 +142,15 @@ export function seedAdminBulkRows(store: SqliteStore): AdminBulkSeedIds {
     orm
       .insert(messages)
       .values({
+        hostKind: 'telegram',
         id: messageId,
         conversationId: T.conversation,
         chatId: T.chat,
-        telegramMessageId: 1_000n + BigInt(index),
+        messageNo: 1_000n + BigInt(index),
         currentRevisionId: null,
         visible: true,
         sentByBot: false,
-        telegramDate: iso(offset),
+        sentAt: iso(offset),
         receivedAt: iso(offset),
       })
       .run();

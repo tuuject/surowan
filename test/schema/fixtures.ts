@@ -1,7 +1,7 @@
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, readdir, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import type Database from 'better-sqlite3';
+import Database from 'better-sqlite3';
 
 import { type LoadedConfig, loadConfig } from '../../src/adapters/local-monolith/config/index.ts';
 import { SqliteStore } from '../../src/adapters/local-monolith/database.ts';
@@ -31,6 +31,31 @@ export async function cleanupSchemaDirectories(): Promise<void> {
   await Promise.all(
     directories.map((directory) => rm(directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 })),
   );
+}
+
+/**
+ * Builds a database that stopped just below `belowVersion`: every earlier
+ * migration file applied by hand and recorded, the way the runner applies
+ * them. Rebuild migrations only run with foreign keys suspended; the runner
+ * restores enforcement and verifies the check before commit, so the synthetic
+ * build mirrors the same order. Seed it with the column names of that schema,
+ * then let `SqliteStore.open` run the migrations under test for real.
+ */
+export async function buildDatabaseBelow(loaded: LoadedConfig, belowVersion: number): Promise<Database.Database> {
+  const legacy = new Database(loaded.config.paths.database);
+  legacy.defaultSafeIntegers(true);
+  legacy.pragma('foreign_keys = OFF');
+  const migrations = join(import.meta.dirname, '..', '..', 'src', 'store', 'migrations');
+  for (const name of (await readdir(migrations))
+    .filter((name) => /^\d{3}_[a-z0-9_]+\.sql$/.test(name) && Number(name.slice(0, 3)) < belowVersion)
+    .sort()) {
+    legacy.exec(await readFile(join(migrations, name), 'utf8'));
+    legacy
+      .prepare('INSERT INTO schema_migrations(version, applied_at) VALUES (?, ?)')
+      .run(Number(name.slice(0, 3)), '2026-01-01T00:00:00.000Z');
+  }
+  legacy.pragma('foreign_keys = ON');
+  return legacy;
 }
 
 /**

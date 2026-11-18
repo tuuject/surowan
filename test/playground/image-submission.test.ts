@@ -48,7 +48,7 @@ describe('playground image generation', () => {
     expect(sends[0]).toMatchObject({
       state: 'success',
       messageId: published[0]!.messages.id,
-      telegramMessageId: null,
+      messageNo: null,
     });
 
     // The room's own usage is metered under the playground scope, never chat.
@@ -73,13 +73,13 @@ describe('playground image generation', () => {
     await settledTask(f);
     await publishThroughReceipt(f, 'send-unlinked', { generationId });
     const published = roomMessages(f)[0]!.messages;
-    expect(published.id).not.toBe(published.localSequenceNo);
+    expect(published.id).not.toBe(published.messageNo);
     // What `ON DELETE SET NULL` leaves once retention removed the message.
     f.store.orm.update(hostSends).set({ messageId: null }).run();
 
     // The picture is still named by the room sequence the model was told.
     const state = imageDeliveryState(f.store.orm, f.room.conversationId, generationId);
-    expect([...state.delivered.values()]).toEqual([String(published.localSequenceNo)]);
+    expect([...state.delivered.values()]).toEqual([String(published.messageNo)]);
     expect(state.uncertain.size).toBe(0);
   });
 

@@ -58,7 +58,14 @@ async function seededStore(): Promise<SqliteStore> {
   const now = at(DAY);
   store.orm
     .insert(chats)
-    .values({ id: 1n, telegramChatId: 123456789n, canonicalChatId: 123456789n, type: 'private', updatedAt: now })
+    .values({
+      hostKind: 'telegram',
+      id: 1n,
+      hostChatId: 123456789n,
+      canonicalChatId: 123456789n,
+      type: 'private',
+      updatedAt: now,
+    })
     .run();
   store.orm.insert(conversations).values({ id: 1n, chatId: 1n, createdAt: now, updatedAt: now }).run();
   store.orm

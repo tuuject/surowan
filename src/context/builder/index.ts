@@ -35,7 +35,7 @@ interface InvocationIdentityRow {
   readonly conversation_id: bigint;
   readonly chat_id: bigint;
   readonly host_kind: string;
-  readonly telegram_chat_id: bigint | null;
+  readonly host_chat_id: bigint | null;
   readonly message_thread_id: bigint;
   readonly chat_type: string;
   readonly bucket_kind: 'realtime' | 'startup_catch_up';
@@ -149,7 +149,7 @@ export class ContextBuilder {
   identity(config: RawConfig, invocationId: bigint): ContextIdentity {
     const identity = this.#store.orm
       .all<InvocationIdentityRow>(
-        sql`SELECT i.conversation_id, c.id AS chat_id, c.host_kind, c.telegram_chat_id,
+        sql`SELECT i.conversation_id, c.id AS chat_id, c.host_kind, c.host_chat_id,
                 v.message_thread_id, c.type AS chat_type,
                 b.kind AS bucket_kind, b.id AS bucket_id
          FROM invocations i
@@ -165,7 +165,7 @@ export class ContextBuilder {
     const hostKind = parseHostKind(identity.host_kind);
     // A Telegram chat is addressed by its platform id; a room by its internal
     // chat id. Neither is ever used as the other host's id.
-    const chatId = hostKind === 'telegram' ? (identity.telegram_chat_id ?? 0n) : identity.chat_id;
+    const chatId = hostKind === 'telegram' ? (identity.host_chat_id ?? 0n) : identity.chat_id;
     const policy = resolveInvocationPolicy(config, this.#store.orm, {
       hostKind,
       chatId,

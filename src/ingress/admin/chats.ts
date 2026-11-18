@@ -14,6 +14,7 @@ import { resolveProactiveReply } from '../../platform/proactive-reply.ts';
 import { supportedThinkingLevels } from '../../platform/thinking-levels.ts';
 import type { BusinessStore } from '../../store/store.ts';
 import { telegramChatIdentity } from '../../store/chat-identity.ts';
+import { telegramHostScope } from '../../store/host-scope.ts';
 import { chatMigrations, chats } from '../../store/schema/index.ts';
 import { conversations, invocations } from '../../store/schema/index.ts';
 import { AdminQueryError } from './audit/shared.ts';
@@ -195,7 +196,7 @@ export function runningInvocationIdsForTelegramChat(store: BusinessStore, telegr
     .from(invocations)
     .innerJoin(conversations, eq(conversations.id, invocations.conversationId))
     .innerJoin(chats, eq(chats.id, conversations.chatId))
-    .where(and(inArray(chats.telegramChatId, runtimeIds), eq(invocations.state, 'running')))
+    .where(and(telegramHostScope(), inArray(chats.hostChatId, runtimeIds), eq(invocations.state, 'running')))
     .all()
     .map((row) => row.id);
 }
@@ -217,7 +218,7 @@ export async function deleteTelegramChatData(
   const chatRows = store.orm
     .select({ id: chats.id })
     .from(chats)
-    .where(and(eq(chats.hostKind, 'telegram'), inArray(chats.telegramChatId, runtimeIds)))
+    .where(and(eq(chats.hostKind, 'telegram'), inArray(chats.hostChatId, runtimeIds)))
     .all();
   if (chatRows.length === 0) {
     return false;
@@ -377,7 +378,11 @@ export function listChats(
         .where(eq(chatMigrations.oldChatId, BigInt(id)))
         .get();
       const runtimeId = migration?.newChatId ?? BigInt(id);
-      const known = store.orm.select().from(chats).where(eq(chats.telegramChatId, runtimeId)).get();
+      const known = store.orm
+        .select()
+        .from(chats)
+        .where(and(eq(chats.hostKind, 'telegram'), eq(chats.hostChatId, runtimeId)))
+        .get();
       return {
         id: String(id),
         runtime_chat_id: String(runtimeId),

@@ -92,7 +92,7 @@ export function invocationsLeavingModel(
   options: ModelSwitchScope = {},
 ): bigint[] {
   const rows = orm.all<RunningInvocationRow>(sql`SELECT i.id AS id,
-      c.host_kind AS host_kind, c.telegram_chat_id AS telegram_chat_id, c.id AS chat_id, c.type AS chat_type
+      c.host_kind AS host_kind, c.host_chat_id AS telegram_chat_id, c.id AS chat_id, c.type AS chat_type
     FROM invocations i
     JOIN conversations v ON v.id = i.conversation_id
     JOIN chats c ON c.id = v.chat_id

@@ -52,7 +52,7 @@ interface AttentionRow {
 export function renderConversation(database: Database.Database, id: number, limit: number, json: boolean): string {
   const conversation = database
     .prepare<[number], ConversationRow>(
-      `SELECT v.id, v.chat_id, v.message_thread_id, c.telegram_chat_id, c.title AS chat_title, c.type AS chat_type
+      `SELECT v.id, v.chat_id, v.message_thread_id, c.host_chat_id AS telegram_chat_id, c.title AS chat_title, c.type AS chat_type
        FROM conversations v JOIN chats c ON c.id = v.chat_id WHERE v.id = ?`,
     )
     .get(id);
@@ -70,7 +70,7 @@ export function renderConversation(database: Database.Database, id: number, limi
     .all(id, limit);
   const sends = database
     .prepare<[number, number], ConversationSendRow>(
-      `SELECT id, kind, state, telegram_message_id, created_at, substr(request_json, 1, 160) AS request_json
+      `SELECT id, kind, state, message_no AS telegram_message_id, created_at, substr(request_json, 1, 160) AS request_json
        FROM host_sends WHERE conversation_id = ? ORDER BY id DESC LIMIT ?`,
     )
     .all(id, limit);

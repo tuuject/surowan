@@ -19,7 +19,7 @@ function seedBatch(f: Awaited<ReturnType<typeof groupMemoryFixture>>): GroupMemo
 }
 
 test('parseConsolidatedEvents accepts ordered inclusive ranges', () => {
-  const rows = [{ telegramMessageId: 4005n }, { telegramMessageId: 4114n }] as GroupMemoryMessageRow[];
+  const rows = [{ messageNo: 4005n }, { messageNo: 4114n }] as GroupMemoryMessageRow[];
   expect(
     parseConsolidatedEvents(
       '{"events":[{"summary":"Natu asked about eSIM prices","first_message_id":4005,"last_message_id":4114}]}',
@@ -29,11 +29,7 @@ test('parseConsolidatedEvents accepts ordered inclusive ranges', () => {
 });
 
 test('parseConsolidatedEvents rejects ranges outside the batch and backwards ranges', () => {
-  const rows = [
-    { telegramMessageId: 10n },
-    { telegramMessageId: 20n },
-    { telegramMessageId: 30n },
-  ] as GroupMemoryMessageRow[];
+  const rows = [{ messageNo: 10n }, { messageNo: 20n }, { messageNo: 30n }] as GroupMemoryMessageRow[];
   expect(() =>
     parseConsolidatedEvents('{"events":[{"summary":"x","first_message_id":10,"last_message_id":99}]}', rows),
   ).toThrow('outside the batch (event 1: 99)');
@@ -43,11 +39,7 @@ test('parseConsolidatedEvents rejects ranges outside the batch and backwards ran
 });
 
 test('parseConsolidatedEvents accepts overlapping and unordered ranges and sorts them', () => {
-  const rows = [
-    { telegramMessageId: 10n },
-    { telegramMessageId: 20n },
-    { telegramMessageId: 30n },
-  ] as GroupMemoryMessageRow[];
+  const rows = [{ messageNo: 10n }, { messageNo: 20n }, { messageNo: 30n }] as GroupMemoryMessageRow[];
   // Two interleaved discussions: the second starts before the first ends.
   expect(
     parseConsolidatedEvents(
@@ -61,7 +53,7 @@ test('parseConsolidatedEvents accepts overlapping and unordered ranges and sorts
 });
 
 test('parseConsolidatedEvents accepts summaries up to 200 characters', () => {
-  const rows = [{ telegramMessageId: 10n }] as GroupMemoryMessageRow[];
+  const rows = [{ messageNo: 10n }] as GroupMemoryMessageRow[];
   const reply = (summary: string): string =>
     JSON.stringify({ events: [{ summary, first_message_id: 10, last_message_id: 10 }] });
   expect(parseConsolidatedEvents(reply('事'.repeat(200)), rows)[0]?.summary).toHaveLength(200);
