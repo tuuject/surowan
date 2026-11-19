@@ -17,22 +17,13 @@ import {
   switchChatEffort,
   switchChatModel,
 } from './config.ts';
+import { type ControlCommandName, botCommandEntry } from './catalog.ts';
+import { renderHelp } from './help.ts';
 import { type BotCommandSessionDeps, cutTopic, pauseChat, rebuildContext, resumeChat } from './session.ts';
 import { type BotCommandStatusDeps, chatStatus } from './status.ts';
 
 export interface ParsedCommand {
-  readonly name:
-    | 'pause'
-    | 'resume'
-    | 'status'
-    | 'model'
-    | 'effort'
-    | 'cut_topic'
-    | 'rebuild_context'
-    | 'whoami'
-    | 'allowlist'
-    | 'ignoreme'
-    | 'unignoreme';
+  readonly name: ControlCommandName;
   readonly argument?: string;
   /** Telegram message ID of the command message itself; used by cut_topic. */
   readonly messageId?: bigint;
@@ -93,36 +84,39 @@ export class BotCommandService {
     sender: CommandSender | null,
     now = new Date(),
   ): Promise<string> {
+    // The catalog is the gate: a command's tier and its advertised place in
+    // `/help` cannot drift apart.
+    if (botCommandEntry(command.name).tier === 'admin' && !this.#isAdmin(sender, chat.hostKind)) {
+      return DENIED_REPLY;
+    }
     switch (command.name) {
       case 'pause':
-        return this.#adminGate(sender, chat.hostKind) ? this.#pause(chat, now) : DENIED_REPLY;
+        return this.#pause(chat, now);
       case 'resume':
-        return this.#adminGate(sender, chat.hostKind) ? this.#resume(chat) : DENIED_REPLY;
+        return this.#resume(chat);
       case 'status':
         return this.#status(chat, now);
       case 'model':
-        return this.#adminGate(sender, chat.hostKind) ? await this.#modelSwitch(command.argument, chat) : DENIED_REPLY;
+        return await this.#modelSwitch(command.argument, chat);
       case 'effort':
-        return this.#adminGate(sender, chat.hostKind) ? await this.#effortSwitch(command.argument, chat) : DENIED_REPLY;
+        return await this.#effortSwitch(command.argument, chat);
       case 'cut_topic':
-        return this.#adminGate(sender, chat.hostKind)
-          ? this.#cutTopic(chat, command.messageId, command.threadId, now)
-          : DENIED_REPLY;
+        return this.#cutTopic(chat, command.messageId, command.threadId, now);
       case 'rebuild_context':
-        return this.#adminGate(sender, chat.hostKind)
-          ? rebuildContext(this.#sessionDeps(), chat, command.threadId, now)
-          : DENIED_REPLY;
+        return rebuildContext(this.#sessionDeps(), chat, command.threadId, now);
       case 'whoami':
         return sender === null ? '无法识别发送者。' : sender.id.toString();
       case 'allowlist':
-        return this.#adminGate(sender, chat.hostKind) ? await this.#allowlist(chat) : DENIED_REPLY;
+        return await this.#allowlist(chat);
       case 'ignoreme':
       case 'unignoreme':
         return await this.#setSelfIgnored(chat, sender, command.name === 'ignoreme');
+      case 'help':
+        return this.#help(chat, sender);
     }
   }
 
-  #adminGate(sender: CommandSender | null, hostKind: ChatConfigRef['hostKind']): boolean {
+  #isAdmin(sender: CommandSender | null, hostKind: ChatConfigRef['hostKind']): boolean {
     if (sender === null) {
       return false;
     }
@@ -130,6 +124,23 @@ export class BotCommandService {
     // configuration so a hot-applied list change takes effect on the next command.
     const admins = hostIntakeSettings(this.#configStore.current().config, hostKind).admins;
     return admins.some((id) => BigInt(id) === sender.id);
+  }
+
+  #help(chat: ChatConfigRef, sender: CommandSender | null): string {
+    return renderHelp({
+      isAdmin: this.#isAdmin(sender, chat.hostKind),
+      isIgnored: this.#isIgnored(chat, sender),
+      identified: sender !== null,
+    });
+  }
+
+  #isIgnored(chat: ChatConfigRef, sender: CommandSender | null): boolean {
+    if (sender === null) {
+      return false;
+    }
+    // Read live: an applied `/ignoreme` takes effect on the next `/help`.
+    const ignored = this.#chatConfig(chat)?.ignored_user_ids ?? [];
+    return ignored.some((id) => BigInt(id) === sender.id);
   }
 
   #pause(chat: ChatConfigRef, now: Date): string {

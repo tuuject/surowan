@@ -127,6 +127,16 @@ Bot 只会发送你允许的贴纸集里的贴纸。在管理面板 Telegram 分
 
 添加或删除贴纸集会中止正在进行的回复，让下一次回复直接看到新的贴纸列表；只改昵称或备注不会中止。
 
+## 查看可用命令
+
+发送 `/help`，Bot 会按你在本 Chat 的权限列出你能用的命令，每行一条 `/命令 — 说明`。
+
+- 任何能触达 Bot 的成员都会看到 `/ask`、`/help`、`/status`；能识别出个人账号时还包括 `/whoami`、`/ignoreme`、`/unignoreme`。
+- `telegram.admins` 中的管理员会额外看到「管理员命令：」一段，列出 `/pause`、`/resume`、`/model`、`/effort`、`/cut_topic`、`/rebuild_context`、`/allowlist`；这些命令在 `/help` 里不再重复标注「（仅管理员）」。
+- 被列入本 Chat `ignored_user_ids` 的成员仍可使用 `/help`，但只会看到 `/ask`、`/help`、`/ignoreme`、`/unignoreme`，并附一句提示：发送 `/unignoreme` 可恢复接收。忽略期间发送其他命令不会得到回复。
+
+`/help` 的回复不会交给模型，也不属于聊天记录；Bot 离线期间发送的 `/help` 不会在重启后补答；在未加入白名单的 Chat 里发送 `/help` 不会有回复。
+
 ## 管理员命令与验证
 
 `telegram.admins` 中的 Telegram 用户可以使用 `/pause`、`/resume`、`/model`、`/effort`、`/cut_topic`、`/rebuild_context`、`/allowlist`。`/rebuild_context` 只丢弃当前话题的连续 Context，不截断聊天记录，适合在调小模型 Context Window 后让下一次会话按新预算重新开始。名单由 `config.jsonc` 的 `telegram.admins` 字段管理，修改后可热应用，无需重启。先在目标 Chat 发送一条测试消息，检查 `serve_started` 后的审计记录；“Bot 在线”不等于消息被允许，也不等于模型一定发言。
@@ -137,7 +147,7 @@ Bot 只会发送你允许的贴纸集里的贴纸。在管理面板 Telegram 分
 
 `/effort` 查看或设置本群模型的思考强度（thinking effort）：不带参数时列出当前生效模型接受的级别与当前级别，未覆盖的级别会标注“继承全局”；`/effort 级别` 只写该群 `telegram.chats[].thinking_level` 这一项覆盖并热应用，不动该群的模型覆盖，级别必须是当前模型接受的取值之一；`/effort default` 只删除这项覆盖，思考强度回到继承全局。非推理模型只接受 `off`。改动只对之后启动的 Invocation 生效，正在运行的会话继续使用旧值。
 
-服务启动时会先处理停机期间 Telegram 积压的消息：其中 `/pause`、`/resume` 按消息顺序执行，仍需通过同样的管理员、Chat/Topic 与发送者校验，不补发旧命令回复。其他已识别命令（包括 `/allowlist`、`/model` 和自助忽略命令）只保留审计，不重放操作，也不会作为聊天内容交给模型；启动后需要重新发送这些命令。
+服务启动时会先处理停机期间 Telegram 积压的消息：其中 `/pause`、`/resume` 按消息顺序执行，仍需通过同样的管理员、Chat/Topic 与发送者校验，不补发旧命令回复。其他已识别命令（包括 `/allowlist`、`/model`、`/help` 和自助忽略命令）只保留审计，不重放操作，也不会作为聊天内容交给模型；启动后需要重新发送这些命令。
 
 任何成员都可以发送 `/whoami`，Bot 会回复发送者的 Telegram 数字 ID，可直接用于填写 `telegram.admins`。
 
@@ -148,11 +158,12 @@ Bot 只会发送你允许的贴纸集里的贴纸。在管理面板 Telegram 分
 | 命令 | 效果 |
 | --- | --- |
 | `/ask 问题内容` | 所有成员（含已忽略成员）可显式唤起，正文交给模型，详见[参与方式](../guides/participation.md) |
+| `/help` | 查看你在本 Chat 实际可用的命令；被忽略时只列仍可用的几条。详见[查看可用命令](#查看可用命令)。 |
 | `/ignoreme` | 将自己的 Telegram User ID 加入当前 Chat 的 `ignored_user_ids`，立即忽略之后的消息。 |
 | `/unignoreme` | 将自己的 ID 从列表移除，立即恢复接收。被忽略时也可以使用。 |
 
 不需要管理员权限；`/ignoreme` 与 `/unignoreme` 只修改发送者自己，作用于该 Chat 的全部 Forum Topic，不影响其他 Chat。可加 `@Bot用户名` 指明目标 Bot。结果写回 `config.jsonc`，重启后仍保留；重复发送同一命令不会重复加入 ID。这两条自助忽略命令不接受匿名身份；`/ask` 支持匿名管理员与频道身份，正文不改配置。
 
-管理员也可以直接编辑 `telegram.chats[].ignored_user_ids`（唯一的正安全整数数组），然后在面板点击 **Apply config file** 热应用。被忽略后的普通消息、编辑和其他命令不进入模型，新的 `/ask` 例外；已有消息与 Context 不会追溯删除，Update 审计仍保留。若命令提示“已写入，但应用失败”，运行中仍使用旧配置，修复配置后重新发送命令或在面板应用。
+管理员也可以直接编辑 `telegram.chats[].ignored_user_ids`（唯一的正安全整数数组），然后在面板点击 **Apply config file** 热应用。被忽略后的普通消息、编辑和其他命令不进入模型；实时新消息中的 `/ask`、`/help`、`/ignoreme`、`/unignoreme` 例外。已有消息与 Context 不会追溯删除，Update 审计仍保留。若命令提示“已写入，但应用失败”，运行中仍使用旧配置，修复配置后重新发送命令或在面板应用。
 
 若需限制群内唤醒时段，参阅 [参与方式](../guides/participation.md)。若希望普通群消息只偶尔唤醒 Bot、而不是每条都参与，参阅 [控制主动插话频率](../guides/proactive-replies.md)。

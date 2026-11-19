@@ -192,6 +192,7 @@ pnpm test test/im test/intake test/schema/migrations-host-neutral-ids.test.ts te
 | `prompts/admin.test.ts` | Prompt 版本按内容去重并裁剪到保留数、保存后下一次 Invocation 生效、diff 与恢复、手改文件在下次应用时成为新版本而只改注释不算、群 Prompt 的作用域校验与新建文件不覆盖已有文件 |
 | `models/switch.test.ts` | 可切换模型仅列 text 能力、`option()` 只校验不应用（未知 provider/model 与 image-only 拒绝）、`current()` 跟随 `store.publish` 变化 |
 | `bot-commands/commands.test.ts` | 命令解析与 mention 匹配、`/pause` 中止与阻断、`/resume` 恢复、`/status` 用量与 Context 行口径、`/model` 分页与切换（写配置文件并 reload）、管理员鉴权与匿名拒绝、`/whoami` 回显发送者 ID 且不限管理员、`/allowlist` 仅管理员且在未允许 Chat 由 ingestion 放行并热应用、`/ignoreme` 与 `/unignoreme` 解析/身份校验且不越过 Chat/Topic 白名单、命令只审计不入库 |
+| `bot-commands/help.test.ts` | `/help` 按权限分层（管理员成员段加“管理员命令：”段、非管理员不列管理命令、匿名只列 anyone 档、被忽略成员只列 `/ask`/`/help`/`/ignoreme`/`/unignoreme` 并带恢复提示）、菜单由命令目录派生且既有条目逐字不变、`/help` 只审计不入库/不建 Bucket、启动追赶不重放、未允许 Chat 仍拒绝、忽略放行不放宽其他命令、逐层迭代目录校验列出的命令都能执行而管理命令对非管理员一律拒绝 |
 | `runtime/host.test.ts` | `createCoreRuntime` 只用注入的资源装配，不读取宿主文件、不启动生命周期 |
 | `config/boundary.test.ts` | 无文件来源的配置校验与本地文件加载结果一致；Schema 与 Secret 检查不需要文件访问；非法可选 `image` 段在读取 Prompt 文件前被剥离 |
 | `store-boundary.test.ts` | `BusinessStore` 事务原子回滚，bigint ID 跨 SQLite 重开保持精确 |

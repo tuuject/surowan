@@ -8,6 +8,12 @@
 
 import type { Message } from 'grammy/types';
 import { botCommandToken } from '../../platform/telegram-markdown/cues.ts';
+import {
+  ADMIN_DESCRIPTION_SUFFIX,
+  BOT_COMMAND_CATALOG,
+  type ControlCommandName,
+  isControlCommandName,
+} from '../../orchestration/bot-commands/catalog.ts';
 import type { CommandSender, ParsedCommand } from '../../orchestration/bot-commands/index.ts';
 
 /**
@@ -45,19 +51,6 @@ export function commandSender(message: Message): CommandSender | null {
       };
 }
 
-const COMMAND_NAMES: Record<string, true> = {
-  pause: true,
-  resume: true,
-  status: true,
-  model: true,
-  effort: true,
-  cut_topic: true,
-  rebuild_context: true,
-  whoami: true,
-  allowlist: true,
-  ignoreme: true,
-  unignoreme: true,
-} satisfies Record<ParsedCommand['name'], true>;
 // Commands whose trailing text is an argument. Every other command ignores it.
 const ARGUMENT_COMMANDS: ReadonlySet<string> = new Set(['model', 'effort']);
 
@@ -66,22 +59,13 @@ export interface BotCommandRegistration {
   readonly description: string;
 }
 
-// Single source of truth for the Telegram command menu: everything registered
-// via setMyCommands must be recognized as a control command or model-facing /ask.
-export const BOT_COMMANDS: readonly BotCommandRegistration[] = [
-  { command: 'ask', description: '显式唤起 Bot 回答这条消息' },
-  { command: 'pause', description: '暂停本群互动（仅管理员）' },
-  { command: 'resume', description: '恢复本群互动（仅管理员）' },
-  { command: 'status', description: '查看当前模型、thinking effort 与本日 token 用量' },
-  { command: 'model', description: '查看或切换 agent 模型（仅管理员）' },
-  { command: 'effort', description: '查看或设置本群模型的思考强度（仅管理员）' },
-  { command: 'cut_topic', description: '切掉此消息及更早的历史，仅对新会话生效（仅管理员）' },
-  { command: 'rebuild_context', description: '丢弃并重建此话题的连续 Context，保留聊天记录（仅管理员）' },
-  { command: 'whoami', description: '查看你的 Telegram 数字 ID' },
-  { command: 'allowlist', description: '将本群加入白名单，立即生效（仅管理员）' },
-  { command: 'ignoreme', description: '让 Bot 忽略你在本 Chat 的消息' },
-  { command: 'unignoreme', description: '恢复 Bot 接收你在本 Chat 的消息' },
-];
+// Single source of truth for the Telegram command menu: the neutral catalog,
+// with the admin marker appended to admin-only descriptions. Everything here is
+// either recognized as a control command or model-facing /ask.
+export const BOT_COMMANDS: readonly BotCommandRegistration[] = BOT_COMMAND_CATALOG.map((entry) => ({
+  command: entry.name,
+  description: entry.tier === 'admin' ? `${entry.description}${ADMIN_DESCRIPTION_SUFFIX}` : entry.description,
+}));
 
 export interface CommandRegistrationApi {
   setMyCommands(commands: readonly BotCommandRegistration[]): Promise<unknown>;
@@ -89,7 +73,7 @@ export interface CommandRegistrationApi {
 
 export async function registerBotCommands(api: CommandRegistrationApi): Promise<void> {
   for (const entry of BOT_COMMANDS) {
-    if (COMMAND_NAMES[entry.command] !== true && entry.command !== 'ask') {
+    if (!isControlCommandName(entry.command) && entry.command !== 'ask') {
       throw new Error(`Command not handled by parseBotCommand: ${entry.command}`);
     }
   }
@@ -107,10 +91,10 @@ export function parseBotCommand(message: Message, botUsername: string | null): P
     return null;
   }
   const { name } = token;
-  if (COMMAND_NAMES[name] !== true) {
+  if (!isControlCommandName(name)) {
     return null;
   }
-  const commandName = name as ParsedCommand['name'];
+  const commandName: ControlCommandName = name;
   const base: ParsedCommand = (() => {
     if (!ARGUMENT_COMMANDS.has(name)) {
       return { name: commandName };
