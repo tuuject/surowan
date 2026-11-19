@@ -18,6 +18,7 @@ import { createAdminAccount } from '../fixtures/admin-account.ts';
 import type { SearchProviderRule } from '../../src/platform/web-search.ts';
 import {
   type FixtureConfig,
+  type TestRegistry,
   testConfigJsonc,
   testConfigStore,
   writeTestConfig,
@@ -128,7 +129,12 @@ export interface McpAdminFixture {
  * live state and the tools discovery returned.
  */
 export async function mcpAdminFixture(
-  options: { readonly manager?: boolean; readonly customSearch?: boolean } = {},
+  options: {
+    readonly manager?: boolean;
+    readonly customSearch?: boolean;
+    /** Model registry for the running configuration, e.g. a faux tool model. */
+    readonly registry?: TestRegistry;
+  } = {},
 ): Promise<McpAdminFixture> {
   const directory = await mkdtemp(join(tmpdir(), 'surowan-admin-mcp-'));
   directories.push(directory);
@@ -160,7 +166,7 @@ export async function mcpAdminFixture(
   });
   const store = await SqliteStore.open(loaded.config);
   const secrets = new SecretStore(keychainPath(configPath));
-  const configStore = await testConfigStore(loaded);
+  const configStore = await testConfigStore(loaded, options.registry);
   const switcher = new AgentModelSwitcher(configStore);
   const reloader = new ConfigReloader({
     loaded,

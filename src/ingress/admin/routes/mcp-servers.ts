@@ -6,19 +6,28 @@
  * only as keychain entries. Live state and advertised tools come from the
  * process's `McpManager` when one runs; a standalone panel reports neither.
  */
+import { sameMcpServerConfig } from '../../../capabilities/mcp/bindings.ts';
+import { draftMcpServerDescription, McpDescriptionDraftError } from '../../../capabilities/mcp/describe.ts';
 import type { McpServerToolListing } from '../../../capabilities/mcp/support.ts';
+import type { RuntimeConfigurationStore } from '../../../platform/runtime-config.ts';
 import type { ConfigApplyResult, ConfigController, SecretWrite } from '../../../platform/config/write.ts';
 import type { SecretStore } from '../../../platform/secrets.ts';
+import { resolveToolModel } from '../../../platform/tool-model.ts';
+import type { BusinessStore } from '../../../store/store.ts';
 import type { SearchProviderRule } from '../../../platform/web-search.ts';
 import type { McpServerAvailability } from '../../../platform/warning-catalog.ts';
 import { AdminQueryError } from '../audit/shared.ts';
 import { CONFIG_WRITE_STATUS, readConfigFile } from '../config-file.ts';
-import { json, readJsonObject, requiredRevision, revisionRequired } from '../http.ts';
+import { json, readJsonObject, redact, requiredRevision, revisionRequired } from '../http.ts';
 import { mcpServersView } from '../mcp-servers/read.ts';
 import { createMcpServer, deleteMcpServer, updateMcpServer } from '../mcp-servers/write.ts';
 import type { CallerClass } from '../secret-input.ts';
 
 export interface McpServersAdminDeps {
+  /** The tool-model description draft audits its call here. */
+  readonly store: BusinessStore;
+  /** The running configuration: the tool model and its registered models. */
+  readonly configStore: RuntimeConfigurationStore;
   /** Absent when the process has no reloadable configuration (tests, panels). */
   readonly configReloader?: ConfigController | undefined;
   readonly secrets?: SecretStore | undefined;
@@ -55,6 +64,83 @@ export function createMcpServersAdminRoutes(deps: McpServersAdminDeps) {
     return json({ error: result.code, message }, CONFIG_WRITE_STATUS[result.code] ?? 409);
   };
 
+  /**
+   * `POST /api/mcp-servers/:alias/description-draft`: one billed tool-model
+   * call over the tools the server advertised, answered as a draft and never
+   * written. Saving it is the ordinary `PUT` with `description`, so an operator
+   * reads (and may edit) every word before the model sees it.
+   */
+  const descriptionDraft = async (
+    reloader: ConfigController,
+    alias: string,
+    signal: AbortSignal,
+  ): Promise<Response> => {
+    const secrets = deps.secrets;
+    if (secrets === undefined) {
+      return json({ error: 'mcp_unavailable', message: 'MCP server management is not wired' }, 503);
+    }
+    const { loaded } = await readConfigFile(reloader, secrets);
+    const server = (loaded.fileConfig.mcp?.servers ?? []).find((entry) => entry.alias === alias);
+    if (server === undefined) {
+      return json({ error: 'not_found', message: `No MCP server named ${alias} is configured` }, 404);
+    }
+    const snapshot = deps.configStore.current();
+    // The live listing belongs to the running instance. A saved edit that is
+    // not running yet (another URL, another tool selection) would be billed
+    // for a draft about the server it replaces.
+    const running = (snapshot.config.mcp?.servers ?? []).find((entry) => entry.alias === alias);
+    if (running === undefined || !sameMcpServerConfig(running, server)) {
+      return json(
+        {
+          error: 'mcp_server_not_applied',
+          message: `${alias} in config.jsonc differs from the running server; apply the configuration first`,
+        },
+        409,
+      );
+    }
+    const listing = deps.mcpServerTools?.().find((entry) => entry.alias === alias);
+    const live = deps.mcpServerStates?.().find((entry) => entry.alias === alias);
+    const exposed = (listing?.tools ?? []).filter((tool) => server.tools === '*' || server.tools.includes(tool.name));
+    // Only a `ready` instance has passed registry validation: a degraded one
+    // may still hold the advertised list of a discovery that was refused.
+    if (listing === undefined || live?.state !== 'ready' || exposed.length === 0) {
+      return json(
+        {
+          error: 'mcp_server_not_ready',
+          message: `${alias} has not advertised any exposed tool yet; draft once it is connected`,
+        },
+        409,
+      );
+    }
+    const toolModel = resolveToolModel(snapshot.config);
+    if (toolModel === undefined) {
+      return json({ error: 'tool_model_unavailable', message: 'No tool model is configured' }, 502);
+    }
+    try {
+      const description = await draftMcpServerDescription(
+        { orm: deps.store.orm, models: snapshot.models, secrets },
+        toolModel,
+        {
+          alias,
+          instructions: listing.instructions,
+          tools: exposed.map((tool) => ({ name: tool.name, description: tool.description })),
+        },
+        // A caller that went away stops paying for the answer.
+        signal,
+      );
+      return json({
+        alias,
+        description,
+        tool_model: { provider: toolModel.provider, model: toolModel.model },
+      });
+    } catch (error) {
+      if (error instanceof McpDescriptionDraftError) {
+        return json({ error: error.code, message: redact(secrets, error) }, 502);
+      }
+      throw error;
+    }
+  };
+
   const applied = (result: Extract<ConfigApplyResult, { readonly ok: true }>) => ({
     applied: result.applied,
     restart_required: result.restartRequired,
@@ -80,6 +166,10 @@ export function createMcpServersAdminRoutes(deps: McpServersAdminDeps) {
         return json(await view(caller));
       }
       const alias = segments[1] ?? '';
+      if (method === 'POST' && segments.length === 3 && segments[2] === 'description-draft') {
+        // A draft writes nothing, so it takes no revision.
+        return await descriptionDraft(reloader, alias, request.signal);
+      }
       const isCreate = method === 'POST' && segments.length === 1;
       const isUpdate = method === 'PUT' && segments.length === 2;
       const isDelete = method === 'DELETE' && segments.length === 2;

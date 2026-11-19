@@ -1,6 +1,7 @@
 import { writeFile } from 'node:fs/promises';
 import { type APIResponse, expect, type Page, type TestInfo } from '@playwright/test';
 import { adminUrl, e2eFetch, test, toast } from './helpers.ts';
+import { E2E_MCP_DESCRIPTION_DRAFT, E2E_MERGE_ALIAS, E2E_MERGE_MODEL } from './models-fixture.ts';
 
 // The whole spec opts into the live MCP manager (stdio fixture + a degraded
 // HTTP endpoint); every test below sets up exactly the state it needs through
@@ -55,15 +56,29 @@ async function ensureServerAbsent(page: Page, alias: string): Promise<void> {
   expect([200, 404]).toContain(response.status());
 }
 
-/** Restores the seeded stdio server's tool selection, so a UI edit always starts from the same shape. */
+/** Restores the seeded stdio server's tool selection and exposure, so a UI edit always starts from the same shape. */
 async function resetStdioSelection(page: Page): Promise<void> {
   const response = await apiWrite(page, '/mcp-servers/stdio-fixture', 'PUT', {
     tools: ['echo'],
     payload_max_bytes: 32_768,
     result_max_bytes: 32_768,
     tool_policies: [{ name: 'echo', read_only: true, timeout_seconds: 20 }],
+    exposure: 'direct',
+    description: null,
   });
   expect(response.status(), await response.text()).toBe(200);
+}
+
+/** Points the Tool Model at the loopback upstream (`inherit: true` restores the default). */
+async function setToolModel(page: Page, body: Record<string, unknown>): Promise<void> {
+  const providers = (await (await page.request.get(await adminUrl('/api/providers'))).json()) as {
+    readonly revision: string;
+  };
+  const response = await page.request.put(await adminUrl('/api/tool-model'), {
+    headers: { 'if-match': providers.revision },
+    data: body,
+  });
+  expect(response.ok(), await response.text()).toBe(true);
 }
 
 /** Restores a chat to inheriting every server (no `mcp` field). */
@@ -255,4 +270,66 @@ test('deleting a bound server is blocked; an unbound one is removed', async ({ p
   expect(config.mcp?.servers?.some((server) => server.alias === 'blocked-http')).toBe(false);
   expect(config.mcp?.servers?.some((server) => server.alias === 'stdio-fixture')).toBe(true);
   await writeArtifact(testInfo, page);
+});
+
+test('switches a server to progressive exposure with a confirmed tool-model description', async ({
+  page,
+}, testInfo) => {
+  await resetStdioSelection(page);
+  await setToolModel(page, { provider: E2E_MERGE_ALIAS, model: E2E_MERGE_MODEL, thinking_level: 'low' });
+  try {
+    await page.goto(await adminUrl('/mcp-servers'));
+    const row = page.locator('table tbody tr', { hasText: 'stdio-fixture' });
+    // A draft needs the tools the server advertised, so wait for it to connect.
+    await expect(row.getByText('Ready', { exact: true })).toBeVisible({ timeout: 30_000 });
+    await row.getByRole('button', { name: 'Edit stdio-fixture' }).click();
+    const dialog = page.getByRole('dialog');
+    await dialog.getByRole('radio', { name: /^Progressive/ }).check();
+    await expect(
+      dialog.getByText('Without a description the model only sees a few tool names of this server.'),
+    ).toBeVisible();
+
+    // A draft describes the saved server, so unsaved connection edits block it.
+    const draftButton = dialog.getByRole('button', { name: 'Draft with tool model', exact: true });
+    const resultLimit = dialog.getByLabel('Result limit (bytes)', { exact: true });
+    await resultLimit.fill('1024');
+    await expect(draftButton).toBeDisabled();
+    await expect(
+      dialog.getByText('A draft describes the saved server: save the connection and tool changes first.'),
+    ).toBeVisible();
+    await resultLimit.fill('32768');
+    await expect(draftButton).toBeEnabled();
+    const savedServer = (await configFile()).mcp?.servers?.find((entry) => entry.alias === 'stdio-fixture');
+
+    await draftButton.click();
+    const description = dialog.getByLabel('Description', { exact: true });
+    await expect(description).toHaveValue(E2E_MCP_DESCRIPTION_DRAFT);
+    // The draft only filled the field: nothing is in the file before Save.
+    expect((await configText()).text).not.toContain(E2E_MCP_DESCRIPTION_DRAFT);
+    await description.fill(`${E2E_MCP_DESCRIPTION_DRAFT} Reviewed.`);
+
+    await dialog.getByRole('button', { name: 'Save', exact: true }).click();
+    await expect(dialog).toHaveCount(0);
+    await expect(toast(page, 'Applied')).toBeVisible();
+    await expect(row.getByText('Progressive', { exact: true })).toBeVisible();
+    const server = (await configFile()).mcp?.servers?.find((entry) => entry.alias === 'stdio-fixture') as
+      | Record<string, unknown>
+      | undefined;
+    // A presentation-only save leaves every connection field exactly as stored.
+    expect(server).toEqual({
+      ...savedServer,
+      exposure: 'progressive',
+      description: `${E2E_MCP_DESCRIPTION_DRAFT} Reviewed.`,
+    });
+
+    // The detail view shows both fields back.
+    await row.getByRole('button', { name: 'View stdio-fixture' }).click();
+    const detail = page.getByRole('dialog');
+    await expect(detail.getByText(`${E2E_MCP_DESCRIPTION_DRAFT} Reviewed.`)).toBeVisible();
+    await writeArtifact(testInfo, page);
+    await detail.getByRole('button', { name: 'Close' }).click();
+  } finally {
+    await setToolModel(page, { inherit: true });
+    await resetStdioSelection(page);
+  }
 });

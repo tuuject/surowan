@@ -4,6 +4,8 @@ import {
   CustomProviderSchema,
   DefaultToolPolicySchema,
   MCP_SERVER_ALIAS_PATTERN,
+  McpExposureSchema,
+  McpServerDescriptionSchema,
   PositiveInteger,
   SecretRefSchema,
   Strict,
@@ -53,6 +55,8 @@ const StdioMcpSchema = Type.Object(
     env: Type.Optional(Type.Record(Type.String({ minLength: 1 }), SecretRefSchema)),
     tool_policies: Type.Optional(Type.Array(ToolPolicySchema)),
     default_tool_policy: Type.Optional(DefaultToolPolicySchema),
+    exposure: Type.Optional(McpExposureSchema),
+    description: Type.Optional(McpServerDescriptionSchema),
   },
   Strict,
 );
@@ -71,6 +75,8 @@ const HttpMcpSchema = Type.Object(
     headers: Type.Optional(Type.Record(Type.String({ minLength: 1 }), SecretRefSchema)),
     tool_policies: Type.Optional(Type.Array(ToolPolicySchema)),
     default_tool_policy: Type.Optional(DefaultToolPolicySchema),
+    exposure: Type.Optional(McpExposureSchema),
+    description: Type.Optional(McpServerDescriptionSchema),
   },
   Strict,
 );

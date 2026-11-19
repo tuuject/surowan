@@ -10,6 +10,8 @@ import Type, { type Static } from 'typebox';
 import {
   DefaultToolPolicySchema,
   MCP_SERVER_ALIAS_PATTERN,
+  McpExposureSchema,
+  McpServerDescriptionSchema,
   ToolPolicySchema,
 } from '../../../platform/config/schema-model.ts';
 import { AdminQueryError } from '../audit/shared.ts';
@@ -24,7 +26,7 @@ export type McpToolsBody = Static<typeof McpToolsBodySchema>;
 
 export type ToolPoliciesBody = Static<typeof ToolPolicySchema>[];
 export type DefaultToolPolicyBody = Static<typeof DefaultToolPolicySchema>;
-export { DefaultToolPolicySchema, ToolPolicySchema };
+export { DefaultToolPolicySchema, McpExposureSchema, McpServerDescriptionSchema, ToolPolicySchema };
 
 /** Header names the panel may write; values go through `readSecretInput`. */
 export const HEADER_NAME_MAX_LENGTH = 128;

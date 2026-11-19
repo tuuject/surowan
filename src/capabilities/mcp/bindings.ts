@@ -38,11 +38,22 @@ type ChatBindingShape = Pick<FileChat, 'mcp'>;
  * deprecated and has no effect anywhere, so a file that only adds or flips it
  * must not read as a different server: nothing reconnects, no Chat is
  * affected, and no tool disappears.
+ *
+ * `exposure` and `description` only change how the model is shown the same
+ * tools — listed one by one or behind the `mcp` gateway — never which tools a
+ * Chat may call or under which policy. Reconnecting for them, or stopping a run
+ * and rebuilding its Context, would buy nothing: the next Invocation reads both
+ * from the configuration it runs under, and a run in flight keeps its set.
  */
 export function sameMcpServerConfig(left: McpServerConfig, right: McpServerConfig): boolean {
-  const { required: _leftRequired, ...leftRest } = left;
-  const { required: _rightRequired, ...rightRest } = right;
+  const { required: _leftRequired, exposure: _leftExposure, description: _leftDescription, ...leftRest } = left;
+  const { required: _rightRequired, exposure: _rightExposure, description: _rightDescription, ...rightRest } = right;
   return deepEqual(leftRest, rightRest);
+}
+
+/** How one configured server's tools reach the model; omitted means `direct`. */
+export function mcpExposure(server: McpServerConfig): 'direct' | 'progressive' {
+  return server.exposure ?? 'direct';
 }
 
 /** The server-level policy of one tool, in the shape bound policies use. */

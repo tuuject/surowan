@@ -6,6 +6,7 @@ import { and, eq, sql } from 'drizzle-orm';
 import { type LoadedConfig, loadConfig } from '../../src/adapters/local-monolith/config/index.ts';
 import { SqliteStore } from '../../src/adapters/local-monolith/database.ts';
 import { GroupMemoryStore } from '../../src/context/group-memory/store.ts';
+import { InvocationContextState } from '../../src/platform/invocation-context.ts';
 import { keychainPath } from '../../src/platform/keychain.ts';
 import type { RuntimeConfigurationStore } from '../../src/platform/runtime-config.ts';
 import { SecretStore } from '../../src/platform/secrets.ts';
@@ -231,4 +232,17 @@ export async function groupMemoryFixture(
       await rm(directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
     },
   };
+}
+
+/** The invocation context the group-memory read tools see for the fixture's Chat. */
+export function groupMemoryContext(f: GroupMemoryFixture, invocationId: bigint): InvocationContextState {
+  return new InvocationContextState({
+    invocationId,
+    conversationId: f.conversationId,
+    hostKind: 'telegram',
+    hostChatId: f.telegramChatId,
+    internalChatId: f.chatId,
+    threadId: 0n,
+    completion: null,
+  });
 }

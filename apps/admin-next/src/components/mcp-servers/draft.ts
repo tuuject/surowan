@@ -7,6 +7,7 @@
  */
 import type {
   McpDefaultPolicyInput,
+  McpExposure,
   McpServerInput,
   McpServerView,
   McpToolPolicyInput,
@@ -35,6 +36,9 @@ export interface ServerDraft {
   readonly payloadMax: string;
   readonly resultMax: string;
   readonly url: string;
+  readonly exposure: McpExposure;
+  /** Free text; blank removes the description on save. */
+  readonly description: string;
 }
 
 /** Why a draft cannot become a request body; the component translates each kind. */
@@ -70,6 +74,8 @@ export function draftOf(server: McpServerView | null): ServerDraft {
     payloadMax: String(server?.payload_max_bytes ?? 32_768),
     resultMax: String(server?.result_max_bytes ?? 32_768),
     url: server !== null && server.connection.kind === 'streamable_http' ? server.connection.url : '',
+    exposure: server?.exposure ?? 'direct',
+    description: server?.description ?? '',
   };
 }
 
@@ -78,8 +84,28 @@ export function newToolRow(): ToolPolicyDraft {
 }
 
 export interface ServerPayload {
-  readonly body: Omit<McpServerInput, 'headers'> | null;
+  readonly body: ServerBody | null;
   readonly error: ServerDraftError | null;
+}
+
+/** A request body the form builds: every connection field is always present. */
+export type ServerBody = Omit<McpServerInput, 'headers'> &
+  Required<Pick<McpServerInput, 'tools' | 'payload_max_bytes' | 'result_max_bytes'>>;
+
+/**
+ * Whether `body` changes anything but the presentation fields of `server`.
+ * The saved server is put through the same form translation, so a value the
+ * form normalises (an empty override list becomes `null`) compares equal and
+ * a description-only save does not rewrite — and reconnect — the server.
+ */
+export function connectionChanged(server: McpServerView, body: ServerBody): boolean {
+  const saved = serverPayload(draftOf(server)).body;
+  if (saved === null) {
+    return true;
+  }
+  const { exposure: _savedExposure, description: _savedDescription, ...savedConnection } = saved;
+  const { exposure: _exposure, description: _description, ...connection } = body;
+  return JSON.stringify(savedConnection) !== JSON.stringify(connection);
 }
 
 /** Turns the draft into the request body; `error` says why it cannot when it cannot. */
@@ -144,8 +170,11 @@ function finish(
   if (!Number.isInteger(resultMax) || resultMax < 1 || resultMax > 32_768) {
     return { body: null, error: { kind: 'resultRange' } };
   }
+  const description = draft.description.trim();
   const body = {
     ...(draft.url.length > 0 ? { url: draft.url } : {}),
+    exposure: draft.exposure,
+    description: description.length > 0 ? description : null,
     tools: policies.tools,
     payload_max_bytes: payloadMax,
     result_max_bytes: resultMax,

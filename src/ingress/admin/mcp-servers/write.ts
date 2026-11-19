@@ -18,14 +18,16 @@ import type { ConfigEdit, KeychainReplacement } from '../../../platform/config/w
 import { AdminQueryError } from '../audit/shared.ts';
 import { redactedUrl } from './read.ts';
 import type { CallerClass, KeychainUsageForInput } from '../secret-input.ts';
-import { resolveSecretInput, SecretAllocator } from '../secret-input.ts';
+import { SecretAllocator } from '../secret-input.ts';
+import { readHeaderInputs, resolveHeaders } from './headers.ts';
 import {
   AliasBodySchema,
   DefaultToolPolicySchema,
   HEADER_NAME_MAX_LENGTH,
   invalid,
+  McpExposureSchema,
+  McpServerDescriptionSchema,
   McpToolsBodySchema,
-  readSecretInput,
   ToolPolicySchema,
   URL_MAX_LENGTH,
 } from './shared.ts';
@@ -45,6 +47,12 @@ export interface ParsedMcpServerWrite {
 /** `tool_policies: null` removes the field; omitted keeps what the file has. */
 const PoliciesField = Type.Optional(Type.Union([Type.Array(ToolPolicySchema), Type.Null()]));
 const DefaultPolicyField = Type.Optional(Type.Union([DefaultToolPolicySchema, Type.Null()]));
+/**
+ * `description: null`, `""` or blank removes it; omitted keeps what the file
+ * has. The empty string is accepted here (the file never stores one) so every
+ * spelling of "no description" means the same thing.
+ */
+const DescriptionField = Type.Optional(Type.Union([McpServerDescriptionSchema, Type.Literal(''), Type.Null()]));
 
 const CreateBodySchema = Type.Object(
   {
@@ -61,6 +69,8 @@ const CreateBodySchema = Type.Object(
     result_max_bytes: Type.Integer({ minimum: 1, maximum: 32_768 }),
     tool_policies: PoliciesField,
     default_tool_policy: DefaultPolicyField,
+    exposure: Type.Optional(McpExposureSchema),
+    description: DescriptionField,
   },
   { additionalProperties: false },
 );
@@ -73,11 +83,15 @@ const EditBodySchema = Type.Object(
     headers: Type.Optional(
       Type.Record(Type.String({ minLength: 1, maxLength: HEADER_NAME_MAX_LENGTH }), Type.Unknown()),
     ),
-    tools: McpToolsBodySchema,
-    payload_max_bytes: Type.Integer({ minimum: 1, maximum: 1_048_576 }),
-    result_max_bytes: Type.Integer({ minimum: 1, maximum: 32_768 }),
+    // Omitted keeps what the file has, so a description or exposure change can
+    // travel alone (`mcp-server update <alias> --set exposure=progressive`).
+    tools: Type.Optional(McpToolsBodySchema),
+    payload_max_bytes: Type.Optional(Type.Integer({ minimum: 1, maximum: 1_048_576 })),
+    result_max_bytes: Type.Optional(Type.Integer({ minimum: 1, maximum: 32_768 })),
     tool_policies: PoliciesField,
     default_tool_policy: DefaultPolicyField,
+    exposure: Type.Optional(McpExposureSchema),
+    description: DescriptionField,
   },
   { additionalProperties: false },
 );
@@ -139,9 +153,28 @@ function policyFields(
   };
 }
 
+/**
+ * `exposure` and `description` as the request states them: omitted keeps the
+ * file's value, `direct` drops the field (it is the default), `null` or a
+ * blank description removes it. Spread onto a base without either field.
+ */
+function presentationFields(
+  body: { readonly exposure?: 'direct' | 'progressive'; readonly description?: string | null },
+  current: McpServerConfig | undefined,
+) {
+  const exposure = body.exposure === undefined ? current?.exposure : body.exposure;
+  const description = body.description === undefined ? current?.description : (body.description?.trim() ?? undefined);
+  return {
+    ...(exposure === undefined || (body.exposure === 'direct' && exposure === 'direct') ? {} : { exposure }),
+    ...(description === undefined || description.length === 0 ? {} : { description }),
+  };
+}
+
 /** Whether the fields the panel owns actually moved. */
 function settingsChanged(current: McpServerConfig, next: McpServerConfig): boolean {
   return (
+    next.exposure !== current.exposure ||
+    next.description !== current.description ||
     JSON.stringify(next.transport === 'stdio' ? undefined : next.url) !==
       JSON.stringify(current.transport === 'stdio' ? undefined : current.url) ||
     JSON.stringify(next.tools) !== JSON.stringify(current.tools) ||
@@ -152,75 +185,6 @@ function settingsChanged(current: McpServerConfig, next: McpServerConfig): boole
     JSON.stringify(next.transport === 'stdio' ? undefined : next.headers) !==
       JSON.stringify(current.transport === 'stdio' ? undefined : current.headers)
   );
-}
-
-/** Resolves one submitted header against what the file already carries. */
-function resolveHeaders(
-  alias: string,
-  fileIndex: number,
-  submitted: Readonly<Record<string, ReturnType<typeof readSecretInput>>>,
-  existing: Readonly<Record<string, SecretRef>> | undefined,
-  caller: CallerClass,
-  allocator: SecretAllocator,
-  keys: Record<string, string>,
-  repairs: Record<string, string>,
-  replacements: KeychainReplacement[],
-): Readonly<Record<string, SecretRef>> {
-  const resolved: Record<string, SecretRef> = Object.create(null);
-  for (const [name, input] of Object.entries(submitted)) {
-    if (input === null) {
-      continue;
-    }
-    const slot = {
-      path: `mcp.servers.${fileIndex}.headers.${name}`,
-      editPath: ['mcp', 'servers', fileIndex, 'headers', name],
-      current: existing?.[name],
-      suggestedName: `mcp-${alias}-${name}`,
-    };
-    const outcome = resolveSecretInput(input, slot, caller, allocator);
-    if (outcome.kind === 'new') {
-      keys[outcome.name] = outcome.plaintext;
-    } else if (outcome.kind === 'repair') {
-      repairs[outcome.name] = outcome.plaintext;
-    } else if (outcome.kind === 'rotate') {
-      replacements.push({ name: outcome.name, value: outcome.plaintext, requestedBy: slot.path });
-    }
-    resolved[name] = outcome.ref;
-  }
-  return resolved;
-}
-
-function readHeaderInputs(
-  value: unknown,
-  label: string,
-  allowNull = false,
-): Readonly<Record<string, ReturnType<typeof readSecretInput>>> {
-  if (value === undefined) {
-    return {};
-  }
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
-    throw invalid(`${label} must be an object of header names to secrets`);
-  }
-  // Null prototype: header names are arbitrary strings, and the accumulators
-  // must keep even awkward ones (e.g. `constructor`) as own properties
-  // instead of hitting anything inherited from Object.prototype.
-  const inputs: Record<string, ReturnType<typeof readSecretInput>> = Object.create(null);
-  for (const [name, entry] of Object.entries(value as Record<string, unknown>)) {
-    if (name === '__proto__') {
-      // The configuration loader parses JSONC with plain objects, and that one
-      // name is lost on every read — a written `__proto__` header would be dead
-      // config the runtime never sees. Refusing it is the honest answer.
-      throw invalid(
-        "a header cannot be named '__proto__': the configuration parser drops that name; rename the header",
-      );
-    }
-    const input = readSecretInput(entry, `${label}.${name}`);
-    if (input === null && !allowNull) {
-      throw invalid(`${label}.${name} must carry a secret`);
-    }
-    inputs[name] = input;
-  }
-  return inputs;
 }
 
 /**
@@ -241,7 +205,7 @@ export function createMcpServer(
   if (!createValidator.Check(body)) {
     throw new AdminQueryError(
       'invalid_body',
-      'Expected alias, url, optional headers, tools, payload_max_bytes, result_max_bytes, tool_policies and default_tool_policy',
+      'Expected alias, url, optional headers, tools, payload_max_bytes, result_max_bytes, tool_policies, default_tool_policy, exposure and description',
     );
   }
   const servers = fileServers(file);
@@ -276,6 +240,7 @@ export function createMcpServer(
     ...(body.default_tool_policy === undefined || body.default_tool_policy === null
       ? {}
       : { default_tool_policy: body.default_tool_policy }),
+    ...presentationFields(body, undefined),
     ...(Object.keys(headers).length === 0 ? {} : { headers }),
   };
   assertCandidate(file, [...servers, server], providers);
@@ -318,22 +283,29 @@ export function updateMcpServer(
   if (!editValidator.Check(body)) {
     throw new AdminQueryError(
       'invalid_body',
-      'Expected optional url and headers, tools, payload_max_bytes, result_max_bytes, tool_policies and default_tool_policy',
+      'Expected optional url, headers, tools, payload_max_bytes, result_max_bytes, tool_policies, default_tool_policy, exposure and description',
     );
   }
   if (current.transport === 'stdio') {
     if (body.url !== undefined || body.headers !== undefined) {
       throw invalid(`stdio server ${alias} has no url or headers; edit its tools, limits and policies here`);
     }
-    // Both policy fields are stripped from the base: `null` really removes,
-    // and an omission keeps what the file had.
-    const { tool_policies: _keptPolicies, default_tool_policy: _keptDefault, ...base } = current;
+    // The policy and presentation fields are stripped from the base: `null`
+    // really removes, and an omission keeps what the file had.
+    const {
+      tool_policies: _keptPolicies,
+      default_tool_policy: _keptDefault,
+      exposure: _keptExposure,
+      description: _keptDescription,
+      ...base
+    } = current;
     const server: McpServerConfig = {
       ...base,
-      tools: body.tools,
-      payload_max_bytes: body.payload_max_bytes,
-      result_max_bytes: body.result_max_bytes,
+      tools: body.tools ?? current.tools,
+      payload_max_bytes: body.payload_max_bytes ?? current.payload_max_bytes,
+      result_max_bytes: body.result_max_bytes ?? current.result_max_bytes,
       ...policyFields(body, current),
+      ...presentationFields(body, current),
     };
     return finishUpdate(file, servers, index, current, server, providers, Object.create(null), Object.create(null), []);
   }
@@ -377,15 +349,29 @@ export function updateMcpServer(
       delete merged[name];
     }
   }
-  const { headers: _dropped, tool_policies: _keptPolicies, default_tool_policy: _keptDefault, ...base } = current;
+  const {
+    headers: _dropped,
+    tool_policies: _keptPolicies,
+    default_tool_policy: _keptDefault,
+    exposure: _keptExposure,
+    description: _keptDescription,
+    ...base
+  } = current;
   const server: McpServerConfig = {
     ...base,
     url,
-    tools: body.tools,
-    payload_max_bytes: body.payload_max_bytes,
-    result_max_bytes: body.result_max_bytes,
+    tools: body.tools ?? current.tools,
+    payload_max_bytes: body.payload_max_bytes ?? current.payload_max_bytes,
+    result_max_bytes: body.result_max_bytes ?? current.result_max_bytes,
     ...policyFields(body, current),
-    ...(Object.keys(merged).length === 0 ? {} : { headers: merged }),
+    ...presentationFields(body, current),
+    // Untouched headers stay exactly as the file has them, an empty map
+    // included: dropping it would read as a connection change and reconnect.
+    ...(Object.keys(submittedHeaders).length === 0 && current.headers !== undefined
+      ? { headers: current.headers }
+      : Object.keys(merged).length === 0
+        ? {}
+        : { headers: merged }),
   };
   return finishUpdate(file, servers, index, current, server, providers, keys, repairs, replacements);
 }

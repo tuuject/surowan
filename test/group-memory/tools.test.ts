@@ -1,22 +1,9 @@
 import { asc, eq, sql } from 'drizzle-orm';
 import { expect, test } from 'vitest';
-import { InvocationContextState } from '../../src/platform/invocation-context.ts';
 import { createGroupMemoryReadTools } from '../../src/context/group-memory/tools/read.ts';
 import { toolCalls } from '../../src/store/schema/index.ts';
 import { auditRows, runTool, seedInvocation, toolNamed } from '../memo/fixtures.ts';
-import { groupMemoryFixture, seedMessage } from './fixtures.ts';
-
-function context(f: Awaited<ReturnType<typeof groupMemoryFixture>>, invocationId: bigint): InvocationContextState {
-  return new InvocationContextState({
-    invocationId,
-    conversationId: f.conversationId,
-    hostKind: 'telegram',
-    hostChatId: f.telegramChatId,
-    internalChatId: f.chatId,
-    threadId: 0n,
-    completion: null,
-  });
-}
+import { groupMemoryContext as context, groupMemoryFixture, seedMessage } from './fixtures.ts';
 
 test('search_group_memory returns summaries with ranges, then read_group_messages replays them', async () => {
   const f = await groupMemoryFixture();

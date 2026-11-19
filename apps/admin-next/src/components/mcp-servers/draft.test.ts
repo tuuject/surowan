@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest';
 import type { McpServerView } from '../../lib/api/mcp-servers.ts';
-import { draftOf, serverPayload } from './draft.ts';
+import { connectionChanged, draftOf, serverPayload } from './draft.ts';
 
 /**
  * The server editor's draft round trips: what the form initializes from a view
@@ -21,6 +21,8 @@ function view(overrides: Partial<McpServerView>): McpServerView {
     default_tool_policy: { read_only: true, timeout_seconds: 30 },
     advertised_tools: [],
     bound_chats: [],
+    exposure: 'direct',
+    description: null,
     ...overrides,
   } as McpServerView;
 }
@@ -81,4 +83,22 @@ test('a selected-tools draft sends the list with its policies and leaves the def
   // The form does not model the default policy in this mode; the write keeps
   // what the file has instead of deleting it behind the operator's back.
   expect(payload.body).not.toHaveProperty('default_tool_policy');
+});
+
+test('only presentation edits leave the connection unchanged, even where the form normalises a value', () => {
+  // `tool_policies: []` in the file round-trips through the form as `null`;
+  // comparing against the saved server's own form body keeps that from
+  // reading as a change that would rewrite and reconnect the server.
+  const server = view({ tool_policies: [] });
+  const presentation = serverPayload({
+    ...draftOf(server),
+    exposure: 'progressive',
+    description: 'Search tools.',
+  }).body;
+  const widened = serverPayload({ ...draftOf(server), resultMax: '1024' }).body;
+  if (presentation === null || widened === null) {
+    throw new Error('both drafts should be valid');
+  }
+  expect(connectionChanged(server, presentation)).toBe(false);
+  expect(connectionChanged(server, widened)).toBe(true);
 });

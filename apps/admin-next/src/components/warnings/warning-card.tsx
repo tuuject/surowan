@@ -193,6 +193,25 @@ function WarningDetails({ warning }: { readonly warning: WarningItem }): ReactEl
         </div>
       );
     }
+    case 'mcp_description_missing': {
+      const aliases = stringListVariable(variables, 'aliases');
+      return (
+        <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
+          <p className={css({ textStyle: 'body', color: 'text-muted' })}>
+            {t('pages.warnings.codes.mcp_description_missing.body')}
+          </p>
+          {aliases.length > 0 ? (
+            <p className={css({ textStyle: 'small', color: 'text-muted', fontFamily: 'mono' })}>
+              <Trans
+                i18nKey="pages.warnings.mcpUndescribedAliases"
+                values={{ aliases: aliases.join(', ') }}
+                components={{ aliases: <TechText /> }}
+              />
+            </p>
+          ) : null}
+        </div>
+      );
+    }
     case 'mcp_server_unavailable': {
       const servers = unavailableMcpServers(variables);
       return (
@@ -309,6 +328,12 @@ function WarningAction({ code }: { readonly code: string }): ReactElement | null
           {t('pages.warnings.actions.openSettings')}
         </ButtonLink>
       );
+    case 'mcp_description_missing':
+      return (
+        <ButtonLink to="/mcp-servers" variant="outline" color="secondary">
+          {t('pages.warnings.actions.openMcpServers')}
+        </ButtonLink>
+      );
     default:
       return null;
   }
@@ -338,6 +363,8 @@ function WarningTitle({ warning }: { readonly warning: WarningItem }): ReactElem
       return <>{t('pages.warnings.codes.mcp_required_deprecated.title')}</>;
     case 'mcp_server_unavailable':
       return <>{t('pages.warnings.codes.mcp_server_unavailable.title')}</>;
+    case 'mcp_description_missing':
+      return <>{t('pages.warnings.codes.mcp_description_missing.title')}</>;
     case 'telegram_config_error': {
       const reason = stringVariable(warning.variables, 'reason');
       switch (reason) {

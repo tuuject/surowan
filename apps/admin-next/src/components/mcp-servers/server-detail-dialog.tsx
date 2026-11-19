@@ -108,7 +108,23 @@ export function ServerDetailDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange} title={t('mcp.detailTitle', { alias: server.alias })} size="lg">
       <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '5' } })}>
-        <KvList items={connection} />
+        <KvList
+          items={[
+            ...connection,
+            {
+              label: t('mcp.fieldExposure'),
+              value: server.exposure === 'progressive' ? t('mcp.exposureProgressive') : t('mcp.exposureDirect'),
+            },
+            {
+              label: t('mcp.fieldDescription'),
+              value: (
+                <span dir="auto" className={css({ whiteSpace: 'pre-wrap' })}>
+                  {server.description ?? t('mcp.noDescription')}
+                </span>
+              ),
+            },
+          ]}
+        />
         <section>
           <h3 className={css({ margin: '0 0 2', textStyle: 'heading-3' })}>{t('mcp.advertisedTitle')}</h3>
           {server.advertised_tools.length === 0 ? (

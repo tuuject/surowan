@@ -23,6 +23,7 @@ export const warnings = {
   missingFields: 'Missing: {{fields}}',
   invalidApiKeys: 'Invalid keys: {{keys}}',
   mcpDeprecatedAliases: 'Still set on: {{aliases}}',
+  mcpUndescribedAliases: 'Servers: <aliases>{{aliases}}</aliases>',
   deprecatedConfigFields: 'Still set: {{fields}}',
   mcpNextReconnect: 'next retry <time>{{time}}</time>',
   lastFailedAt: 'Last failure: <time>{{time}}</time>',
@@ -38,6 +39,7 @@ export const warnings = {
     openModels: 'Open Models',
     openInvocations: 'Open invocations',
     openSettings: 'Open settings',
+    openMcpServers: 'Open MCP servers',
     openTelegram: 'Open Telegram settings',
     openApiKeys: 'Open API keys',
   },
@@ -95,6 +97,10 @@ export const warnings = {
     mcp_server_unavailable: {
       title: 'MCP servers are unreachable',
       body: 'These configured servers could not be reached and are retrying in the background. Their tools stay hidden until they recover.',
+    },
+    mcp_description_missing: {
+      title: 'Progressive MCP servers without a description',
+      body: 'These servers are reachable only through the mcp tool, where the model reads their description to decide whether they can help. Without one it sees just a few tool names. Write a description, or draft one with the tool model, on the MCP servers page.',
     },
     unknown: {
       title: 'Unknown warning: {{code}}',

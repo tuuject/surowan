@@ -201,6 +201,8 @@ export function createAdminRoutes(deps: AdminRoutesDeps) {
       searchProviders: options.searchProviders ?? BUILTIN_SEARCH_PROVIDERS,
     }),
     mcpServers: createMcpServersAdminRoutes({
+      store: options.store,
+      configStore: options.configStore,
       configReloader: reloader,
       secrets,
       searchProviders: options.searchProviders ?? BUILTIN_SEARCH_PROVIDERS,

@@ -15,6 +15,7 @@ import {
   E2E_HEALTH_OK_2_MODEL,
   E2E_HEALTH_OK_MODEL,
   E2E_HEALTH_PROMPT,
+  E2E_MCP_DESCRIPTION_DRAFT,
   E2E_MERGE_MODEL,
   E2E_MERGE_SUGGESTION,
   E2E_RELAY_DISCOVERED_MODELS,
@@ -193,6 +194,23 @@ function validateHealthRequest(body: Record<string, unknown>): string | null {
   return null;
 }
 
+/**
+ * The Tool Model serves two admin features: the dictionary merge and the MCP
+ * server description draft. The draft is recognised by the opening of its own
+ * prompt, which the first user message starts with; matching text anywhere
+ * would let a dictionary entry that mentions it be answered as a draft.
+ */
+const MCP_DESCRIPTION_PROMPT_OPENING = 'You write the description a chat agent reads';
+
+function toolModelReply(body: Record<string, unknown>): string {
+  const first = Array.isArray(body.messages) ? (body.messages[0] as { content?: unknown } | undefined) : undefined;
+  const content = typeof first?.content === 'string' ? first.content : JSON.stringify(first?.content ?? '');
+  const isDraft =
+    content.startsWith(MCP_DESCRIPTION_PROMPT_OPENING) ||
+    content.startsWith(`[{"type":"text","text":"${MCP_DESCRIPTION_PROMPT_OPENING}`);
+  return isDraft ? JSON.stringify({ description: E2E_MCP_DESCRIPTION_DRAFT }) : JSON.stringify(E2E_MERGE_SUGGESTION);
+}
+
 /** One OpenAI-style SSE stream with the canned reply, then `data: [DONE]`. */
 function healthSseChunks(model: string, content: string): string[] {
   const id = `chatcmpl-e2e-${model}`;
@@ -275,7 +293,7 @@ async function handleHealthCompletions(request: Request): Promise<Response> {
       finish();
       return Response.json({ error: { message: 'fixture upstream failure' } }, { status: 500 });
     }
-    const content = behavior === 'ok' ? 'ok' : behavior === 'merge' ? JSON.stringify(E2E_MERGE_SUGGESTION) : 'hello';
+    const content = behavior === 'ok' ? 'ok' : behavior === 'merge' ? toolModelReply(body) : 'hello';
     const stream = new ReadableStream<Uint8Array>({
       async start(controller) {
         try {

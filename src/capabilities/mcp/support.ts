@@ -82,6 +82,11 @@ export interface AdvertisedMcpTool {
 export interface McpServerToolListing {
   readonly alias: string;
   readonly tools: readonly AdvertisedMcpTool[];
+  /**
+   * The `instructions` the server sent at initialization, if any. Server data:
+   * untrusted, never shown to the agent; only the description draft reads it.
+   */
+  readonly instructions: string | null;
 }
 
 /** The advertised view of one discovery result: every name, nothing filtered. */
@@ -99,6 +104,8 @@ export interface ManagedServer {
   definitions: McpToolDefinition[];
   /** Every tool the last successful discovery advertised, even unselected ones. */
   advertised: readonly AdvertisedMcpTool[];
+  /** The server's initialization `instructions` from the last successful connect. */
+  instructions: string | null;
   client: Client | undefined;
   /** The connection attempt currently running, if any — never the published client. */
   attempt: PendingAttempt | undefined;

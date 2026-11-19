@@ -126,6 +126,7 @@ export default function McpServersPage(): ReactElement {
           <p className={css({ margin: '0', textStyle: 'small', color: 'text-muted' })}>
             {server.transport === 'stdio' ? 'stdio' : 'streamable_http'}
           </p>
+          {server.exposure === 'progressive' ? <ToneBadge tone="info">{t('mcp.exposureProgressive')}</ToneBadge> : null}
         </div>
       ),
     },
