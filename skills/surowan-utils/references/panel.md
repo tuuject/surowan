@@ -21,7 +21,7 @@ surowan-utils chat list --json                     # 已配置 Chat 的 saved/ac
 surowan-utils provider list --json                 # 磁盘上的 Provider、模型与 revision
 surowan-utils prompt versions --scope global --json
 surowan-utils search show --json
-surowan-utils mcp-server list --json            # 出站 MCP Server：状态、发现过的 Tool、绑定的 Chat（不回显任何密钥；HTTP 的 URL 只给 origin 并带 url_redacted）
+surowan-utils mcp-server list --json            # 出站 MCP Server：状态、暴露方式与描述、发现过的 Tool、绑定的 Chat（不回显任何密钥；HTTP 的 URL 只给 origin 并带 url_redacted）
 surowan-utils image config show --json
 surowan-utils telegram show --json                 # 是否已配置 token（不回显值）与消息批次节拍的 saved/active
 surowan-utils warning list --json
@@ -103,6 +103,7 @@ printf '%s' "$NEW_PROMPT" | surowan-utils prompt save global --file - --json
 | `invocation replay`（含 `--before-send` 切片） | 见 [Invocation 重放](replay.md)；切片重放另需 `--confirm-paid` |
 | `provider health-check` | 每次一项、一条真实 prompt，最多 3 项并发；失败仍可能计费 |
 | `dictionary merge preview` | 用 tool model 生成融合建议（不写库） |
+| `mcp-server describe <alias>` | 用 tool model 根据该 Server 发现的 Tool 起草 `description`（不写文件）；用户确认或修改后再用 `mcp-server update <alias> --set description=...` 保存。只改 `exposure`/`description` 的 `update` 不会打断任何运行 |
 | `image generation create` / `image generation retry` | 真实生图；同 `idempotency_key` 同内容重放不重复计费 |
 | `room release` / `room release retry` | 封住房间输入并运行真实 Agent |
 | `invocation resume <id>` | 续跑所在 Conversation 最新一次失败的 Telegram Invocation：用当前配置真实运行，Bot 可能重复发送已发过的消息；同时需要写与计费权限，非最新、仍有排队/运行、Telegram 未连接或 Bot 睡眠时返回 409 `resume_*` |

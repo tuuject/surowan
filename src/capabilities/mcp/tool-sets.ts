@@ -14,10 +14,11 @@ import { allConfiguredChats, resolveChatConfig } from '../../platform/config/ind
 import { hostExecutionProfile } from '../../platform/host-profile.ts';
 import type { FileChat, McpServerConfig, RawConfig } from '../../platform/config/index.ts';
 import { type InvocationContext, previewContext } from '../../platform/invocation-context.ts';
-import { boundChatServers, sameMcpServerConfig, serverToolPolicy } from './bindings.ts';
+import { boundChatServers, mcpExposure, sameMcpServerConfig, serverToolPolicy } from './bindings.ts';
 import { executeMcpTool, type McpCallDeps } from './calls.ts';
 import type { McpResultDetails, McpToolResult } from './content.ts';
-import type { McpState, ToolSetResolution } from './shared.ts';
+import { createMcpGatewayTool } from './gateway.ts';
+import type { ChatMcpToolSet, McpState, ProgressiveMcpServer, ToolSetResolution } from './shared.ts';
 import { type ManagedServer, type McpListedTool, type McpToolDefinition, TOOL_NAME_PATTERN } from './support.ts';
 
 /**
@@ -155,19 +156,24 @@ export function assertConfigBindings(state: McpState, config: RawConfig): void {
 
 /**
  * The tools one Chat reaches under one configuration, as definitions the call
- * path can run. Only a `ready` instance contributes: an Invocation started
- * while a server is `starting` or `degraded` simply gets none of its tools,
- * and the next Invocation after a reconnect gets them back. `includeUnavailable`
- * is for the audit path that names the calls a stopped run may have had, which
- * a dropped server's retained definitions still describe.
+ * path can run, grouped by exposure. Only a `ready` instance contributes: an
+ * Invocation started while a server is `starting` or `degraded` simply gets
+ * none of its tools, and the next Invocation after a reconnect gets them back.
+ * `includeUnavailable` is for the audit path that names the calls a stopped run
+ * may have had, which a dropped server's retained definitions still describe.
+ *
+ * Exposure and description come from `config` (the configuration the caller
+ * runs under), not from the instance: changing them never reconnects, so the
+ * instance may still carry the previous values.
  */
-export function definitions(
+export function chatToolSet(
   state: McpState,
   config: RawConfig,
   chat: Pick<FileChat, 'mcp'>,
   options?: { readonly includeUnavailable?: boolean },
-): McpToolDefinition[] {
-  const resolved: McpToolDefinition[] = [];
+): ChatMcpToolSet {
+  const direct: McpToolDefinition[] = [];
+  const progressive: ProgressiveMcpServer[] = [];
   for (const bound of boundChatServers(config, chat)) {
     const server = state.servers.get(bound.server.alias);
     if (server === undefined || !sameMcpServerConfig(server.config, bound.server)) {
@@ -179,15 +185,32 @@ export function definitions(
     if (server.state !== 'ready' && options?.includeUnavailable !== true) {
       continue;
     }
+    const tools: McpToolDefinition[] = [];
     for (const definition of server.definitions) {
       if (bound.tools !== '*' && !bound.tools.includes(definition.originalName)) {
         continue;
       }
       const policy = bound.policies.get(definition.originalName);
-      resolved.push(policy === undefined ? definition : { ...definition, policy });
+      tools.push(policy === undefined ? definition : { ...definition, policy });
+    }
+    if (mcpExposure(bound.server) === 'direct') {
+      direct.push(...tools);
+    } else if (tools.length > 0) {
+      progressive.push({ alias: bound.server.alias, description: bound.server.description, tools });
     }
   }
-  return resolved;
+  return { direct, progressive };
+}
+
+/** Every definition one Chat reaches, whichever way it reaches the model. */
+export function definitions(
+  state: McpState,
+  config: RawConfig,
+  chat: Pick<FileChat, 'mcp'>,
+  options?: { readonly includeUnavailable?: boolean },
+): McpToolDefinition[] {
+  const set = chatToolSet(state, config, chat, options);
+  return [...set.direct, ...set.progressive.flatMap((server) => server.tools)];
 }
 
 /**
@@ -196,27 +219,25 @@ export function definitions(
  * so the union is validated whenever such a Chat exists.
  */
 export function resolutions(state: McpState, config: RawConfig): ToolSetResolution[] {
-  const resolved = new Map<
-    string,
-    { host: ToolSetResolution['host']; chatIds: number[]; definitions: McpToolDefinition[] }
-  >();
+  const resolved = new Map<string, { host: ToolSetResolution['host']; chatIds: number[]; toolSet: ChatMcpToolSet }>();
   for (const { host, chat } of allConfiguredChats(config)) {
     // Same gate createTools applies: a host without the mcp trait contributes
     // no tool set at all.
     if (!hostExecutionProfile(host).mcp) {
       continue;
     }
-    const chatDefinitions = definitions(state, config, chat);
-    const signature = `${host}|${JSON.stringify(
-      chatDefinitions.map((definition) => [
-        definition.exposedName,
-        definition.policy.readOnly,
-        definition.policy.timeoutMs,
-      ]),
-    )}`;
+    const toolSet = chatToolSet(state, config, chat);
+    const policies = (tools: readonly McpToolDefinition[]) =>
+      tools.map((definition) => [definition.exposedName, definition.policy.readOnly, definition.policy.timeoutMs]);
+    // The gateway's description carries the server index, so two Chats only
+    // share a check when they would send the same registry.
+    const signature = `${host}|${JSON.stringify([
+      policies(toolSet.direct),
+      toolSet.progressive.map((server) => [server.alias, server.description ?? null, policies(server.tools)]),
+    ])}`;
     const group = resolved.get(signature);
     if (group === undefined) {
-      resolved.set(signature, { host, chatIds: [chat.id], definitions: chatDefinitions });
+      resolved.set(signature, { host, chatIds: [chat.id], toolSet });
     } else {
       group.chatIds.push(chat.id);
     }
@@ -236,16 +257,20 @@ export function chatTools(
     hostKind: context.hostKind,
     hostChatId: context.hostChatId,
   });
-  return chat === undefined ? [] : buildTools(callDeps, definitions(state, config, chat), context, invocationDeadline);
+  return chat === undefined ? [] : buildTools(callDeps, chatToolSet(state, config, chat), context, invocationDeadline);
 }
 
+/**
+ * The registry tools of one set: every direct definition as its own tool, and
+ * the `mcp` gateway once when at least one progressive server contributes.
+ */
 export function buildTools(
   callDeps: McpCallDeps,
-  definitions: readonly McpToolDefinition[],
+  toolSet: ChatMcpToolSet,
   context: InvocationContext,
   invocationDeadline: number,
 ): AgentTool[] {
-  return definitions.map(
+  const direct = toolSet.direct.map(
     (definition): AgentTool<TUnsafe<Record<string, unknown>>, McpResultDetails> => ({
       name: definition.exposedName,
       label: definition.exposedName,
@@ -258,6 +283,9 @@ export function buildTools(
         executeTool(callDeps, definition, context, invocationDeadline, toolCallId, input, signal),
     }),
   );
+  return toolSet.progressive.length === 0
+    ? direct
+    : [...direct, createMcpGatewayTool(callDeps, toolSet.progressive, context, invocationDeadline)];
 }
 
 async function executeTool(
@@ -274,7 +302,7 @@ async function executeTool(
 
 /** The 61-tool cap and the model fit, checked per resolved set. */
 export function validateResolution(state: McpState, callDeps: McpCallDeps, resolution: ToolSetResolution): void {
-  const tools = buildTools(callDeps, resolution.definitions, previewContext(resolution.host), Number.MAX_SAFE_INTEGER);
+  const tools = buildTools(callDeps, resolution.toolSet, previewContext(resolution.host), Number.MAX_SAFE_INTEGER);
   if (tools.length > 61) {
     throw new Error(
       `MCP tool set of chat ${resolution.chatIds.join(',')} has ${tools.length} tools; maximum alongside built-ins is 61`,

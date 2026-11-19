@@ -35,6 +35,7 @@ export const warnings: CompleteCatalog<typeof warningsEn> = {
   missingFields: 'مفقود: {{fields}}',
   invalidApiKeys: 'مفاتيح غير صالحة: {{keys}}',
   mcpDeprecatedAliases: 'ما يزال معيّنًا في: {{aliases}}',
+  mcpUndescribedAliases: 'الخوادم: {{aliases}}',
   deprecatedConfigFields: 'ما يزال معيّنًا: {{fields}}',
   mcpNextReconnect: 'المحاولة التالية <time>{{time}}</time>',
   lastFailedAt: 'آخر إخفاق: <time>{{time}}</time>',
@@ -50,6 +51,7 @@ export const warnings: CompleteCatalog<typeof warningsEn> = {
     openModels: 'فتح النماذج',
     openInvocations: 'فتح الاستدعاءات',
     openSettings: 'فتح الإعدادات',
+    openMcpServers: 'فتح خوادم MCP',
     openTelegram: 'فتح إعدادات Telegram',
     openApiKeys: 'فتح مفاتيح API',
   },
@@ -113,6 +115,10 @@ export const warnings: CompleteCatalog<typeof warningsEn> = {
     mcp_server_unavailable: {
       title: 'خوادم MCP غير قابلة للوصول',
       body: 'تعذّر الوصول إلى هذه الخوادم المُعدّة وهي تعيد المحاولة في الخلفية. تبقى أدواتها مخفية حتى تتعافى.',
+    },
+    mcp_description_missing: {
+      title: 'خوادم MCP تدريجية بلا وصف',
+      body: 'لا يمكن الوصول إلى هذه الخوادم إلا عبر أداة mcp، حيث يقرأ النموذج وصفها ليقرر هل تفيد. من دون وصف لا يرى سوى بضعة أسماء أدوات. اكتب وصفًا أو اطلب مسودة من نموذج الأدوات في صفحة خوادم MCP.',
     },
     unknown: {
       title: 'تحذير غير معروف: {{code}}',

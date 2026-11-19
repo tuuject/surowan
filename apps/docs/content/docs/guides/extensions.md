@@ -55,7 +55,40 @@ MCP Server 通过 `mcp.servers` 配置，可使用 stdio 或 Streamable HTTP。�
 }
 ```
 
-`tools: "*"` 时使用 `default_tool_policy`；显式列出的 Tool 必须各有策略。没有策略的 Tool 不会暴露给模型。HTTP MCP 禁止重定向，凭据应使用 SecretRef Header，而不是 URL 参数。MCP 直接暴露为独立 Tool，不经 `execute` 注册表。
+`tools: "*"` 时使用 `default_tool_policy`；显式列出的 Tool 必须各有策略。没有策略的 Tool 不会暴露给模型。HTTP MCP 禁止重定向，凭据应使用 SecretRef Header，而不是 URL 参数。MCP Tool 不经 `execute` 注册表；它们以哪种方式交给模型，由下一节的 `exposure` 决定。
+
+### 直接暴露与渐进式暴露
+
+每个 Server 可以单独选择 `exposure`：
+
+- `"direct"`（默认，不写即是）：每个 Tool 都以 `<alias>__<tool>` 作为独立 Tool 交给模型，每次请求都带上完整定义。
+- `"progressive"`：这个 Server 的 Tool 不进入 Tool 列表。模型只看到一个 `mcp` Tool，它的说明里列出所有渐进式 Server 的 alias、Tool 数量和 `description`；模型需要时用 `mcp` 的 `search` 找 Tool（中文、英文都可以搜）、`help` 读某个 Tool 的完整说明与参数，再用 `call` 调用。
+
+```jsonc
+{
+  "mcp": {
+    "servers": [
+      {
+        "alias": "notes",
+        "transport": "stdio",
+        "command": ["node", "notes-server.js"],
+        "tools": "*",
+        "payload_max_bytes": 32768,
+        "result_max_bytes": 32768,
+        "default_tool_policy": { "read_only": true, "timeout_seconds": 20 },
+        "exposure": "progressive",
+        "description": "Personal notes: search, read and append notes by title or tag.",
+      },
+    ],
+  },
+}
+```
+
+Tool 多的 Server 适合渐进式：所有渐进式 Server 加起来只占 Tool 列表里的一个位置，不再挤占 61 个 Tool 的上限，也不会让每次请求都背着几十份 Tool 定义。代价是模型多一次查找，而且它一开始只能从 `description` 知道这个 Server 能做什么，所以渐进式 Server 应该写好描述（最多 1000 字）。没写描述时模型只能看到几个 Tool 名，Warnings 页会显示 `mcp_description_missing` 提醒。
+
+描述可以手写，也可以让工具模型根据 Server 公布的 Tool 起草：在面板编辑 Server 时点「用工具模型起草」，或运行 `surowan-utils mcp-server describe <alias>`。起草是一次计费的工具模型调用，结果只是草稿，不会自动保存——确认或修改后，在面板保存，或用 `surowan-utils mcp-server update <alias> --set description=...` 写入。
+
+渐进式不放宽任何权限：`mcp` 只能找到并调用这个 Chat 本来就能用的 Tool（按 Chat 绑定照常收窄），调用走与直接暴露相同的参数校验、只读策略、超时、大小限制和审计。审计里会有两条记录：外层的 `mcp`，以及真正被调用的 `<alias>__<tool>`。
 
 ### 按 Chat 限定 MCP Tool
 
@@ -118,7 +151,7 @@ MCP Server 通过 `mcp.servers` 配置，可使用 stdio 或 Streamable HTTP。�
 Admin 的「MCP servers」页（Manage → MCP servers）让运营者不碰 `config.jsonc` 就能管理出站 MCP：页面显示每个 Server 的实时状态（ready / connecting / degraded，含错误码）、连接摘要与它发现过的全部 Tool（含被 `tools` 设置隐藏的），每条改动保存后立即热应用。
 
 - **新增**只接受 Streamable HTTP Server（alias、URL、Header 密钥、Tool 选择与策略）；stdio Server 运行的是宿主机上的命令，必须在服务器的 `config.jsonc` 里手工添加。
-- **编辑**时 HTTP Server 可以改 URL 与 Header；stdio Server 只能改 Tool 选择、大小限制与策略——命令、环境变量与传输方式保持只读，页面会明确提示这些字段只在 `config.jsonc` 里维护。
+- **编辑**时 HTTP Server 可以改 URL 与 Header；stdio Server 只能改 Tool 选择、大小限制与策略——命令、环境变量与传输方式保持只读，页面会明确提示这些字段只在 `config.jsonc` 里维护。两种 Server 都可以改暴露方式与描述，编辑框里的「用工具模型起草」会把草稿填进描述框，保存前不会写入任何东西。
 - **删除**要求先解绑：还有 Chat 显式绑定该 Server 时会返回绑定它的 Chat 列表；不写 `mcp` 字段的 Chat 继承全部 Server，删除后它们自动失去这个来源。
 - 每个服务器的工具选择来自它的显式列表，或 `tools: "*"` 时来自它实际发现（advertised）的工具名。
 - Chats 页每行的「MCP servers」入口设置该 Chat 的绑定：继承全部、完全关闭，或显式挑选 Server 并收窄 Tool。
@@ -127,11 +160,11 @@ Admin 的「MCP servers」页（Manage → MCP servers）让运营者不碰 `con
 
 ## 何时生效和如何确认
 
-`mcp.servers` 与每个 Chat 的 `mcp` 都可以热应用，不需要重启：在 Admin「Apply config file」或任何一次面板保存之后，新增的 Server 会被连接、删除的会被关闭、改过字段的会被替换，没改的 Server 保持连接。改变某个 Chat 能用的 Tool（删掉绑定、换 Tool 列表、改策略，或它用的 Server 被改）时，这个 Chat 正在跑的 Invocation 会被停下、该 Chat 的连续 Context 会被重建，然后自动续跑一次：模型看到的是新的聊天记录，会被告知这次是运营者改了 MCP 配置，并收到被停下时结果未知的 MCP Tool 名，避免重复副作用。只是新增 Server 或加宽 Tool 列表不会打断正在跑的对话，下一条消息就用上新的集合。
+`mcp.servers` 与每个 Chat 的 `mcp` 都可以热应用，不需要重启：在 Admin「Apply config file」或任何一次面板保存之后，新增的 Server 会被连接、删除的会被关闭、改过字段的会被替换，没改的 Server 保持连接。改变某个 Chat 能用的 Tool（删掉绑定、换 Tool 列表、改策略，或它用的 Server 被改）时，这个 Chat 正在跑的 Invocation 会被停下、该 Chat 的连续 Context 会被重建，然后自动续跑一次：模型看到的是新的聊天记录，会被告知这次是运营者改了 MCP 配置，并收到被停下时结果未知的 MCP Tool 名，避免重复副作用。只是新增 Server 或加宽 Tool 列表不会打断正在跑的对话，下一条消息就用上新的集合。只改 `exposure` 或 `description` 也不会重连 Server、不会打断任何对话：它们不改变 Chat 能用哪些 Tool，下一次 Invocation 起按新的方式交给模型。
 
 启动不会因为 MCP Server 连不上而等待或失败：每个 Server 都在后台连接，连不上或校验不通过的实例显示为 `degraded` 并按退避重试，不影响其他 Server、启动与本次热应用。只有 `ready` 的 Server 会把 Tool 交给模型——Server 不可达期间它的 Tool 从下一次 Invocation 的注册表中消失，恢复后自动回来；Admin 的 Warnings 页在 `degraded` 期间显示 `mcp_server_unavailable` 警告（`starting` 不告警）。旧配置里的 `required` 字段已废弃且不再生效（启动、热应用、doctor 都不看它）：配置仍然能加载，`check-config` 与 Warnings 页会提示从哪些 alias 删掉它。
 
-确认方式：在 Tool session 的工具列表里看这个 Chat 实际拿到哪些名称（`<alias>__<tool>`），在 Tool call 审计里看参数、结果与策略；停跑与续跑会在日志里留下一条 `mcp_config_published` 事件（受影响 Chat、停掉的 Invocation、重建的 Context、续跑与跳过的原因）。内部 Plugin 的调用则在 `execute` 外层和内部能力层分别留下可关联审计。
+确认方式：在 Tool session 的工具列表里看这个 Chat 实际拿到哪些名称（直接暴露的 `<alias>__<tool>`，以及渐进式 Server 共用的 `mcp`），在 Tool call 审计里看参数、结果与策略；停跑与续跑会在日志里留下一条 `mcp_config_published` 事件（受影响 Chat、停掉的 Invocation、重建的 Context、续跑与跳过的原因）。内部 Plugin 的调用则在 `execute` 外层和内部能力层分别留下可关联审计。
 
 先用 `check-config` 离线检查配置。仍不能定位时，获得管理员许可后再运行 `node src/cli.ts doctor --config <config.jsonc>`：它会连接 Telegram、Provider 与全部 MCP Server（连不上的只记为警告，不算失败），可能产生模型费用。不要把“模型看到了 Tool 名称”当作“调用成功”；继续参考 [排障](../operations/troubleshooting.md)。
 

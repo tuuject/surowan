@@ -13,6 +13,9 @@ import type { SecretInput, SecretSource } from './keychain.ts';
 
 export type McpLiveState = 'ready' | 'connecting' | 'degraded';
 
+/** `direct` lists every tool to the model; `progressive` puts them behind the `mcp` gateway. */
+export type McpExposure = 'direct' | 'progressive';
+
 export interface McpServerStateView {
   readonly state: McpLiveState;
   readonly error_code: string | null;
@@ -69,6 +72,9 @@ export interface McpBoundChatView {
 export interface McpServerView {
   readonly alias: string;
   readonly transport: 'stdio' | 'streamable_http';
+  readonly exposure: McpExposure;
+  /** What the model reads about a progressive server; `null` when unset. */
+  readonly description: string | null;
   readonly state: McpServerStateView | null;
   readonly connection: McpConnectionView;
   readonly tools: '*' | readonly string[];
@@ -108,6 +114,9 @@ export interface McpServerInput {
   readonly result_max_bytes: number;
   readonly tool_policies?: readonly McpToolPolicyInput[] | null;
   readonly default_tool_policy?: McpDefaultPolicyInput | null;
+  readonly exposure?: McpExposure;
+  /** `null` removes the description; omitted keeps it. */
+  readonly description?: string | null;
 }
 
 export interface McpServerCreateInput {
@@ -119,6 +128,8 @@ export interface McpServerCreateInput {
   readonly result_max_bytes: number;
   readonly tool_policies?: readonly McpToolPolicyInput[] | null;
   readonly default_tool_policy?: McpDefaultPolicyInput | null;
+  readonly exposure?: McpExposure;
+  readonly description?: string | null;
 }
 
 export interface McpServersWriteResult extends McpServersView {
@@ -142,6 +153,20 @@ export function updateMcpServer(alias: string, body: McpServerInput, revision: s
     method: 'PUT',
     headers: writeHeaders(revision),
     body: JSON.stringify(body),
+  });
+}
+
+/** A tool-model draft of one server's description; nothing is saved until the form is. */
+export interface McpDescriptionDraft {
+  readonly alias: string;
+  readonly description: string;
+  readonly tool_model: { readonly provider: string; readonly model: string };
+}
+
+/** One billed tool-model call over the tools the server advertised. */
+export function draftMcpServerDescription(alias: string): Promise<McpDescriptionDraft> {
+  return call<McpDescriptionDraft>(`/mcp-servers/${encodeURIComponent(alias)}/description-draft`, {
+    method: 'POST',
   });
 }
 

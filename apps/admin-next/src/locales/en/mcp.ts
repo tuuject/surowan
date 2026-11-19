@@ -64,7 +64,7 @@ export const mcp = {
   addTool: 'Add tool',
   removeTool: 'Remove tool',
   cutoverWarning:
-    'Saving stops and resumes in-flight runs in every chat that reaches this server, and rebuilds their context.',
+    'Saving a change to the connection, tools, limits or policies stops and resumes in-flight runs in every chat that reaches this server, and rebuilds their context. Exposure and description apply from the next run without interrupting anything.',
   advertisedTitle: 'Advertised tools',
   noAdvertised: 'No tools discovered yet; the server has not finished connecting.',
   usageTitle: 'Usage',
@@ -74,6 +74,22 @@ export const mcp = {
   removeTitle: 'Remove {{alias}}',
   removeDescription:
     'Remove this MCP server from the configuration? Chats that bind it explicitly must be unbound first.',
+  fieldExposure: 'Exposure',
+  exposureDirect: 'Direct',
+  exposureDirectHint: 'Every exposed tool is listed to the model on every request.',
+  exposureProgressive: 'Progressive',
+  exposureProgressiveHint:
+    'The tools stay out of the list; the model finds and calls them through the mcp tool, guided by the description below.',
+  fieldDescription: 'Description',
+  fieldDescriptionHint:
+    'What the model reads to decide whether this server can help. Used by progressive exposure; up to 1000 characters.',
+  draftDescription: 'Draft with tool model',
+  drafting: 'Drafting…',
+  draftHint:
+    'One billed call to the tool model over the advertised tools. The draft only fills the field; review it, then save.',
+  draftNeedsServer: 'Save the server first; a draft needs its advertised tools.',
+  descriptionMissingHint: 'Without a description the model only sees a few tool names of this server.',
+  noDescription: 'none',
   errors: {
     alias: 'The alias must start with a letter and use up to 64 letters, digits, underscores or dashes.',
     url: 'A URL is required.',

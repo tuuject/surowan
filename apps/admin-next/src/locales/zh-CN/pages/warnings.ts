@@ -20,6 +20,7 @@ export const warnings: typeof warningsEn = {
   missingFields: '缺少：{{fields}}',
   invalidApiKeys: '非法密钥：{{keys}}',
   mcpDeprecatedAliases: '仍设置于：{{aliases}}',
+  mcpUndescribedAliases: '服务器：{{aliases}}',
   deprecatedConfigFields: '仍设置：{{fields}}',
   mcpNextReconnect: '下次重试 <time>{{time}}</time>',
   lastFailedAt: '最近失败：<time>{{time}}</time>',
@@ -35,6 +36,7 @@ export const warnings: typeof warningsEn = {
     openModels: '打开模型页',
     openInvocations: '打开运行记录',
     openSettings: '打开设置',
+    openMcpServers: '打开 MCP 服务器',
     openTelegram: '打开 Telegram 设置',
     openApiKeys: '打开 API 密钥',
   },
@@ -91,6 +93,10 @@ export const warnings: typeof warningsEn = {
     mcp_server_unavailable: {
       title: 'MCP 服务器不可达',
       body: '以下配置中的服务器暂时连不上，正在后台自动重试。恢复之前它们的 Tool 不会提供给模型。',
+    },
+    mcp_description_missing: {
+      title: '渐进式 MCP 服务器缺少描述',
+      body: '这些服务器只能通过 mcp 工具使用，模型要靠描述判断它们能做什么；没有描述时只能看到几个工具名。请在「MCP 服务器」页填写描述，或用工具模型起草一份。',
     },
     unknown: {
       title: '未知警告：{{code}}',

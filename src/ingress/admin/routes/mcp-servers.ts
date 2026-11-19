@@ -6,9 +6,13 @@
  * only as keychain entries. Live state and advertised tools come from the
  * process's `McpManager` when one runs; a standalone panel reports neither.
  */
+import { draftMcpServerDescription, McpDescriptionDraftError } from '../../../capabilities/mcp/describe.ts';
 import type { McpServerToolListing } from '../../../capabilities/mcp/support.ts';
+import type { RuntimeConfigurationStore } from '../../../platform/runtime-config.ts';
 import type { ConfigApplyResult, ConfigController, SecretWrite } from '../../../platform/config/write.ts';
 import type { SecretStore } from '../../../platform/secrets.ts';
+import { resolveToolModel } from '../../../platform/tool-model.ts';
+import type { BusinessStore } from '../../../store/store.ts';
 import type { SearchProviderRule } from '../../../platform/web-search.ts';
 import type { McpServerAvailability } from '../../../platform/warning-catalog.ts';
 import { AdminQueryError } from '../audit/shared.ts';
@@ -19,6 +23,10 @@ import { createMcpServer, deleteMcpServer, updateMcpServer } from '../mcp-server
 import type { CallerClass } from '../secret-input.ts';
 
 export interface McpServersAdminDeps {
+  /** The tool-model description draft audits its call here. */
+  readonly store: BusinessStore;
+  /** The running configuration: the tool model and its registered models. */
+  readonly configStore: RuntimeConfigurationStore;
   /** Absent when the process has no reloadable configuration (tests, panels). */
   readonly configReloader?: ConfigController | undefined;
   readonly secrets?: SecretStore | undefined;
@@ -55,6 +63,61 @@ export function createMcpServersAdminRoutes(deps: McpServersAdminDeps) {
     return json({ error: result.code, message }, CONFIG_WRITE_STATUS[result.code] ?? 409);
   };
 
+  /**
+   * `POST /api/mcp-servers/:alias/description-draft`: one billed tool-model
+   * call over the tools the server advertised, answered as a draft and never
+   * written. Saving it is the ordinary `PUT` with `description`, so an operator
+   * reads (and may edit) every word before the model sees it.
+   */
+  const descriptionDraft = async (reloader: ConfigController, alias: string): Promise<Response> => {
+    const secrets = deps.secrets;
+    if (secrets === undefined) {
+      return json({ error: 'mcp_unavailable', message: 'MCP server management is not wired' }, 503);
+    }
+    const { loaded } = await readConfigFile(reloader, secrets);
+    const server = (loaded.fileConfig.mcp?.servers ?? []).find((entry) => entry.alias === alias);
+    if (server === undefined) {
+      return json({ error: 'not_found', message: `No MCP server named ${alias} is configured` }, 404);
+    }
+    const listing = deps.mcpServerTools?.().find((entry) => entry.alias === alias);
+    const exposed = (listing?.tools ?? []).filter((tool) => server.tools === '*' || server.tools.includes(tool.name));
+    if (listing === undefined || exposed.length === 0) {
+      return json(
+        {
+          error: 'mcp_server_not_ready',
+          message: `${alias} has not advertised any exposed tool yet; draft once it is connected`,
+        },
+        409,
+      );
+    }
+    const snapshot = deps.configStore.current();
+    const toolModel = resolveToolModel(snapshot.config);
+    if (toolModel === undefined) {
+      return json({ error: 'tool_model_unavailable', message: 'No tool model is configured' }, 502);
+    }
+    try {
+      const description = await draftMcpServerDescription(
+        { orm: deps.store.orm, models: snapshot.models, secrets },
+        toolModel,
+        {
+          alias,
+          instructions: listing.instructions,
+          tools: exposed.map((tool) => ({ name: tool.name, description: tool.description })),
+        },
+      );
+      return json({
+        alias,
+        description,
+        tool_model: { provider: toolModel.provider, model: toolModel.model },
+      });
+    } catch (error) {
+      if (error instanceof McpDescriptionDraftError) {
+        return json({ error: error.code, message: secrets.redactError(error) }, 502);
+      }
+      throw error;
+    }
+  };
+
   const applied = (result: Extract<ConfigApplyResult, { readonly ok: true }>) => ({
     applied: result.applied,
     restart_required: result.restartRequired,
@@ -80,6 +143,10 @@ export function createMcpServersAdminRoutes(deps: McpServersAdminDeps) {
         return json(await view(caller));
       }
       const alias = segments[1] ?? '';
+      if (method === 'POST' && segments.length === 3 && segments[2] === 'description-draft') {
+        // A draft writes nothing, so it takes no revision.
+        return await descriptionDraft(reloader, alias);
+      }
       const isCreate = method === 'POST' && segments.length === 1;
       const isUpdate = method === 'PUT' && segments.length === 2;
       const isDelete = method === 'DELETE' && segments.length === 2;

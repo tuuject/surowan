@@ -9,6 +9,7 @@
  * this view and the panel renders them as plain text, never as markup.
  */
 import { basename } from 'node:path';
+import { mcpExposure } from '../../../capabilities/mcp/bindings.ts';
 import type { McpServerToolListing } from '../../../capabilities/mcp/support.ts';
 import type { FileConfig, McpServerConfig, SecretRef } from '../../../platform/config/index.ts';
 import type { McpServerAvailability } from '../../../platform/warning-catalog.ts';
@@ -66,6 +67,10 @@ export interface McpBoundChatView {
 export interface McpServerView {
   readonly alias: string;
   readonly transport: McpServerConfig['transport'];
+  /** `direct` lists each tool in the registry; `progressive` puts them behind the `mcp` gateway. */
+  readonly exposure: 'direct' | 'progressive';
+  /** The operator-reviewed description the gateway shows the model; `null` when unset. */
+  readonly description: string | null;
   readonly state: McpServerStateView | null;
   readonly connection: McpConnectionView;
   readonly tools: '*' | readonly string[];
@@ -192,6 +197,8 @@ export function mcpServersView(
       return {
         alias: server.alias,
         transport: server.transport,
+        exposure: mcpExposure(server),
+        description: server.description ?? null,
         state,
         connection,
         tools: server.tools,

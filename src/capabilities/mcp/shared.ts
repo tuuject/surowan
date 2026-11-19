@@ -27,12 +27,31 @@ export interface McpServerReconcileResult {
   readonly stale: boolean;
 }
 
+/** One progressive server as one Chat reaches it: its gateway index entry and its tools. */
+export interface ProgressiveMcpServer {
+  readonly alias: string;
+  /** The operator-reviewed description; absent falls back to a list of tool names. */
+  readonly description: string | undefined;
+  readonly tools: readonly McpToolDefinition[];
+}
+
+/**
+ * The MCP tools one Chat reaches, split by how they reach the model: `direct`
+ * ones are registry tools of their own, `progressive` ones sit behind the one
+ * `mcp` gateway tool. Both halves are the same authorization: the Chat's
+ * binding, the server's selection and the resolved policies.
+ */
+export interface ChatMcpToolSet {
+  readonly direct: readonly McpToolDefinition[];
+  readonly progressive: readonly ProgressiveMcpServer[];
+}
+
 /** A distinct per-Chat tool set and the Chats that resolve to it. */
 export interface ToolSetResolution {
   /** The host whose configured Chats resolve to this set; a set never spans hosts. */
   readonly host: HostKind;
   readonly chatIds: readonly number[];
-  readonly definitions: readonly McpToolDefinition[];
+  readonly toolSet: ChatMcpToolSet;
 }
 
 /** The mutable half of the manager, shared by its topic modules. */

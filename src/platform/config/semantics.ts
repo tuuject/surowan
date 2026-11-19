@@ -204,6 +204,9 @@ export function validateSemantics(config: FileConfig, options: ValidateSemantics
     if (server.transport === 'streamable_http') {
       validateEndpoint(server.url, `MCP server ${server.alias} URL`, { allowQuery: true });
     }
+    if (server.description !== undefined && server.description.trim().length === 0) {
+      throw new Error(`MCP server ${server.alias} description must not be blank`);
+    }
     if (server.tools === '*' && server.default_tool_policy === undefined) {
       throw new Error(`MCP server ${server.alias} wildcard tools require default_tool_policy`);
     }

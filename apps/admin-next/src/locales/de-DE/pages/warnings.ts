@@ -23,6 +23,7 @@ export const warnings: Catalog<typeof warningsEn> = {
   missingFields: 'Fehlt: {{fields}}',
   invalidApiKeys: 'Ungültige Schlüssel: {{keys}}',
   mcpDeprecatedAliases: 'Noch gesetzt bei: {{aliases}}',
+  mcpUndescribedAliases: 'Server: {{aliases}}',
   deprecatedConfigFields: 'Noch gesetzt: {{fields}}',
   mcpNextReconnect: 'nächster Versuch <time>{{time}}</time>',
   lastFailedAt: 'Letzter Fehlschlag: <time>{{time}}</time>',
@@ -38,6 +39,7 @@ export const warnings: Catalog<typeof warningsEn> = {
     openModels: 'Modelle öffnen',
     openInvocations: 'Aufrufe öffnen',
     openSettings: 'Einstellungen öffnen',
+    openMcpServers: 'MCP-Server öffnen',
     openTelegram: 'Telegram-Einstellungen öffnen',
     openApiKeys: 'API-Schlüssel öffnen',
   },
@@ -95,6 +97,10 @@ export const warnings: Catalog<typeof warningsEn> = {
     mcp_server_unavailable: {
       title: 'MCP-Server sind nicht erreichbar',
       body: 'Diese konfigurierten Server konnten nicht erreicht werden und versuchen es im Hintergrund erneut. Ihre Werkzeuge bleiben verborgen, bis sie sich erholt haben.',
+    },
+    mcp_description_missing: {
+      title: 'Schrittweise MCP-Server ohne Beschreibung',
+      body: 'Diese Server sind nur über das mcp-Werkzeug erreichbar, wo das Modell anhand ihrer Beschreibung entscheidet, ob sie helfen können. Ohne Beschreibung sieht es nur einige Werkzeugnamen. Schreibe auf der Seite „MCP-Server“ eine Beschreibung oder lass das Werkzeugmodell einen Entwurf erstellen.',
     },
     unknown: {
       title: 'Unbekannte Warnung: {{code}}',

@@ -66,7 +66,7 @@ export const mcp: Catalog<typeof mcpEn> = {
   addTool: 'Werkzeug hinzufügen',
   removeTool: 'Werkzeug entfernen',
   cutoverWarning:
-    'Speichern stoppt laufende Aufrufe in jedem Chat, der diesen Server erreicht, setzt sie fort und baut ihren Kontext neu auf.',
+    'Das Speichern einer Änderung an Verbindung, Werkzeugen, Limits oder Richtlinien stoppt laufende Ausführungen in jedem Chat, der diesen Server erreicht, setzt sie fort und baut ihren Kontext neu auf. Bereitstellung und Beschreibung gelten ab der nächsten Ausführung, ohne etwas zu unterbrechen.',
   advertisedTitle: 'Angebotene Werkzeuge',
   noAdvertised: 'Noch keine Werkzeuge entdeckt; der Server hat das Verbinden nicht abgeschlossen.',
   usageTitle: 'Verwendung',
@@ -76,6 +76,22 @@ export const mcp: Catalog<typeof mcpEn> = {
   removeTitle: '{{alias}} entfernen',
   removeDescription:
     'Diesen MCP-Server aus der Konfiguration entfernen? Chats, die ihn explizit binden, müssen zuerst entbunden werden.',
+  fieldExposure: 'Bereitstellung',
+  exposureDirect: 'Direkt',
+  exposureDirectHint: 'Jedes freigegebene Werkzeug wird dem Modell bei jeder Anfrage aufgelistet.',
+  exposureProgressive: 'Schrittweise',
+  exposureProgressiveHint:
+    'Die Werkzeuge bleiben aus der Liste; das Modell findet und ruft sie über das mcp-Werkzeug auf, geleitet von der Beschreibung unten.',
+  fieldDescription: 'Beschreibung',
+  fieldDescriptionHint:
+    'Daran entscheidet das Modell, ob dieser Server helfen kann. Wird bei schrittweiser Bereitstellung verwendet; bis zu 1000 Zeichen.',
+  draftDescription: 'Mit Werkzeugmodell entwerfen',
+  drafting: 'Entwurf läuft…',
+  draftHint:
+    'Ein kostenpflichtiger Aufruf des Werkzeugmodells über die angebotenen Werkzeuge. Der Entwurf füllt nur das Feld; prüfen, dann speichern.',
+  draftNeedsServer: 'Speichere den Server zuerst; ein Entwurf braucht seine angebotenen Werkzeuge.',
+  descriptionMissingHint: 'Ohne Beschreibung sieht das Modell nur einige Werkzeugnamen dieses Servers.',
+  noDescription: 'keine',
   errors: {
     alias:
       'Der Alias muss mit einem Buchstaben beginnen und bis zu 64 Buchstaben, Ziffern, Unter- oder Bindestriche verwenden.',

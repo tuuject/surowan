@@ -42,6 +42,9 @@ export const WARNING_DEFINITIONS = {
   // otherwise the warning would flicker off for every reconnect attempt.
   mcp_required_deprecated: { kind: 'standing', category: 'developer', severity: 'warning' },
   mcp_server_unavailable: { kind: 'standing', category: 'runtime', severity: 'warning' },
+  // A progressive server without a description still works (the gateway falls
+  // back to a few tool names), but the model can hardly tell what it is for.
+  mcp_description_missing: { kind: 'standing', category: 'runtime', severity: 'warning' },
   invocation_failure_rate: { kind: 'event', category: 'runtime', severity: 'critical' },
   admin_login_failures: { kind: 'event', category: 'security', severity: 'warning' },
 } as const satisfies Record<string, WarningDefinition>;
@@ -160,6 +163,12 @@ export function standingWarnings(
     .map((server) => server.alias);
   if (deprecatedRequired.length > 0) {
     standing.push(entry('mcp_required_deprecated', { aliases: deprecatedRequired }));
+  }
+  const undescribed = (config.mcp?.servers ?? [])
+    .filter((server) => server.exposure === 'progressive' && server.description === undefined)
+    .map((server) => server.alias);
+  if (undescribed.length > 0) {
+    standing.push(entry('mcp_description_missing', { aliases: undescribed }));
   }
   const deprecatedFields = config.deprecated_fields ?? [];
   if (deprecatedFields.length > 0) {

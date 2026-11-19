@@ -50,6 +50,11 @@ export const E2E_MERGE_SUGGESTION = {
   definition: 'merged definition from the tool model',
   aliases: ['merged-alias'],
 } as const;
+/**
+ * The same Tool Model answers an MCP server description draft (its prompt
+ * carries the server data block) with this description.
+ */
+export const E2E_MCP_DESCRIPTION_DRAFT = 'Echoes text back with a call count, for end-to-end tests.';
 
 /**
  * Health-check fixture: providers 16-model-health creates through the API and

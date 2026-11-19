@@ -124,6 +124,7 @@ export class McpManager {
         description: tool.description,
         input_schema: tool.input_schema,
       })),
+      instructions: server.instructions,
     }));
   }
 
@@ -203,12 +204,7 @@ export class McpManager {
     return resolutions(this.#state, config).map((resolution) => ({
       chatIds: resolution.chatIds,
       host: resolution.host,
-      tools: buildTools(
-        this.#callDeps,
-        resolution.definitions,
-        previewContext(resolution.host),
-        Number.MAX_SAFE_INTEGER,
-      ),
+      tools: buildTools(this.#callDeps, resolution.toolSet, previewContext(resolution.host), Number.MAX_SAFE_INTEGER),
     }));
   }
 

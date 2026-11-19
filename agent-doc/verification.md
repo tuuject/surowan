@@ -47,6 +47,7 @@ pnpm test test/replay/replay.test.ts test/scene/context.test.ts test/scene/slice
 pnpm test test/skills.test.ts test/system-resources.test.ts test/plugins.test.ts
 pnpm test test/media/media.test.ts test/stickers.test.ts
 pnpm test test/mcp.test.ts test/web-fetch test/web-search
+pnpm test test/mcp/progressive.test.ts test/admin/mcp-servers-presentation.test.ts test/skills/execute-search.test.ts   # MCP 渐进式暴露、mcp 网关、描述起草与共享中文分词搜索
 pnpm test test/plugins.test.ts   # 插件依赖、扩展点与贡献冲突
 pnpm test test/operations.test.ts test/foundation/foundation.test.ts test/schema/schema.test.ts test/load-env.test.ts
 pnpm test packages/image-service/test test/image/service-store.test.ts test/image/models.test.ts test/image/admin.test.ts test/image/admin-server.test.ts
@@ -170,6 +171,9 @@ pnpm test test/im test/intake test/schema/migrations-host-neutral-ids.test.ts te
 | `admin/sticker-sets.test.ts` | Sticker sets 写端点：revision、昵称/名称/备注校验、链接解析、重复名称（大小写不敏感）与昵称、`name` 不可改、热应用与文件落盘、改名保留同一行；增删只中止 Telegram 运行（`sticker_sets_changed`），改名/改备注不中止，Playground 房间不受影响 |
 | `media/image.test.ts` | 视频 Sticker 只按 WebM 解码（其他容器冒充时拒绝）、真实 WebM 仍能取帧、解压超过 8 MiB 的 TGS 在转换前拒绝；预取消或下载后立即取消均不启动 ffprobe/ffmpeg/Lottie；本机没有 ffmpeg/ffprobe 时仅视频取帧组跳过，TGS 与取消回归仍运行 |
 | `mcp.test.ts` | stdio/HTTP transport、策略、Header、重定向和审计、发现 Tool 失败时关闭 stdio 子进程、连接中 `stop()` 后保持 stopped 且关闭子进程 |
+| `mcp/progressive.test.ts` | progressive Server 离开注册表、只留一个 `mcp` 网关且 61 上限按它计一次；网关索引列出描述或退回 Tool 名；search/help/call 只在本 Chat 解析出的集合内（绑定收窄、直接暴露的 Tool 一律 `unknown_tool`）；call 先校验 Schema、外层 `mcp` 与内层 `<id>:<alias>__<tool>` 两行审计；工具图片按网关 call ID 加载；中文查询命中 Server 描述；只改 `exposure`/`description` 不重连、不影响任何 Chat；`execute` 拒绝 `mcp` |
+| `admin/mcp-servers-presentation.test.ts` | `exposure`/`description` 可单独 `PUT` 且不动其它字段、空白描述即删除、`direct` 回落为缺省、超长 400、`mcp_description_missing` 常驻告警；描述起草只读被选中的 Tool、不写文件、审计 `model_calls`、无效回复 502、未连接 409、无付费权限的密钥 403 |
+| `skills/execute-search.test.ts` | `Intl.Segmenter` 分词（中文、日文、`_` 连接的名字）、去虚词与单个假名、评分规则；`execute.search` 用中文请求命中能力且英文排序不变 |
 | `web-fetch/address.test.ts` | 有界不可信文本结果与审计、公网 IPv4 放行与 IPv4 映射字面量拒绝、私网/合成地址拒绝（含跳转目标）、fake-ip 网段默认拒绝且需 `allow_proxy_synthetic_addresses` 开启、6to4/Teredo 过渡地址拒绝、`dangerously_allow_all_ip_addresses` 从配置到插件生效并放行私网/环回/跳转目标但仍拒绝非默认端口 |
 | `web-fetch/content.test.ts` | 默认 `Accept` 优先 `text/markdown` 且站点 Markdown 原样返回、`raw` 与 `accept_markdown: false` 不声明 Markdown、HTML 默认转 Markdown（正文在 32 KiB 之后仍保留、去导航/脚本，图片保留为绝对链接）、`raw` 返回原始 HTML、Markdown 按 UTF-8 边界截断、转换不发任何网络请求 |
 | `web-fetch/images.test.ts` | 能看图时 Markdown 带 `Images:` 提示且内联 `data:` 图片剔除；图片响应存成本 Chat 工具图片（标记 + `toolImages` + 审计 `result_content_json`，不含字节）、`referer` 去 fragment 后随每一跳发送、无存储时图片按二进制拒绝、GIF/伪装 HTML/超 20 MiB（声明或实际）/非法 referer 各自的失败码且不留资产、插件 scope 只把图片存进本 Invocation 的 Chat |
@@ -328,6 +332,7 @@ pnpm run admin:test:e2e 08-models 16-model-health 18-tool-model 27-model-roles  
 pnpm run admin:test:e2e 17-dictionary 18-tool-model  # 辞典页与 Tool Model 回归
 pnpm run admin:test:e2e 20-playground  # Playground 房间 API 与页面回归
 pnpm run admin:test:e2e 22-search-settings  # 网络搜索设置页与保存流程
+pnpm run admin:test:e2e 37-mcp-servers  # 出站 MCP Server 页：增删改、绑定、渐进式暴露与工具模型起草描述（起草只填输入框，保存才落盘；产物：页面截图与 mcp 配置段）
 pnpm run admin:test:e2e 32-recurring-alarms  # 循环闹钟：规则控件与 Cron 互转、预览、停用、立即执行与删除（产物：立即执行后的触发记录截图）
 pnpm run admin:test:e2e 30-dev-mock --workers=1  # 一键 mock 调试命令、Vite 代理认证与退出清理
 ```

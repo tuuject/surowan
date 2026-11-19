@@ -15,6 +15,7 @@ import {
   E2E_HEALTH_OK_2_MODEL,
   E2E_HEALTH_OK_MODEL,
   E2E_HEALTH_PROMPT,
+  E2E_MCP_DESCRIPTION_DRAFT,
   E2E_MERGE_MODEL,
   E2E_MERGE_SUGGESTION,
   E2E_RELAY_DISCOVERED_MODELS,
@@ -193,6 +194,16 @@ function validateHealthRequest(body: Record<string, unknown>): string | null {
   return null;
 }
 
+/**
+ * The Tool Model serves two admin features: the dictionary merge and the MCP
+ * server description draft, whose prompt carries a `Server data:` block.
+ */
+function toolModelReply(body: Record<string, unknown>): string {
+  return JSON.stringify(body.messages ?? []).includes('Server data:')
+    ? JSON.stringify({ description: E2E_MCP_DESCRIPTION_DRAFT })
+    : JSON.stringify(E2E_MERGE_SUGGESTION);
+}
+
 /** One OpenAI-style SSE stream with the canned reply, then `data: [DONE]`. */
 function healthSseChunks(model: string, content: string): string[] {
   const id = `chatcmpl-e2e-${model}`;
@@ -275,7 +286,7 @@ async function handleHealthCompletions(request: Request): Promise<Response> {
       finish();
       return Response.json({ error: { message: 'fixture upstream failure' } }, { status: 500 });
     }
-    const content = behavior === 'ok' ? 'ok' : behavior === 'merge' ? JSON.stringify(E2E_MERGE_SUGGESTION) : 'hello';
+    const content = behavior === 'ok' ? 'ok' : behavior === 'merge' ? toolModelReply(body) : 'hello';
     const stream = new ReadableStream<Uint8Array>({
       async start(controller) {
         try {

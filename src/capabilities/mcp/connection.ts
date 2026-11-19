@@ -37,6 +37,7 @@ export function managedServer(config: McpServerConfig): ManagedServer {
     semaphore: new AsyncSemaphore(1),
     definitions: [],
     advertised: [],
+    instructions: null,
     client: undefined,
     attempt: undefined,
     generation: 0,
@@ -69,6 +70,7 @@ export async function stopServer(state: McpState, server: ManagedServer): Promis
   // advertised list describes the same discovery, so it goes with them.
   server.definitions = [];
   server.advertised = [];
+  server.instructions = null;
   const attempt = server.attempt;
   if (attempt !== undefined) {
     // An in-flight connect has no published client yet: cancel its handshake
@@ -188,6 +190,7 @@ export async function connect(
       // The advertised list survives the selection: the panel shows tools the
       // server's `tools` setting does not expose, marked as such.
       server.advertised = advertisedTools(listed.tools);
+      server.instructions = client.getInstructions() ?? null;
       publishCandidate(server, definitions, revalidate);
       server.client = client;
       published = true;

@@ -96,6 +96,22 @@ export const DefaultToolPolicySchema = Type.Object(ToolPolicyFields, Strict);
 /** MCP server aliases; a per-Chat binding names one and the tool set stays `<alias>__<tool>`. */
 export const MCP_SERVER_ALIAS_PATTERN = '^[A-Za-z][A-Za-z0-9_-]{0,63}$';
 
+/**
+ * How a server's tools reach the model. `direct` lists every tool in the
+ * registry as `<alias>__<tool>`; `progressive` keeps them out of it and puts the
+ * server (alias plus `description`) behind the one `mcp` gateway tool, which
+ * searches, explains and calls them on demand. Omitted means `direct`.
+ */
+export const McpExposureSchema = Type.Union([Type.Literal('direct'), Type.Literal('progressive')]);
+
+/**
+ * Operator-reviewed text the model reads in the `mcp` gateway's server index to
+ * decide whether a progressive server can help. Written by hand or drafted by
+ * the tool model and confirmed through the panel, CLI or MCP.
+ */
+export const MCP_SERVER_DESCRIPTION_MAX_LENGTH = 1_000;
+export const McpServerDescriptionSchema = Type.String({ minLength: 1, maxLength: MCP_SERVER_DESCRIPTION_MAX_LENGTH });
+
 export const ModelConfigSchema = Type.Object(
   {
     id: Type.String({ minLength: 1 }),

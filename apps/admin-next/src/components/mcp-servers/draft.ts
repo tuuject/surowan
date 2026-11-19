@@ -7,6 +7,7 @@
  */
 import type {
   McpDefaultPolicyInput,
+  McpExposure,
   McpServerInput,
   McpServerView,
   McpToolPolicyInput,
@@ -35,6 +36,9 @@ export interface ServerDraft {
   readonly payloadMax: string;
   readonly resultMax: string;
   readonly url: string;
+  readonly exposure: McpExposure;
+  /** Free text; blank removes the description on save. */
+  readonly description: string;
 }
 
 /** Why a draft cannot become a request body; the component translates each kind. */
@@ -70,6 +74,8 @@ export function draftOf(server: McpServerView | null): ServerDraft {
     payloadMax: String(server?.payload_max_bytes ?? 32_768),
     resultMax: String(server?.result_max_bytes ?? 32_768),
     url: server !== null && server.connection.kind === 'streamable_http' ? server.connection.url : '',
+    exposure: server?.exposure ?? 'direct',
+    description: server?.description ?? '',
   };
 }
 
@@ -144,8 +150,11 @@ function finish(
   if (!Number.isInteger(resultMax) || resultMax < 1 || resultMax > 32_768) {
     return { body: null, error: { kind: 'resultRange' } };
   }
+  const description = draft.description.trim();
   const body = {
     ...(draft.url.length > 0 ? { url: draft.url } : {}),
+    exposure: draft.exposure,
+    description: description.length > 0 ? description : null,
     tools: policies.tools,
     payload_max_bytes: payloadMax,
     result_max_bytes: resultMax,

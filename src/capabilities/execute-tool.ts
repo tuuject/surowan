@@ -2,6 +2,7 @@ import type { AgentTool, AgentToolResult } from '@earendil-works/pi-agent-core';
 import Type from 'typebox';
 import Compile from 'typebox/compile';
 import { type ToolImageReference, toolImageMarker, toolImageReferences } from '../platform/tool-images.ts';
+import { searchQuery, searchScore } from '../platform/text-search.ts';
 import { safeJson, truncateUtf8 } from '../platform/truncate.ts';
 import type { ToolAudit } from '../store/tool-audit.ts';
 
@@ -48,6 +49,7 @@ export const EXECUTE_PRIMITIVES: ReadonlySet<string> = new Set([
   'search_memory',
   'read_memory',
   'read_member_profile',
+  'mcp',
 ]);
 const SIDE_EFFECTING_PRIMITIVES: ReadonlySet<string> = new Set(['send', 'send_reply', 'zzz']);
 
@@ -329,37 +331,18 @@ function searchCapabilities(
   capabilities: readonly RegisteredCapability[],
   query: string,
 ): { name: string; summary: string }[] {
-  const normalizedQuery = query.trim().toLowerCase();
-  if (normalizedQuery.length === 0) {
+  const prepared = searchQuery(query);
+  if (prepared.phrase.length === 0) {
     return [];
   }
-  const tokens = [
-    ...new Set(
-      normalizedQuery
-        .split(/[^a-z0-9_]+/)
-        .map((token) => token.replaceAll('_', ' '))
-        .filter((token) => token.length >= 2),
-    ),
-  ];
   const scored = capabilities.flatMap(({ entry }) => {
-    const name = entry.tool.name.toLowerCase();
-    const splitName = name.replaceAll('_', ' ');
-    const label = entry.tool.label.toLowerCase();
-    const description = entry.tool.description.toLowerCase();
-    let score = 0;
-    if (`${name} ${label} ${description}`.includes(normalizedQuery)) {
-      score += 10;
-    }
-    for (const token of tokens) {
-      if (name.includes(token) || splitName.includes(token)) {
-        score += 3;
-      } else if (label.includes(token)) {
-        score += 2;
-      } else if (description.includes(token)) {
-        score += 1;
-      }
-    }
-    return score === 0 ? [] : [{ name: entry.tool.name, summary: entry.tool.label, score }];
+    const name = entry.tool.name;
+    const score = searchScore(prepared, [
+      [`${name} ${name.replaceAll('_', ' ')}`, 3],
+      [entry.tool.label, 2],
+      [entry.tool.description, 1],
+    ]);
+    return score === 0 ? [] : [{ name, summary: entry.tool.label, score }];
   });
   scored.sort((left, right) => right.score - left.score || (left.name < right.name ? -1 : 1));
   return scored.slice(0, SEARCH_RESULT_LIMIT).map(({ name, summary }) => ({ name, summary }));
