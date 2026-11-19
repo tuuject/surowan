@@ -1,33 +1,39 @@
+/**
+ * The host-independent half of the intake: whether a stored message joins an
+ * open collecting bucket or opens the next one, on the message's own host's
+ * timing. Pause state, companion-only joining, deadline bumps and pending bot
+ * adoption are all decided by stored rows, not by anything Telegram-specific.
+ */
 import { and, eq, sql } from 'drizzle-orm';
-import { resolveBucketTiming } from '../../platform/config/resolve.ts';
+import { hostIntakeSettings } from '../../platform/config/index.ts';
 import type { RuntimeConfigurationStore } from '../../platform/runtime-config.ts';
 import { bucketMessages, buckets, conversations } from '../../store/schema/index.ts';
 import type { BusinessStore } from '../../store/store.ts';
 import { isChatPaused } from '../../store/store.ts';
+import type { InboundMessage } from './index.ts';
 import type { StoredMessage } from './messages.ts';
 
-/** What bucket handoff needs from ingestion. */
-export interface TelegramBucketDeps {
+/** What intake modules need from the entry point. */
+export interface IntakeDeps {
   readonly store: BusinessStore;
   readonly configStore: RuntimeConfigurationStore;
+  readonly botId: bigint;
 }
 
 export function appendToBucket(
-  deps: TelegramBucketDeps,
-  chatId: bigint,
-  threadId: bigint,
+  deps: IntakeDeps,
+  inbound: InboundMessage,
   message: StoredMessage,
-  receivedAt: Date,
   participationAllowed: boolean,
   askOnly = false,
 ): bigint | undefined {
-  if (isChatPaused(deps.store.orm, chatId)) {
+  if (isChatPaused(deps.store.orm, inbound.internalChatId)) {
     return undefined;
   }
   const conversation = deps.store.orm
     .select({ id: conversations.id })
     .from(conversations)
-    .where(and(eq(conversations.chatId, chatId), eq(conversations.messageThreadId, threadId)))
+    .where(and(eq(conversations.chatId, inbound.internalChatId), eq(conversations.messageThreadId, inbound.threadId)))
     .get();
   if (conversation === undefined) {
     throw new Error('Conversation missing while assigning bucket');
@@ -46,7 +52,7 @@ export function appendToBucket(
     return undefined;
   }
   if (collecting !== undefined && message.eligibleHuman) {
-    bumpDeadline(deps, collecting, receivedAt);
+    bumpDeadline(deps, collecting, inbound.receivedAt);
   }
   let bucketId = collecting?.id;
   if (bucketId === undefined) {
@@ -59,7 +65,7 @@ export function appendToBucket(
     if (!participationAllowed) {
       return undefined;
     }
-    const now = receivedAt.toISOString();
+    const now = inbound.receivedAt.toISOString();
     // Anchored to this bucket's own first message, never snapped to a chat-wide
     // grid: a grid anchor leaves a band right after every run start where a
     // bucket collects almost nothing (down to milliseconds when a message lands
@@ -72,12 +78,12 @@ export function appendToBucket(
     // deadline later, to `round end + window`.
     //
     // The timing is read once, here, and stored with the batch: a reload of
-    // the `telegram.bucket_*` fields reaches the next batch, while this one
-    // keeps extending and deferring by the timing it opened with.
+    // the intake timing fields reaches the next batch, while this one keeps
+    // extending and deferring by the timing it opened with.
     const timing = askOnly
       ? { windowSeconds: 0, maxSeconds: 0, bumpSeconds: 0 }
-      : resolveBucketTiming(deps.configStore.current().config, 'telegram');
-    const deadline = receivedAt.getTime() + timing.windowSeconds * 1_000;
+      : hostIntakeSettings(deps.configStore.current().config, inbound.host).bucketTiming;
+    const deadline = inbound.receivedAt.getTime() + timing.windowSeconds * 1_000;
     const created = deps.store.orm
       .insert(buckets)
       .values({
@@ -137,7 +143,7 @@ export function appendToBucket(
  * here and extends the batch or arrives after it settled and opens the next.
  */
 function bumpDeadline(
-  deps: TelegramBucketDeps,
+  deps: IntakeDeps,
   bucket: {
     readonly id: bigint;
     readonly firstReceivedAt: string;
@@ -167,7 +173,7 @@ function bumpDeadline(
  * until a human opens the next bucket, which takes them in ahead of itself
  * so the model sees them as part of the same new batch.
  */
-function adoptPendingBotMessages(deps: TelegramBucketDeps, conversationId: bigint, bucketId: bigint): void {
+function adoptPendingBotMessages(deps: IntakeDeps, conversationId: bigint, bucketId: bigint): void {
   const pending = deps.store.orm
     .all<{ id: bigint }>(
       sql`SELECT m.id

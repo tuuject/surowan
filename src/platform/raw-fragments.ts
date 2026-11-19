@@ -8,7 +8,7 @@
  * and the stored body, never a crash.
  */
 
-import type { BotIdentity, MessageCues } from './im-host/cues.ts';
+import { type BotIdentity, EMPTY_MESSAGE_CUES, type MessageCues } from './im-host/cues.ts';
 import type { HostKind } from './im-host/identity.ts';
 import { bodyFromFragment, type RenderedBody } from './telegram-markdown/index.ts';
 import { asksFromFragment, cuesFromFragment } from './telegram-markdown/cues.ts';
@@ -32,8 +32,6 @@ export interface RawFragmentReader {
   body(rawFragmentJson: string | null | undefined, stored: RawFragmentStoredBody): RenderedBody;
 }
 
-const EMPTY_CUES: MessageCues = { mentionsBot: false, repliesToBot: false, asksBot: false, texts: [] };
-
 export const RAW_FRAGMENT_READERS: Record<HostKind, RawFragmentReader> = {
   telegram: {
     cues: cuesFromFragment,
@@ -43,7 +41,7 @@ export const RAW_FRAGMENT_READERS: Record<HostKind, RawFragmentReader> = {
   playground: {
     // A room message keeps no fragment: nothing to match, and its stored body
     // is already what the model reads.
-    cues: () => EMPTY_CUES,
+    cues: () => EMPTY_MESSAGE_CUES,
     asks: () => false,
     body: (_rawFragmentJson, stored) => ({ text: stored.text, caption: stored.caption }),
   },

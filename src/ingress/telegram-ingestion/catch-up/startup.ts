@@ -1,11 +1,11 @@
 import { eq } from 'drizzle-orm';
 import type { Update } from 'grammy/types';
-import type { TelegramIngestion } from './ingress/telegram-ingestion/index.ts';
-import { commandSender } from './ingress/telegram-ingestion/commands.ts';
-import type { BotCommandService } from './orchestration/bot-commands/index.ts';
-import { type BucketScheduler, STARTUP_CATCH_UP_STATE_KEY } from './orchestration/scheduler/index.ts';
-import type { BusinessStore } from './store/store.ts';
-import { appState } from './store/schema/index.ts';
+import type { TelegramIngestion } from '../index.ts';
+import { commandSender } from '../commands.ts';
+import type { BotCommandService } from '../../../orchestration/bot-commands/index.ts';
+import { type BucketScheduler, STARTUP_CATCH_UP_STATE_KEY } from '../../../orchestration/scheduler/index.ts';
+import type { BusinessStore } from '../../../store/store.ts';
+import { appState } from '../../../store/schema/index.ts';
 
 interface GetUpdatesOptions {
   readonly offset?: number;
@@ -108,6 +108,6 @@ export async function runStartupCatchUp(options: StartupCatchUpOptions): Promise
     firstRequest = false;
   }
 
-  const invocationIds = options.scheduler.finishStartupCatchUp(startedAt, currentTime());
+  const invocationIds = options.scheduler.finishStartupCatchUp('telegram', startedAt, currentTime());
   return { updates: updatesReceived, storedMessages, invocationIds };
 }

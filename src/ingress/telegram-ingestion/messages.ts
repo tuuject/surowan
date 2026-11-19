@@ -1,14 +1,19 @@
-import { and, eq, sql } from 'drizzle-orm';
+/**
+ * Telegram message normalization: turns one grammY `Message` plus the context
+ * the ingestion entry point resolved (chat ids, thread, timings, cues, ignored
+ * members) into an `InboundMessage` the neutral intake path stores. All
+ * transport reading lives here; the intake path never sees a `Message`.
+ */
 import type { Message, User } from 'grammy/types';
-import type { RuntimeConfigurationStore } from '../../platform/runtime-config.ts';
+import { EMPTY_MESSAGE_CUES, type BotIdentity } from '../../platform/im-host/cues.ts';
 import {
   type ImageDocument,
   isImageDocument,
   richMessageMarkdown,
   type TelegramPhoto,
 } from '../../platform/telegram-markdown/index.ts';
-import { conversations, media as mediaTable, messageRevisions, messages, senders } from '../../store/schema/index.ts';
-import type { BusinessStore } from '../../store/store.ts';
+import type { InboundMedia, InboundMessage, InboundSender } from '../intake/index.ts';
+import { telegramMessageCues } from './cues.ts';
 
 /**
  * The Telegram fields that carry a message's own payload, most specific first:
@@ -80,17 +85,6 @@ const SERVICE_KEYS: Record<string, true> = {
   video_chat_participants_invited: true,
 };
 
-interface NormalizedMedia {
-  readonly kind: 'photo' | 'document' | 'sticker';
-  readonly fileId: string;
-  readonly fileUniqueId: string;
-  readonly mimeType: string | null;
-  readonly fileSize: bigint | null;
-  readonly width: bigint | null;
-  readonly height: bigint | null;
-  readonly telegramJson: string;
-}
-
 interface NormalizedMessage {
   readonly kind: string;
   readonly text: string | null;
@@ -98,217 +92,88 @@ interface NormalizedMessage {
   readonly replyToMessageId: bigint | null;
   readonly replySnapshot: string | null;
   readonly forwardOrigin: string | null;
-  readonly media: readonly NormalizedMedia[];
+  readonly media: readonly InboundMedia[];
 }
 
-export interface StoredMessage {
-  readonly id: bigint;
-  readonly revisionId: bigint;
-  readonly conversationId: bigint;
-  readonly eligibleHuman: boolean;
-  readonly companionOnly: boolean;
+/** What the caller already resolved: admission, thread, timing and ignore state. */
+export interface InboundContext {
+  readonly bot: BotIdentity;
+  readonly internalChatId: bigint;
+  readonly hostChatId: bigint;
+  readonly chatType: string;
+  readonly threadId: bigint;
+  readonly receivedAt: Date;
+  readonly edited: boolean;
+  readonly ignoredUserIds: readonly number[];
 }
 
-/** What a message write needs from the ingestion entry point. */
-export interface TelegramMessageDeps {
-  readonly store: BusinessStore;
-  readonly configStore: RuntimeConfigurationStore;
-  readonly botId: bigint;
-}
-
-export function storeMessage(
-  deps: TelegramMessageDeps,
-  message: Message,
-  internalChatId: bigint,
-  threadId: bigint,
-  receivedAt: Date,
-  edited: boolean,
-  ignoredUserIds: readonly number[],
-): StoredMessage | undefined {
-  const sender = upsertSender(deps, message, receivedAt);
-  // A message sent on behalf of a chat (anonymous group admin, a channel
-  // identity, a linked-channel post) carries a placeholder bot in `from` for
-  // backward compatibility, such as GroupAnonymousBot. Its author is
-  // `sender_chat`, which `upsertSender` already records as a non-bot.
-  const fromBot = message.sender_chat === undefined && message.from?.is_bot === true;
-  const ownMessage = message.from !== undefined && BigInt(message.from.id) === deps.botId;
+/**
+ * Normalizes one Telegram message into the neutral inbound contract. Cues are
+ * part of that contract, so a delivery proven to be an edit carries the empty
+ * cue set — exactly as the old flow never extracted cues for edits.
+ */
+export function toInboundMessage(message: Message, context: InboundContext): InboundMessage {
   const service = isServiceMessage(message);
-  if (ownMessage || (fromBot && !deps.configStore.current().config.telegram.process_bot_messages)) {
-    return undefined;
-  }
-  const conversationId = upsertConversation(deps, internalChatId, threadId, receivedAt);
-  const telegramMessageId = BigInt(message.message_id);
-  const existing = deps.store.orm
-    .all<{ id: bigint; revision_no: bigint }>(
-      sql`SELECT m.id, COALESCE(MAX(r.revision_no), 0) AS revision_no FROM messages m LEFT JOIN message_revisions r ON r.message_id = m.id WHERE m.chat_id = ${internalChatId} AND m.message_no = ${telegramMessageId} GROUP BY m.id`,
-    )
-    .at(0);
-  let messageId: bigint;
-  let revisionNo: bigint;
-  if (existing === undefined) {
-    const created = deps.store.orm
-      .insert(messages)
-      .values({
-        conversationId,
-        chatId: internalChatId,
-        hostKind: 'telegram',
-        messageNo: telegramMessageId,
-        sentAt: new Date(message.date * 1000).toISOString(),
-        receivedAt: receivedAt.toISOString(),
-      })
-      .returning({ id: messages.id })
-      .get();
-    if (created === undefined) {
-      throw new Error('messages insert returned no row');
-    }
-    messageId = created.id;
-    revisionNo = 1n;
-  } else {
-    messageId = existing.id;
-    if (!edited) {
-      return undefined;
-    }
-    revisionNo = existing.revision_no + 1n;
-  }
-  const normalized = normalizeMessage(message, service, ignoredUserIds);
-  const stickerOnly =
-    normalized.kind === 'sticker' &&
-    normalized.text === null &&
-    normalized.caption === null &&
-    normalized.media.length === 1 &&
-    normalized.media[0]?.kind === 'sticker';
-  const eligibleHuman =
-    !fromBot &&
-    !service &&
-    (!stickerOnly || deps.configStore.current().config.telegram.sticker_trigger_enabled === true);
-  const revision = deps.store.orm
-    .insert(messageRevisions)
-    .values({
-      messageId,
-      revisionNo,
-      senderId: sender,
-      kind: normalized.kind,
-      text: normalized.text,
-      caption: normalized.caption,
-      replyToMessageId: normalized.replyToMessageId,
-      replySnapshotJson: normalized.replySnapshot,
-      forwardOriginJson: normalized.forwardOrigin,
-      mediaGroupId: message.media_group_id ?? null,
-      serviceJson: service ? JSON.stringify(message) : null,
-      createdAt: receivedAt.toISOString(),
-      rawFragmentJson: JSON.stringify(message),
-    })
-    .returning({ id: messageRevisions.id })
-    .get();
-  if (revision === undefined) {
-    throw new Error('message_revisions insert returned no row');
-  }
-  const revisionId = revision.id;
-  deps.store.orm.update(messages).set({ currentRevisionId: revisionId }).where(eq(messages.id, messageId)).run();
-  for (const media of normalized.media) {
-    deps.store.orm
-      .insert(mediaTable)
-      .values({
-        revisionId,
-        kind: media.kind,
-        fileId: media.fileId,
-        fileUniqueId: media.fileUniqueId,
-        mimeType: media.mimeType,
-        fileSize: media.fileSize,
-        width: media.width,
-        height: media.height,
-        telegramJson: media.telegramJson,
-        hostKind: 'telegram',
-      })
-      .run();
-  }
+  const normalized = normalizeMessage(message, service, context.ignoredUserIds);
   return {
-    id: messageId,
-    revisionId,
-    conversationId,
-    eligibleHuman,
-    companionOnly: !eligibleHuman,
+    host: 'telegram',
+    internalChatId: context.internalChatId,
+    hostChatId: context.hostChatId,
+    chatType: context.chatType,
+    threadId: context.threadId,
+    messageNo: BigInt(message.message_id),
+    sentAt: new Date(message.date * 1000),
+    receivedAt: context.receivedAt,
+    edited: context.edited,
+    cues: context.edited
+      ? EMPTY_MESSAGE_CUES
+      : telegramMessageCues(message, { id: context.bot.id, username: context.bot.username }),
+    sender: senderOf(message),
+    fromUserId: message.from === undefined ? null : BigInt(message.from.id),
+    service,
+    kind: normalized.kind,
+    text: normalized.text,
+    caption: normalized.caption,
+    replyToMessageNo: normalized.replyToMessageId,
+    replySnapshotJson: normalized.replySnapshot,
+    forwardOriginJson: normalized.forwardOrigin,
+    mediaGroupId: message.media_group_id ?? null,
+    media: normalized.media,
+    rawFragmentJson: JSON.stringify(message),
   };
 }
 
-function upsertSender(deps: TelegramMessageDeps, message: Message, receivedAt: Date): bigint | null {
+/**
+ * The effective author: a `sender_chat` identity wins over the sending
+ * account (anonymous admins and channel posts carry a placeholder bot user),
+ * and a sender-less delivery stores no sender at all.
+ */
+function senderOf(message: Message): InboundSender | null {
   const senderChat = message.sender_chat;
-  let type: 'user' | 'sender_chat';
-  let telegramId: bigint;
-  let displayName: string;
-  let username: string | null;
-  let isBot: boolean;
   if (senderChat !== undefined) {
-    type = 'sender_chat';
-    telegramId = BigInt(senderChat.id);
-    displayName = senderChat.title ?? senderChat.username ?? senderChat.id.toString();
-    username = senderChat.username ?? null;
-    isBot = false;
-  } else if (message.from !== undefined) {
-    type = 'user';
-    telegramId = BigInt(message.from.id);
-    displayName = [message.from.first_name, message.from.last_name].filter((part) => part !== undefined).join(' ');
-    username = message.from.username ?? null;
-    isBot = message.from.is_bot;
-  } else {
+    return {
+      type: 'sender_chat',
+      id: BigInt(senderChat.id),
+      displayName: senderChat.title ?? senderChat.username ?? senderChat.id.toString(),
+      username: senderChat.username ?? null,
+      isBot: false,
+    };
+  }
+  const from = message.from;
+  if (from === undefined) {
     return null;
   }
-  deps.store.orm
-    .insert(senders)
-    .values({
-      hostKind: 'telegram',
-      hostSenderType: type,
-      hostSenderId: telegramId,
-      displayName,
-      username,
-      isBot,
-      updatedAt: receivedAt.toISOString(),
-    })
-    .onConflictDoUpdate({
-      target: [senders.hostKind, senders.hostSenderType, senders.hostSenderId],
-      set: { displayName, username, isBot, updatedAt: receivedAt.toISOString() },
-    })
-    .run();
-  const row = deps.store.orm
-    .select({ id: senders.id })
-    .from(senders)
-    .where(
-      and(eq(senders.hostKind, 'telegram'), eq(senders.hostSenderType, type), eq(senders.hostSenderId, telegramId)),
-    )
-    .get();
-  if (row === undefined) {
-    throw new Error('Sender upsert did not return a row');
-  }
-  return row.id;
-}
-
-function upsertConversation(deps: TelegramMessageDeps, chatId: bigint, threadId: bigint, receivedAt: Date): bigint {
-  deps.store.orm
-    .insert(conversations)
-    .values({
-      chatId,
-      messageThreadId: threadId,
-      createdAt: receivedAt.toISOString(),
-      updatedAt: receivedAt.toISOString(),
-    })
-    .onConflictDoUpdate({
-      target: [conversations.chatId, conversations.messageThreadId],
-      set: { updatedAt: receivedAt.toISOString() },
-    })
-    .run();
-  const row = deps.store.orm
-    .select({ id: conversations.id })
-    .from(conversations)
-    .where(and(eq(conversations.chatId, chatId), eq(conversations.messageThreadId, threadId)))
-    .get();
-  if (row === undefined) {
-    throw new Error('Conversation upsert did not return a row');
-  }
-  return row.id;
+  return {
+    type: 'user',
+    id: BigInt(from.id),
+    displayName: [from.first_name, from.last_name].filter((part) => part !== undefined).join(' '),
+    username: from.username ?? null,
+    isBot: from.is_bot,
+  };
 }
 
 function normalizeMessage(message: Message, service: boolean, ignoredUserIds: readonly number[]): NormalizedMessage {
-  const media: NormalizedMedia[] = [];
+  const media: InboundMedia[] = [];
   let kind = service ? 'service' : contentKind(message);
   if (message.text !== undefined) {
     kind = 'text';
@@ -346,7 +211,7 @@ function normalizeMessage(message: Message, service: boolean, ignoredUserIds: re
       fileSize: sticker.file_size === undefined ? null : BigInt(sticker.file_size),
       width: BigInt(sticker.width),
       height: BigInt(sticker.height),
-      telegramJson: JSON.stringify(sticker),
+      rawJson: JSON.stringify(sticker),
     });
   }
   const reply = message.reply_to_message;
@@ -368,7 +233,7 @@ function normalizeMessage(message: Message, service: boolean, ignoredUserIds: re
   };
 }
 
-function photoMedia(photo: TelegramPhoto): NormalizedMedia {
+function photoMedia(photo: TelegramPhoto): InboundMedia {
   return {
     kind: 'photo',
     fileId: photo.file_id,
@@ -377,11 +242,11 @@ function photoMedia(photo: TelegramPhoto): NormalizedMedia {
     fileSize: photo.file_size === undefined ? null : BigInt(photo.file_size),
     width: BigInt(photo.width),
     height: BigInt(photo.height),
-    telegramJson: JSON.stringify(photo),
+    rawJson: JSON.stringify(photo),
   };
 }
 
-function documentMedia(document: ImageDocument): NormalizedMedia {
+function documentMedia(document: ImageDocument): InboundMedia {
   return {
     kind: 'document',
     fileId: document.file_id,
@@ -390,7 +255,7 @@ function documentMedia(document: ImageDocument): NormalizedMedia {
     fileSize: BigInt(document.file_size),
     width: document.thumbnail === undefined ? null : BigInt(document.thumbnail.width),
     height: document.thumbnail === undefined ? null : BigInt(document.thumbnail.height),
-    telegramJson: JSON.stringify(document),
+    rawJson: JSON.stringify(document),
   };
 }
 

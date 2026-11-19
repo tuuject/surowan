@@ -4,19 +4,16 @@
  */
 
 import { reconcileStickerSets } from '../../../capabilities/stickers/sets.ts';
-import type { Context } from 'grammy';
 import { ConversationContextStore } from '../../../context/store/index.ts';
 import { WEB_SEARCH_PROVIDERS } from '../../../plugins/web-search/extension.ts';
-import { runStartupCatchUp } from '../../../startup-catch-up.ts';
+import { runStartupCatchUp } from '../../../ingress/telegram-ingestion/catch-up/startup.ts';
+import { runRuntimeCatchUp } from '../../../ingress/telegram-ingestion/catch-up/runtime.ts';
 import { recordPromptVersionsFromConfig } from '../../../store/prompt-versions.ts';
 import type { ImageService } from '../../../image/service.ts';
-import type { TelegramIngestion } from '../../../ingress/telegram-ingestion/index.ts';
 import { BotCommandService } from '../../../orchestration/bot-commands/index.ts';
 import { type CoreRuntime, createCoreRuntime } from '../../../orchestration/runtime.ts';
 import type { ImHost } from '../../../platform/im-host/index.ts';
 import { webSearchAvailable } from '../../../platform/web-search.ts';
-import { runRuntimeCatchUp } from '../../../runtime-catch-up.ts';
-import { activeSleepUntil } from '../../../store/sleep.ts';
 import { ConfigReloader } from '../config/reload.ts';
 import { imageDeliveryResolver } from '../host-tooling.ts';
 import { createPlaygroundHost } from '../playground/index.ts';
@@ -25,6 +22,7 @@ import { resolveTelegramTokenSource } from '../telegram/connection-token.ts';
 import { createTelegramHost } from '../telegram/host.ts';
 import { forwardingTelegramTransport, TelegramConnectionIdentity } from '../telegram/instance.ts';
 import { createTelegramProfiles } from '../telegram/profiles.ts';
+import { createTelegramUpdateHandler } from '../telegram/updates.ts';
 import {
   addedTelegramChatIds,
   conversationIdsForTelegramChats,
@@ -35,7 +33,7 @@ import {
 import { createMcpPublication } from './mcp-publication.ts';
 import type { ServeAssembly, ServeHosts, ServeServices } from './serve.ts';
 import { configuredStickerSets, publishStickerSets } from './sticker-sets.ts';
-import { ALLOWED_UPDATES, logEvent, replyToCommand, resolveConversation, type ServeContext } from './support.ts';
+import { ALLOWED_UPDATES, logEvent, resolveConversation, type ServeContext } from './support.ts';
 import { abortRunningInvocationsOnSearchDisable } from './web-search-availability.ts';
 
 /** The wired runtime, its scheduler and the command path the panel shares. */
@@ -308,19 +306,12 @@ export async function startCoreRuntime(session: ServeContext, assembly: ServeAss
   mcpPublication.validateRegistry();
   // A live update goes through the same ingestion, command and status path the
   // serve loop used to install on the bot; the manager calls it per connection.
-  const onUpdate = async (context: Context, ingestion: TelegramIngestion): Promise<void> => {
-    const result = ingestion.ingest(context.update);
-    // A sleeping bot skips queued invocations, so a status would promise a
-    // reply that never comes.
-    if (result.mention !== undefined && activeSleepUntil(store.orm) === null) {
-      const target = resolveConversation(store, result.mention);
-      telegramHost.activity.start({ conversation: target, policy: telegramHost.policy(target) }, 'until_delivery');
-    }
-    if (result.command !== undefined) {
-      await replyToCommand(context, commands, result.command);
-    }
-    startedScheduler.wake();
-  };
+  const onUpdate = createTelegramUpdateHandler({
+    store,
+    host: telegramHost,
+    commands,
+    wake: () => startedScheduler.wake(),
+  });
   // The Telegram connection starts here, after the store, the panel command path
   // and the scheduler exist. It resolves after the first attempt, so a slow or
   // unreachable Telegram does not delay the scheduler; a healthy token finishes

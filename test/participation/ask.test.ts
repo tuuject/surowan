@@ -1,4 +1,4 @@
-import { runStartupCatchUp } from '../../src/startup-catch-up.ts';
+import { runStartupCatchUp } from '../../src/ingress/telegram-ingestion/catch-up/startup.ts';
 import { ProactiveReplyGate } from '../../src/orchestration/proactive-reply.ts';
 import { afterEach, expect, test } from 'vitest';
 import { BOT_COMMANDS, parseBotCommand } from '../../src/ingress/telegram-ingestion/commands.ts';
@@ -259,7 +259,7 @@ test('editing a catch-up plain message into ask cannot wake ask-only', async () 
   try {
     ingestion.ingestCatchUp(groupMessage(1, 1, { text: 'plain' }), OUTSIDE_PERIOD);
     ingestion.ingestCatchUp(editedGroupMessage(2, 1, 1700000010, ask()), OUTSIDE_PERIOD);
-    expect(scheduler.finishRuntimeCatchUp(OUTSIDE_PERIOD, OUTSIDE_PERIOD)).toHaveLength(0);
+    expect(scheduler.finishRuntimeCatchUp('telegram', OUTSIDE_PERIOD, OUTSIDE_PERIOD)).toHaveLength(0);
     expect(store.db.prepare('SELECT error_code FROM buckets').get()).toEqual({ error_code: 'participation_gated' });
   } finally {
     store.close();

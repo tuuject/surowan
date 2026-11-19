@@ -202,4 +202,36 @@ describe('Telegram ingestion', () => {
     ).toEqual({ revisions: 1n, text: 'message from 7' });
     store.close();
   });
+
+  test('a failed bucket append rolls back the whole update, dedup row included', async () => {
+    const { store, ingestion } = await setup();
+    // Poison the bucket insert so the intake write fails after the message,
+    // revision and `telegram_updates` rows were already written inside the
+    // same outer transaction — nothing may survive the throw.
+    store.db.exec(
+      `CREATE TRIGGER fail_bucket_insert BEFORE INSERT ON buckets
+       BEGIN SELECT RAISE(ABORT, 'poisoned bucket write'); END`,
+    );
+    expect(() => ingestion.ingest(textUpdate(1, 10, 'lost delivery'))).toThrow();
+    for (const table of [
+      'telegram_updates',
+      'chats',
+      'senders',
+      'conversations',
+      'messages',
+      'message_revisions',
+      'buckets',
+      'bucket_messages',
+    ]) {
+      expect(store.db.prepare<[], { n: bigint }>(`SELECT COUNT(*) AS n FROM ${table}`).get()?.n, table).toBe(0n);
+    }
+
+    // The dedup audit row rolled back too: the same update is delivered, not
+    // treated as a duplicate.
+    store.db.exec('DROP TRIGGER fail_bucket_insert');
+    const retry = ingestion.ingest(textUpdate(1, 10, 'lost delivery'));
+    expect(retry.messageId).toBe(1n);
+    expect(retry.bucketId).toBe(1n);
+    store.close();
+  });
 });

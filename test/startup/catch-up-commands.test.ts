@@ -1,7 +1,7 @@
 import { afterAll, describe, expect, test, vi } from 'vitest';
 import type { CommandSender } from '../../src/orchestration/bot-commands/index.ts';
 import type { FixtureConfig } from '../helpers.ts';
-import { runStartupCatchUp } from '../../src/startup-catch-up.ts';
+import { runStartupCatchUp } from '../../src/ingress/telegram-ingestion/catch-up/startup.ts';
 import {
   FIRST_CHAT_ID,
   SECOND_CHAT_ID,

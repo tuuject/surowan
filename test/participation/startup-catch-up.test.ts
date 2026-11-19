@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test } from 'vitest';
 import type { Update } from 'grammy/types';
-import { type StartupCatchUpApi, runStartupCatchUp } from '../../src/startup-catch-up.ts';
+import { type StartupCatchUpApi, runStartupCatchUp } from '../../src/ingress/telegram-ingestion/catch-up/startup.ts';
 import { DAY_WINDOW, attention, cleanupDirectories, groupMessage, mentionText, setup } from './fixtures.ts';
 
 afterEach(async () => {

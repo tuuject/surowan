@@ -119,13 +119,13 @@ export class InvocationQueueService {
     recoverQueue(this.#deps, now);
   }
 
-  finishStartupCatchUp(startedAt: Date, now = new Date()): bigint[] {
-    return finishStartupCatchUpQueue(this.#deps, startedAt, now);
+  finishStartupCatchUp(host: HostKind, startedAt: Date, now = new Date()): bigint[] {
+    return finishStartupCatchUpQueue(this.#deps, host, startedAt, now);
   }
 
   /** Materialises one runtime backlog pass; no process-wide drain marker involved. */
-  finishRuntimeCatchUp(startedAt: Date, now = new Date()): bigint[] {
-    return finishRuntimeCatchUpQueue(this.#deps, startedAt, now);
+  finishRuntimeCatchUp(host: HostKind, startedAt: Date, now = new Date()): bigint[] {
+    return finishRuntimeCatchUpQueue(this.#deps, host, startedAt, now);
   }
 
   processDue(now = new Date()): bigint[] {

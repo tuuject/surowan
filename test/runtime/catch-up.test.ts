@@ -9,8 +9,11 @@
 import type { Update } from 'grammy/types';
 import { afterAll, describe, expect, test, vi } from 'vitest';
 import type { TelegramIngestion } from '../../src/ingress/telegram-ingestion/index.ts';
-import { runRuntimeCatchUp, type RuntimeCatchUpOptions } from '../../src/runtime-catch-up.ts';
-import type { StartupCatchUpApi } from '../../src/startup-catch-up.ts';
+import {
+  runRuntimeCatchUp,
+  type RuntimeCatchUpOptions,
+} from '../../src/ingress/telegram-ingestion/catch-up/runtime.ts';
+import type { StartupCatchUpApi } from '../../src/ingress/telegram-ingestion/catch-up/startup.ts';
 import { sleep } from '../helpers.ts';
 import type { FixtureConfig } from '../helpers.ts';
 import {

@@ -30,3 +30,6 @@ export interface MessageCues {
    */
   readonly texts: readonly string[];
 }
+
+/** No cue at all — what an edited delivery or a fragment-less message carries. */
+export const EMPTY_MESSAGE_CUES: MessageCues = { mentionsBot: false, repliesToBot: false, asksBot: false, texts: [] };

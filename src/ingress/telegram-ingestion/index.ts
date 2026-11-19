@@ -1,14 +1,19 @@
+/**
+ * The Telegram edge of inbound message flow. One Update is deduplicated
+ * (`telegram_updates`), admitted (allowlist, topics, migrations), checked for
+ * control commands and ignored senders, normalized into `InboundMessage`, and
+ * handed to the host-neutral intake path — all inside one synchronous
+ * transaction, exactly as the storage and bucket append always were.
+ */
 import type { Update } from 'grammy/types';
 import type { ParsedCommand } from '../../orchestration/bot-commands/index.ts';
 import { isAsk } from '../../platform/telegram-markdown/cues.ts';
 import { conversationThreadId, parseBotCommand } from './commands.ts';
-import { telegramMessageCues } from './cues.ts';
+import { InboundIntake, type IntakeResult } from '../intake/index.ts';
 import type { RuntimeConfigurationStore } from '../../platform/runtime-config.ts';
 import { resolveChatConfig } from '../../platform/config/index.ts';
-import { evaluateParticipation, ParticipationRegistry } from '../../store/participation.ts';
 import { telegramUpdates } from '../../store/schema/index.ts';
 import { asRunResult, type BusinessStore } from '../../store/store.ts';
-import { appendToBucket, type TelegramBucketDeps } from './buckets.ts';
 import {
   type AllowedChatsState,
   recordMigration,
@@ -17,32 +22,18 @@ import {
   topicsFor,
   upsertChat,
 } from './chats.ts';
-import { isIgnoredUser, storeMessage, type TelegramMessageDeps } from './messages.ts';
+import { isIgnoredUser, toInboundMessage } from './messages.ts';
 
-export interface IngestResult {
-  readonly messageId?: bigint;
-  readonly bucketId?: bigint;
+export interface IngestResult extends IntakeResult {
   readonly command?: ParsedCommand;
-  /**
-   * Set when a live human message @-mentions the bot and joined a bucket, so
-   * the host can show typing before the bucket window closes.
-   */
-  readonly mention?: {
-    readonly hostKind: 'telegram';
-    readonly hostChatId: bigint;
-    readonly internalChatId: bigint;
-    readonly threadId: bigint;
-  };
 }
 
 export class TelegramIngestion {
   readonly #store: BusinessStore;
   readonly #configStore: RuntimeConfigurationStore;
-  readonly #participation: ParticipationRegistry;
   readonly #chats: AllowedChatsState = { allowedChats: new Map(), generation: 0 };
   readonly #chatDeps: TelegramChatDeps;
-  readonly #messageDeps: TelegramMessageDeps;
-  readonly #bucketDeps: TelegramBucketDeps;
+  readonly #intake: InboundIntake;
   readonly #botId: bigint;
   readonly #botUsername: string | null;
 
@@ -56,10 +47,8 @@ export class TelegramIngestion {
     this.#botId = BigInt(bot.id);
     this.#botUsername = bot.username ?? null;
     this.#chatDeps = { store, configStore, state: this.#chats };
-    this.#messageDeps = { store, configStore, botId: this.#botId };
-    this.#bucketDeps = { store, configStore };
+    this.#intake = new InboundIntake(store, configStore, this.#botId);
     syncAllowedChats(this.#chatDeps);
-    this.#participation = new ParticipationRegistry(configStore);
   }
 
   ingest(update: Update, receivedAt = new Date()): IngestResult {
@@ -172,63 +161,16 @@ export class TelegramIngestion {
       // and the replayable commands return the command for the bot to run.
       return handledCommand === null ? {} : { command: handledCommand };
     }
-    const stored = storeMessage(
-      this.#messageDeps,
-      message,
+    const inbound = toInboundMessage(message, {
+      bot: { id: this.#botId, username: this.#botUsername },
       internalChatId,
+      hostChatId: chatId,
+      chatType: chat.type,
       threadId,
       receivedAt,
       edited,
       ignoredUserIds,
-    );
-    if (stored === undefined) {
-      return {};
-    }
-    let bucketId: bigint | undefined;
-    let mentioned = false;
-    if (!edited) {
-      // Cues are only extracted once the update proves new: edits stay
-      // storage-only, exactly as before the cue read existed.
-      const cues = telegramMessageCues(message, { id: this.#botId, username: this.#botUsername });
-      // The window is refreshed even during startup catch-up, so a mention that
-      // arrived while the process was down still leaves the chat awake.
-      const rule = this.#participation.ruleFor(
-        this.#store.orm,
-        { hostKind: 'telegram', hostChatId: chatId },
-        chat.type,
-      );
-      const decision = evaluateParticipation({
-        orm: this.#store.orm,
-        rule,
-        chatId: internalChatId,
-        hostChatId: chatId,
-        conversationId: stored.conversationId,
-        cues,
-        messageNo: BigInt(message.message_id),
-        receivedAt,
-        eligibleHuman: stored.eligibleHuman,
-      });
-      if (schedule && (!rule?.askOnly || decision.bucketCreationAllowed)) {
-        bucketId = appendToBucket(
-          this.#bucketDeps,
-          internalChatId,
-          threadId,
-          stored,
-          receivedAt,
-          decision.bucketCreationAllowed,
-          rule?.askOnly === true,
-        );
-      }
-      mentioned =
-        bucketId !== undefined &&
-        stored.eligibleHuman &&
-        this.#configStore.current().config.telegram.mention_typing_enabled !== false &&
-        (cues.asksBot || cues.mentionsBot);
-    }
-    return {
-      messageId: stored.id,
-      ...(bucketId === undefined ? {} : { bucketId }),
-      ...(mentioned ? { mention: { hostKind: 'telegram', hostChatId: chatId, internalChatId, threadId } } : {}),
-    };
+    });
+    return schedule ? this.#intake.ingest(inbound) : this.#intake.ingestCatchUp(inbound);
   }
 }

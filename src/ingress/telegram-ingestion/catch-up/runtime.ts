@@ -9,21 +9,22 @@
  * ingestion in the original update order. Paging confirms each previous page,
  * so whatever was retained is ingested even when a later page fails or the
  * pass is cancelled. The cold-start path is a different contract (unbounded,
- * only before the Scheduler starts) and lives in `startup-catch-up.ts`.
+ * only before the Scheduler starts) and lives in `./startup.ts`.
  */
 
 import type { Message, Update } from 'grammy/types';
-import type { TelegramIngestion } from './ingress/telegram-ingestion/index.ts';
-import { commandSender, parseBotCommand } from './ingress/telegram-ingestion/commands.ts';
-import type { BotCommandService } from './orchestration/bot-commands/index.ts';
-import type { StartupCatchUpApi } from './startup-catch-up.ts';
+import type { TelegramIngestion } from '../index.ts';
+import { commandSender, parseBotCommand } from '../commands.ts';
+import type { BotCommandService } from '../../../orchestration/bot-commands/index.ts';
+import type { HostKind } from '../../../platform/im-host/identity.ts';
+import type { StartupCatchUpApi } from './startup.ts';
 
 /** How many messages of one chat a runtime pass keeps; older ones are dropped. */
 export const RUNTIME_CATCH_UP_MESSAGES_PER_CHAT = 100;
 
 export interface RuntimeCatchUpScheduler {
   /** Turns the messages this pass stored into catch-up buckets and queued runs. */
-  finishRuntimeCatchUp(startedAt: Date, now?: Date): bigint[];
+  finishRuntimeCatchUp(host: HostKind, startedAt: Date, now?: Date): bigint[];
   /** The Scheduler may be asleep on a long deadline when the pass commits. */
   wake(): void;
 }
@@ -122,7 +123,7 @@ export async function runRuntimeCatchUp(options: RuntimeCatchUpOptions): Promise
   }
   // A page that failed after earlier ones were confirmed still leaves a usable
   // window; the live stream picks up from the last confirmed offset.
-  const invocationIds = options.scheduler.finishRuntimeCatchUp(startedAt, currentTime());
+  const invocationIds = options.scheduler.finishRuntimeCatchUp('telegram', startedAt, currentTime());
   options.scheduler.wake();
   logEvent(drained ? 'runtime_catch_up_completed' : 'runtime_catch_up_interrupted', {
     ...counts,

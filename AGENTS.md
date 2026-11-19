@@ -31,8 +31,7 @@ surowan/
 │   ├── adapters/local-monolith/ # 本地组合根：配置文件、SQLite、资源目录与进程生命周期
 │   ├── cli.ts              # serve/check-config/doctor/backup/configure/admin-account/pairing/clients 入口
 │   ├── doctor.ts           # 真实依赖与外部连接诊断
-│   ├── startup-catch-up.ts # 启动补偿拉取与排队
-│   ├── runtime-catch-up.ts # 运行中补偿拉取（token 更换、连接恢复后的有限 backlog）
+│   ├── ingress/telegram-ingestion/catch-up/ # 启动与运行中补偿拉取（getUpdates 积压归并、有限 backlog）
 │   ├── tui/                # 交互式配置向导
 │   ├── ingress/            # telegram-ingestion 与 admin/（Panel 认证、审计查询、HTTP 边界）
 │   ├── orchestration/      # scheduler、invocation-queue、agent-runtime、conversation-runtime、bot-commands
