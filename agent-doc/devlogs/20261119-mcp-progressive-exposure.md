@@ -147,3 +147,26 @@ npx vitest run test/mcp/progressive.test.ts test/mcp/progressive-limits.test.ts
 ```txt
 1d2e0ee5 Harden the mcp gateway and description draft after review
 ```
+
+## 后续补充：群聊记忆读工具列入原语
+
+用户问模型能拿到哪些原语时发现：`search_group_memory` 与 `read_group_messages` 按 Chat 开关直接暴露，却不在 `EXECUTE_PRIMITIVES` 里。`execute` 因此会接受注册同名能力，那份副本绕过 `group_memory.enabled`；模型经 `execute` 找它们时，得到的也是「没有这个能力」，而不是「直接调用」。本次与此前改动无关，只是顺手补上：
+
+- 两个名字加进 `EXECUTE_PRIMITIVES`：注册同名能力会抛错，`execute.call` 以 `execute_primitive_rejected` 拒绝并提示直接调用。
+- `AGENTS.md` 与 `agent-doc/telegram-agent-flow.md` 的原语清单补上这两个工具与 `mcp`，并注明各自的暴露条件。
+- 新测试 `test/group-memory/execute-guard.test.ts`。`tools.test.ts` 加进新测试后超过 5,000 token，于是把新测试放进单独文件，共用的 `context()` 挪到 `fixtures.ts`（`groupMemoryContext`）。
+
+```bash
+npx vitest run test/group-memory/tools.test.ts -t "execute refuses the group-memory"
+# 修复前源码：1 failed（createExecuteTool 没有拒绝 search_group_memory）
+npx vitest run test/group-memory/tools.test.ts test/skills test/mcp/progressive.test.ts test/mcp/progressive-limits.test.ts
+# Tests 26 passed (26)
+npx vitest run test/group-memory/tools.test.ts test/group-memory/execute-guard.test.ts
+# 拆分后 Tests 8 passed (8)
+pnpm run check && pnpm run lint && git diff --check
+# exit 0
+```
+
+```txt
+5005ff45 Keep the group-memory read tools out of execute
+```
