@@ -43,6 +43,9 @@ const GroupMemoryBodySchema = Type.Object(
   {
     enabled: Type.Boolean(),
     idle_minutes: Type.Optional(Type.Union([Type.Integer({ minimum: 1, maximum: 1_440 }), Type.Null()])),
+    thirty_hour_clock: Type.Optional(
+      Type.Union([Type.Literal('off'), Type.Literal('non_overlapping'), Type.Literal('overlapping')]),
+    ),
   },
   { additionalProperties: false },
 );
@@ -98,7 +101,10 @@ export type GroupMemoryBody = Static<typeof GroupMemoryBodySchema>;
 
 export function parseGroupMemory(value: unknown): GroupMemoryBody {
   if (!groupMemoryValidator.Check(value)) {
-    throw new AdminQueryError('invalid_body', 'Expected { enabled: boolean, idle_minutes?: 1-1440 | null }');
+    throw new AdminQueryError(
+      'invalid_body',
+      'Expected { enabled: boolean, idle_minutes?: 1-1440 | null, thirty_hour_clock?: "off" | "non_overlapping" | "overlapping" }',
+    );
   }
   return value;
 }
@@ -273,16 +279,39 @@ export async function deleteTelegramChatData(
   return true;
 }
 
-/** Edits only the Chat's `group_memory` switch, preserving every other field. */
+/**
+ * Edits only the Chat's `group_memory` section, preserving every other field.
+ * An omitted optional field keeps its stored value; `idle_minutes: null` and
+ * `thirty_hour_clock: 'off'` remove theirs, restoring the default.
+ */
 export function updateChatGroupMemory(file: FileConfig, id: number, body: GroupMemoryBody): ConfigEdit[] {
   const index = chatIndex(file, id);
   const current = fileChats(file)[index]?.group_memory;
-  const idleMinutes = body.idle_minutes === null ? undefined : (body.idle_minutes ?? current?.idle_minutes);
-  const value = { enabled: body.enabled, ...(idleMinutes === undefined ? {} : { idle_minutes: idleMinutes }) };
-  if (JSON.stringify(current) === JSON.stringify(value)) {
-    return [];
+  const next = {
+    enabled: body.enabled,
+    idle_minutes: body.idle_minutes === null ? undefined : (body.idle_minutes ?? current?.idle_minutes),
+    thirty_hour_clock:
+      body.thirty_hour_clock === 'off' ? undefined : (body.thirty_hour_clock ?? current?.thirty_hour_clock),
+  };
+  const path = ['telegram', 'chats', index, 'group_memory'];
+  if (current === undefined) {
+    return [
+      {
+        path,
+        value: {
+          enabled: next.enabled,
+          ...(next.idle_minutes === undefined ? {} : { idle_minutes: next.idle_minutes }),
+          ...(next.thirty_hour_clock === undefined ? {} : { thirty_hour_clock: next.thirty_hour_clock }),
+        },
+      },
+    ];
   }
-  return [{ path: ['telegram', 'chats', index, 'group_memory'], value }];
+  // Field by field, so comments on the fields this write leaves alone survive.
+  // An `undefined` value deletes the field; it is only sent for a field the
+  // file has, since an edit that changes nothing is a write error.
+  return (['enabled', 'idle_minutes', 'thirty_hour_clock'] as const)
+    .filter((key) => current[key] !== next[key])
+    .map((key) => ({ path: [...path, key], value: next[key] }));
 }
 
 /** Edits only the Chat's `proactive_reply` override, preserving every other field. */

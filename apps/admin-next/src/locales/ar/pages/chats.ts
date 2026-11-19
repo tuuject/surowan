@@ -117,6 +117,19 @@ export const chats: CompleteCatalog<typeof chatsEn> = {
   groupMemoryIdleHint: 'من 1 إلى 1440 دقيقة.',
   groupMemoryCutover: 'تفعيل أو تعطيل ذاكرة المجموعة يوقف الاستدعاءات الجارية في هذه المحادثة ويعيد بناء سياقها.',
   groupMemoryInvalid: 'أدخل عددًا صحيحًا من الدقائق بين 1 و1440.',
+  groupMemoryThirtyHour: 'نظام الثلاثين ساعة عند البحث بالتاريخ',
+  groupMemoryThirtyHourAbout: 'عن نظام الثلاثين ساعة',
+  groupMemoryThirtyHourTooltip:
+    'نظام الثلاثين ساعة مأخوذ من البث الإذاعي والتلفزيوني في اليابان: تبقى برامج آخر الليل في جدول اليوم السابق وتُكتب أوقاتها 25:00 و26:00 وهكذا، فلا ينتهي يوم البث إلا في السادسة صباح اليوم التالي (30:00). عند تفعيله يقسّم البحث في ذاكرة المجموعة بالتاريخ الأيامَ بالطريقة نفسها، فالحديث الذي يمتد بعد منتصف الليل يُحسب لليلة التي بدأ فيها. يتبع كل حدث وقت رسالته الأولى. يتغير البحث بالتاريخ وحده، وتبقى الملخصات محفوظة حسب اليوم التقويمي.',
+  groupMemoryThirtyHourOff: 'متوقف',
+  groupMemoryThirtyHourOffHint: 'يعيد التاريخ ذلك اليوم من 0:00 إلى 24:00.',
+  groupMemoryThirtyHourExclusive: 'مفعّل، دون تداخل',
+  groupMemoryThirtyHourExclusiveHint:
+    'يعيد التاريخ من 6:00 ذلك اليوم إلى 6:00 اليوم التالي، فلا يشترك يومان متجاوران في أي ساعة.',
+  groupMemoryThirtyHourOverlap: 'مفعّل، متداخل مع اليوم السابق',
+  groupMemoryThirtyHourOverlapHint:
+    'يعيد التاريخ من 0:00 ذلك اليوم إلى 6:00 اليوم التالي، وتظهر ساعاته من 0:00 إلى 6:00 أيضًا مع اليوم السابق.',
+  groupMemoryThirtyHourSummary: 'نظام الثلاثين ساعة',
   colProactive: 'الردود الاستباقية',
   editProactiveReply: 'تعديل احتمال الرد الاستباقي',
   proactiveTitle: 'احتمال الرد الاستباقي',

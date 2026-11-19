@@ -74,6 +74,7 @@ export const CHAT_SPECS: readonly EndpointSpec[] = [
     positional: [{ name: 'id', kind: 'decimal' }],
     body: true,
     revision: 'config',
-    summary: 'Toggle group memory for one Chat and optionally set its idle minutes',
+    summary:
+      'Toggle group memory for one Chat and optionally set its idle minutes and the 30-hour clock of date searches (off, non_overlapping, overlapping)',
   },
 ];

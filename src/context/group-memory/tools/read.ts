@@ -5,7 +5,7 @@ import type { BusinessStore } from '../../../store/store.ts';
 import type { RuntimeConfigurationStore } from '../../../platform/runtime-config.ts';
 import type { InvocationContext } from '../../../platform/invocation-context.ts';
 import { GroupMemoryStore } from '../store.ts';
-import { parseDay } from '../day.ts';
+import { nextDay, parseDay, previousDay, searchDayWindow } from '../day.ts';
 import { loadMessagesInRange, renderGroupTranscript, type GroupMemoryMessageRow } from '../messages.ts';
 import {
   GROUP_MEMORY_READ_MAX_CHARACTERS,
@@ -13,6 +13,7 @@ import {
   GROUP_MEMORY_READ_MAX_SPAN,
   ReadGroupMessagesInputSchema,
   SearchGroupMemoryInputSchema,
+  THIRTY_HOUR_DAY_START_HOUR,
   type GroupMemoryEntry,
 } from '../index.ts';
 
@@ -71,23 +72,38 @@ function createSearchTool(
         false,
       );
       try {
-        if (
-          resolveChatConfig(env.configStore.current().config, env.store.orm, {
-            hostKind: env.context.hostKind,
-            hostChatId: env.context.hostChatId,
-          })?.group_memory?.enabled !== true
-        ) {
+        const config = env.configStore.current().config;
+        const chat = resolveChatConfig(config, env.store.orm, {
+          hostKind: env.context.hostKind,
+          hostChatId: env.context.hostChatId,
+        });
+        if (chat?.group_memory?.enabled !== true) {
           throw new Error('Group memory is disabled for this Chat');
         }
         const day = input.date === undefined ? undefined : parseDay(input.date);
+        const clock = chat.group_memory.thirty_hour_clock ?? 'off';
+        const thirtyHour =
+          day === undefined || clock === 'off'
+            ? undefined
+            : { day, clock, window: searchDayWindow(day, clock, chat.timezone ?? config.timezone) };
         const entries = new GroupMemoryStore(env.store.orm).list(env.context.internalChatId, {
           day,
+          window: thirtyHour?.window,
           keywords: input.keywords,
           limit: input.limit,
         });
         finishToolCall(env.store.orm, toolId, 'success', `matches=${entries.length}`, null);
+        const result = renderSearchResult(entries, input);
         return {
-          content: [{ type: 'text', text: renderSearchResult(entries, input) }],
+          content: [
+            {
+              type: 'text',
+              text:
+                thirtyHour === undefined
+                  ? result
+                  : `${describeThirtyHourDay(thirtyHour.day, thirtyHour.clock)}\n${result}`,
+            },
+          ],
           details: { count: entries.length },
         };
       } catch (error) {
@@ -158,6 +174,21 @@ function createReadMessagesTool(
       }
     },
   };
+}
+
+/**
+ * Says which hours a dated search covered. Results still show the calendar date
+ * they were filed under, so without this line an entry from the next date
+ * would look like a stray match.
+ */
+function describeThirtyHourDay(day: string, clock: 'non_overlapping' | 'overlapping'): string {
+  const handover = `${String(THIRTY_HOUR_DAY_START_HOUR).padStart(2, '0')}:00`;
+  const start = clock === 'overlapping' ? '00:00' : handover;
+  const shared =
+    clock === 'overlapping'
+      ? `its hours before ${handover} are also searched under ${previousDay(day)}`
+      : 'consecutive dates never share an hour';
+  return `This Chat uses a 30-hour day: ${day} covers Chat-local time from ${day} ${start} to ${nextDay(day)} ${handover} (${shared}). An event counts toward the date its first message falls in; results keep the calendar date they were filed under.`;
 }
 
 function renderSearchResult(

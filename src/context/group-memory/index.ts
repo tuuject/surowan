@@ -46,6 +46,15 @@ export const GROUP_MEMORY_CLAIM_STALE_MS = 30 * 60 * 1_000;
 export const GROUP_MEMORY_RETRY_DELAY_MS = 30 * 60 * 1_000;
 export const GROUP_MEMORY_TICK_MS = 60 * 1_000;
 
+/**
+ * How a dated `search_group_memory` reads its date (`group_memory.thirty_hour_clock`).
+ * Consolidation always files events under their calendar date; only the search
+ * window changes.
+ */
+export type ThirtyHourClock = 'off' | 'non_overlapping' | 'overlapping';
+/** Chat-local hour at which a 30-hour day hands over to the next date. */
+export const THIRTY_HOUR_DAY_START_HOUR = 6;
+
 const DATE_PATTERN = '^\\d{4}-\\d{2}-\\d{2}$';
 
 export function newGroupMemoryId(): string {

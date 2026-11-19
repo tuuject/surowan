@@ -24,9 +24,13 @@ export interface ProactiveReplyView {
   readonly hard_pity?: number;
 }
 
+/** How a dated group-memory search reads its date; absent means `off`. */
+export type ThirtyHourClock = 'off' | 'non_overlapping' | 'overlapping';
+
 export interface GroupMemoryView {
   readonly enabled: boolean;
   readonly idle_minutes?: number;
+  readonly thirty_hour_clock?: ThirtyHourClock;
 }
 
 /** One per-Chat MCP binding; `null` inherits every configured server. */
@@ -143,10 +147,17 @@ export function updateChatParticipation(
   });
 }
 
-/** Omit `idle_minutes` to keep the stored value; `null` removes it. */
+/**
+ * Omit `idle_minutes` or `thirty_hour_clock` to keep the stored value;
+ * `idle_minutes: null` and `thirty_hour_clock: 'off'` remove it.
+ */
 export function updateChatGroupMemory(
   id: string,
-  body: { readonly enabled: boolean; readonly idle_minutes?: number | null },
+  body: {
+    readonly enabled: boolean;
+    readonly idle_minutes?: number | null;
+    readonly thirty_hour_clock?: ThirtyHourClock;
+  },
   revision: string,
 ): Promise<ChatWriteResponse> {
   return call<ChatWriteResponse>(`/chats/${encodeURIComponent(id)}/group-memory`, {

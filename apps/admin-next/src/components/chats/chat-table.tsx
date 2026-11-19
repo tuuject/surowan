@@ -116,7 +116,10 @@ export function ChatTable({
     if (memory === null || !memory.enabled) {
       return t('pages.chats.groupMemoryOffSummary');
     }
-    return t('pages.chats.groupMemorySummary', { minutes: memory.idle_minutes ?? 30 });
+    const summary = t('pages.chats.groupMemorySummary', { minutes: memory.idle_minutes ?? 30 });
+    return (memory.thirty_hour_clock ?? 'off') === 'off'
+      ? summary
+      : `${summary}${t('common.separator')}${t('pages.chats.groupMemoryThirtyHourSummary')}`;
   };
   const proactiveText = (settings: ChatSettingsView): string => {
     const values = settings.effective_proactive_reply;

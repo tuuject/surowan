@@ -229,12 +229,18 @@ export const WebSearchSectionSchema = Type.Object(
  * Chat's unprocessed messages into dated event memories; each memory keeps the
  * inclusive Telegram message-id range it was written from. `idle_minutes` is how
  * long the Chat must stay quiet before a still-running local day is consolidated
- * (a finished local day is consolidated without waiting).
+ * (a finished local day is consolidated without waiting). `thirty_hour_clock`
+ * only changes what a dated recall search covers: off (the default) is the
+ * calendar day; `non_overlapping` is 06:00 to 06:00 of the next date;
+ * `overlapping` is midnight to 06:00 of the next date.
  */
 export const GroupMemorySchema = Type.Object(
   {
     enabled: Type.Boolean(),
     idle_minutes: Type.Optional(Type.Integer({ minimum: 1, maximum: 1_440 })),
+    thirty_hour_clock: Type.Optional(
+      Type.Union([Type.Literal('off'), Type.Literal('non_overlapping'), Type.Literal('overlapping')]),
+    ),
   },
   Strict,
 );

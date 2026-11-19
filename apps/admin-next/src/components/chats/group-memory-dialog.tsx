@@ -1,14 +1,17 @@
 import { useMutation } from '@tanstack/react-query';
-import { Button } from '@tuuject/koi-react/button';
+import { Button, IconButton } from '@tuuject/koi-react/button';
 import { Dialog } from '@tuuject/koi-react/dialog';
 import { Field } from '@tuuject/koi-react/field';
+import { InfoIcon } from '@tuuject/koi-react/icons';
 import { Input } from '@tuuject/koi-react/input';
+import { RadioGroup } from '@tuuject/koi-react/radio-group';
 import { css } from '@tuuject/koi-react/styled-system/css';
 import { Switch } from '@tuuject/koi-react/switch';
+import { Tooltip } from '@tuuject/koi-react/tooltip';
 import { type ReactElement, useId, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { SettingRow } from '@/components/business';
-import type { ChatEntry, ChatsView } from '@/lib/api/chats.ts';
+import type { ChatEntry, ChatsView, ThirtyHourClock } from '@/lib/api/chats.ts';
 import { updateChatGroupMemory } from '@/lib/api/chats.ts';
 import { errorMessage } from '@/lib/errors';
 import { isConfigConflict } from '@/lib/model-manager';
@@ -95,12 +98,13 @@ function GroupMemoryForm({
   const saved = chat.saved?.group_memory ?? null;
   const [enabled, setEnabled] = useState(saved?.enabled === true);
   const [idleMinutes, setIdleMinutes] = useState(String(saved?.idle_minutes ?? 30));
+  const [thirtyHourClock, setThirtyHourClock] = useState<ThirtyHourClock>(saved?.thirty_hour_clock ?? 'off');
   const [validation, setValidation] = useState<string | null>(null);
   const save = useMutation({
     mutationFn: (idle: number) =>
       updateChatGroupMemory(
         chat.id,
-        enabled ? { enabled: true, idle_minutes: idle } : { enabled: false },
+        enabled ? { enabled: true, idle_minutes: idle, thirty_hour_clock: thirtyHourClock } : { enabled: false },
         view.revision,
       ),
     onMutate: () => onPendingChange(true),
@@ -167,6 +171,41 @@ function GroupMemoryForm({
             dir="ltr"
           />
         </Field>
+        <div className={css({ display: 'flex', flexDirection: 'column', gap: '2' })}>
+          <div className={css({ display: 'flex', alignItems: 'center', gap: '1' })}>
+            <span className={css({ textStyle: 'label', color: 'text' })}>{t('pages.chats.groupMemoryThirtyHour')}</span>
+            <Tooltip content={t('pages.chats.groupMemoryThirtyHourTooltip')}>
+              <IconButton size="sm" label={t('pages.chats.groupMemoryThirtyHourAbout')} icon={<InfoIcon />} />
+            </Tooltip>
+          </div>
+          <RadioGroup
+            label={t('pages.chats.groupMemoryThirtyHour')}
+            value={thirtyHourClock}
+            disabled={!enabled}
+            onChange={(value) => {
+              if (value === 'off' || value === 'non_overlapping' || value === 'overlapping') {
+                setThirtyHourClock(value);
+              }
+            }}
+            options={[
+              {
+                value: 'off',
+                label: t('pages.chats.groupMemoryThirtyHourOff'),
+                description: t('pages.chats.groupMemoryThirtyHourOffHint'),
+              },
+              {
+                value: 'non_overlapping',
+                label: t('pages.chats.groupMemoryThirtyHourExclusive'),
+                description: t('pages.chats.groupMemoryThirtyHourExclusiveHint'),
+              },
+              {
+                value: 'overlapping',
+                label: t('pages.chats.groupMemoryThirtyHourOverlap'),
+                description: t('pages.chats.groupMemoryThirtyHourOverlapHint'),
+              },
+            ]}
+          />
+        </div>
       </fieldset>
       {validation !== null ? (
         <p role="alert" className={css({ textStyle: 'body', color: 'error-text' })}>

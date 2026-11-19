@@ -8,10 +8,13 @@
  * machine's timezone is never consulted.
  */
 
+import { THIRTY_HOUR_DAY_START_HOUR, type ThirtyHourClock } from './index.ts';
+
 const DAY_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
 /** Any real zone offset fits inside ±14h; the search brackets 18h either side. */
 const SEARCH_RADIUS_MILLISECONDS = 18 * 3_600_000;
 const formatters = new Map<string, Intl.DateTimeFormat>();
+const hourFormatters = new Map<string, Intl.DateTimeFormat>();
 
 function formatter(timezone: string): Intl.DateTimeFormat {
   let cached = formatters.get(timezone);
@@ -109,5 +112,57 @@ export function localDayWindow(day: string, timezone: string): { readonly start:
   if (end <= start) {
     throw new Error(`Day ${day} has no duration in timezone ${timezone}`);
   }
+  return { start: new Date(start).toISOString(), end: new Date(end).toISOString() };
+}
+
+function hourFormatter(timezone: string): Intl.DateTimeFormat {
+  let cached = hourFormatters.get(timezone);
+  if (cached === undefined) {
+    cached = new Intl.DateTimeFormat('en-CA', { timeZone: timezone, hour: '2-digit', hourCycle: 'h23' });
+    hourFormatters.set(timezone, cached);
+  }
+  return cached;
+}
+
+/**
+ * First instant of `day` whose Chat-local hour is `hour` or later. Searched
+ * inside the local day rather than added to midnight, because a DST jump before
+ * that hour moves it by the jump. Within one local day the hour only decreases
+ * during a fall-back repeat, which no real zone places across 06:00.
+ */
+function localHourInstant(day: string, hour: number, timezone: string): number {
+  let low = startOfDayInstant(day, timezone);
+  let high = startOfDayInstant(nextDay(day), timezone);
+  while (low < high) {
+    const middle = Math.floor((low + high) / 2);
+    if (Number(hourFormatter(timezone).format(new Date(middle))) >= hour) {
+      high = middle;
+    } else {
+      low = middle + 1;
+    }
+  }
+  return low;
+}
+
+/**
+ * Half-open UTC window `[start, end)` a dated group-memory search covers. Off,
+ * it is the calendar day. A 30-hour day runs on to 06:00 of the next date, the
+ * way Japanese broadcasting lists a 26:00 show under the previous day; it starts
+ * at 06:00 (`non_overlapping`, so consecutive dates never share an hour) or at
+ * midnight (`overlapping`, so the small hours also stay with their own date).
+ */
+export function searchDayWindow(
+  day: string,
+  clock: ThirtyHourClock,
+  timezone: string,
+): { readonly start: string; readonly end: string } {
+  if (clock === 'off') {
+    return localDayWindow(day, timezone);
+  }
+  const start =
+    clock === 'overlapping'
+      ? startOfDayInstant(day, timezone)
+      : localHourInstant(day, THIRTY_HOUR_DAY_START_HOUR, timezone);
+  const end = localHourInstant(nextDay(day), THIRTY_HOUR_DAY_START_HOUR, timezone);
   return { start: new Date(start).toISOString(), end: new Date(end).toISOString() };
 }
