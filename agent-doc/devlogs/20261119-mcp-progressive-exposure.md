@@ -96,3 +96,54 @@ DOCS_BASE_PATH=/surowan/ pnpm run docs:build && pnpm run docs:verify  # PowerShe
 ```txt
 920125c1 Add progressive MCP exposure behind an mcp gateway
 ```
+
+## 后续修正：open-code-review 意见
+
+用户要求用 T3 把 review 派给 Pi（`magpie/codex/gpt-6.2-sol`，thinking `high`；用户要的 `auto/gpt-6.2-sol` 不在 Pi 的模型目录里，用户改选了这个）。Pi 对 `58d033d8..f281dcc3` 跑了一次 `ocr review`：共 31 条，它核实了 22 条，确认 21 条，驳回 1 条（e2e「保存前文件里没有草稿」的断言过松：同一用例保存时用的是打开对话框时的 revision，草稿若写过文件，保存会 409）。主会话逐条对照源码复核，结论与 Pi 一致。修正轮没有再跑 AI review。
+
+### 1. `mcp` 网关
+
+- **重名**（high）：`catalog` + `ops__lookup` 与 `catalog__ops` + `lookup` 都会暴露成 `catalog__ops__lookup`。原来 `byName` 静默保留后者，search 介绍的是一个 Tool，call 调的却是另一个。现在 `createMcpGatewayTool` 遇到重名直接抛错，和注册表拒绝重名的 direct Tool 一致：后连上的 Server 在连接校验阶段落为 `degraded`。
+- **分页**：原来把整份结果截到 32 KiB，可能截出无法解析的 JSON；只给 `server` 的列表又永远拿不到第 100 个以后的 Tool。现在结果是 `{tools, total, next_offset?}`，每页同时受条数（列表 100、查询 10）和 24 KiB 序列化上限约束，`offset` 用来翻页。
+- **精确名**：查询 `catalog__lookup` 原来什么也找不到。现在评分字段最后加了一项「完整暴露名」，权重 3。`spacedName` 把连续的 `_` 折成一个空格。分词时，ICU 当作一个词的 `web.fetch` 再按标点切开，修好了相对旧分词器的退化。
+- **审计**：内层 `outcome_unknown` 时，外层原来记的是确定的 `error`。现在外层照抄内层的状态与错误码。
+
+### 2. 描述起草
+
+- 只为 `ready`、且文件里的配置与运行中一致的 Server 起草，否则返回 409：前者是 `mcp_server_not_ready`，后者是新增的 `mcp_server_not_applied`。原因：degraded 实例可能还留着被注册表拒绝的那次发现结果；改过 URL 却还没应用时，实时列表属于旧 Server。
+- 发给模型的数据和返回的草稿都经 `SecretStore.redact`。502 只回 message，不再像 `redactError` 那样带 stack 和本机路径。请求断开时中止模型调用。
+- 数据量按工具模型的上下文窗口收缩，上限 24,000 字符：先缩短 Tool 描述，仍放不下时只给前若干个 Tool，用 `tools_shown` 标出。
+- 管理端关停时不会等待进行中的草稿：辞典 merge 预览也是这样，本次没改。
+
+### 3. 写入与面板
+
+- `PUT` 省略 `headers` 时原样保留文件里的值，空对象也保留。原来只改描述也会删掉 `headers: {}`，被当成连接变化而重连。`description: ""` 现在和空白、`null` 一样表示删除。
+- 对话框按与已保存 Server 相同的方式规范化表单。只改了暴露方式或描述时，只提交这两个字段：原来 wildcard Server 的 `tool_policies: []` 会被表单改成 `null`，触发重连。
+- 表单里有未保存的连接或 Tool 改动时，「用工具模型起草」禁用并提示先保存（草稿描述的是已保存的 Server）。起草期间描述框只读，免得草稿覆盖刚输入的字。起草 mutation 设 `networkMode: 'always'`，离线时直接失败，不会排队到对话框关掉之后再计费。
+- 告警里的 alias 列表改用 `Trans` + `TechText` 做方向隔离。
+- e2e 的 Tool Model 夹具按草稿 prompt 的开头识别请求，不再匹配消息里任意位置的文字。
+
+`write.ts` 与 `progressive.test.ts` 先后触发 5,000 token 的提交上限。Header 密钥解析原样移到 `src/ingress/admin/mcp-servers/headers.ts`；测试拆成 `progressive-fixtures.ts`、`progressive.test.ts` 和 `progressive-limits.test.ts`，测试总数不变（10 条）。
+
+### 验证
+
+新增或扩展的测试先在修复前的源码上复现原故障：用 `git stash` 暂存本轮 `src/` 与面板源码，只留新测试，8 条全部失败，恢复后全部通过。
+
+```bash
+npx vitest run test/mcp/progressive.test.ts test/admin/mcp-servers-presentation.test.ts test/skills/execute-search.test.ts
+# 修复前源码：Tests 8 failed | 7 passed (15)
+pnpm test
+# Test Files 451 passed | 1 skipped (452); Tests 2254 passed | 9 skipped (2263)；853 s
+pnpm run check && pnpm run lint && git diff --check
+# exit 0
+pnpm run admin:build && pnpm run admin:test:e2e 37-mcp-servers 17-dictionary-merge 18-tool-model 01-routes 24-i18n
+# 45 passed；新 e2e 另外断言了连接改动未保存时起草按钮禁用，以及只改呈现字段的保存与已保存 Server 逐字段相等
+npx vitest run test/mcp/progressive.test.ts test/mcp/progressive-limits.test.ts
+# 拆分后 Tests 10 passed (10)
+```
+
+本轮只改了 agent-doc，没有动 `apps/docs/`，所以没有重跑 docs 构建。未执行项同上。
+
+```txt
+1d2e0ee5 Harden the mcp gateway and description draft after review
+```
