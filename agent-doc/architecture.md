@@ -35,6 +35,37 @@ Config + SecretStore
 - `platform/system-resources.ts` 定义只读资源契约和 URI 解析；目录扫描、Skill frontmatter 校验和文件读取由 `adapters/local-monolith/system-resources.ts` 的 FileSystemResources 承担。AgentRuntime 和 ReplayRunner 必须显式接收资源，不再隐式扫描目录。
 - `platform/recurring-schedule.ts` 定义循环闹钟的 cron 方言白名单、上限与 `RecurringScheduleEngine` 契约（纯函数，无 IO）；`adapters/local-monolith/recurring-schedule.ts` 用 croner 实现它，是全仓唯一引用 `croner` 的文件（`test/recurring-alarms/schedule.test.ts` 断言这一点），在 `runtime/serve.ts` 装配时注入 `RecurringAlarmService`。唤醒只依赖持久化的 `recurring_alarms.next_fire_at`，不依赖引擎：本地由 Scheduler 循环读它，换成别的宿主（例如 Cloudflare Durable Object alarm）时可以直接用同一列定时，只需另写一个引擎实现。方言在 platform 层固定，换引擎算出的时间不变。
 
+IM Host 身份与能力按下面几层解耦，全部以 `HostKind` 为轴。`src/platform/im-host/identity.ts` 的 `HOST_KINDS` 元组是唯一事实源（当前 `['telegram', 'playground']`，`HostKind` union 由它派生）；`parseHostKind` 严格拒绝未知的存储值——存储比二进制活得久，未知 `host_kind` 必须报错而不是被折叠成别的宿主；批量过滤改用不抛错的 `isHostKind`，一行坏数据不堵住整批。`ImConversationRef.topicId` 是 `bigint | null`，`conversationKey` 原样保留精度；Telegram 线协议转换只发生在 `src/adapters/local-monolith/telegram/grammy-transport.ts`，超出安全整数的 topic ID 以 `UnsafeTopicIdError` 拒绝（`telegram_topic_id_unsafe`）。
+
+- **特征表**：`src/platform/host-profile.ts` 的 `PROFILES` 是 `Record<HostKind, HostExecutionProfile>`，每个 Host 一条：能力开关（`mediaRead`/`stickers`/`mcp`/`sleep`/`budgetScope`/`budgetBypass`/`hiddenSkills`），形态 trait（`chatSource` 文件配置 Chat 还是运行时房间、`intake` Bucket 收集还是房间放行、`deliveryRecord` 线上 ID 还是房间序号、`mediaSource` 下载还是本地资产、`connection` 有无进程连接注册）与 `snapshotFormat`/`wording`（模型可见的 Host 措辞）。core 只读 trait（`hostExecutionProfile(kind)`）或用 `hostsWhere(predicate)` 按特征取 Host 集合；需要按 Host 分支时写穷举 `switch`，default 走 `unreachableHostKind`，不写 `'telegram'` 字面量比较。`policyScopeChatId` 按 `chatSource` 把策略作用域的 Chat ID 解析成宿主原生 ID 或内部 ID：config Host 缺原生 ID 视为存储 bug 直接抛错，绝不拿内部 ID 顶替。Telegram 拿满调色板（config chat、bucket、wire、download、registry、sleep/MCP 全开）；Playground 刻意收窄（room、release、sequence、local_asset、无连接、无 sleep/MCP、隐藏 alarms/dictionary/sticker-search、自己的快照格式与措辞）。
+- **配置投影**：`config.jsonc` 的 `telegram` 段形状不变，但 core 不直接读它；一切读取经 `src/platform/config/projection.ts` 的访问器：`configuredChats`/`allConfiguredChats`/`mapConfiguredChats` 枚举与改写文件 Chat 条目，`hostIntakeSettings` 给出该 Host 的 intake 设置（`chatSource: 'room'` 的 Host 拿到中立缺省，不继承别的 Host 的值），`resolveChatConfig` 以 `ChatConfigRef`（`{ hostKind, hostChatId }`）解析文件条目（Telegram 分支保留 `chat_migrations` 别名），`storedChatsForConfig` 反查条目覆盖的已入库行。上下文分开携带 `internalChatId`（`chats.id`）与 `hostChatId`（宿主原生 ID），房间没有后者。
+- **入库契约**：`src/ingress/telegram-ingestion/` 是 Telegram 自己的边缘——Update 去重、allowlist/Topic、`chat_migrations`、命令解析、ignored user、cues 抽取与归一化——把每条消息变成 `src/ingress/intake/` 的 `InboundMessage` 交给 `InboundIntake`；中立路径负责 sender/conversation/message/revision/media 写入、eligibleHuman 判定、参与闸门与 Bucket 追加，一个 Update 仍在一条同步事务内（intake 嵌进边缘事务做 savepoint）。参与闸门与快照回放不碰 transport 类型：cues 走 `platform/im-host/cues.ts` 的 `MessageCues`（mentionsBot/repliesToBot/asksBot/texts），已存 revision 的 raw fragment 走 `platform/raw-fragments.ts` 按 `host_kind` 分派的 `RAW_FRAGMENT_READERS`（实时路径保留原始 isAsk 语义，存储路径额外要求 revision 1 无 `edit_date`，见 [telegram-agent-flow.md](telegram-agent-flow.md)）。启动与运行中追赶在 `telegram-ingestion/catch-up/`，属于 Telegram 自己的 getUpdates 补偿；`grammy` 类型同样只出现在 Telegram adapter、这个边缘与 doctor 里。
+- **投递策略**：`resolveConversationPolicy`（`platform/im-host/policy.ts`）按 Host 返回 delivery/activity/sendRate/senderRef 的固定策略；`platform/warning-catalog.ts` 按 `connection` trait 给 `registry` Host 生成连接警告码。
+
+三条边界测试把「IM 只有 Telegram」这个假设钉在边界外；allowlist 以测试文件本身为准（每条带理由，且断言条目必须指向真实路径），本页不抄清单：
+
+- `test/im/host-literals.test.ts`：core 不得出现 `'telegram'`/`'playground'` 字面量分支或 `host_kind = '…'` SQL 字面量；豁免只有 `hosts: [...]` 插件挂载声明与 allowlist 内的边界文件（Host 自己的 adapter/ingestion、特征表、投影层、Admin 产品面等）。
+- `test/config/host-projection-boundary.test.ts`：core 不得直接读 `config.telegram`（点访问、方括号、`RawConfig['telegram']` 索引类型都算）；`services.telegram`/`assembly.telegram` 是宿主服务注册表字段，不是配置读。
+- `test/im/transport-imports.test.ts`：`grammy` 只能被 `adapters/local-monolith/telegram/`、`ingress/telegram-ingestion/` 与 `doctor.ts` import。
+
+### 新增一个 Host 的固定清单
+
+`HostKind` 仍只有 `telegram` 与 `playground` 两个值，本轮没有接入第三个 Host。将来接 Discord 类 Host 时按下面的固定清单走：每一项都由类型系统（`Record<HostKind, …>`、`never` 分派的穷举 `switch`）或边界测试强制，漏一处 `pnpm run check` / 对应边界测试就失败。
+
+1. `src/platform/im-host/identity.ts`：`HOST_KINDS` 加元组成员；`wireChatId` 的分派加一条 case（决定投递时往线上写宿主原生 ID 还是内部 chat id）。
+2. `src/platform/host-profile.ts`：`PROFILES` 加一条 `HostExecutionProfile`（chatSource、intake、deliveryRecord、mediaSource、connection、mediaRead、stickers、mcp、sleep、budgetScope、budgetBypass、hiddenSkills、snapshotFormat、wording 逐项给出，不继承别的 Host 的值）。
+3. `src/platform/config/`：Schema 与 RawConfig 增加该 Host 的配置段；`projection.ts` 的 `configuredChats`/`allConfiguredChats`/`mapConfiguredChats`、`hostIntakeSettings`、`resolveChatConfig`、`storedChatsForConfig` 与 `resolve.ts` 的 `resolveBucketTiming` 各加一条 Host 分支（`chatSource: 'room'` 的 Host 照 room 分支返回，不需要文件段）。
+4. `src/platform/im-host/policy.ts`：`resolveConversationPolicy` 加一条 case，给出该 Host 的 delivery/activity/sendRate/senderRef 策略。
+5. `src/platform/raw-fragments.ts`：`RAW_FRAGMENT_READERS` 加一条 reader（从已存 revision 的 raw fragment 读 cues 与正文）。
+6. `src/platform/warning-catalog.ts`：`connectionWarnings` 记录填一行——`connection: 'registry'` 的 Host 需要自己的 network/config 警告码，`none` 填 `null`。
+7. `src/context/builder/render.ts` 与 `src/context/builder/schema.ts`：history 行渲染与快照校验的穷举 switch 各加一条 case；新 Host 用自己的 `snapshotFormat` 与 wording，不改既有 Host 的冻结快照键与文案。
+8. `src/capabilities/media/`：`mediaSource: 'download'` 的 Host 由组合根在 `downloaders` map 注册该 Host 的 `MediaDownloader`；`image-input.ts`/`original-file.ts` 按 trait 穷举分派，trait 取新值时才加 case。
+9. `src/adapters/local-monolith/`：新建 `<host>/` adapter（transport、连接生命周期、`ImHost`/`ImMemberProfiles` 实现），在 `runtime/serve.ts` 的 per-host switch 与 AgentRuntime 的 `hosts` map 注册；连接型 Host 同时接入连接注册表的就绪汇报。
+10. `src/ingress/<host>-ingestion/`：该 Host 自己的入库边缘（allowlist、迁移、命令等 Host 专属工作），产出 `InboundMessage` 交给 `src/ingress/intake/`；`intake` 不是 `bucket` 时的补偿语义按该 Host 的拉取能力另定。
+11. `src/plugins/`：逐插件评估 `hosts: [...]` 挂载声明是否加入新 Host（不加即对它隐藏），并核对 `hiddenSkills`。
+12. 边界测试：`test/im/host-literals.test.ts` 与 `test/config/host-projection-boundary.test.ts` 的 allowlist 只收新 Host 自己的 adapter/ingress/config 边界目录，其余照拦；新 Host 引入自己的 SDK 时，仿 `test/im/transport-imports.test.ts` 立一条 import 边界；identity/policy/intake/快照各补宿主契约测试。
+13. 冻结面不动：Admin HTTP 字段名（`telegram_chat_id`、`telegram_message_id`、`room_seq`、详情里的 `telegram_sends[]`）、既有 `snapshotFormat` 字符串与模型可见 wording 是各 Host 自己的契约，新 Host 写新的，不复用、不改名。
+
 本阶段只建立 M1/M2 的宿主解耦基础；Admin/CLI 仍是本地文件型入口，ORM 仍使用同步 SQLite，媒体、SecretStore、MCP 与图片执行尚未全面替换成远端端口。不提供多实例协调、远端 gateway 或租户隔离。
 
 ## 主数据流
@@ -43,10 +74,15 @@ Config + SecretStore
 Telegram Update
   │
   ▼
-TelegramIngestion
-  ├─ allowlist / Topic / bot-message 校验
-  ├─ Chat 迁移归一化
-  ├─ Message + Revision + Media 持久化
+TelegramIngestion（Telegram 边缘，src/ingress/telegram-ingestion/）
+  ├─ Update 去重、allowlist / Topic / bot-message 校验
+  ├─ Chat 迁移归一化、命令与 ignored user 处理、cues 抽取
+  └─ 归一化成 InboundMessage
+        │
+        ▼
+InboundIntake（宿主中立入库，src/ingress/intake/，同一事务）
+  ├─ Sender / Conversation / Message + Revision + Media 持久化
+  ├─ eligibleHuman 判定、参与闸门
   └─ 收集进配置长度的 Bucket
         │
         ▼
@@ -84,13 +120,13 @@ Admin 的 Invocation 重放是新的内存 Agent 循环，不是生产 Conversat
 
 ## 模块职责
 
-代码按层组织，依赖只允许自上而下：`ingress/` → `orchestration/` → `capabilities/` → `context/` → `store/` → `platform/`；`plugins/` 只被组合根引用，可依赖 `capabilities/` 及以下各层；宿主适配层 `adapters/local-monolith/`（`runtime/index.ts` 是 `serve` 的组合根）与 `src` 根的宿主入口（`cli.ts`、`doctor.ts`、`startup-catch-up.ts`、`tui/`）可以引用所有层；业务层不反向导入 adapter，例外见上方 [Runtime 与宿主边界](#runtime-与宿主边界)。
+代码按层组织，依赖只允许自上而下：`ingress/` → `orchestration/` → `capabilities/` → `context/` → `store/` → `platform/`；`plugins/` 只被组合根引用，可依赖 `capabilities/` 及以下各层；宿主适配层 `adapters/local-monolith/`（`runtime/index.ts` 是 `serve` 的组合根）与 `src` 根的宿主入口（`cli.ts`、`doctor.ts`、`tui/`）可以引用所有层；业务层不反向导入 adapter，例外见上方 [Runtime 与宿主边界](#runtime-与宿主边界)。
 
 | 层 | 职责 |
 | --- | --- |
 | `adapters/local-monolith/` | 本地单体宿主：`runtime/index.ts` 进程装配、配置文件 I/O 与热重载、SQLite 连接/迁移/备份/ServeLock、`system:///` 目录加载 |
-| 宿主入口（`src/` 根文件与 `tui/`） | CLI、诊断、启动追赶、配置向导 |
-| `ingress/` | 外部输入边界：Telegram Update 入库、Admin Panel HTTP、认证与审计查询 |
+| 宿主入口（`src/` 根文件与 `tui/`） | CLI、诊断、配置向导 |
+| `ingress/` | 外部输入边界：`telegram-ingestion/`（Telegram Update 边缘与 `catch-up/` 追赶）、`intake/`（宿主中立入库）、`playground.ts`（房间放行）、Admin Panel HTTP、认证与审计查询 |
 | `orchestration/` | Bucket → Invocation 状态转换、调度与并发、Agent 运行循环、Bot 命令 |
 | `plugins/` | 内置 Agent 插件：`definePlugin` 定义、`loadPlugins` 校验与装配、`builtin.ts` 清单；包含 `web-search`（核心）与七个服务商插件、`web-fetch`、`image`、`alarm` 与 `dictionary`。插件只获得 invocation scope、审计、宿主 `orm`、绑定任务服务、按需读取的 `secrets` 和绑定本 Chat 的工具图片存储，不直接持有 Store 或 Runtime；还可声明 `contextInjectors` 为每批注入渲染 `<untrusted_…>` 块（首个使用者是辞典）。插件可声明 `dependencies`（必须先于依赖方加载）、`extensionPoints`（对其他插件发布的带类型契约）与 `extensions`（向直接依赖的扩展点贡献值）；`available(config)` 决定它与它的 Skills 是否出现，`scope.readConfig()` 读取热更新后的当前配置，`scope.steer()` 在不重建 Invocation 的前提下提醒运行中的模型 |
 | `capabilities/` | 模型可调用的 Tool 与外部能力（原语、媒体、Sticker、MCP） |

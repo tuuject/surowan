@@ -61,6 +61,7 @@ pnpm test test/tasks/long-tasks.test.ts test/tasks/migration.test.ts test/tasks/
 pnpm test test/alarm/alarm.test.ts test/alarm/context.test.ts
 pnpm test test/recurring-alarms
 pnpm test test/prompts/template.test.ts test/prompts/markdown.test.ts test/tui-configure.test.ts
+pnpm test test/im test/intake test/schema/migrations-host-neutral-ids.test.ts test/schema/migrations-host-neutral-ids-rollback.test.ts test/config/projection.test.ts test/config/host-projection-boundary.test.ts test/group-memory/candidates.test.ts test/mcp/publication.test.ts test/media/tool-descriptions.test.ts test/participation/cues.test.ts test/scheduler/catch-up-scope.test.ts
 ```
 
 产品知识改动还需按 [产品知识烘焙](product-knowledge.md#验证方法) 做五类轻量模型探针；固定文本断言不能证明模型会查文档。`manual-pack.test.ts` 检查烘焙索引的字节上限与所有来源路径在实际手册包中可读取。Full ReplayRunner 当前阻断文档能力，不能独立完成 grounding 验收。
@@ -90,6 +91,22 @@ pnpm test test/prompts/template.test.ts test/prompts/markdown.test.ts test/tui-c
 | `startup/catch-up.test.ts` | 每 Conversation 一个追赶 Invocation（同群不同 Topic 分开）、`history_messages` 上限、`ignored_user_ids` 与 `sticker_trigger_enabled` 生效、排空后切换实时 Bucket、各 Topic 发送落回自己的 Topic；积压 `/pause`/`/resume` 顺序执行与鉴权、其他命令只审计不入上下文、重复 Update 不重放；慢排空或崩溃续跑后刚排队的追赶不被启动恢复判为过期，真正排队超过 recovery 年龄的仍以 `recovery_age` 过期 |
 | `scheduler/scheduler.test.ts` | 配置 deadline、冻结快照、恢复和并发串行 |
 | `scheduler/bucket-timing.test.ts` | 自适应 Bucket 节拍：缺省与旧配置保持固定窗口、bump 延长与只往后推（不拉回轮结束写入的更晚 deadline）、`bucket_max_seconds` 截断与持续消息流仍按上限结算、不能开 Bucket 的消息不延长、deadline 附近的消息与结算竞争时每条消息只进一个 Bucket、运行中的 Scheduler 循环在 fake timers 下按延长后的 deadline 重排定时器且只结算一次、配置校验（max ≥ window、idle grace 覆盖 max） |
+| `im/strict-host-kind.test.ts` | `parseHostKind`/`isHostKind` 严格性：未知 `host_kind` 一律拒绝或跳过而不折叠成别的宿主（存储 Conversation 解析、任务 scope、context builder、投递目标、媒体读取），config Host 缺原生 ID 不把内部 ID 当线上 ID 用，一行坏数据不堵住批量扫描（图片 worker、model-switch 对账、任务回执领取） |
+| `im/lossless-topics.test.ts` | `topicId` 是 `bigint`：超出 number 安全范围的 Topic ID 原样穿过存储解析与 send target 解析，安全整数到线上 JSON number 不变，线协议装不下的值拒绝而不是四舍五入 |
+| `im/host-scope.test.ts` | 按宿主原生 ID 反查只命中同一 Host 的行 |
+| `schema/migrations-host-neutral-ids.test.ts` | 迁移 `064`：混合宿主库上身份列改名、`message_no` 两列合并、`host_kind` 前缀唯一约束，既有数据与引用不受扰 |
+| `schema/migrations-host-neutral-ids-rollback.test.ts` | `064`：缺宿主消息号的行中止迁移并整体回滚 |
+| `im/host-literals.test.ts` | Host 字面量边界：allowlist 外不得出现 `'telegram'`/`'playground'` 字面量或 `host_kind = '…'` SQL 字面量；`hosts: [...]` 挂载声明豁免而别处不豁免；allowlist 条目必须指向真实路径；扫描器覆盖三种引号与 SQL、注释/标识符/更长字符串不误伤 |
+| `media/tool-descriptions.test.ts` | 模型可见工具标签与描述按 `wording` trait 逐字节钉住（`read_image` 与 `read_member_profile` 两个 Host 各自文案与迁入特征表前一致） |
+| `config/projection.test.ts` | 配置投影：`resolveChatConfig` 按 `{ hostKind, hostChatId }` 解析（含 `chat_migrations` 别名）、文件 Chat 枚举、`hostIntakeSettings` 按 Host 取值、invocation scope 身份（`internalChatId`/`hostChatId` 分离）、`modelsForChats` |
+| `config/host-projection-boundary.test.ts` | 投影边界：allowlist 外不得直接读 `config.telegram`（点访问、`['telegram']` 方括号、`RawConfig['telegram']` 索引类型都算）；allowlist 条目必须指向真实路径 |
+| `group-memory/candidates.test.ts` | 群聊记忆整理候选按配置条目反查已存行：启用条目经 `chat_migrations` 落到继任 Chat 的行，禁用条目不贡献行 |
+| `mcp/publication.test.ts` | MCP 绑定校验预览按各自 Host 的上下文评估（`previewContext(host)`） |
+| `im/raw-fragments.test.ts` | raw fragment reader 表每个 `HostKind` 一条：Telegram reader 从 `raw_fragment_json` 提取 mention/reply/ask cues 与可检索正文（含 Rich Message 内部 mention、bot 发送与畸形片段无 cue、坏数字 ID 降级不抛错、ask-only 只看 revision 1 且非编辑）；playground reader 不产 cues、正文原样返回 |
+| `participation/cues.test.ts` | `telegramMessageCues` 从实时 Telegram 消息抽 `MessageCues`；`matchTriggerKind` 直接按 cues 判定触发类型 |
+| `intake/inbound.test.ts` | 中立入库：手写 `InboundMessage` 入库并开 Bucket、media/reply/forward/service 元数据原样保存、编辑追加 Revision 不开新 Bucket、重复消息不重复写、触发 cue 刷新注意力窗口并回报 mention、bot/service/sticker 的 eligibility 语义、写中途失败整批回滚、catch-up 入库不排 Bucket、`intake: 'release'` 的 Host 与跨 Host 的 Chat 一律拒绝 |
+| `im/transport-imports.test.ts` | grammy import 边界：`grammy` 只被 `adapters/local-monolith/telegram/`、`ingress/telegram-ingestion/` 与 `doctor.ts` 引用；allowlist 条目必须真实；扫描器覆盖各种 import 形态、忽略注释/字符串/形似 specifier |
+| `scheduler/catch-up-scope.test.ts` | 追赶只扫调用方 Host 且仅 `intake: 'bucket'` 的 Host 执行；release Host 完不成启动排空（状态标记存活）、运行时 pass 不碰共享睡眠状态 |
 | `sleep.test.ts` | 5% 阈值边界与 `zzz` 可见性、跨轮次工具注册表、睡眠状态只随注入批次下发而不进入 system prompt、睡眠跳过 due/queued 会话、跨进程持久化、UTC 预算重置唤醒、并发 `zzz` 幂等 |
 | `context/store.test.ts` | 淘汰行不会因为陈旧 header 的低 `head_seq` 复活、`AgentMessage` 编解码往返与过滤、保留段结构守卫、canonical history 追加与 checkpoint/send 计数、system prompt 变化触发重建、模型预算缩小且 transcript 超预算时重建而放得下时保留、升级前无预算行只采纳预算、`generation` 拒绝重建/清空后旧 header 的 append/advanceHead/clear、`advanceHead` 淘汰行并回收其引用、整段清空、capability 引用按 Context 隔离与 TTL |
 | `context/gc.test.ts` | 丢弃式 GC 计划：send 数未超上限且无 token 压力时不动、滑到仍保留 `retained_sends_target` 次 send 的最新 checkpoint、没有可用 checkpoint 时不裁剪、Tool 多 send 少时退回 token 判据、token 压力下按 send 数选出的候选超预算时改用 token 判据、保留段会以 `toolResult` 开头时放弃 |
@@ -99,7 +116,7 @@ pnpm test test/prompts/template.test.ts test/prompts/markdown.test.ts test/tui-c
 | `send/empty-text-strategy.test.ts` | `silent_success` 下空 `send` 返回成功且不调用 Telegram/不写 `host_sends`/不计 `sends_used`，审计为 `success` + `side_effect = 0` 并保留原始参数；`send_reply` 跳过缺文本的 part、其余照常发送并把 Reply 目标落到第一条实际发出的 part；全部 part 缺文本时整组成功且零发送，并只上报一次静默；有 part 真正发出时整次调用不计静默；预检拒绝沿用原调用的 part 序号；静默 part 之后中途失败时报错只列出真正发出的 part；Sticker/图片/`resend` 等形状错误仍拒绝；带文本发送照常发出 |
 | `send/reply.test.ts` | `send_reply` 按序发布每一条且只有第一条带 Reply、整组超出 send 限流时预先拒绝、send 屏障只拦第一条、后续某条失败时保留已发部分并停止、reply-once 策略下第一条消耗 Reply 目标 |
 | `send/dedup.test.ts` | 省略/关闭 `allow_reply_message_multiple_times` 时，同 Conversation/原消息 ID 跨文字、贴纸、图片只回复一次；开启后可多次回复但不绕过可见性/屏障/限流/图片交付去重及未知保护；运行中固定配置快照、下次 Invocation 切换工具描述与行为；默认并发 pending/未知结果拦截、崩溃遗留 pending 经重启恢复仍拦截、明确失败可重试、跨 Invocation/Context 重建/重启持久化、不同消息和 Conversation 隔离、拒绝不占发送额度或触发屏障、屏障审计失败不回滚已排队的 Bucket 挂载、未引用发送不受影响 |
-| `duplicate-send-guard.test.ts` | 缺省/显式 `true` 开启、显式 `false` 关闭；同一 Invocation 内与已成功发送完全一致的文本与贴纸以 `send_duplicate` 拒绝且不调用 Telegram、不写 `telegram_sends`、不计 `sends_used`；忽略字段与省略 kind 不算不同；与上一条成功发送内容相同（重搜贴纸的新 ref 也算）而只改 Reply 目标或 `parse_mode` 也拒绝为 `send_duplicate` 并烧毁，中间隔了别的消息后则放行；Telegram 明确拒绝的发送可原样重试；`send_reply` 预检比对之前的发送与本组前面的条目（内容判重时 part 1 比上一条发送、后续 part 比前一条 part），命中整组不发，其各条也算本次已发；每次拒绝回调计数；关闭后描述不含守卫说明、重复照常发出 |
+| `duplicate-send-guard.test.ts` | 缺省/显式 `true` 开启、显式 `false` 关闭；同一 Invocation 内与已成功发送完全一致的文本与贴纸以 `send_duplicate` 拒绝且不调用 Telegram、不写 `host_sends`、不计 `sends_used`；忽略字段与省略 kind 不算不同；与上一条成功发送内容相同（重搜贴纸的新 ref 也算）而只改 Reply 目标或 `parse_mode` 也拒绝为 `send_duplicate` 并烧毁，中间隔了别的消息后则放行；Telegram 明确拒绝的发送可原样重试；`send_reply` 预检比对之前的发送与本组前面的条目（内容判重时 part 1 比上一条发送、后续 part 比前一条 part），命中整组不发，其各条也算本次已发；每次拒绝回调计数；关闭后描述不含守卫说明、重复照常发出 |
 | `send/guard.test.ts` | Reply 去重拒绝（`reply_already_sent`/`reply_delivery_unknown`）把该内容（kind + 文本或贴纸 file id，含留原始输入占位字段的归一化比对）在本次 Invocation 内烧毁；原样重发已发出的 Reply（`send_duplicate`，含 `send_reply` part 1）同样烧毁，`allow_reply_message_multiple_times` 开启时不烧；重搜贴纸得到的新 ref 仍命中烧毁：改换/省略 Reply 目标或改 `parse_mode` 重投以 `send_bypass` 拒绝、不调 Telegram、不占额度、拒绝回调计数；新内容不受影响；贴纸同规则；屏障拒绝不烧毁、放行后可原样发出；`send_reply` 预检命中烧毁整组不发、交付中途被拒的 part 内容同样烧毁；图片豁免；`send_duplicate_guard_enabled` 关闭时烧毁仍生效；烧毁跨 Invocation 失效而 Reply 去重持续 |
 | `image/delivery.test.ts` / `image/delivery-runtime.test.ts` | 图片按 Conversation/generation/asset 去重、跨 Invocation/重启有效、已送成功 no-op 的审计/限流/屏障与 canonical send 计数、后续新增输出、显式重发与完成轮限制、并发 pending/未知结果保护、回执 `image_delivery` 三类互斥且未知优先、无法证明集合的旧发送整代保守拒绝、权限与过期引用；工具链先发送后注入回执的真实 Faux 回归及普通回执不受影响 |
 | `image/delivery-file.test.ts` | `send kind:file`：generation 原图以 document 组发出且不算图片交付、Bot 生成照片的 `img_` 反查回该次交付的原图（原图已清理时 `file_original_unavailable` 拒绝而不发压缩版）、其他图片原样读取并补扩展名、Sticker/未授权引用/来源歧义在副作用前拒绝、缺 `sendDocuments` 的 transport 以 `send_unsupported` 失败、grammY 单文件与 document 组映射、迁移 `049` 重建后行与索引不变 |
@@ -455,7 +472,7 @@ Remove-Item Env:E2E_PASSKEYS
 - 连续对话直到保留段超过 `retained_sends_max`：日志出现 `context_gc`，`target_seq` 落在 checkpoint 上、`previous_head_seq` 小于 `target_seq`、保留段仍含至少 `retained_sends_target` 次 `send`；之后请求里不再出现被淘汰的那几轮，`head_seq` 与日志一致。
 - 被 GC 淘汰的消息携带的引用立即失效：引用旧 `img_`/`stk_`/reply 的 `send` 必须被拒绝，而不是照旧发出。
 - 睡眠状态只随注入批次下发：`zzz` 暴露前后两次请求的 system prompt 逐字节相同，睡眠状态出现在注入批次的 `<runtime_state>` 里；`zzz` 结束时 Invocation 的 `completion_reason` 是 `sleep`。
-- `send_nudge_enabled = true` 且模型持续只写私文本：每个批次的提醒紧跟该批次（`agent_messages` 里 `harness_nudge` 排在下一次注入的 batch 之前，`telegram_sends` 逐批出现），而不是整段运行只提醒一次、其余批次的回复全部丢掉。
+- `send_nudge_enabled = true` 且模型持续只写私文本：每个批次的提醒紧跟该批次（`agent_messages` 里 `harness_nudge` 排在下一次注入的 batch 之前，`host_sends` 逐批出现），而不是整段运行只提醒一次、其余批次的回复全部丢掉。
 - `send_barrier_enabled = true` 且模型回复期间同一人补了一句：`tool_calls` 先出现一条 `error` / `send_barrier`，随后才有一条 `success`；`invocation_buckets` 里补话那批与开场批次属于同一 `invocation_id` 且 `injected_at` 非空；Telegram 上只有一条合并后的回复。自动化用例见 `test/context/hot-inject.test.ts` 的「send barrier」组（含每轮只拦一次、同一 turn 的第二次 `send` 也被拦、关闭时行为不变）。
 - `send_duplicate_guard_enabled` 缺省且模型反复调用同一条 `send`：Telegram 上只出现一条，`tool_calls` 是一条 `success` 后跟 `error` / `send_duplicate`，Invocation 以 `repeated_tool_failure`（同一条连发）或 `duplicate_send`（交替重复，累计超过 3 次）结束，而不是 `turn_budget`。自动化用例见 `test/agent/runtime.test.ts` 与 `test/replay/replay.test.ts` 中的 duplicate 用例。
 - `/cut_topic`：日志出现 `context_cleared`，`conversation_contexts.head_seq = next_seq` 且 `context_refs` 清空，下一条消息不再看到切点前的 transcript（Telegram 上切了历史、模型仍记得的旧故障形态不应再出现）。该 Conversation 正在运行的 Invocation 会以 `aborted` / `context_cut` 收尾；切点落在某一轮中途时，下一次运行日志出现 `context_realigned` 而不是 provider 400。
@@ -463,7 +480,7 @@ Remove-Item Env:E2E_PASSKEYS
 
 ### 输出与 Reply
 
-- Bot 回复必须对应 `send` Tool Call 和 `telegram_sends` success。
+- Bot 回复必须对应 `send` Tool Call 和 `host_sends` success。
 - 普通 Assistant Message 不应直接出现在 Telegram。
 - Reply 只能指向当前 Conversation Context 授权且未过期的 Message；被 GC 淘汰的消息携带的 reply 引用立即失效。
 - Agent 可以 completed 且 `sends_used = 0`，这是正常静默。
@@ -478,7 +495,7 @@ Remove-Item Env:E2E_PASSKEYS
 - Sticker 分析必须产生 `report_sticker_analysis` Tool Call；文本 JSON/code fence 不算成功。
 - `search_stickers` 只返回允许 Set 中已索引 Sticker。
 - `send` 不能使用模型虚构的 file ID。
-- 重复发送已交付的同一 generation：Tool 结果返回 `replayed:true` 并列出相关投递批次的旧 Telegram message ID，没有新 Telegram 消息、不新增 `telegram_sends` 行、不增加 `sends_used` 或限流用量；只有普通用户轮的显式 `resend:true` 才重发。完成回执轮拒绝 `resend:true`，但默认发送仍可返回去重结果；pending/未知结果阻止默认发送与显式重发。
+- 重复发送已交付的同一 generation：Tool 结果返回 `replayed:true` 并列出相关投递批次的旧 Telegram message ID，没有新 Telegram 消息、不新增 `host_sends` 行、不增加 `sends_used` 或限流用量；只有普通用户轮的显式 `resend:true` 才重发。完成回执轮拒绝 `resend:true`，但默认发送仍可返回去重结果；pending/未知结果阻止默认发送与显式重发。
 
 ### Forum Topic
 
@@ -515,7 +532,7 @@ telegram_updates
   → invocations/invocation_messages
   → model_calls
   → tool_calls
-  → telegram_sends 或 media_analyses
+  → host_sends 或 media_analyses
 ```
 
 `invocations` 不再与 Bucket 一一对应：`invocation_buckets` 记录哪些 Bucket 进入过哪次运行，只有 `injected_at` 非 NULL 的批次才真正送达模型。模型实际保留的输入不在这条链上，而在 `conversation_contexts`/`context_messages`/`context_refs`：判断“模型现在还看得见什么、还能用哪些引用”要看这里，不要从 `invocation_messages` 推断。

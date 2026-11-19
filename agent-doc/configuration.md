@@ -23,6 +23,19 @@ Surowan 使用严格 JSONC 配置。Schema 位于 `src/platform/config/` 的 `sc
 node src/cli.ts check-config --config dev-data/config.jsonc
 ```
 
+## 配置投影
+
+`config.jsonc` 的宿主段按 Host 分节（当前只有 `telegram` 段），文件形状不变；但 core 与业务层不直接读 `config.telegram`，一切访问经 `src/platform/config/projection.ts` 的访问器：
+
+- `configuredChats` / `allConfiguredChats` / `mapConfiguredChats`：枚举或改写某个 Host 的文件 Chat 条目；`chatSource: 'room'` 的 Host（Playground）没有文件段，返回空表。
+- `hostIntakeSettings`：该 Host 的 intake 设置；room Host 拿到中立缺省，不继承别的 Host 的值。
+- `resolveChatConfig(config, orm, { hostKind, hostChatId })`：按宿主原生 ID 解析文件条目；Telegram 分支保留 `chat_migrations` 别名解析。旧的 `(config, orm, telegramChatId)` 签名已不存在。
+- `storedChatsForConfig`：反查一个文件条目覆盖的已入库 `chats` 行。
+
+投影之外，`src/platform/im-host/identity.ts` 的 `identityConversation` 在构造会话引用时按同一规则选线上 ID：config Host 用 `hostChatId`（缺失即报错，不拿内部 ID 顶替），room Host 用内部 Chat ID。
+
+业务代码直接读 `config.telegram`（点访问、方括号或 `RawConfig['telegram']` 索引类型）会被 `test/config/host-projection-boundary.test.ts` 拒绝，allowlist 与理由以该测试为准。上下文分开携带 `internalChatId`（`chats.id` 主键）与 `hostChatId`（宿主原生 ID），房间没有后者；判断「是否同一个 Chat」一律用 `internalChatId`。
+
 ## 运行时配置热更新
 
 `serve` 启动时读取一次配置，但白名单字段可以在运行中应用：Admin Panel 的「Apply config file」按钮（`POST /api/config/apply`）、Models / Chats / Harness tuning / Telegram 页保存，以及 Telegram `/model`、`/ignoreme`、`/unignoreme` 都会重新读取 `config.jsonc` 并把白名单字段的变化发布到当前进程。没有文件系统 watcher——手改文件后必须显式应用才生效。
@@ -569,7 +582,7 @@ Agent 侧使用（`image_generate` 工具、图片技能、发送与审计链路
 
 `agent.rate_limits`：
 
-- `sends_per_window` / `window_seconds`: 按 Telegram Chat 计算的滑动窗口发送上限，统计窗口内所有已发往 Telegram 的 `telegram_sends`（`success`/`pending`/`outcome_unknown`/`error` 都算，失败的尝试同样消耗额度）。命中时 Tool Call 记为 `send_rate_limited` 错误，不调用 Telegram；长生命周期运行可以发很多次，但循环不能刷屏。
+- `sends_per_window` / `window_seconds`: 按 Telegram Chat 计算的滑动窗口发送上限，统计窗口内所有已发往 Telegram 的 `host_sends`（`success`/`pending`/`outcome_unknown`/`error` 都算，失败的尝试同样消耗额度）。命中时 Tool Call 记为 `send_rate_limited` 错误，不调用 Telegram；长生命周期运行可以发很多次，但循环不能刷屏。
 - `turns_per_injection`: 自最近一次消息注入以来允许的最大 turn 数，达到即结束这次运行；注入新批次后计数清零。
 
 `check-config` 另外校验这些关系（Schema 通过不代表组合合法）：

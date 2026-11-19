@@ -33,10 +33,10 @@ surowan/
 │   ├── doctor.ts           # 真实依赖与外部连接诊断
 │   ├── ingress/telegram-ingestion/catch-up/ # 启动与运行中补偿拉取（getUpdates 积压归并、有限 backlog）
 │   ├── tui/                # 交互式配置向导
-│   ├── ingress/            # telegram-ingestion 与 admin/（Panel 认证、审计查询、HTTP 边界）
+│   ├── ingress/            # telegram-ingestion（Telegram 边缘）、intake（宿主中立入库）、playground.ts 与 admin/（Panel 认证、审计查询、HTTP 边界）
 │   ├── orchestration/      # scheduler、invocation-queue、agent-runtime、conversation-runtime、bot-commands
 │   ├── plugins/            # 内置 Agent 插件：plugin（definePlugin/loadPlugins）、builtin 清单、web-fetch/、web-search/、image/、alarm/、dictionary/
-│   ├── capabilities/       # send-tool、read-tool、execute-tool、mcp、stickers、media/
+│   ├── capabilities/       # send/、read-tool、execute-tool、mcp、stickers、media/
 │   ├── context/            # context-builder、context-store、context-refs、context-gc、context-codec、context-injector、memo-pad/、group-memory/
 │   ├── store/              # BusinessStore 契约、schema、migrations/、long-tasks、invocation-snapshot、sleep、participation
 │   ├── platform/           # config、secrets、providers、system-resources、doc-spaces 等无业务依赖模块
@@ -80,6 +80,8 @@ Telegram Update
 Invocation 是运行窗口而不是一次问答：`agent.context.idle_grace_seconds > 0` 时，运行期间到期的 Bucket 会被 attach 并注入同一个 Invocation（`invocation_buckets`），Conversation Context 跨 Invocation 持久化；取 0 则退回「一次 Bucket 一次 Invocation」，但 Context 依然连续。
 
 媒体与 MCP 都在 Tool 边界内：模型只能读取当前 Conversation Context 授权且未过期的媒体引用；MCP Tool 经过 allowlist、只读策略、请求/响应大小限制、超时和审计。反向 MCP Server 的每个工具都必须按 API key 的 `read_all`/`write_all`/`execute_paid_operations` 权限执行，账号与凭据管理不暴露为工具。工具面分三层——runtime 原语（`read`/`read_member_profile`/`send`/`send_reply`/`execute`/`zzz`，以及 Memo Pad 的 `search_memory`/`read_memory`）直接暴露；内部能力（`web_fetch`、`search_stickers`、`read_image`、`list_documents`/`read_document`、Memo Pad 的增删改与 `save_memo_image`、插件提供的 Alarm、辞典等，注册表由 `src/adapters/local-monolith/host-tooling.ts` 的 `createHostTooling` 组装为 `capabilityTools` 并经 `runtime/serve.ts` 注入 runtime，其中内置插件贡献的能力来自 `src/plugins/builtin.ts`）经 `execute` 的 search/help/call 调用；MCP Tool 直接暴露。用户手册 Markdown 在构建期打包到 `src/manual/`，模型先取空间索引再按需读取页面，整本手册不进入 system prompt。通用长期任务由 `store/long-tasks/index.ts` 持久化，唯一 Scheduler 同时处理 timer 完成与完成回执投递；插件只通过绑定 plugin/Conversation 的任务服务创建、完成或取消任务。管理员在 Admin Panel 定义的循环闹钟（`store/recurring-alarms/`）是任务服务的 timer source：到期周期物化成同一类任务、走同一条回执管线，提示词以 `<admin_scheduled_task>` 可信块注入；cron 计算经 `platform/recurring-schedule.ts` 契约由 `adapters/local-monolith/recurring-schedule.ts` 实现，唤醒只依赖持久化的 `next_fire_at`。System Skills（`src/system-resources/skills/` 与插件目录下的 `skills/`）是只读文档包，system prompt 只注入索引，正文由模型用 `read` 按需加载。`agents.md` 是经过人工审核的长期知识。
+
+IM Host 边界按 `HostKind`（当前 `telegram` 与 `playground`）解耦：身份与存储宿主中立（`platform/im-host/` 契约、`platform/host-profile.ts` 特征表），`config.telegram` 只经 `platform/config/projection.ts` 的访问器读取，`src/ingress/telegram-ingestion/` 把 Update 归一化后交给宿主中立的 `src/ingress/intake/`；`grammy` 与宿主字面量只允许出现在各 Host 自己的边界文件里，由 `test/im/host-literals.test.ts`、`test/config/host-projection-boundary.test.ts`、`test/im/transport-imports.test.ts` 三条边界测试钉住。新增 Host 的固定清单见 [agent-doc/architecture.md](agent-doc/architecture.md#新增一个-host-的固定清单)。
 
 架构细节见 [agent-doc/architecture.md](agent-doc/architecture.md)。
 
@@ -190,3 +192,4 @@ pnpm run skills:sync
 - 已配对 Agent 客户端的私钥只存在客户端 CLI（`client-key.pem`，0600），永不进入服务端、输出、参数或环境变量，也没有导出命令；每个请求用 Ed25519 签名，绑定 instance、method、target、body 摘要、时间戳与一次性 nonce，服务端用 WebCrypto 验证并持久化已用 nonce（重启后重放仍被拒）。配对码 `pwp_` 一次性、短期、默认 300 秒，数据库只存摘要；`POST /api/pairing/claim` 是唯一无需凭据的写端点，且 `/mcp` 仍只接受 Bearer key。
 - 群聊记忆的读取工具只能按当前 `internalChatId` 返回本 Chat 的摘要与原文；`read_group_messages` 只接受合法 message-id 闭区间并限制宽度与条数，不跨 Chat、不按任意 chat id 解析。整理用的模型输出必须通过事件 Schema 与批次内 message-id 校验后才能落库。
 - Admin 审计 API 全部只读；写入只允许 [admin-panel.md](agent-doc/admin-panel.md#api) 白名单中的控制端点，且都校验 `Origin`。过滤参数经白名单校验并使用绑定参数，禁止拼接 SQL。
+- 宿主差异只允许出现在各 Host 自己的 adapter、`ingress/<host>-ingestion` 边缘与配置投影层内：core 不写 `'telegram'`/`'playground'` 字面量分支，按 Host 特征表（`src/platform/host-profile.ts`）或穷举 switch 分支；按宿主原生 ID（`host_chat_id`/`host_sender_type`/`host_sender_id`）反查一律经 `src/store/host-scope.ts` 限定 Host（`message_no` 只在内部 `chat_id` 内唯一，按它查询必须同时带内部 Chat ID）；业务代码直接读 `config.telegram`、在非边界文件 import `grammy` 都会被边界测试拒绝。
