@@ -4,6 +4,7 @@ import type { ImageBridge } from '../../../image/bridge.ts';
 import type { ImageService } from '../../../image/service.ts';
 import type { HostReadiness } from '../../../orchestration/host-scope.ts';
 import type { BucketScheduler } from '../../../orchestration/scheduler/index.ts';
+import { hostExecutionProfile } from '../../../platform/host-profile.ts';
 import { ImConnectionRegistry } from '../../../platform/im-connection.ts';
 import { BUILTIN_SEARCH_PROVIDERS } from '../../../platform/web-search.ts';
 import { LongTaskService } from '../../../store/long-tasks/index.ts';
@@ -72,7 +73,8 @@ export function createAdminRoutes(deps: AdminRoutesDeps) {
   // reports every namespace as disabled, which is the truthful default.
   const connections = options.connections ?? new ImConnectionRegistry();
   // A room is always ready; Telegram only while its connection can run work.
-  const isHostReady: HostReadiness = (host) => host === 'playground' || connections.isReady(host);
+  const isHostReady: HostReadiness = (host) =>
+    hostExecutionProfile(host).connection === 'none' || connections.isReady(host);
   const tasks = options.tasks ?? new LongTaskService(options.store.orm, () => scheduler?.wake());
   const image =
     imageService === undefined || imageBridge === undefined

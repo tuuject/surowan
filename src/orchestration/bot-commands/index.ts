@@ -2,10 +2,11 @@ import { botCommandToken } from '../../platform/bot-command.ts';
 import { and, eq } from 'drizzle-orm';
 import type { Message } from 'grammy/types';
 import { ConversationContextStore } from '../../context/store/index.ts';
-import type { RawConfig } from '../../platform/config/index.ts';
+import type { ChatConfigEntry } from '../../platform/config/index.ts';
 import type { BotCommandConfigWriter } from '../../platform/config/write.ts';
 import type { AgentModelSwitcher } from '../../platform/models/switch.ts';
 import type { RuntimeConfigurationStore } from '../../platform/runtime-config.ts';
+import { telegramHostScope } from '../../store/host-scope.ts';
 import { ParticipationRegistry } from '../../store/participation.ts';
 import { chats } from '../../store/schema/index.ts';
 import { type BusinessStore, resolveChatConfig } from '../../store/store.ts';
@@ -281,12 +282,12 @@ export class BotCommandService {
       this.#store.orm
         .select({ id: chats.id })
         .from(chats)
-        .where(and(eq(chats.hostKind, 'telegram'), eq(chats.hostChatId, telegramChatId)))
+        .where(and(telegramHostScope(chats.hostKind), eq(chats.hostChatId, telegramChatId)))
         .get()?.id ?? null
     );
   }
 
-  #chatConfig(telegramChatId: bigint): RawConfig['telegram']['chats'][number] | undefined {
+  #chatConfig(telegramChatId: bigint): ChatConfigEntry | undefined {
     return resolveChatConfig(this.#configStore.current().config, this.#store.orm, telegramChatId);
   }
 

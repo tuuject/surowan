@@ -148,7 +148,7 @@ test('a room image is read locally and never falls back to Telegram', async () =
     store,
     configStore,
     secrets: new SecretStore(),
-    mediaClient: { download },
+    downloaders: { telegram: { download } },
     modelGate: new KeyedSemaphore(),
     localAssets: assets,
   });
@@ -191,6 +191,38 @@ test('a room image is read locally and never falls back to Telegram', async () =
   ).rejects.toThrow(/Room media is unavailable/);
   expect(download).not.toHaveBeenCalled();
   expect(assets.resolve(asset.id)?.path).toBe(asset.path);
+});
+
+test('readOriginalFile returns the room asset bytes and never asks a downloader', async () => {
+  const { store, directory, assets, room } = await setup();
+  const loaded = await loadConfig(join(directory, 'config.jsonc'));
+  const configStore = await testConfigStore(loaded);
+  const bytes = await png();
+  const asset = await assets.ingest(room.chatId, { bytes, declaredMime: 'image/png' });
+  const download = vi.fn(async () => {
+    throw new Error('telegram download must not run for a room asset');
+  });
+  const service = new MediaService({
+    store,
+    configStore,
+    secrets: new SecretStore(),
+    downloaders: { telegram: { download } },
+    modelGate: new KeyedSemaphore(),
+    localAssets: assets,
+  });
+  const ingress = new PlaygroundIngress(store.orm, { assets });
+  await ingress.submit(room.chatId, {
+    requestKey: 'req-original',
+    senderId: room.members[0]!.senderId,
+    text: 'file',
+    assetIds: [asset.id],
+  });
+  const [row] = store.orm.select().from(media).all();
+
+  const file = await service.readOriginalFile(row!.id, new AbortController().signal);
+  expect(file.mime).toBe('image/png');
+  expect(Buffer.compare(Buffer.from(file.bytes), Buffer.from(bytes))).toBe(0);
+  expect(download).not.toHaveBeenCalled();
 });
 
 test('an asset shared by two messages survives losing one of them', async () => {

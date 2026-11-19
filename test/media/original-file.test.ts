@@ -102,7 +102,7 @@ test('readOriginalFile hands over the downloaded bytes untouched, keeps a docume
     store,
     configStore,
     secrets: new SecretStore(),
-    mediaClient: downloader,
+    downloaders: { telegram: downloader },
     modelGate: new KeyedSemaphore(),
   });
   const signal = new AbortController().signal;

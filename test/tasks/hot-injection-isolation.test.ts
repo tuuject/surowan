@@ -95,7 +95,7 @@ test.each(['ordinary', 'receipt'] as const)(
           description: 'Inspect the current task caller in this test.',
           parameters: Type.Object({}, { additionalProperties: false }),
           execute: async () => {
-            const scope = taskService.invocationScope('exporter', context);
+            const scope = taskService.invocationScope('exporter', context, ['telegram']);
             ownedTask ??= scope.create({ payload: { private: 'Alice' } }).taskId;
             observations.push({
               caller: context.callerUserId,

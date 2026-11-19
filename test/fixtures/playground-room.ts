@@ -20,7 +20,7 @@ import {
   rooms,
   senders,
 } from '../../src/store/schema/index.ts';
-import { ROOM_SNAPSHOT_FORMAT } from '../../src/context/builder/schema.ts';
+import { ROOM_SNAPSHOT_FORMAT } from '../../src/platform/host-profile.ts';
 
 export interface SeededRoomMessage {
   readonly seq: number;

@@ -1,6 +1,6 @@
 import { and, eq, sql } from 'drizzle-orm';
 import type { BaseSQLiteDatabase } from 'drizzle-orm/sqlite-core';
-import type { RawConfig } from '../platform/config/index.ts';
+import type { ChatConfigEntry, RawConfig } from '../platform/config/index.ts';
 import type * as schema from './schema/index.ts';
 import { chatMigrations, chatPause, toolCalls } from './schema/index.ts';
 
@@ -131,11 +131,7 @@ export function purgeExpiredData(orm: Orm, config: RawConfig, now = new Date()):
   );
 }
 
-export function resolveChatConfig(
-  config: RawConfig,
-  orm: Orm,
-  chatId: bigint,
-): RawConfig['telegram']['chats'][number] | undefined {
+export function resolveChatConfig(config: RawConfig, orm: Orm, chatId: bigint): ChatConfigEntry | undefined {
   const direct = config.telegram.chats.find((chat) => BigInt(chat.id) === chatId);
   if (direct !== undefined) {
     return direct;

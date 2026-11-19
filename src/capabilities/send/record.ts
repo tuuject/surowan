@@ -50,7 +50,7 @@ export function recordOutgoingMessage(
   environment.store.orm
     .insert(senders)
     .values({
-      hostKind: 'telegram',
+      hostKind: environment.context.hostKind,
       hostSenderType: 'user',
       hostSenderId: environment.bot.id,
       displayName: environment.bot.displayName,
@@ -73,7 +73,7 @@ export function recordOutgoingMessage(
     .from(senders)
     .where(
       and(
-        eq(senders.hostKind, 'telegram'),
+        eq(senders.hostKind, environment.context.hostKind),
         eq(senders.hostSenderType, 'user'),
         eq(senders.hostSenderId, environment.bot.id),
       ),
@@ -85,7 +85,7 @@ export function recordOutgoingMessage(
   const chat = environment.store.orm
     .select({ id: chats.id })
     .from(chats)
-    .where(and(eq(chats.hostKind, 'telegram'), eq(chats.hostChatId, environment.context.chatId)))
+    .where(and(eq(chats.hostKind, environment.context.hostKind), eq(chats.hostChatId, environment.context.chatId)))
     .get();
   if (chat === undefined) {
     throw new Error('Outgoing chat row does not exist');
@@ -95,7 +95,7 @@ export function recordOutgoingMessage(
     .values({
       conversationId,
       chatId: chat.id,
-      hostKind: 'telegram',
+      hostKind: environment.context.hostKind,
       messageNo: delivered.messageId,
       visible: true,
       sentByBot: true,
@@ -147,7 +147,7 @@ export function recordOutgoingMessage(
         width: BigInt(sentPhoto.width),
         height: BigInt(sentPhoto.height),
         telegramJson: JSON.stringify({ sent: true, generated: true }),
-        hostKind: 'telegram',
+        hostKind: environment.context.hostKind,
       })
       .run();
   }
@@ -167,7 +167,7 @@ export function recordOutgoingMessage(
           fileUniqueId: sticker.fileUniqueId,
           mimeType: 'image/webp',
           telegramJson: JSON.stringify({ sent: true }),
-          hostKind: 'telegram',
+          hostKind: environment.context.hostKind,
         })
         .run();
     }

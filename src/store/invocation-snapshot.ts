@@ -1,8 +1,9 @@
 import { eq, sql } from 'drizzle-orm';
+import { TELEGRAM_SNAPSHOT_FORMAT, hostsWhere } from '../platform/host-profile.ts';
 import { bodyFromFragment } from '../platform/telegram-markdown/index.ts';
 import type { BusinessStore } from './store.ts';
 import { invocationMessages, media } from './schema/index.ts';
-import { telegramHostSql } from './host-scope.ts';
+import { hostKindsSql } from './host-scope.ts';
 
 export interface MessageSnapshotRow {
   readonly message_id: bigint;
@@ -52,8 +53,9 @@ export function snapshotInvocation(
   // new later, and a run opened beside it (a receipt, a resume) would otherwise
   // show them twice, once as history and once as new.
   // This writer only knows the Telegram snapshot format: a room's messages are
-  // frozen by the Playground release path under its own format, so non-Telegram
-  // rows stay out of both reads here.
+  // frozen by the Playground release path under its own format, so rows of any
+  // host writing another format stay out of both reads here.
+  const snapshotHosts = hostsWhere((profile) => profile.snapshotFormat === TELEGRAM_SNAPSHOT_FORMAT);
   const history = includeHistory
     ? store.orm
         .all<MessageSnapshotRow>(
@@ -66,7 +68,7 @@ export function snapshotInvocation(
          JOIN conversations v ON v.id = m.conversation_id
          JOIN message_revisions r ON r.id = m.current_revision_id
          LEFT JOIN senders s ON s.id = r.sender_id
-         WHERE m.conversation_id = ${conversationId} AND m.visible = 1 AND ${telegramHostSql('m.host_kind')}
+         WHERE m.conversation_id = ${conversationId} AND m.visible = 1 AND ${hostKindsSql('m.host_kind', snapshotHosts)}
            AND m.message_no > COALESCE(
              (SELECT message_no FROM conversation_context_cutoffs WHERE conversation_id = m.conversation_id), -1)
            AND NOT EXISTS (SELECT 1 FROM bucket_messages bm WHERE bm.bucket_id = ${bucketId} AND bm.message_id = m.id)
@@ -90,7 +92,7 @@ export function snapshotInvocation(
        JOIN conversations v ON v.id = m.conversation_id
        JOIN message_revisions r ON r.id = m.current_revision_id
        LEFT JOIN senders s ON s.id = r.sender_id
-       WHERE bm.bucket_id = ${bucketId} AND ${telegramHostSql('m.host_kind')} ORDER BY bm.sequence_no`,
+       WHERE bm.bucket_id = ${bucketId} AND ${hostKindsSql('m.host_kind', snapshotHosts)} ORDER BY bm.sequence_no`,
   );
   let sequence = options.append === true ? nextSequence(store, invocationId) : 1n;
   for (const message of history) {

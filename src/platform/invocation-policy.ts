@@ -14,7 +14,8 @@
  * debounce window itself is resolved in `config/resolve.ts`, because config
  * validation checks it per host before any policy exists.
  */
-import type { RawConfig } from './config/index.ts';
+import type { ChatConfigEntry, RawConfig } from './config/index.ts';
+import { hostExecutionProfile } from './host-profile.ts';
 import type { HostKind } from './im-host/identity.ts';
 import { resolveChatConfig, type Orm } from '../store/store.ts';
 import { resolveAgentSettings } from './config/resolve.ts';
@@ -56,13 +57,9 @@ export function invocationGateKey(hostKind: HostKind, chatId: bigint): string {
   return `${hostKind}:${chatId}`;
 }
 
-/** The Telegram chat entry for a scope, or undefined when it is not Telegram. */
-export function invocationChatEntry(
-  config: RawConfig,
-  orm: Orm,
-  scope: InvocationScope,
-): RawConfig['telegram']['chats'][number] | undefined {
-  if (scope.hostKind !== 'telegram') {
+/** The configured chat entry for a scope, or undefined on a room host. */
+export function invocationChatEntry(config: RawConfig, orm: Orm, scope: InvocationScope): ChatConfigEntry | undefined {
+  if (hostExecutionProfile(scope.hostKind).chatSource !== 'config') {
     return undefined;
   }
   return resolveChatConfig(config, orm, scope.chatId);
@@ -78,7 +75,7 @@ export function invocationChatEntry(
  */
 export function resolveInvocationPolicy(config: RawConfig, orm: Orm, scope: InvocationScope): InvocationPolicy {
   const chat = invocationChatEntry(config, orm, scope);
-  if (scope.hostKind === 'telegram' && chat === undefined) {
+  if (hostExecutionProfile(scope.hostKind).chatSource === 'config' && chat === undefined) {
     throw new Error(`Invocation chat ${scope.chatId} is no longer configured`);
   }
   return {

@@ -1,3 +1,4 @@
+import { hostExecutionProfile } from '../../../platform/host-profile.ts';
 import { resolveChatConfig, type BusinessStore } from '../../../store/store.ts';
 import type { CapabilityRefResolver, InvocationContext } from '../../../platform/invocation-context.ts';
 import type { RuntimeConfigurationStore } from '../../../platform/runtime-config.ts';
@@ -26,7 +27,7 @@ export interface MemoToolEnvironment extends MemoReadEnvironment {
  * already executing; a Chat outside the config can never gain a new record.
  */
 export function memoChatRemoved(env: MemoToolEnvironment): boolean {
-  if (env.context.hostKind !== 'telegram') {
+  if (hostExecutionProfile(env.context.hostKind).chatSource !== 'config') {
     return false;
   }
   return resolveChatConfig(env.configStore.current().config, env.store.orm, env.context.chatId) === undefined;

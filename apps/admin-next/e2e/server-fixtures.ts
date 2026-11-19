@@ -110,7 +110,7 @@ export async function openFixtures(loaded: LoadedConfig, directory: string): Pro
     store,
     configStore: runtimeConfigStore,
     secrets: runtimeSecrets,
-    mediaClient: { download: () => Promise.reject(new Error('the E2E process has no media wire')) },
+    downloaders: {},
     modelGate: new KeyedSemaphore(),
     localAssets: playgroundAssets,
   });

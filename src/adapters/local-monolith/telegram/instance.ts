@@ -9,7 +9,8 @@
  */
 
 import type { Api, Bot } from 'grammy';
-import { type MediaDownloader, TelegramMediaClient } from '../../../capabilities/media/download.ts';
+import type { MediaDownloader } from '../../../capabilities/media/download.ts';
+import { TelegramMediaClient } from './media.ts';
 import { PLAYGROUND_BOT_DISPLAY_NAME } from '../runtime/support.ts';
 import { grammyTelegramTransport } from './grammy-transport.ts';
 import type { TelegramMediaOptions, TelegramMessageOptions, TelegramSendResponse, TelegramTransport } from './host.ts';

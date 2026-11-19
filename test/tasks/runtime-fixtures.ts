@@ -75,6 +75,20 @@ export function addConversation(
     .run(conversationId, chatId, threadId, at, at);
 }
 
+/** A room (playground) chat + conversation; the host traits differ from Telegram's on purpose. */
+export function addPlaygroundConversation(store: SqliteStore, chatId: bigint, conversationId: bigint): void {
+  const at = '2026-01-01T00:00:00.000Z';
+  store.db
+    .prepare(
+      "INSERT OR IGNORE INTO chats(id, host_chat_id, canonical_chat_id, type, updated_at, host_kind) VALUES (?, ?, ?, ?, ?, 'playground')",
+    )
+    .run(chatId, chatId, chatId, 'private', at);
+  store.db
+    .prepare('INSERT INTO conversations(id, chat_id, message_thread_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?)')
+    .run(conversationId, chatId, 0n, at, at);
+  store.db.prepare('INSERT INTO rooms(chat_id, created_at, updated_at) VALUES (?, ?, ?)').run(chatId, at, at);
+}
+
 export function insertInvocation(
   store: SqliteStore,
   id: bigint,

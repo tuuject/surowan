@@ -87,7 +87,7 @@ export function seedInvocation(store: SqliteStore, invId: bigint, convId: bigint
 
 export function ctx(convId: bigint, overrides: Partial<InvocationContext> = {}): InvocationContext {
   return {
-    ...previewContext(),
+    ...previewContext('telegram'),
     invocationId: 100n,
     conversationId: convId,
     callerUserId: 42n,

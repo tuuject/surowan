@@ -1,6 +1,6 @@
 import { eq, type SQL, sql } from 'drizzle-orm';
 import { AGENT_PROMPT_VERSION } from '../../platform/agent-protocol.ts';
-import type { RawConfig } from '../../platform/config/index.ts';
+import type { ChatConfigEntry } from '../../platform/config/index.ts';
 import type { HostKind } from '../../platform/im-host/identity.ts';
 import type { RuntimeConfigurationStore } from '../../platform/runtime-config.ts';
 import { deliveryBlockReason } from '../../store/delivery-target.ts';
@@ -36,8 +36,8 @@ export interface InvocationQueueDeps {
   readonly hosts: readonly HostKind[] | undefined;
   /** Whether one host may execute work at this moment. */
   readonly isHostReady: HostReadiness;
-  /** The global sleep state is Telegram's; a process without it never reads or clears it. */
-  readonly servesTelegram: boolean;
+  /** The global sleep state belongs to hosts whose `sleep` trait is on; a process without one never reads or clears it. */
+  readonly servesSleep: boolean;
   /** `RECOVERY_MAX_AGE_MS`, owned by the service module. */
   readonly recoveryMaxAgeMs: number;
   /** `STARTUP_CATCH_UP_STATE_KEY`, owned by the service module. */
@@ -85,9 +85,9 @@ export function processConversations(deps: InvocationQueueDeps, column: SQL): SQ
   return conversationsOfHosts(activeHosts(deps.hosts, everyHostReady), column);
 }
 
-/** `activeSleepUntil` for a process that serves Telegram; null otherwise, without touching the row. */
+/** `activeSleepUntil` for a process that serves a sleep-capable host; null otherwise, without touching the row. */
 export function sleepUntilFor(deps: InvocationQueueDeps, now: Date): string | null {
-  return deps.servesTelegram ? activeSleepUntil(deps.store.orm, now) : null;
+  return deps.servesSleep ? activeSleepUntil(deps.store.orm, now) : null;
 }
 
 export function runningInvocationId(deps: InvocationQueueDeps, conversationId: bigint): bigint | undefined {
@@ -137,7 +137,7 @@ export function proactiveAllows(
   telegramChatId: bigint,
   chatType: string,
   conversationId: bigint,
-  chat: Pick<RawConfig['telegram']['chats'][number], 'proactive_reply'>,
+  chat: Pick<ChatConfigEntry, 'proactive_reply'>,
   now: Date,
 ): boolean {
   const proactive = deps.proactive;

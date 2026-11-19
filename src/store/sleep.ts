@@ -2,6 +2,7 @@ import type { AgentTool } from '@earendil-works/pi-agent-core';
 import { and, eq, sql } from 'drizzle-orm';
 import Type from 'typebox';
 import { asRunResult, finishToolCall, type Orm, startToolCall } from './store.ts';
+import type { BudgetScope } from '../platform/host-profile.ts';
 import { appState } from './schema/index.ts';
 
 export const SLEEP_REMAINING_BUDGET_PERCENT = 5n;
@@ -51,7 +52,7 @@ export function meteredTokens(usage: {
 export function readDailyTokenBudget(
   orm: Orm,
   maxTokens: number,
-  options: { readonly scope?: 'chat' | 'playground'; readonly now?: Date } = {},
+  options: { readonly scope?: BudgetScope; readonly now?: Date } = {},
 ): DailyTokenBudget {
   const scope = options.scope ?? 'chat';
   const now = options.now ?? new Date();

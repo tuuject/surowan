@@ -2,7 +2,8 @@ import { readFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import Type from 'typebox';
 import { Compile } from 'typebox/compile';
-import { parseHostKind } from '../../platform/im-host/identity.ts';
+import { hostExecutionProfile } from '../../platform/host-profile.ts';
+import { parseHostKind, unreachableHostKind } from '../../platform/im-host/identity.ts';
 import { MAX_DOWNLOAD_BYTES } from './image.ts';
 import { createWorkDirectory, type MediaImageInputDeps, selectMediaRow } from './image-input.ts';
 
@@ -28,20 +29,32 @@ export async function readOriginalFile(
   }
   const mime = media.mimeType ?? 'image/jpeg';
   const fileName = documentName(media.telegramJson) ?? `${media.kind}-${media.id.toString()}`;
-  if (parseHostKind(media.hostKind) === 'playground') {
-    const asset = media.localAssetId === null ? null : (deps.localAssets?.resolve(media.localAssetId) ?? null);
-    if (asset === null) {
-      throw new Error('Room media is unavailable');
+  const hostKind = parseHostKind(media.hostKind);
+  const mediaSource = hostExecutionProfile(hostKind).mediaSource;
+  switch (mediaSource) {
+    case 'local_asset': {
+      const asset = media.localAssetId === null ? null : (deps.localAssets?.resolve(media.localAssetId) ?? null);
+      if (asset === null) {
+        throw new Error('Room media is unavailable');
+      }
+      return { bytes: await readFile(asset.path), fileName, mime };
     }
-    return { bytes: await readFile(asset.path), fileName, mime };
-  }
-  const directory = await createWorkDirectory(deps.configStore, 'file-');
-  try {
-    const path = join(directory, 'original');
-    await deps.mediaClient.download(media.fileId, path, signal);
-    return { bytes: await readFile(path), fileName, mime };
-  } finally {
-    await rm(directory, { recursive: true, force: true });
+    case 'download': {
+      const directory = await createWorkDirectory(deps.configStore, 'file-');
+      try {
+        const path = join(directory, 'original');
+        const downloader = deps.downloaders[hostKind];
+        if (downloader === undefined) {
+          throw new Error(`No media downloader for host ${hostKind}`);
+        }
+        await downloader.download(media.fileId, path, signal);
+        return { bytes: await readFile(path), fileName, mime };
+      } finally {
+        await rm(directory, { recursive: true, force: true });
+      }
+    }
+    default:
+      return unreachableHostKind(mediaSource);
   }
 }
 

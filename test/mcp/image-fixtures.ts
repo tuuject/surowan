@@ -63,7 +63,7 @@ export async function imageFixture(payloadMaxBytes = 1_048_576) {
   const contexts = new ConversationContextStore(f.store);
   const { header } = contexts.open(seed.conversationId, 'mcp-test');
   const context = {
-    ...previewContext(),
+    ...previewContext('telegram'),
     invocationId: seed.invocationA,
     conversationId: seed.conversationId,
     // The MCP binding is resolved from the published configuration, which lists

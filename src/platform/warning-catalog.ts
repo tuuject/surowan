@@ -1,5 +1,7 @@
 import { activeVisionModel } from './config/resolve.ts';
 import type { RawConfig } from './config/index.ts';
+import { hostsWhere } from './host-profile.ts';
+import type { HostKind } from './im-host/identity.ts';
 import type { ImConnectionRegistry } from './im-connection.ts';
 
 /**
@@ -131,14 +133,27 @@ export function standingWarnings(
     const missingVisionFields = VISION_MODEL_FIELDS.filter((field) => config.vision[field] === undefined);
     standing.push(entry('vision_model_missing', { missing_fields: missingVisionFields }));
   }
-  // A disabled Telegram is a deliberate choice, so it never warns. The state
-  // itself carries whether the failure is unreachable or unusable configuration.
-  const telegram = connections.get('telegram');
-  if (telegram.status === 'network_error') {
-    standing.push(entry('telegram_network_error', {}));
-  }
-  if (telegram.status === 'config_error') {
-    standing.push(entry('telegram_config_error', { reason: telegram.reason }));
+  // A disabled host connection is a deliberate choice, so it never warns. The
+  // state itself carries whether the failure is unreachable or unusable
+  // configuration. Each registry host owns its own warning names; the map is
+  // total over HostKind so a new host must say `null` explicitly rather than
+  // inheriting another host's warnings or breaking this endpoint at runtime.
+  const connectionWarnings: Record<HostKind, { network: WarningCode; config: WarningCode } | null> = {
+    telegram: { network: 'telegram_network_error', config: 'telegram_config_error' },
+    playground: null,
+  };
+  for (const host of hostsWhere((profile) => profile.connection === 'registry')) {
+    const names = connectionWarnings[host];
+    if (names === null) {
+      continue;
+    }
+    const state = connections.get(host);
+    if (state.status === 'network_error') {
+      standing.push(entry(names.network, {}));
+    }
+    if (state.status === 'config_error') {
+      standing.push(entry(names.config, { reason: state.reason }));
+    }
   }
   const deprecatedRequired = (config.mcp?.servers ?? [])
     .filter((server) => server.required !== undefined)

@@ -1,7 +1,7 @@
-/** Where a conversation physically lives. */
-export type HostKind = 'telegram' | 'playground';
+/** Where a conversation physically lives. The tuple is the one source; the union derives from it. */
+export const HOST_KINDS = ['telegram', 'playground'] as const;
 
-export const HOST_KINDS = ['telegram', 'playground'] as const satisfies readonly HostKind[];
+export type HostKind = (typeof HOST_KINDS)[number];
 
 /** Whether `value` is one of the host kinds this build serves. */
 export function isHostKind(value: unknown): value is HostKind {
@@ -23,6 +23,11 @@ export function parseHostKind(value: unknown): HostKind {
     return value;
   }
   throw new Error(`Unknown host kind: ${String(value)}`);
+}
+
+/** The `default` arm of a `switch` that already covers every `HostKind`. */
+export function unreachableHostKind(kind: never): never {
+  throw new Error(`Unhandled host kind: ${String(kind)}`);
 }
 
 /**

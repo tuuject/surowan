@@ -9,7 +9,7 @@
  */
 import type { AgentTool } from '@earendil-works/pi-agent-core';
 import type { RawConfig } from '../../platform/config/index.ts';
-import { hostExecutionProfile } from '../../platform/host-profile.ts';
+import { hostExecutionProfile, mcpCapableHost } from '../../platform/host-profile.ts';
 import { type InvocationContext, previewContext } from '../../platform/invocation-context.ts';
 import type { SecretStore } from '../../platform/secrets.ts';
 import type { McpServerAvailability } from '../../platform/warning-catalog.ts';
@@ -199,7 +199,12 @@ export class McpManager {
     assertConfigBindings(this.#state, config);
     return resolutions(this.#state, config).map((resolution) => ({
       chatIds: resolution.chatIds,
-      tools: buildTools(this.#callDeps, resolution.definitions, previewContext(), Number.MAX_SAFE_INTEGER),
+      tools: buildTools(
+        this.#callDeps,
+        resolution.definitions,
+        previewContext(mcpCapableHost()),
+        Number.MAX_SAFE_INTEGER,
+      ),
     }));
   }
 

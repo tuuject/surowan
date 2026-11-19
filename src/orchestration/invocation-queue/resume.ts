@@ -1,5 +1,7 @@
 import { and, eq, gt, inArray, sql } from 'drizzle-orm';
 import { AGENT_PROMPT_VERSION } from '../../platform/agent-protocol.ts';
+import { hostExecutionProfile } from '../../platform/host-profile.ts';
+import { isHostKind } from '../../platform/im-host/identity.ts';
 import type { RawConfig } from '../../platform/config/index.ts';
 import type { RuntimeConfigurationStore } from '../../platform/runtime-config.ts';
 import { type DeliveryBlockReason, deliveryBlockReason, deliveryTarget } from '../../store/delivery-target.ts';
@@ -85,12 +87,13 @@ export function resumeBlockReason(
   }
   // A Playground room retries through its own Release ledger; a run without a
   // Release would sit outside it.
-  if (target.hostKind !== 'telegram') {
+  const targetHostKind = isHostKind(target.hostKind) ? target.hostKind : undefined;
+  if (targetHostKind === undefined || hostExecutionProfile(targetHostKind).intake !== 'bucket') {
     return 'unsupported_host';
   }
   // The scheduler never launches work of a host that is disabled or not
   // connected; the run would sit queued and block every later resume.
-  if (!isHostReady('telegram')) {
+  if (!isHostReady(targetHostKind)) {
     return 'host_unavailable';
   }
   const blocked = deliveryBlockReason(orm, config, target);
@@ -98,10 +101,13 @@ export function resumeBlockReason(
     return blocked;
   }
   // The scheduler would skip the queued run as `sleeping`; refusing here tells
-  // the operator instead of failing out of sight.
-  const sleepUntil = storedSleepUntil(orm);
-  if (sleepUntil !== null && sleepUntil > now.toISOString()) {
-    return 'sleeping';
+  // the operator instead of failing out of sight. Only a host whose profile
+  // carries the global sleep is held by it.
+  if (hostExecutionProfile(targetHostKind).sleep) {
+    const sleepUntil = storedSleepUntil(orm);
+    if (sleepUntil !== null && sleepUntil > now.toISOString()) {
+      return 'sleeping';
+    }
   }
   return undefined;
 }

@@ -1,5 +1,6 @@
 import { join } from 'node:path';
 import { capability } from '../../capabilities/execute-tool.ts';
+import { hostExecutionProfile } from '../../platform/host-profile.ts';
 import { definePlugin } from '../plugin.ts';
 import { createDictionaryTools } from './tools.ts';
 import { createDictionaryInjector } from './injection.ts';
@@ -15,9 +16,9 @@ export default definePlugin({
   hosts: ['telegram'],
   skills: [join(import.meta.dirname, 'skills', 'dictionary')],
   capabilities: (scope) =>
-    // Dictionary scopes are Telegram chats. A room's chat id is internal and
+    // Dictionary scopes are configured chats. A room's chat id is internal and
     // must never be read as one, so the tools are not offered to a room.
-    scope.context.hostKind === 'telegram'
+    hostExecutionProfile(scope.context.hostKind).chatSource === 'config'
       ? createDictionaryTools({
           store: new DictionaryStore(scope.orm),
           orm: scope.orm,

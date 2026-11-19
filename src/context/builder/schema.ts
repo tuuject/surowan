@@ -1,6 +1,7 @@
 import Type, { type Static } from 'typebox';
 import Compile from 'typebox/compile';
-import type { HostKind } from '../../platform/im-host/identity.ts';
+import { hostExecutionProfile } from '../../platform/host-profile.ts';
+import { type HostKind, unreachableHostKind } from '../../platform/im-host/identity.ts';
 import type { ContextRefStore } from '../refs.ts';
 import type { ContextHeader } from '../store/types.ts';
 
@@ -64,12 +65,6 @@ export const MessageSnapshotSchema = Type.Object(
   },
   Strict,
 );
-
-/** The frozen format a Telegram invocation writes. */
-export const TELEGRAM_SNAPSHOT_FORMAT = 'plasticwan.invocation-snapshot.v1';
-
-/** The frozen format a Playground invocation writes. */
-export const ROOM_SNAPSHOT_FORMAT = 'plasticwan.invocation-snapshot.playground.v1';
 
 /**
  * A room message as it was frozen for one invocation.
@@ -164,13 +159,9 @@ export function prepareSnapshot(
   // The frozen row names its format; it must agree with the invocation's
   // host. That keeps a Telegram payload from being read as a room payload
   // (or the reverse) even if a row is copied between hosts.
-  const expectedFormat = hostKind === 'telegram' ? TELEGRAM_SNAPSHOT_FORMAT : ROOM_SNAPSHOT_FORMAT;
+  const expectedFormat = hostExecutionProfile(hostKind).snapshotFormat;
   if (format !== expectedFormat) {
     throw new Error(`Stored invocation message has format ${format}, expected ${expectedFormat}`);
-  }
-  const validator = hostKind === 'telegram' ? snapshotValidator : roomSnapshotValidator;
-  if (!validator.Check(parsed)) {
-    throw new Error('Stored invocation message does not match its schema');
   }
   const payload = parsed as unknown as {
     message_id: string;
@@ -197,63 +188,79 @@ export function prepareSnapshot(
       height: string | null;
     }>;
   };
-  const media = payload.media.map((entry) => {
-    const mediaId = BigInt(entry.id);
-    const reference = refs.mediaRef(header, mediaId, sourceSeq, now);
-    mediaIds.set(reference, mediaId);
-    return {
-      image_ref: reference,
-      kind: entry.kind,
-      mime_type: entry.mime_type,
-      width: entry.width,
-      height: entry.height,
-    };
-  });
-  if (hostKind === 'playground') {
-    const room = payload as unknown as {
-      message_id: string;
-      sent_at: string;
-      sent_by_bot: boolean;
-      sender: { ref: string; name: string };
-      kind: string;
-      text: string | null;
-      caption: string | null;
-      reply_to_message_id: string | null;
-      reply_snapshot: unknown;
-    };
-    return {
-      message_id: room.message_id,
-      telegram_date: room.sent_at,
-      sent_by_bot: room.sent_by_bot,
-      sender: { id: null, name: room.sender.name, username: null },
-      senderRef: room.sender.ref,
-      kind: room.kind,
-      text: room.text,
-      caption: room.caption,
-      reply_to_message_id: room.reply_to_message_id,
-      reply_snapshot: room.reply_snapshot,
-      forward_origin: null,
-      media_group_id: null,
-      media,
-    };
+  // The frozen media list is format-identical across hosts, so the ref mapping
+  // is shared; each host arm validates first, then projects its own shape.
+  const media = (entries: typeof payload.media) =>
+    entries.map((entry) => {
+      const mediaId = BigInt(entry.id);
+      const reference = refs.mediaRef(header, mediaId, sourceSeq, now);
+      mediaIds.set(reference, mediaId);
+      return {
+        image_ref: reference,
+        kind: entry.kind,
+        mime_type: entry.mime_type,
+        width: entry.width,
+        height: entry.height,
+      };
+    });
+  switch (hostKind) {
+    case 'playground': {
+      if (!roomSnapshotValidator.Check(parsed)) {
+        throw new Error('Stored invocation message does not match its schema');
+      }
+      const room = parsed as unknown as {
+        message_id: string;
+        sent_at: string;
+        sent_by_bot: boolean;
+        sender: { ref: string; name: string };
+        kind: string;
+        text: string | null;
+        caption: string | null;
+        reply_to_message_id: string | null;
+        reply_snapshot: unknown;
+        media: typeof payload.media;
+      };
+      return {
+        message_id: room.message_id,
+        telegram_date: room.sent_at,
+        sent_by_bot: room.sent_by_bot,
+        sender: { id: null, name: room.sender.name, username: null },
+        senderRef: room.sender.ref,
+        kind: room.kind,
+        text: room.text,
+        caption: room.caption,
+        reply_to_message_id: room.reply_to_message_id,
+        reply_snapshot: room.reply_snapshot,
+        forward_origin: null,
+        media_group_id: null,
+        media: media(room.media),
+      };
+    }
+    case 'telegram': {
+      if (!snapshotValidator.Check(parsed)) {
+        throw new Error('Stored invocation message does not match its schema');
+      }
+      return {
+        message_id: payload.message_id,
+        ...(payload.message_thread_id === undefined ? {} : { message_thread_id: payload.message_thread_id }),
+        telegram_date: payload.telegram_date,
+        sent_by_bot: payload.sent_by_bot,
+        sender: payload.sender,
+        senderRef: null,
+        kind: payload.kind,
+        text: payload.text,
+        caption: payload.caption,
+        ...(payload.match_text === undefined ? {} : { match_text: payload.match_text }),
+        ...(payload.spoilers === undefined ? {} : { spoilers: payload.spoilers }),
+        ...(payload.media_slots === undefined ? {} : { media_slots: payload.media_slots }),
+        reply_to_message_id: payload.reply_to_message_id,
+        reply_snapshot: payload.reply_snapshot,
+        forward_origin: payload.forward_origin,
+        media_group_id: payload.media_group_id,
+        media: media(payload.media),
+      };
+    }
+    default:
+      return unreachableHostKind(hostKind);
   }
-  return {
-    message_id: payload.message_id,
-    ...(payload.message_thread_id === undefined ? {} : { message_thread_id: payload.message_thread_id }),
-    telegram_date: payload.telegram_date,
-    sent_by_bot: payload.sent_by_bot,
-    sender: payload.sender,
-    senderRef: null,
-    kind: payload.kind,
-    text: payload.text,
-    caption: payload.caption,
-    ...(payload.match_text === undefined ? {} : { match_text: payload.match_text }),
-    ...(payload.spoilers === undefined ? {} : { spoilers: payload.spoilers }),
-    ...(payload.media_slots === undefined ? {} : { media_slots: payload.media_slots }),
-    reply_to_message_id: payload.reply_to_message_id,
-    reply_snapshot: payload.reply_snapshot,
-    forward_origin: payload.forward_origin,
-    media_group_id: payload.media_group_id,
-    media,
-  };
 }

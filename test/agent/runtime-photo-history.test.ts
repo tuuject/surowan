@@ -131,11 +131,13 @@ test('keeps history photos as img_ refs for the multimodal agent while attaching
     store,
     configStore,
     secrets: new SecretStore(),
-    mediaClient: {
-      download: async (fileId, destination, signal) => {
-        signal.throwIfAborted();
-        expect(fileId).toBe('history-photo');
-        await copyFile(fixturePath, destination);
+    downloaders: {
+      telegram: {
+        download: async (fileId, destination, signal) => {
+          signal.throwIfAborted();
+          expect(fileId).toBe('history-photo');
+          await copyFile(fixturePath, destination);
+        },
       },
     },
     modelGate: new KeyedSemaphore(),
@@ -257,11 +259,13 @@ test('lets a text-only agent read a Telegram photo through read_image', async ()
     store,
     configStore,
     secrets: new SecretStore(),
-    mediaClient: {
-      download: async (fileId, destination, signal) => {
-        signal.throwIfAborted();
-        expect(fileId).toBe('photo-file');
-        await copyFile(fixturePath, destination);
+    downloaders: {
+      telegram: {
+        download: async (fileId, destination, signal) => {
+          signal.throwIfAborted();
+          expect(fileId).toBe('photo-file');
+          await copyFile(fixturePath, destination);
+        },
       },
     },
     modelGate: new KeyedSemaphore(),

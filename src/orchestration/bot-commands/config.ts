@@ -1,5 +1,5 @@
 import { getSupportedThinkingLevels, type ModelThinkingLevel } from '@earendil-works/pi-ai';
-import type { AgentSettings, RawConfig } from '../../platform/config/index.ts';
+import type { AgentSettings, ChatConfigEntry, RawConfig } from '../../platform/config/index.ts';
 import { completeAgentSettings, resolveAgentSettings } from '../../platform/config/resolve.ts';
 import type { BotCommandConfigWriter } from '../../platform/config/write.ts';
 import { modelDisplayLabel } from '../../platform/models/label.ts';
@@ -280,7 +280,7 @@ function effortMenu(
   provider: string,
   modelId: string,
   level: ModelThinkingLevel | undefined,
-  chatConfig: RawConfig['telegram']['chats'][number],
+  chatConfig: ChatConfigEntry,
   supported: readonly ModelThinkingLevel[],
 ): string {
   // A reasoning model may declare a single level such as `high`; only an
@@ -316,7 +316,7 @@ function modelMenu(
   page: number,
   options: readonly AgentModelOption[],
   effective: AgentSettings,
-  chatConfig: RawConfig['telegram']['chats'][number],
+  chatConfig: ChatConfigEntry,
 ): string {
   const hasProviderOverride = chatConfig.provider !== undefined;
   const hasModelOverride = chatConfig.model !== undefined;

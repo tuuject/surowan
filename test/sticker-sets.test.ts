@@ -91,7 +91,7 @@ async function harness(): Promise<Harness> {
     store,
     configStore: await testConfigStore(loaded),
     secrets: new SecretStore(),
-    mediaClient: unusedDownloader,
+    downloaders: { telegram: unusedDownloader },
     modelGate: new KeyedSemaphore(),
   });
   const config = { current: loaded.config };

@@ -233,7 +233,7 @@ async function main(): Promise<void> {
       await manager.start();
       await awaitServerAttempts(manager);
       const context = {
-        ...previewContext(),
+        ...previewContext('telegram'),
         invocationId: seed.invocationA,
         conversationId: seed.conversationId,
         chatId: BigInt(loaded.config.telegram.chats[0]?.id ?? 0),

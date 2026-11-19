@@ -394,8 +394,8 @@ describe('configuration snapshots', () => {
       throw new Error('Expected both faux models to be registered');
     }
     try {
-      expect(() => runtime.validateAdditionalTools(previewContext(), [], large)).not.toThrow();
-      expect(() => runtime.validateAdditionalTools(previewContext(), [], small)).toThrow(
+      expect(() => runtime.validateAdditionalTools(previewContext('telegram'), [], large)).not.toThrow();
+      expect(() => runtime.validateAdditionalTools(previewContext('telegram'), [], small)).toThrow(
         /10% of the model context window/,
       );
     } finally {

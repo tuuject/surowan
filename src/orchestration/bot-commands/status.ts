@@ -1,13 +1,14 @@
 import { and, eq, sql } from 'drizzle-orm';
 import type { ConversationContextStore } from '../../context/store/index.ts';
 import { listConversationContexts } from '../../context/store/queries.ts';
-import type { RawConfig } from '../../platform/config/index.ts';
+import type { ChatConfigEntry } from '../../platform/config/index.ts';
 import { resolveAgentSettings } from '../../platform/config/resolve.ts';
 import { modelDisplayLabel } from '../../platform/models/label.ts';
 import { isWithinActiveWindows } from '../../platform/participation.ts';
 import type { RuntimeConfigurationStore } from '../../platform/runtime-config.ts';
 import { chatAttentionUntil, type ParticipationRegistry } from '../../store/participation.ts';
 import { chats, dailyUsage } from '../../store/schema/index.ts';
+import { telegramHostScope } from '../../store/host-scope.ts';
 import { readDailyTokenBudget } from '../../store/sleep.ts';
 import { type BusinessStore, isChatPaused } from '../../store/store.ts';
 
@@ -17,7 +18,7 @@ export interface BotCommandStatusDeps {
   readonly contexts: ConversationContextStore;
   readonly participation: ParticipationRegistry;
   internalChatId(telegramChatId: bigint): bigint | null;
-  chatConfig(telegramChatId: bigint): RawConfig['telegram']['chats'][number] | undefined;
+  chatConfig(telegramChatId: bigint): ChatConfigEntry | undefined;
 }
 
 export function chatStatus(deps: BotCommandStatusDeps, telegramChatId: bigint, now: Date): string {
@@ -130,7 +131,7 @@ function participationLine(
   const chat = deps.store.orm
     .select({ type: chats.type })
     .from(chats)
-    .where(and(eq(chats.hostKind, 'telegram'), eq(chats.hostChatId, telegramChatId)))
+    .where(and(telegramHostScope(chats.hostKind), eq(chats.hostChatId, telegramChatId)))
     .get();
   if (chat === undefined) {
     return null;
