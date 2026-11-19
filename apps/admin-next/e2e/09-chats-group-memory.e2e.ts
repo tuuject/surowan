@@ -48,6 +48,10 @@ test('group memory can be enabled, tuned and disabled from the Chat row', async 
   dialog = page.getByRole('dialog');
   const clock = dialog.getByRole('radiogroup', { name: '30-hour clock for date searches' });
   await expect(clock.getByRole('radio', { name: /^Off/ })).toBeChecked();
+  // The previous save's toast reads "restart required" because the fixture
+  // overrides admin.port in memory; let it expire so the screenshot shows only
+  // the dialog and the tooltip.
+  await expect(page.locator('[data-koi-toast]')).toHaveCount(0, { timeout: 10_000 });
   await dialog.getByRole('button', { name: 'About the 30-hour clock' }).hover();
   const tooltip = page.getByRole('tooltip');
   await expect(tooltip).toContainText('Japanese broadcasting');
@@ -65,6 +69,8 @@ test('group memory can be enabled, tuned and disabled from the Chat row', async 
     idle_minutes: 45,
     thirty_hour_clock: 'non_overlapping',
   });
+  // Hot-applied: nothing about group memory waits for a restart.
+  expect((await viewOf(page)).restart_required.filter((path) => path.includes('group_memory'))).toEqual([]);
   await expect(row().getByRole('cell').nth(5)).toContainText('On, idle 45 min, 30-hour clock');
 
   await openChatAction(page, row(), 'Edit group memory');
