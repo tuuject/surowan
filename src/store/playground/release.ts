@@ -19,7 +19,7 @@ import {
   senders,
 } from '../schema/index.ts';
 import { PlaygroundError, type PlaygroundDeps, roomRow } from './shared.ts';
-import { ROOM_SNAPSHOT_FORMAT } from '../../context/builder/schema.ts';
+import { ROOM_SNAPSHOT_FORMAT } from '../../platform/host-profile.ts';
 
 const RELEASE_HISTORY_MESSAGES = 0;
 

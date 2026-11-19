@@ -35,7 +35,7 @@ export async function seedAdminToolImages(store: BusinessStore, dataDir: string,
       ],
     },
     { serverAlias: 'fixture', originalName: 'capture', resultMaxBytes: 32_768 },
-    { ...previewContext(), internalChatId: seed.chatId, conversationId: seed.conversationId },
+    { ...previewContext('telegram'), internalChatId: seed.chatId, conversationId: seed.conversationId },
     localImageAssets(store.orm, dataDir),
     new AbortController().signal,
   );

@@ -1,6 +1,7 @@
 import { and, eq, isNull, ne, sql } from 'drizzle-orm';
+import { hostsWhere } from '../../platform/host-profile.ts';
 import { buckets, invocationBuckets, invocations, taskReceipts } from '../../store/schema/index.ts';
-import { telegramHostSql } from '../../store/host-scope.ts';
+import { hostKindsSql } from '../../store/host-scope.ts';
 import { asRunResult } from '../../store/store.ts';
 import {
   enqueueBucketInvocation,
@@ -153,12 +154,19 @@ export function skipQueuedInvocations(deps: InvocationQueueDeps, sleepUntil: str
        JOIN conversations v ON v.id = i.conversation_id
        JOIN chats c ON c.id = v.chat_id
        WHERE i.state = 'queued'
-         AND ${telegramHostSql('c.host_kind')}
+         AND ${hostKindsSql(
+           'c.host_kind',
+           hostsWhere((profile) => profile.sleep),
+         )}
          AND ${servedConversations(deps, sql`i.conversation_id`)}
          AND NOT EXISTS (
            SELECT 1 FROM task_receipts r JOIN long_tasks t ON t.id = r.task_id
            WHERE r.invocation_id = i.id AND r.state = 'claimed'
              AND json_extract(t.delivery_json, '$.bypassDailyBudget') = 1
+             AND ${hostKindsSql(
+               'c.host_kind',
+               hostsWhere((profile) => profile.budgetBypass),
+             )}
          )
        ORDER BY i.id`,
     );

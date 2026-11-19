@@ -150,11 +150,7 @@ export class LongTaskService {
    * Without this check a tool that is not mounted on a host could still create
    * work for it through the generic task service and bypass the tool layer.
    */
-  invocationScope(
-    pluginId: string,
-    liveContext: InvocationContext,
-    hosts: readonly HostKind[] = ['telegram'],
-  ): PluginTaskScope {
+  invocationScope(pluginId: string, liveContext: InvocationContext, hosts: readonly HostKind[]): PluginTaskScope {
     this.#assertPluginHost(pluginId, liveContext.conversationId, hosts);
     return this.#scope(
       pluginId,

@@ -232,6 +232,7 @@ test('the plugin scope stores tool images only under the invocation Chat and web
     };
     let scoped: ((bytes: Uint8Array, signal: AbortSignal) => Promise<unknown>) | undefined;
     const probe = definePlugin({
+      hosts: ['telegram'],
       id: 'scope-probe',
       capabilities: (scope) => {
         scoped = scope.storeToolImage;

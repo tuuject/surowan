@@ -79,7 +79,7 @@ test('a switched vision model analyzes under its own cache version', async () =>
     store,
     configStore,
     secrets: new SecretStore(),
-    mediaClient: downloader,
+    downloaders: { telegram: downloader },
     modelGate,
   });
   const tool = media.createReadImageTool(context, capabilities, Date.now() + 60_000);

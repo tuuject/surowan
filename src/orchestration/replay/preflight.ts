@@ -7,6 +7,8 @@ import { type Api, getSupportedThinkingLevels, type Model } from '@earendil-work
 import { eq } from 'drizzle-orm';
 import type { SceneContext } from '../../context/scene/index.ts';
 import type { ActiveAgentSettings, RawConfig } from '../../platform/config/index.ts';
+import { hostExecutionProfile } from '../../platform/host-profile.ts';
+import { type HostKind, isHostKind } from '../../platform/im-host/identity.ts';
 import type { InvocationConfigSnapshot, RuntimeConfigurationStore } from '../../platform/runtime-config.ts';
 import { isThinkingLevel } from '../../platform/thinking-levels.ts';
 import { chats, conversations, invocations } from '../../store/schema/index.ts';
@@ -26,6 +28,7 @@ export interface ReplayGuardDeps {
 
 /** Source identity only; no historical model requests or private agent history. */
 export interface ReplaySource {
+  readonly hostKind: HostKind;
   readonly conversationId: bigint;
   readonly chatId: bigint;
   readonly threadId: bigint;
@@ -108,10 +111,14 @@ export function checkReplaySource(deps: ReplayGuardDeps, id: bigint): ReplayChec
       message: 'Replay requires a finished invocation',
     };
   }
-  // Replay resolves the Telegram chat configuration, so it can only reproduce
-  // Telegram-hosted invocations. Say so explicitly instead of reading a
-  // Telegram id that a virtual row does not have.
-  if (source.hostKind !== 'telegram' || source.chatId === null) {
+  // Replay resolves the configured chat entry, so it can only reproduce
+  // invocations on a config-backed host. Say so explicitly instead of reading
+  // a host-native id that a virtual room does not have.
+  if (
+    !isHostKind(source.hostKind) ||
+    hostExecutionProfile(source.hostKind).chatSource !== 'config' ||
+    source.chatId === null
+  ) {
     return {
       ok: false,
       code: 'replay_host_unsupported',
@@ -121,6 +128,7 @@ export function checkReplaySource(deps: ReplayGuardDeps, id: bigint): ReplayChec
   return {
     ok: true,
     source: {
+      hostKind: source.hostKind,
       conversationId: source.conversationId,
       chatId: source.chatId,
       threadId: source.threadId,

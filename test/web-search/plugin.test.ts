@@ -100,6 +100,7 @@ test('the live steer sink reaches the capability that detects a changed engine l
 
 test('a second provider plugin claiming an existing id is rejected at load', () => {
   const twin = definePlugin({
+    hosts: ['telegram'],
     id: 'web-search-twin',
     dependencies: ['web-search'],
     extensions: [contribute(WEB_SEARCH_PROVIDERS, tavilySpec)],

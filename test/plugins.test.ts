@@ -12,25 +12,33 @@ import { SqliteStore } from '../src/adapters/local-monolith/database.ts';
 import { renderInvocationContext, testConfigStore, writeTestConfig } from './helpers.ts';
 
 test('loadPlugins rejects invalid, duplicate and runtime-reserved plugin ids', () => {
-  expect(() => loadPlugins([definePlugin({ id: 'Web_Fetch' })])).toThrow('Plugin id is invalid: Web_Fetch');
-  expect(() => loadPlugins([definePlugin({ id: 'twin' }), definePlugin({ id: 'twin' })])).toThrow(
-    'Duplicate plugin id: twin',
+  expect(() => loadPlugins([definePlugin({ hosts: ['telegram'], id: 'Web_Fetch' })])).toThrow(
+    'Plugin id is invalid: Web_Fetch',
   );
+  expect(() =>
+    loadPlugins([definePlugin({ hosts: ['telegram'], id: 'twin' }), definePlugin({ hosts: ['telegram'], id: 'twin' })]),
+  ).toThrow('Duplicate plugin id: twin');
   // A plugin owning this id would have its task payloads rendered as an operator instruction.
-  expect(() => loadPlugins([definePlugin({ id: 'recurring-alarm' })])).toThrow(
+  expect(() => loadPlugins([definePlugin({ hosts: ['telegram'], id: 'recurring-alarm' })])).toThrow(
     'Plugin id is reserved by the runtime: recurring-alarm',
   );
 });
 
+test('loadPlugins rejects a plugin with an empty hosts declaration', () => {
+  expect(() => loadPlugins([definePlugin({ hosts: [], id: 'homeless' })])).toThrow(/homeless/);
+});
+
 test('loadPlugins loads dependencies first and collects their extension values', () => {
   const point = defineExtensionPoint<{ readonly id: string }>('search.providers', (value) => value.id);
-  const host = definePlugin({ id: 'host', extensionPoints: [point] });
+  const host = definePlugin({ hosts: ['telegram'], id: 'host', extensionPoints: [point] });
   const one = definePlugin({
+    hosts: ['telegram'],
     id: 'one',
     dependencies: ['host'],
     extensions: [contribute(point, { id: 'one' })],
   });
   const two = definePlugin({
+    hosts: ['telegram'],
     id: 'two',
     dependencies: ['host'],
     extensions: [contribute(point, { id: 'two' })],
@@ -40,53 +48,78 @@ test('loadPlugins loads dependencies first and collects their extension values',
 });
 
 test('loadPlugins rejects a broken dependency graph', () => {
-  expect(() => loadPlugins([definePlugin({ id: 'one', dependencies: ['missing'] })])).toThrow(
+  expect(() => loadPlugins([definePlugin({ hosts: ['telegram'], id: 'one', dependencies: ['missing'] })])).toThrow(
     'depends on unknown plugin missing',
   );
-  expect(() => loadPlugins([definePlugin({ id: 'one', dependencies: ['two'] }), definePlugin({ id: 'two' })])).toThrow(
-    'must load after its dependency two',
+  expect(() =>
+    loadPlugins([
+      definePlugin({ hosts: ['telegram'], id: 'one', dependencies: ['two'] }),
+      definePlugin({ hosts: ['telegram'], id: 'two' }),
+    ]),
+  ).toThrow('must load after its dependency two');
+  expect(() => loadPlugins([definePlugin({ hosts: ['telegram'], id: 'one', dependencies: ['one'] })])).toThrow(
+    'cannot depend on itself',
   );
-  expect(() => loadPlugins([definePlugin({ id: 'one', dependencies: ['one'] })])).toThrow('cannot depend on itself');
   // A cycle can never satisfy "dependencies load first".
   expect(() =>
     loadPlugins([
-      definePlugin({ id: 'one', dependencies: ['two'] }),
-      definePlugin({ id: 'two', dependencies: ['one'] }),
+      definePlugin({ hosts: ['telegram'], id: 'one', dependencies: ['two'] }),
+      definePlugin({ hosts: ['telegram'], id: 'two', dependencies: ['one'] }),
     ]),
   ).toThrow();
 });
 
 test('loadPlugins rejects invalid extension contributions', () => {
   const point = defineExtensionPoint<{ readonly id: string }>('search.providers', (value) => value.id);
-  expect(() => loadPlugins([definePlugin({ id: 'one', extensions: [contribute(point, { id: 'one' })] })])).toThrow(
-    'contributes to unknown extension point search.providers',
-  );
+  expect(() =>
+    loadPlugins([definePlugin({ hosts: ['telegram'], id: 'one', extensions: [contribute(point, { id: 'one' })] })]),
+  ).toThrow('contributes to unknown extension point search.providers');
   expect(() =>
     loadPlugins([
-      definePlugin({ id: 'host', extensionPoints: [point] }),
-      definePlugin({ id: 'one', extensions: [contribute(point, { id: 'one' })] }),
+      definePlugin({ hosts: ['telegram'], id: 'host', extensionPoints: [point] }),
+      definePlugin({ hosts: ['telegram'], id: 'one', extensions: [contribute(point, { id: 'one' })] }),
     ]),
   ).toThrow('contributes to search.providers without depending on host');
   expect(() =>
     loadPlugins([
-      definePlugin({ id: 'host', extensionPoints: [point] }),
-      definePlugin({ id: 'twin', dependencies: ['host'], extensionPoints: [point] }),
+      definePlugin({ hosts: ['telegram'], id: 'host', extensionPoints: [point] }),
+      definePlugin({ hosts: ['telegram'], id: 'twin', dependencies: ['host'], extensionPoints: [point] }),
     ]),
   ).toThrow('Duplicate extension point search.providers');
   expect(() =>
     loadPlugins([
-      definePlugin({ id: 'host', extensionPoints: [point] }),
-      definePlugin({ id: 'one', dependencies: ['host'], extensions: [contribute(point, { id: 'same' })] }),
-      definePlugin({ id: 'two', dependencies: ['host'], extensions: [contribute(point, { id: 'same' })] }),
+      definePlugin({ hosts: ['telegram'], id: 'host', extensionPoints: [point] }),
+      definePlugin({
+        hosts: ['telegram'],
+        id: 'one',
+        dependencies: ['host'],
+        extensions: [contribute(point, { id: 'same' })],
+      }),
+      definePlugin({
+        hosts: ['telegram'],
+        id: 'two',
+        dependencies: ['host'],
+        extensions: [contribute(point, { id: 'same' })],
+      }),
     ]),
   ).toThrow('Duplicate search.providers contribution same');
   // A same-named point without `identify` still answers to the owner's identity.
   const lookalike = defineExtensionPoint<{ readonly id: string }>('search.providers');
   expect(() =>
     loadPlugins([
-      definePlugin({ id: 'host', extensionPoints: [point] }),
-      definePlugin({ id: 'one', dependencies: ['host'], extensions: [contribute(point, { id: 'same' })] }),
-      definePlugin({ id: 'two', dependencies: ['host'], extensions: [contribute(lookalike, { id: 'same' })] }),
+      definePlugin({ hosts: ['telegram'], id: 'host', extensionPoints: [point] }),
+      definePlugin({
+        hosts: ['telegram'],
+        id: 'one',
+        dependencies: ['host'],
+        extensions: [contribute(point, { id: 'same' })],
+      }),
+      definePlugin({
+        hosts: ['telegram'],
+        id: 'two',
+        dependencies: ['host'],
+        extensions: [contribute(lookalike, { id: 'same' })],
+      }),
     ]),
   ).toThrow('Duplicate search.providers contribution same');
 });
@@ -95,12 +128,14 @@ test('loadPlugins rejects invalid and duplicate context injector names', () => {
   const injector = { name: 'twin', collect: () => [], render: () => ({ text: '', signatures: [], count: 0 }) };
   expect(() =>
     loadPlugins([
-      definePlugin({ id: 'one', contextInjectors: [injector] }),
-      definePlugin({ id: 'two', contextInjectors: [injector] }),
+      definePlugin({ hosts: ['telegram'], id: 'one', contextInjectors: [injector] }),
+      definePlugin({ hosts: ['telegram'], id: 'two', contextInjectors: [injector] }),
     ]),
   ).toThrow('Duplicate context injector name: twin');
   expect(() =>
-    loadPlugins([definePlugin({ id: 'one', contextInjectors: [{ ...injector, name: 'Bad_Name' }] })]),
+    loadPlugins([
+      definePlugin({ hosts: ['telegram'], id: 'one', contextInjectors: [{ ...injector, name: 'Bad_Name' }] }),
+    ]),
   ).toThrow('Context injector name is invalid: Bad_Name');
 });
 

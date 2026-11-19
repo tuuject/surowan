@@ -5,6 +5,8 @@ import {
   type ImageAsset,
 } from '@surowan/image-service';
 import { and, eq, sql } from 'drizzle-orm';
+import { hostExecutionProfile } from '../platform/host-profile.ts';
+import { isHostKind } from '../platform/im-host/identity.ts';
 import type { BusinessStore } from '../store/store.ts';
 import { type LongTaskService, TaskQuotaError } from '../store/long-tasks/index.ts';
 import { chats, conversations, longTasks, rooms } from '../store/schema/index.ts';
@@ -137,16 +139,18 @@ export function createImageBridge(options: ImageBridgeOptions) {
     if (row === undefined) {
       return false;
     }
-    if (row.hostKind === 'telegram') {
-      return true;
-    }
-    if (row.hostKind !== 'playground') {
+    if (!isHostKind(row.hostKind)) {
       return false;
     }
-    return (
-      store.orm.select({ imageEnabled: rooms.imageEnabled }).from(rooms).where(eq(rooms.chatId, row.chatId)).get()
-        ?.imageEnabled === true
-    );
+    switch (hostExecutionProfile(row.hostKind).chatSource) {
+      case 'config':
+        return true;
+      case 'room':
+        return (
+          store.orm.select({ imageEnabled: rooms.imageEnabled }).from(rooms).where(eq(rooms.chatId, row.chatId)).get()
+            ?.imageEnabled === true
+        );
+    }
   }
 
   /** Whether this process may execute one generation at all. */

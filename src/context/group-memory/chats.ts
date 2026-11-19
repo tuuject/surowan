@@ -7,6 +7,7 @@ import { telegramHostSql } from '../../store/host-scope.ts';
 export interface GroupMemoryChatRow {
   readonly id: bigint;
   readonly host_chat_id: bigint;
+  readonly host_kind: string;
 }
 
 /** Stored identities of the configured, group-memory-enabled Chats, each once. */
@@ -19,7 +20,7 @@ export function candidateChats(store: BusinessStore, config: RawConfig): GroupMe
     }
     const identities = telegramChatIdentity(store, [BigInt(configured.id)]);
     const rows = store.orm.all<GroupMemoryChatRow>(
-      sql`SELECT id, host_chat_id FROM chats
+      sql`SELECT id, host_chat_id, host_kind FROM chats
           WHERE ${telegramHostSql('host_kind')} AND host_chat_id IN (${sql.join(
             identities.map((id) => sql`${id}`),
             sql`, `,

@@ -4,6 +4,7 @@
  */
 
 import type { Static } from 'typebox';
+import { hostExecutionProfile } from '../../platform/host-profile.ts';
 import { type ImConversationRef, toSenderId } from '../../platform/im-host/identity.ts';
 import type { ImDeliveryFailure, ImMentionRequest, ImOutgoingPart } from '../../platform/im-host/delivery.ts';
 import type { ImHost } from '../../platform/im-host/index.ts';
@@ -293,7 +294,7 @@ export type SendReplyDetails = {
 };
 
 /** Whether this host reports ids from a wire, rather than publishing them. */
-export const reportsWireIds = (host: ImHost): boolean => host.host === 'telegram';
+export const reportsWireIds = (host: ImHost): boolean => hostExecutionProfile(host.host).deliveryRecord === 'wire';
 
 /**
  * How a send result names what it published. Telegram keeps the wire id under

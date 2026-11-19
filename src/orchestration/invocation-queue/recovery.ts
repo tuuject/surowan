@@ -1,4 +1,6 @@
 import { and, eq, inArray, lt, sql } from 'drizzle-orm';
+import { hostExecutionProfile } from '../../platform/host-profile.ts';
+import { isHostKind } from '../../platform/im-host/identity.ts';
 import { appState, buckets, chats, conversations, invocations, taskReceipts } from '../../store/schema/index.ts';
 import { asRunResult } from '../../store/store.ts';
 import { materializeCatchUpBuckets, selectCatchUpMessages } from './catch-up.ts';
@@ -77,7 +79,7 @@ export function recoverQueue(deps: InvocationQueueDeps, now = new Date()): void 
     for (const bucket of expiring) {
       // A room's queue is not a Telegram collecting bucket: its expiry is
       // reported by the room store, not swept up by restart recovery.
-      if (bucket.hostKind !== 'telegram') {
+      if (!isHostKind(bucket.hostKind) || hostExecutionProfile(bucket.hostKind).intake !== 'bucket') {
         continue;
       }
       store.orm

@@ -2,7 +2,8 @@ import { chmod, mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { ImageContent } from '@earendil-works/pi-ai';
 import { eq } from 'drizzle-orm';
-import { parseHostKind } from '../../platform/im-host/identity.ts';
+import { hostExecutionProfile } from '../../platform/host-profile.ts';
+import { type HostKind, parseHostKind, unreachableHostKind } from '../../platform/im-host/identity.ts';
 import type { DirectImage } from '../../platform/invocation-context.ts';
 import type { RuntimeConfigurationStore } from '../../platform/runtime-config.ts';
 import { media as mediaTable } from '../../store/schema/index.ts';
@@ -39,7 +40,8 @@ export type RowImageSource = Parameters<typeof prepareMediaImage>[0] &
 export interface MediaImageInputDeps {
   readonly store: BusinessStore;
   readonly configStore: RuntimeConfigurationStore;
-  readonly mediaClient: MediaDownloader;
+  /** One downloader per host whose `mediaSource` is `download`; absent for every other host. */
+  readonly downloaders: Readonly<Partial<Record<HostKind, MediaDownloader>>>;
   readonly localAssets: LocalAssetResolver | undefined;
 }
 
@@ -167,19 +169,32 @@ export async function prepareRowImage(
     return normalizeImage(media.localFile, directory, signal);
   }
   const hostKind = parseHostKind(media.hostKind);
-  if (hostKind === 'playground') {
-    if (media.kind === 'sticker') {
-      throw new Error('A room asset cannot be a sticker');
+  const mediaSource = hostExecutionProfile(hostKind).mediaSource;
+  switch (mediaSource) {
+    case 'local_asset': {
+      if (media.kind === 'sticker') {
+        throw new Error('A room asset cannot be a sticker');
+      }
+      const assetId = media.localAssetId ?? null;
+      const asset = assetId === null ? null : (deps.localAssets?.resolve(assetId) ?? null);
+      if (asset === null) {
+        throw new Error('Room media is unavailable');
+      }
+      return prepareMediaImage(media, inputPath, directory, deps.downloaders[hostKind], signal, {
+        path: asset.path,
+      });
     }
-    const assetId = media.localAssetId ?? null;
-    const asset = assetId === null ? null : (deps.localAssets?.resolve(assetId) ?? null);
-    if (asset === null) {
-      throw new Error('Room media is unavailable');
+    case 'download': {
+      if (media.localAssetId !== undefined && media.localAssetId !== null) {
+        throw new Error('Telegram media cannot point at a local asset');
+      }
+      const downloader = deps.downloaders[hostKind];
+      if (downloader === undefined) {
+        throw new Error(`No media downloader for host ${hostKind}`);
+      }
+      return prepareMediaImage(media, inputPath, directory, downloader, signal);
     }
-    return prepareMediaImage(media, inputPath, directory, deps.mediaClient, signal, { path: asset.path });
+    default:
+      return unreachableHostKind(mediaSource);
   }
-  if (media.localAssetId !== undefined && media.localAssetId !== null) {
-    throw new Error('Telegram media cannot point at a local asset');
-  }
-  return prepareMediaImage(media, inputPath, directory, deps.mediaClient, signal);
 }

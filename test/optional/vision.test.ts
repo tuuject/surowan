@@ -101,7 +101,7 @@ describe('optional vision section', () => {
         store,
         configStore,
         secrets: new SecretStore(),
-        mediaClient: unusedDownloader,
+        downloaders: { telegram: unusedDownloader },
         modelGate: new KeyedSemaphore(),
       });
       expect(media.visionAvailable()).toBe(false);
@@ -133,7 +133,7 @@ describe('optional vision section', () => {
         store,
         configStore,
         secrets: new SecretStore(),
-        mediaClient: unusedDownloader,
+        downloaders: { telegram: unusedDownloader },
         modelGate: new KeyedSemaphore(),
       });
       const stickers = new StickerService({

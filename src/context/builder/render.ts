@@ -1,7 +1,7 @@
 import { sql } from 'drizzle-orm';
 import type { RawConfig } from '../../platform/config/index.ts';
 import { hostExecutionProfile } from '../../platform/host-profile.ts';
-import type { HostKind } from '../../platform/im-host/identity.ts';
+import { type HostKind, unreachableHostKind } from '../../platform/im-host/identity.ts';
 import type { CompletionContext, VisibleSender } from '../../platform/invocation-context.ts';
 import { imageDeliveryState } from '../../store/image-delivery.ts';
 import { escapeXml } from '../../platform/spoilers.ts';
@@ -86,17 +86,24 @@ export function renderInjection(deps: RenderDependencies, config: RawConfig, inp
   // Telegram exposes numeric user ids as `uid:`; a room must not, because its
   // member ids are internal. Each host keeps its own sender projection.
   const senderRows = deps.orm.all<SenderIdentityRow>(
-    identity.hostKind === 'telegram'
-      ? sql`SELECT im.message_id, s.host_sender_id AS sender_id, s.display_name, s.username
+    (() => {
+      switch (identity.hostKind) {
+        case 'telegram':
+          return sql`SELECT im.message_id, s.host_sender_id AS sender_id, s.display_name, s.username
            FROM invocation_messages im
            JOIN message_revisions r ON r.id = im.revision_id
            JOIN senders s ON s.id = r.sender_id
-           WHERE im.invocation_id = ${identity.invocationId} AND s.host_sender_type = 'user'`
-      : sql`SELECT im.message_id, NULL AS sender_id, s.display_name, NULL AS username
+           WHERE im.invocation_id = ${identity.invocationId} AND s.host_sender_type = 'user'`;
+        case 'playground':
+          return sql`SELECT im.message_id, NULL AS sender_id, s.display_name, NULL AS username
            FROM invocation_messages im
            JOIN message_revisions r ON r.id = im.revision_id
            JOIN senders s ON s.id = r.sender_id
-           WHERE im.invocation_id = ${identity.invocationId} AND s.host_kind = 'playground'`,
+           WHERE im.invocation_id = ${identity.invocationId} AND s.host_kind = ${identity.hostKind}`;
+        default:
+          return unreachableHostKind(identity.hostKind);
+      }
+    })(),
   );
   const senderByMessage = new Map<string, VisibleSender>();
   for (const sender of senderRows) {
@@ -144,10 +151,16 @@ export function renderInjection(deps: RenderDependencies, config: RawConfig, inp
     timezone: identity.timezone,
     now,
   };
-  const format = (snapshot: PreparedSnapshot, inlineReplies: ReadonlySet<string>): string =>
-    identity.hostKind === 'telegram'
-      ? formatSnapshot(snapshot, { ...formatSnapshotOptions, inlineReplies })
-      : formatRoomSnapshot(snapshot, { ...formatSnapshotOptions, inlineReplies });
+  const format = (snapshot: PreparedSnapshot, inlineReplies: ReadonlySet<string>): string => {
+    switch (identity.hostKind) {
+      case 'telegram':
+        return formatSnapshot(snapshot, { ...formatSnapshotOptions, inlineReplies });
+      case 'playground':
+        return formatRoomSnapshot(snapshot, { ...formatSnapshotOptions, inlineReplies });
+      default:
+        return unreachableHostKind(identity.hostKind);
+    }
+  };
   const noInlineReplies = new Set<string>();
   for (const entry of current.toReversed()) {
     const size = format(entry.snapshot, noInlineReplies).length + 1;
@@ -173,7 +186,10 @@ export function renderInjection(deps: RenderDependencies, config: RawConfig, inp
   // oversized one shows up as overflow rather than as an omission. Refuse
   // before a reply ref or a checkpoint is written; the media refs prepared
   // above roll back with the render.
-  if (identity.hostKind === 'playground' && (omittedNewMessages > 0 || usedCharacters > maximumCharacters)) {
+  if (
+    hostExecutionProfile(identity.hostKind).intake === 'release' &&
+    (omittedNewMessages > 0 || usedCharacters > maximumCharacters)
+  ) {
     throw new deps.InjectionTooLargeError(
       `new messages for invocation ${identity.invocationId} do not fit the context budget`,
     );
@@ -279,7 +295,7 @@ export function renderInjection(deps: RenderDependencies, config: RawConfig, inp
   ]
     .filter((part) => part.length > 0)
     .join('\n');
-  const historyTag = identity.hostKind === 'telegram' ? 'untrusted_telegram_history' : 'untrusted_room_history';
+  const historyTag = hostExecutionProfile(identity.hostKind).wording.historyTag;
   const text = [
     '<runtime_state>',
     runtimeState,
@@ -305,7 +321,7 @@ export function renderInjection(deps: RenderDependencies, config: RawConfig, inp
   // memory list, the envelopes and the figure markers come on top. A room
   // batch is held to the budget as rendered, inside this same transaction, so
   // an overflow still rolls its refs back.
-  if (identity.hostKind === 'playground' && text.length > maximumCharacters) {
+  if (hostExecutionProfile(identity.hostKind).intake === 'release' && text.length > maximumCharacters) {
     throw new deps.InjectionTooLargeError(
       `the rendered injection for invocation ${identity.invocationId} does not fit the context budget`,
     );

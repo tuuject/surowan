@@ -25,7 +25,7 @@ import { grammyTelegramTransport } from './adapters/local-monolith/telegram/gram
 import { createTelegramHost } from './adapters/local-monolith/telegram/host.ts';
 import { awaitServerAttempts } from './capabilities/mcp/availability.ts';
 import { McpManager } from './capabilities/mcp/index.ts';
-import { TelegramMediaClient } from './capabilities/media/download.ts';
+import { TelegramMediaClient } from './adapters/local-monolith/telegram/media.ts';
 import { createLottieCommand } from './capabilities/media/image.ts';
 import { MediaService } from './capabilities/media/index.ts';
 import { AgentRuntime } from './orchestration/agent-runtime/index.ts';
@@ -194,7 +194,7 @@ async function runDoctorChecks(
             store,
             configStore,
             secrets,
-            mediaClient: new TelegramMediaClient(telegramBot.bot.api, telegramBot.token),
+            downloaders: { telegram: new TelegramMediaClient(telegramBot.bot.api, telegramBot.token) },
             modelGate,
           });
     const manager = new McpManager(store, config, secrets);
@@ -236,7 +236,7 @@ async function runDoctorChecks(
         ...manager.createTools(context, deadline, config),
       ],
     });
-    const preview = previewContext();
+    const preview = previewContext('telegram');
     // The base registry (no MCP tools) must fit every configured model, even
     // ones no Telegram Chat uses: Playground work runs on those too.
     for (const { model } of agentModels) {

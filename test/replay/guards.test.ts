@@ -55,6 +55,18 @@ test('scene guards report missing, unfinished, unconfigured, invalid and empty s
   expect(f.faux.state.callCount).toBe(0);
 });
 
+test('a stored invocation on a host this build does not know is refused with replay_host_unsupported', async () => {
+  const f = await fixture();
+  f.store.db.prepare("UPDATE chats SET host_kind = 'discord' WHERE id = ?").run(f.seed.chatId);
+  expect(f.runner.inspect(f.seed.invocationA)).toMatchObject({
+    available: false,
+    reason: 'replay_host_unsupported',
+    message: 'Replay currently supports Telegram-hosted invocations only',
+  });
+  await expect(f.run()).rejects.toMatchObject({ code: 'replay_host_unsupported', status: 409 });
+  expect(f.faux.state.callCount).toBe(0);
+});
+
 test('a topic outside the current allowlist and an invalid or empty scene are refused before the model', async () => {
   const g = await fixture({ change: (config) => (config.telegram.chats[0]!.topic_ids = [7]) });
   expect(g.runner.inspect(g.seed.invocationA)).toMatchObject({

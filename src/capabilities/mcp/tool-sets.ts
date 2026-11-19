@@ -11,6 +11,7 @@ import type { AgentTool } from '@earendil-works/pi-agent-core';
 import Type, { type TUnsafe } from 'typebox';
 import Compile from 'typebox/compile';
 import type { FileChat, McpServerConfig, RawConfig } from '../../platform/config/index.ts';
+import { mcpCapableHost } from '../../platform/host-profile.ts';
 import { type InvocationContext, previewContext } from '../../platform/invocation-context.ts';
 import { resolveChatConfig } from '../../store/store.ts';
 import { boundChatServers, sameMcpServerConfig, serverToolPolicy } from './bindings.ts';
@@ -262,7 +263,7 @@ async function executeTool(
 
 /** The 61-tool cap and the model fit, checked per resolved set. */
 export function validateResolution(state: McpState, callDeps: McpCallDeps, resolution: ToolSetResolution): void {
-  const tools = buildTools(callDeps, resolution.definitions, previewContext(), Number.MAX_SAFE_INTEGER);
+  const tools = buildTools(callDeps, resolution.definitions, previewContext(mcpCapableHost()), Number.MAX_SAFE_INTEGER);
   if (tools.length > 61) {
     throw new Error(
       `MCP tool set of chat ${resolution.chatIds.join(',')} has ${tools.length} tools; maximum alongside built-ins is 61`,

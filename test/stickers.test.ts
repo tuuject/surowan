@@ -79,7 +79,7 @@ test('sync, representative-frame indexing, search, and sticker send share scoped
     store,
     configStore,
     secrets: new SecretStore(),
-    mediaClient: downloader,
+    downloaders: { telegram: downloader },
     modelGate: new KeyedSemaphore(),
   });
   const stickers = new StickerService({

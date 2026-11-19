@@ -1,4 +1,6 @@
 import { and, eq, sql } from 'drizzle-orm';
+import { hostExecutionProfile } from '../../platform/host-profile.ts';
+import { isHostKind } from '../../platform/im-host/identity.ts';
 import { buckets, invocationBuckets, taskReceipts } from '../../store/schema/index.ts';
 import {
   enqueueBucketInvocation,
@@ -46,10 +48,14 @@ export function processReceiptsDue(deps: InvocationQueueDeps, now = new Date()):
           .run();
         continue;
       }
-      // Only the Telegram host has a global sleep window; a Playground room
-      // never waits out a chat sleep, and never inherits its bypass either.
-      if (receipt.host_kind === 'telegram' && sleepUntil !== null && receipt.bypass_daily_budget !== 1n) {
-        continue;
+      // Only a sleep-capable host waits out the global window; a Playground
+      // room never does. The bypass flag counts only on a host whose profile
+      // grants it — the same combination the agent runtime reads.
+      if (isHostKind(receipt.host_kind)) {
+        const profile = hostExecutionProfile(receipt.host_kind);
+        if (profile.sleep && sleepUntil !== null && !(profile.budgetBypass && receipt.bypass_daily_budget === 1n)) {
+          continue;
+        }
       }
       const running = runningInvocationId(deps, receipt.conversation_id);
       if (running !== undefined) {

@@ -1,5 +1,7 @@
 import { eq, type SQL, sql } from 'drizzle-orm';
-import type { HostKind } from '../../platform/im-host/identity.ts';
+import { hostExecutionProfile, hostsWhere } from '../../platform/host-profile.ts';
+import { isHostKind, type HostKind } from '../../platform/im-host/identity.ts';
+import { hostKindsSql } from '../../store/host-scope.ts';
 import type { InvocationConfigSnapshot, RuntimeConfigurationStore } from '../../platform/runtime-config.ts';
 import type { LongTaskService } from '../../store/long-tasks/index.ts';
 import { PlaygroundStore } from '../../store/playground/index.ts';
@@ -110,7 +112,14 @@ export function nextDelayMilliseconds(deps: SchedulerLoopDeps): number {
          JOIN chats c ON c.id = v.chat_id
          WHERE r.state = 'pending'
            AND ${servedConversations(deps, sql`t.conversation_id`)}
-           AND (c.host_kind = 'playground' OR ${sleepUntil} IS NULL OR json_extract(t.delivery_json, '$.bypassDailyBudget') = 1)
+           AND (${hostKindsSql(
+             'c.host_kind',
+             hostsWhere((profile) => !profile.sleep),
+           )} OR ${sleepUntil} IS NULL OR (json_extract(t.delivery_json, '$.bypassDailyBudget') = 1
+             AND ${hostKindsSql(
+               'c.host_kind',
+               hostsWhere((profile) => profile.budgetBypass),
+             )}))
            AND NOT EXISTS (
              SELECT 1 FROM invocations i JOIN conversations v2 ON v2.id = i.conversation_id
              WHERE v2.chat_id = v.chat_id AND i.state = 'running'
@@ -146,7 +155,7 @@ export function nextDelayMilliseconds(deps: SchedulerLoopDeps): number {
   if (queued !== undefined) {
     deadlines.push(Date.parse(queued.deadline_at));
   }
-  if (activeHosts(deps.hosts, deps.isHostReady).includes('playground')) {
+  if (activeHosts(deps.hosts, deps.isHostReady).some((host) => hostExecutionProfile(host).intake === 'release')) {
     const expiry = new PlaygroundStore(deps.store.orm).nextQueuedExpiry();
     if (expiry !== undefined) {
       deadlines.push(expiry);
@@ -166,7 +175,7 @@ export function launchQueued(deps: SchedulerLoopDeps): void {
   // Room invocations that queued too long are expired visibly; Telegram
   // collecting/debounce buckets keep their own lifecycle. A scheduler that
   // does not serve rooms leaves their queue to the process that does.
-  if (activeHosts(deps.hosts, deps.isHostReady).includes('playground')) {
+  if (activeHosts(deps.hosts, deps.isHostReady).some((host) => hostExecutionProfile(host).intake === 'release')) {
     new PlaygroundStore(deps.store.orm).expireQueued();
   }
   while (deps.isRunning()) {
@@ -210,7 +219,8 @@ export function launchQueued(deps: SchedulerLoopDeps): void {
       const snapshot = deps.configStore.beginInvocation();
       const now = new Date().toISOString();
       if (
-        candidate.host_kind === 'telegram' &&
+        isHostKind(candidate.host_kind) &&
+        hostExecutionProfile(candidate.host_kind).chatSource === 'config' &&
         (candidate.telegram_chat_id === null ||
           resolveChatConfig(snapshot.config, deps.store.orm, candidate.telegram_chat_id) === undefined)
       ) {

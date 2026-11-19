@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm';
 import type { RawConfig } from '../platform/config/index.ts';
+import { hostExecutionProfile, policyScopeChatId } from '../platform/host-profile.ts';
 import { isHostKind } from '../platform/im-host/identity.ts';
 import { type InvocationAgentSettings, resolveInvocationPolicy } from '../platform/invocation-policy.ts';
 import type { RuntimeConfigurationStore } from '../platform/runtime-config.ts';
@@ -50,7 +51,7 @@ function agentModelKey(orm: Orm, config: RawConfig, row: RunningInvocationRow): 
   try {
     agent = resolveInvocationPolicy(config, orm, {
       hostKind,
-      chatId: hostKind === 'telegram' ? (row.telegram_chat_id ?? 0n) : row.chat_id,
+      chatId: policyScopeChatId(hostKind, { hostChatId: row.telegram_chat_id, chatId: row.chat_id }),
       chatType: row.chat_type,
     }).agent;
   } catch {
@@ -66,7 +67,8 @@ function inScope(orm: Orm, config: RawConfig, row: RunningInvocationRow, scope: 
     return true;
   }
   return (
-    row.host_kind === 'telegram' &&
+    isHostKind(row.host_kind) &&
+    hostExecutionProfile(row.host_kind).chatSource === 'config' &&
     row.telegram_chat_id !== null &&
     resolveChatConfig(config, orm, row.telegram_chat_id)?.id === scope.configuredChatId
   );

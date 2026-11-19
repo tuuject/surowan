@@ -144,12 +144,16 @@ describe('generic task receipt delivery', () => {
       )
       .run(conversation.id, '2026-08-14T00:00:00.000Z');
     const payload = { kind: 'export', request: 'weekly report', marker: 'payload-is-persisted' };
-    const creator = tasks.invocationScope('test-plugin', {
-      ...previewContext(),
-      invocationId: 900n,
-      conversationId: conversation.id,
-      callerUserId: 42n,
-    });
+    const creator = tasks.invocationScope(
+      'test-plugin',
+      {
+        ...previewContext('telegram'),
+        invocationId: 900n,
+        conversationId: conversation.id,
+        callerUserId: 42n,
+      },
+      ['telegram'],
+    );
     const created = creator.create({
       payload,
       delivery: { bypassDailyBudget: false, mentionUser: { userId: 42n, displayName: 'Alice' } },

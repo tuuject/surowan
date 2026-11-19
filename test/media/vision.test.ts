@@ -100,7 +100,7 @@ test('read_image normalizes once and reuses the 30-day description cache', async
     store,
     configStore,
     secrets: new SecretStore(),
-    mediaClient: downloader,
+    downloaders: { telegram: downloader },
     modelGate: new KeyedSemaphore(),
   });
   const tool = media.createReadImageTool(context, capabilities, Date.now() + 60_000);
@@ -186,7 +186,7 @@ test('vision analyses run at vision.thinking_level, or at the model default when
     store,
     configStore,
     secrets: new SecretStore(),
-    mediaClient: downloader,
+    downloaders: { telegram: downloader },
     modelGate: new KeyedSemaphore(),
   });
   const tool = media.createReadImageTool(context, capabilities, Date.now() + 60_000);

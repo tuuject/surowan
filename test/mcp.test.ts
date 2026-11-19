@@ -468,7 +468,7 @@ test('stop() during a pending connect leaves the server stopped and closed', asy
     expect(
       store.db.prepare<[], { state: string }>("SELECT state FROM mcp_server_state WHERE alias = 'local'").get()?.state,
     ).toBe('stopped');
-    expect(manager.createTools(previewContext(), Number.MAX_SAFE_INTEGER, loaded.config)).toEqual([]);
+    expect(manager.createTools(previewContext('telegram'), Number.MAX_SAFE_INTEGER, loaded.config)).toEqual([]);
     // The abandoned connect still spawns the process before noticing the
     // generation bump, then closes it in its finally block.
     const fileDeadline = Date.now() + 15_000;

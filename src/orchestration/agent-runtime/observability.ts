@@ -3,6 +3,7 @@ import { and, eq, isNull, sql } from 'drizzle-orm';
 import type { ContextIdentity, Injection } from '../../context/builder/index.ts';
 import type { ContextGcPlan } from '../../context/gc.ts';
 import type { ContextHeader } from '../../context/store/types.ts';
+import type { BudgetScope } from '../../platform/host-profile.ts';
 import { serializeModelRequestForAudit } from '../../platform/models/request-audit.ts';
 import { dailyUsage, modelCalls } from '../../store/schema/index.ts';
 import { type DailyTokenBudget, meteredTokens } from '../../store/sleep.ts';
@@ -191,7 +192,7 @@ export function finishModelCall(
   callId: bigint,
   chatId: bigint,
   message: AssistantMessage,
-  scope: 'chat' | 'playground',
+  scope: BudgetScope,
 ): void {
   services.store.transaction(() => {
     const usage = message.usage;

@@ -3,6 +3,7 @@ import { sql } from 'drizzle-orm';
 import { CAPABILITIES_PROMPT, CORE_AGENT_PROTOCOL } from '../../platform/agent-protocol.ts';
 import { type AgentPromptLayers, composeAgentPrompt } from '../../platform/agent-prompt.ts';
 import { configuredModel, type RawConfig } from '../../platform/config/index.ts';
+import { hostExecutionProfile, policyScopeChatId } from '../../platform/host-profile.ts';
 import { parseHostKind, type HostKind } from '../../platform/im-host/identity.ts';
 import type { CompletionContext, DirectImage, VisibleSender } from '../../platform/invocation-context.ts';
 import { resolveInvocationPolicy, type InvocationPolicy } from '../../platform/invocation-policy.ts';
@@ -165,7 +166,7 @@ export class ContextBuilder {
     const hostKind = parseHostKind(identity.host_kind);
     // A Telegram chat is addressed by its platform id; a room by its internal
     // chat id. Neither is ever used as the other host's id.
-    const chatId = hostKind === 'telegram' ? (identity.host_chat_id ?? 0n) : identity.chat_id;
+    const chatId = policyScopeChatId(hostKind, { hostChatId: identity.host_chat_id, chatId: identity.chat_id });
     const policy = resolveInvocationPolicy(config, this.#store.orm, {
       hostKind,
       chatId,
@@ -214,7 +215,7 @@ export class ContextBuilder {
     const conversationMode =
       identity.chatType === 'private' ? 'Conversation mode: private chat.' : 'Conversation mode: group chat.';
     const directImages = supportsImages && options?.imageInput !== 'on_demand';
-    const hostImages = identity.hostKind === 'telegram' ? 'Telegram images and Stickers' : 'images posted in the room';
+    const hostImages = hostExecutionProfile(identity.hostKind).wording.imageSources;
     const imageHandling =
       vision === undefined
         ? directImages

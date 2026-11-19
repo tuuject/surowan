@@ -4,7 +4,8 @@ import { dirname, join } from 'node:path';
 import { eq } from 'drizzle-orm';
 import sharp from 'sharp';
 import { expect, vi } from 'vitest';
-import { TelegramMediaClient, type MediaDownloader } from '../../src/capabilities/media/download.ts';
+import { TelegramMediaClient } from '../../src/adapters/local-monolith/telegram/media.ts';
+import type { MediaDownloader } from '../../src/capabilities/media/download.ts';
 import { AdminQueryError } from '../../src/ingress/admin/audit/shared.ts';
 import {
   createInvocationMediaReader,

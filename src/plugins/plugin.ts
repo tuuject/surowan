@@ -3,7 +3,7 @@ import { basename } from 'node:path';
 import type { ExecutableCapability } from '../capabilities/execute-tool.ts';
 import type { ContextInjector } from '../context/injector.ts';
 import type { RawConfig } from '../platform/config/index.ts';
-import type { HostKind } from '../platform/im-host/identity.ts';
+import { HOST_KINDS, type HostKind } from '../platform/im-host/identity.ts';
 import type { InvocationContext } from '../platform/invocation-context.ts';
 import type { ToolImageReference } from '../platform/tool-images.ts';
 import type { BusinessStore, Orm } from '../store/store.ts';
@@ -21,8 +21,6 @@ const PLUGIN_ID_PATTERN = /^[a-z][a-z0-9-]{0,63}$/;
 const RESERVED_PLUGIN_IDS: ReadonlySet<string> = new Set([RECURRING_ALARM_PLUGIN_ID]);
 /** Dotted, lowercase: `<owner>.<contract>`, e.g. `web-search.providers`. */
 const EXTENSION_POINT_PATTERN = /^[a-z][a-z0-9-]{0,63}(\.[a-z][a-z0-9-]{0,63}){1,3}$/;
-
-const HOST_KINDS: readonly HostKind[] = ['playground', 'telegram'];
 
 /**
  * A typed extension contract one plugin publishes for the plugins that depend
@@ -160,10 +158,10 @@ export interface InvocationScope {
 export interface AgentPlugin {
   readonly id: string;
   /**
-   * Hosts this plugin may run on. Omitted means Telegram only: a new plugin
-   * never drifts into the Playground just because it exists.
+   * Hosts this plugin may run on. Required: a plugin declares its matrix
+   * explicitly instead of silently landing wherever an omitted list would put it.
    */
-  readonly hosts?: readonly HostKind[];
+  readonly hosts: readonly HostKind[];
   /**
    * Plugin ids that must load before this one. A plugin may only contribute to
    * extension points published by a plugin named here.
@@ -423,15 +421,17 @@ function withHosts(injector: ContextInjector, pluginHosts: readonly HostKind[]):
   };
 }
 
-/** The hosts a plugin was declared for. Omitted or empty means Telegram only. */
+/** The hosts a plugin was declared for. */
 export function pluginHosts(plugin: AgentPlugin): readonly HostKind[] {
-  const hosts = plugin.hosts === undefined || plugin.hosts.length === 0 ? (['telegram'] as const) : plugin.hosts;
-  for (const host of hosts) {
+  if (plugin.hosts.length === 0) {
+    throw new Error(`Plugin ${plugin.id} declares no hosts; an empty list would unmount it silently`);
+  }
+  for (const host of plugin.hosts) {
     if (!HOST_KINDS.includes(host)) {
       throw new Error(`Plugin ${plugin.id} declares an unknown host: ${String(host)}`);
     }
   }
-  return hosts;
+  return plugin.hosts;
 }
 
 function unavailableTasks(): PluginTaskScope {
