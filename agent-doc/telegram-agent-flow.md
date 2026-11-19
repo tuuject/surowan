@@ -23,6 +23,8 @@
 
 拒绝的 Update 不进入 Bucket，但保留稳定 `rejection_reason`，例如 `chat_not_allowed`、`topic_not_allowed`。唯一例外是管理员在未允许 Chat 发送的 `/allowlist`：它按已允许入库审计并直接作为命令处理（见 [Bot Commands](#bot-commands)）。允许 Chat 内被 `ignored_user_ids` 命中的用户消息仍保留 Update 审计，但在 Message 和 Bucket 边界之前直接丢弃；命令也被丢弃，实时新消息中的 `/ignoreme`、`/unignoreme` 与 `/ask` 放行，以便成员恢复接收。其文本、媒体及后续编辑不会进入实时或启动追赶 Context，其他成员回复该用户时也不保存对应 Reply 快照。该过滤只匹配 Telegram user，不匹配 `sender_chat`，且不追溯删除配置生效前已入库的历史。排查 allowlist 时同时比较配置哈希；删除 Chat 会热移除并停止其运行（不删数据），其它非热字段的修改仍需重启（新增与删除 Chat、已有 Chat 的 `instructions_file`、模型覆盖、`ignored_user_ids` 属于热更新白名单，见 [configuration.md](configuration.md#运行时配置热更新)）。
 
+以上都是 Telegram 自己的边缘（`src/ingress/telegram-ingestion/`）的职责。通过判定的消息由边缘归一化成 `src/ingress/intake/` 的 `InboundMessage`，交给 `InboundIntake` 完成宿主中立入库：sender、Conversation、Message + Revision + Media 写入、eligibleHuman 判定、参与闸门与 Bucket 追加；一个 Update 仍在同一条同步事务内提交（intake 嵌进边缘事务做 savepoint）。实时路径的参与判定不碰 grammY 类型：cues 收拢为 `src/platform/im-host/cues.ts` 的 `MessageCues`（`mentionsBot`/`repliesToBot`/`asksBot`/`texts`），由 `src/ingress/telegram-ingestion/cues.ts` 与 `src/platform/telegram-markdown/cues.ts` 从 Telegram entity 抽取；从已存 Revision 的 `raw_fragment_json` 回读 cues 与正文的路径走 `src/platform/raw-fragments.ts` 按 `host_kind` 分派的 reader 表（实时路径保留原始 isAsk 语义，存储路径额外要求 revision 1 无 `edit_date`，见「Bot Commands」）。命令在边缘解析（`src/ingress/telegram-ingestion/commands.ts`）后交给 `src/orchestration/bot-commands/` 的 `BotCommandService` 执行。Playground 房间输入（`src/ingress/playground.ts`）走同一个 `InboundIntake`，Host 差异只到边缘为止；grammY 类型只属于这个边缘与 `src/adapters/local-monolith/telegram/`（`test/im/transport-imports.test.ts` 断言）。
+
 ## Chat、Conversation 与 Topic
 
 - Telegram Chat 归一化到 `chats`。
@@ -33,7 +35,7 @@
 
 ## Message Revision
 
-`messages` 保存 Telegram Message 的稳定身份；每次首次接收或编辑产生一条 `message_revisions`：
+`messages` 保存入站消息的稳定身份（`host_kind` + Chat 级 `message_no`，Telegram 行存线上 message ID，见 [data-layer.md](data-layer.md)）；每次首次接收或编辑产生一条 `message_revisions`：
 
 - Text/Caption
 - Sender user 或 sender_chat
@@ -52,7 +54,7 @@ Text/Caption 原样保存 Telegram 给出的纯文本，格式 entity 只留在 
 
 ## 启动追赶
 
-普通重启在启动 Scheduler 和常规 long polling 前，以非阻塞 `getUpdates` 排空 Telegram pending updates：
+实现在 `src/ingress/telegram-ingestion/catch-up/`（冷排空与运行时补拉，Telegram 自己的 getUpdates 补偿）与 `src/orchestration/invocation-queue/catch-up.ts`（追赶任务物化）。普通重启在启动 Scheduler 和常规 long polling 前，以非阻塞 `getUpdates` 排空 Telegram pending updates：
 
 1. Update 仍经过 allowlist、去重、Revision 与媒体持久化，但不创建常规实时 Bucket。识别到的控制命令只写 Update 审计，不进入消息与模型上下文；仅 `/pause`、`/resume` 按 Update 顺序交给同一 `BotCommandService` 执行，复用管理员与发送者身份校验，不补发旧命令回复。其余命令不重放管理副作用（包括 `/allowlist`），编辑与忽略用户等边界保持实时规则。排空后的最终暂停状态决定是否排队追赶。
 2. `app_state.telegram_startup_catch_up` 保存本轮起点；进程在排空或建任务时崩溃，下一次启动从同一起点重新排空，已入库消息仍会进入追赶任务。去重发生在命令执行之前：已经提交的 Update 只保留审计，若崩溃落在入库提交与 `/pause`、`/resume` 执行之间，该命令在重启后不会补执行（实时链路同样如此）；不承诺 exactly-once 或崩溃不丢命令。
@@ -101,7 +103,7 @@ deadline = max(deadline, min(first_received_at + bucket_max_seconds, 到达时�
 - **只往后推**：现有 deadline（窗口，或上面轮结束推迟后的值）比候选更晚时不动。所以 `bucket_max_seconds` 只截断「消息带来的延长」，不会把轮结束锚点拉回来；一轮比 max 还长时，这批在该轮结束后满一个 window 结算，期间的消息不再延长它。
 - **上限从 `first_received_at` 起算**：持续不断的消息流也在 `first + max` 结算，之后的消息开下一个 Bucket，不存在无限延长。
 - **其他 Bot、服务消息与单独 Sticker 只加入、不延长**，与它们不能开 Bucket 同理：两个 Bot 不能互相把批次撑开。
-- **竞争**：延长写在入库事务里（`bumpDeadline`，`src/ingress/telegram-ingestion/buckets.ts`），结算（collecting → queued）也是事务，二者经同一 SQLite 写者串行。消息要么在结算前加入并延长当前 Bucket，要么在结算后开下一个，不丢失也不重复；deadline 已过而 Scheduler 尚未处理时到达的消息照常加入并按公式延长。
+- **竞争**：延长写在入库事务里（`bumpDeadline`，`src/ingress/intake/buckets.ts`），结算（collecting → queued）也是事务，二者经同一 SQLite 写者串行。消息要么在结算前加入并延长当前 Bucket，要么在结算后开下一个，不丢失也不重复；deadline 已过而 Scheduler 尚未处理时到达的消息照常加入并按公式延长。
 - **定时器**：不新增定时器。serve 每次入库后 `wake()`，Scheduler 循环按最早的 `buckets.deadline_at` 重排唯一的 `setTimeout`；即使没有 wake，旧定时器到点只会发现没有到期 Bucket 并重算下一次延迟。
 - `bucket_bump_seconds = 0`（缺省）时不发生写入，`bucket_max_seconds` 缺省等于 window：与固定窗口完全一致。
 
@@ -113,7 +115,7 @@ deadline = max(deadline, min(first_received_at + bucket_max_seconds, 到达时�
 
 | 位置 | 读取 |
 | --- | --- |
-| 消息延长（`bumpDeadline`，`src/ingress/telegram-ingestion/buckets.ts`） | 行内 `bump_seconds` 与 `max_seconds` |
+| 消息延长（`bumpDeadline`，`src/ingress/intake/buckets.ts`） | 行内 `bump_seconds` 与 `max_seconds` |
 | 轮结束推迟（`deferCollectingBucket`，`src/orchestration/agent-runtime/support.ts`） | 行内 `window_seconds`；不用运行中 Invocation 的配置快照 |
 | Scheduler 轮中途推迟（`deferBucket`，`src/orchestration/invocation-queue/due.ts`） | 行内 `window_seconds` |
 | 运行结束推迟（`executeInvocation`，`src/orchestration/scheduler/execution.ts`） | 同 Chat 每个 collecting Bucket 各自的 `window_seconds` |
@@ -420,18 +422,18 @@ Alarm 是第一个 `plugin_id = "alarm"` 的 consumer，通过 `execute.call` �
 - 配置允许且当前 Conversation Context 授权的 Sticker（`stk_` 引用）。
 - **以文件发送图片**（`kind: "file"`，Telegram `sendDocument`，多张为一组 document `sendMediaGroup`，说明挂在第一份）：不压缩地发送图片，Tool 描述规定只有用户明确要原图或要文件时才能用。runtime 无法判断「用户是否明确要求」，这条只约束模型，不做运行时拦截——完成回执轮里兑现用户早先「画完发原图」的请求同样合法。来源二选一：`image_generation_id` 发该 generation 的全部原始输出（授权同图片交付）；`image_ref` 取当前 Context 授权的 `img_` 引用——若它是 Bot 以照片交付的生成图（经 `media → message → host_sends(kind=image, success)` 按宿主消息 ID 反查），改发那次交付 `asset_ids` 对应的原图，generation 不属于本 Conversation 或原图已清理时以 `file_original_unavailable` 拒绝，不拿压缩版冒充；其他图片经 `MediaService.readOriginalFile` 原样下载（不走归一化），Sticker 以 `file_source_unsupported` 拒绝，读取失败为 `file_source_unavailable`。文件名补齐真实类型的扩展名（生成输出名本身不带）。读取（可能下载）发生在 abort/deadline、重复守卫、Reply 去重、send 屏障与 claim 之前，所以这些检查都在等待之后执行；`send_reply` 预检只校验来源授权，读取留到该条发送时。台账 `host_sends.kind = 'file'`（迁移 `049`），`request_json` 记 `image_ref`、`generation_id`/`asset_ids` 与 `files` 数；因为 kind 不是 `image`，它既不算图片交付、也不被图片交付去重拦截。Bot 消息 revision 记为 `kind = 'file'` 与说明，不写 `media` 行。重复发送守卫按逐字比对覆盖它（无内容键，不参与「重复上一条」与烧毁）。Playground host 以 `unsupported_media` 拒绝 `document` 部件（房间里的图片本来就是原始字节，且没有文件消息）。
 - 可选 Reply：模型传 `reply_to_message_id`，目标必须命中当前 Conversation Context 里仍在保留段内且未过期的 `reply:<宿主消息 ID>` 引用。跨过宿主边界的只有宿主自己的消息 ID：Telegram 是 wire message ID；房间是房间序号，由 Playground host 在本房间内解析成存储行，发送结果（`Sent message N`）报告的也是新消息的序号，不是 `messages.id`。
-- **同一消息只回复一次**（默认行为，`agent.allow_reply_message_multiple_times` 缺省为 `false`）：按目标 Conversation + `reply_to_message_id` 查询保留的 `telegram_sends`，文字、贴纸、图片共用一次回复机会，不按内容或 Invocation 区分。已有 `success` 时拒绝为 `reply_already_sent`；已有 `pending` / `outcome_unknown` 时保守拒绝为 `reply_delivery_unknown`（未决优先），只有明确 `error` 不占回复机会。先在 send 屏障前预检，再在写入 pending 的同一个 IMMEDIATE 事务内复检，覆盖并发、跨 Invocation、Context 重建与重启。屏障自身的 Bucket 挂载事务必须独立提交，不能被后续发送审计失败回滚成「内存已排队、数据库未挂载」；旧审计同样生效，超出在线保留窗口不承诺去重。显式设为 `true` 时整段守卫跳过，允许对同一显式目标多次发送；它不绕过授权、预算、发送限流与 send 屏障，也不关闭图片 generation/asset 交付去重或结果未知保护（见 [Image 生成](#image-生成)）。`send` 的 Tool 描述随该配置切换。被 Reply 去重拒绝的文本/贴纸内容在本次 Invocation 内烧毁：以 kind + 内容（文本，或贴纸 ref 解析出的 sticker file id——每次 `search_stickers` 都会为同一张贴纸生成新 `stk_` ref，按 ref 比对会被重搜绕开；不含 `reply_to_message_id` 与 `parse_mode`）为键，改换或省略目标重投一律以 `send_bypass` 拒绝，实现是查本 Invocation 内 `tool_name = send`、`state = error`、`error_code` 为 `reply_already_sent`/`reply_delivery_unknown` 的审计行，对留存的原始输入（含模型塞入的占位字段）重新归一化后比对键；去重开启时，带 Reply 目标的 `send_duplicate` 行同样烧毁（原样重发已发出的 Reply 必然指向已回复消息，只是重复发送守卫先拦下），`send_reply` 预检因此把带目标的 part 1 精确重复留给交付路径，让它落成可烧毁的 `send` 审计行（part 1 最先发送，整组仍不会发出任何消息）。`send_reply` 预检同样逐条比对烧毁，命中整组不发。烧毁随 Invocation 结束失效、不跨运行继承，与持久的 Reply 去重互补。图片豁免，理由同重复发送守卫（generation 可能增加成品后再交付新图）；send 屏障与限流拒绝不烧毁内容，两者都明确允许稍后重试。`send_bypass` 拒绝在重复发送守卫开启时同样计入 `duplicateSendRejections`，但拦截本身不依赖 `send_duplicate_guard_enabled`。重放场景沿用同一烧毁与拦截规则。
-- 该守卫开启时（默认），重复 Reply 只新增 `tool_calls` 错误审计，不调用 Telegram、不写新的 `telegram_sends`、不计发送额度，也不触发 send 屏障。`resend:true` 不绕过限制；已交付图片的 `replayed:true` 是无发送的成功重放，不算第二次回复。被 Reply 拒绝的内容在本运行内删掉或改换目标重投会以 `send_bypass` 拦截（见上一条）；不带 Reply 的独立发送仍可用，runtime 不推断其语义归属，也不做文本相似度去重。关闭守卫（`allow_reply_message_multiple_times: true`）后以上拒绝路径全部不触发，模型仍须为自己的每次发送提供依据。
-- **同一次运行不原样重发**（`agent.send_duplicate_guard_enabled`，缺省即开启，显式 `false` 关闭）：`send` 与 `send_reply` 的每一条在发出前，查本 Invocation 的 `tool_calls` 里有没有 `tool_name = send`、`state = success`、`side_effect = 1` 且 `arguments_json` 与本条归一化输入（`narrowSendInput` 的结果：kind、文本或 `sticker_ref`、`parse_mode`、`reply_to_message_id`）逐字相等的行；命中即以 `send_duplicate` 拒绝，不调用 Telegram、不写 `telegram_sends`、不计发送额度。另有一条只看上一条的内容判重（`repeatsLastSend`）：取本 Invocation 最后一条同条件的成功 `send`，用 `sendContentKey`（kind + 文本或贴纸 file id，不含 `reply_to_message_id` 与 `parse_mode`）比对，相同也以 `send_duplicate` 拒绝，专防「同一句话挨个回复不同的人」；它排在烧毁检查之后，已被 Reply 去重烧毁的内容仍报 `send_bypass`。只比上一条，是为了不误伤隔了别的消息后再出现的短句；A → B → A 交替靠逐字比对与 Reply 去重兜底。按 file id 比对也让重搜贴纸得到的新 ref 无法绕过。带 Reply 目标被拒的这类行同样按上一条规则烧毁内容。只看 Telegram 已接受的发送：明确失败的同一条可以原样重试，结果未知的仍由「不能盲目重发」约束。`send_reply` 在预检阶段同时比对之前的发送与本组前面的条目（内容判重时 part 1 比本次运行上一条发送，后续各条比前一条 part；带目标的 part 1 同样留给交付路径），命中则整组不发。图片豁免：同一 `image_generation_id` 可能在成品增加后再次交付新图，重复由 asset 交付去重处理。每次拒绝都回调 runtime 计数，累计超过 3 次（`DUPLICATE_SEND_REJECTION_LIMIT`）时在该 turn 结束后以 `duplicate_send` 停止；重放的合成 send 在场景内套用同一规则与停止条件。它与上一条 Reply 去重相互独立，线上开启 `allow_reply_message_multiple_times` 后仍防住了「同一句话对同一条消息连发 24 次」这类循环。守卫开启时 `send`/`send_reply` 的描述会多一句「与本次运行已发内容完全一致的文本或贴纸，以及改换或省略引用目标重复上一条的内容，会被拒绝」。
+- **同一消息只回复一次**（默认行为，`agent.allow_reply_message_multiple_times` 缺省为 `false`）：按目标 Conversation + `reply_to_message_id` 查询保留的 `host_sends`，文字、贴纸、图片共用一次回复机会，不按内容或 Invocation 区分。已有 `success` 时拒绝为 `reply_already_sent`；已有 `pending` / `outcome_unknown` 时保守拒绝为 `reply_delivery_unknown`（未决优先），只有明确 `error` 不占回复机会。先在 send 屏障前预检，再在写入 pending 的同一个 IMMEDIATE 事务内复检，覆盖并发、跨 Invocation、Context 重建与重启。屏障自身的 Bucket 挂载事务必须独立提交，不能被后续发送审计失败回滚成「内存已排队、数据库未挂载」；旧审计同样生效，超出在线保留窗口不承诺去重。显式设为 `true` 时整段守卫跳过，允许对同一显式目标多次发送；它不绕过授权、预算、发送限流与 send 屏障，也不关闭图片 generation/asset 交付去重或结果未知保护（见 [Image 生成](#image-生成)）。`send` 的 Tool 描述随该配置切换。被 Reply 去重拒绝的文本/贴纸内容在本次 Invocation 内烧毁：以 kind + 内容（文本，或贴纸 ref 解析出的 sticker file id——每次 `search_stickers` 都会为同一张贴纸生成新 `stk_` ref，按 ref 比对会被重搜绕开；不含 `reply_to_message_id` 与 `parse_mode`）为键，改换或省略目标重投一律以 `send_bypass` 拒绝，实现是查本 Invocation 内 `tool_name = send`、`state = error`、`error_code` 为 `reply_already_sent`/`reply_delivery_unknown` 的审计行，对留存的原始输入（含模型塞入的占位字段）重新归一化后比对键；去重开启时，带 Reply 目标的 `send_duplicate` 行同样烧毁（原样重发已发出的 Reply 必然指向已回复消息，只是重复发送守卫先拦下），`send_reply` 预检因此把带目标的 part 1 精确重复留给交付路径，让它落成可烧毁的 `send` 审计行（part 1 最先发送，整组仍不会发出任何消息）。`send_reply` 预检同样逐条比对烧毁，命中整组不发。烧毁随 Invocation 结束失效、不跨运行继承，与持久的 Reply 去重互补。图片豁免，理由同重复发送守卫（generation 可能增加成品后再交付新图）；send 屏障与限流拒绝不烧毁内容，两者都明确允许稍后重试。`send_bypass` 拒绝在重复发送守卫开启时同样计入 `duplicateSendRejections`，但拦截本身不依赖 `send_duplicate_guard_enabled`。重放场景沿用同一烧毁与拦截规则。
+- 该守卫开启时（默认），重复 Reply 只新增 `tool_calls` 错误审计，不调用 Telegram、不写新的 `host_sends`、不计发送额度，也不触发 send 屏障。`resend:true` 不绕过限制；已交付图片的 `replayed:true` 是无发送的成功重放，不算第二次回复。被 Reply 拒绝的内容在本运行内删掉或改换目标重投会以 `send_bypass` 拦截（见上一条）；不带 Reply 的独立发送仍可用，runtime 不推断其语义归属，也不做文本相似度去重。关闭守卫（`allow_reply_message_multiple_times: true`）后以上拒绝路径全部不触发，模型仍须为自己的每次发送提供依据。
+- **同一次运行不原样重发**（`agent.send_duplicate_guard_enabled`，缺省即开启，显式 `false` 关闭）：`send` 与 `send_reply` 的每一条在发出前，查本 Invocation 的 `tool_calls` 里有没有 `tool_name = send`、`state = success`、`side_effect = 1` 且 `arguments_json` 与本条归一化输入（`narrowSendInput` 的结果：kind、文本或 `sticker_ref`、`parse_mode`、`reply_to_message_id`）逐字相等的行；命中即以 `send_duplicate` 拒绝，不调用 Telegram、不写 `host_sends`、不计发送额度。另有一条只看上一条的内容判重（`repeatsLastSend`）：取本 Invocation 最后一条同条件的成功 `send`，用 `sendContentKey`（kind + 文本或贴纸 file id，不含 `reply_to_message_id` 与 `parse_mode`）比对，相同也以 `send_duplicate` 拒绝，专防「同一句话挨个回复不同的人」；它排在烧毁检查之后，已被 Reply 去重烧毁的内容仍报 `send_bypass`。只比上一条，是为了不误伤隔了别的消息后再出现的短句；A → B → A 交替靠逐字比对与 Reply 去重兜底。按 file id 比对也让重搜贴纸得到的新 ref 无法绕过。带 Reply 目标被拒的这类行同样按上一条规则烧毁内容。只看 Telegram 已接受的发送：明确失败的同一条可以原样重试，结果未知的仍由「不能盲目重发」约束。`send_reply` 在预检阶段同时比对之前的发送与本组前面的条目（内容判重时 part 1 比本次运行上一条发送，后续各条比前一条 part；带目标的 part 1 同样留给交付路径），命中则整组不发。图片豁免：同一 `image_generation_id` 可能在成品增加后再次交付新图，重复由 asset 交付去重处理。每次拒绝都回调 runtime 计数，累计超过 3 次（`DUPLICATE_SEND_REJECTION_LIMIT`）时在该 turn 结束后以 `duplicate_send` 停止；重放的合成 send 在场景内套用同一规则与停止条件。它与上一条 Reply 去重相互独立，线上开启 `allow_reply_message_multiple_times` 后仍防住了「同一句话对同一条消息连发 24 次」这类循环。守卫开启时 `send`/`send_reply` 的描述会多一句「与本次运行已发内容完全一致的文本或贴纸，以及改换或省略引用目标重复上一条的内容，会被拒绝」。
 
 发送前写 pending 审计并标记副作用边界。明确失败可按策略处理；网络中断后无法确认 Telegram 是否接收时记录 `outcome_unknown`，不能盲目重发。进程若在 pending 落盘后、结果落盘前崩溃，重启恢复只结算 Invocation，不会把发送行按年龄改成 `error`；默认去重策略下，遗留 pending 在审计保留期内继续阻止 Reply，不能靠超时推断未送达。
 
-- 运行已被 abort（`/pause`、`/cut_topic`、Admin 取消）或已过 Invocation deadline 时，`send` 在写 pending 审计之前直接拒绝：Tool Call 记为 `error`，错误码 `aborted` / `deadline_exceeded`，不写 `telegram_sends`、不调用 Telegram。
-- Telegram 返回 429 时按 `retry_after` 等待后重试，等待超过 deadline 则不重试；等待期间 abort 记为 `error`/`aborted`。开启 send 屏障时，等待结束后会再判断一次屏障，命中则不重试，记为 `error`/`send_barrier`（此时已有 `telegram_sends` 行）。
-- 发送进入 Telegram 调用后失败时，`send` 的 `tool_calls.result_text` 记录返回给模型的同一段错误文本；Telegram API 错误（`telegram_<code>`，含 5xx 的 `outcome_unknown`）在末尾附上 Telegram 的 `description`，例如 `Telegram send failed: telegram_400 (Bad Request: can't parse entities: …)`，让模型能据此修正 MarkdownV2 转义等问题。`telegram_sends` 只记错误码。
-- Telegram 已接受、但本地落库失败（例如写 `messages` 出错）时，Tool 仍向模型返回成功，避免模型重发；日志输出 `send_record_failed`（带 `telegram_message_id`），并尽量单独把 `tool_calls` / `telegram_sends` 标为 `success`。这种情况下该条外发消息可能不在 `messages` 里。
+- 运行已被 abort（`/pause`、`/cut_topic`、Admin 取消）或已过 Invocation deadline 时，`send` 在写 pending 审计之前直接拒绝：Tool Call 记为 `error`，错误码 `aborted` / `deadline_exceeded`，不写 `host_sends`、不调用 Telegram。
+- Telegram 返回 429 时按 `retry_after` 等待后重试，等待超过 deadline 则不重试；等待期间 abort 记为 `error`/`aborted`。开启 send 屏障时，等待结束后会再判断一次屏障，命中则不重试，记为 `error`/`send_barrier`（此时已有 `host_sends` 行）。
+- 发送进入 Telegram 调用后失败时，`send` 的 `tool_calls.result_text` 记录返回给模型的同一段错误文本；Telegram API 错误（`telegram_<code>`，含 5xx 的 `outcome_unknown`）在末尾附上 Telegram 的 `description`，例如 `Telegram send failed: telegram_400 (Bad Request: can't parse entities: …)`，让模型能据此修正 MarkdownV2 转义等问题。`host_sends` 只记错误码。
+- Telegram 已接受、但本地落库失败（例如写 `messages` 出错）时，Tool 仍向模型返回成功，避免模型重发；日志输出 `send_record_failed`（带 `telegram_message_id`），并尽量单独把 `tool_calls` / `host_sends` 标为 `success`。这种情况下该条外发消息可能不在 `messages` 里。
 
-`agent.send_max_text_length` 配置了文本最大字符数（默认不限制）时，超长文本在进入发送前被拒绝：Tool Call 记为 `error`、错误码 `send_text_too_long`，不写 `telegram_sends`、不消耗窗口额度。
+`agent.send_max_text_length` 配置了文本最大字符数（默认不限制）时，超长文本在进入发送前被拒绝：Tool Call 记为 `error`、错误码 `send_text_too_long`，不写 `host_sends`、不消耗窗口额度。
 
 `agent.send_disallow_blank_lines` 开启（默认关闭）时，包含任何空行的文本同样在发送前被拒绝，错误码 `send_blank_lines`。
 
@@ -445,7 +447,7 @@ Alarm 是第一个 `plugin_id = "alarm"` 的 consumer，通过 `execute.call` �
 
 `agent.allow_reply_message_multiple_times`（可选，默认 `false`）是上述「同一消息只回复一次」守卫的总开关，与 `send_*` 同级、全局生效、无 per-Chat 覆盖：`false`/省略时守卫启用，`true` 时跳过查重并允许对同一显式目标多次发送，但图片 generation/asset 交付去重与结果未知保护不受影响。它属于热更新白名单：显式应用配置后**下一次** Invocation 与重放读取新值，运行中的 Invocation 继续用启动时的快照；Tool 描述在每次运行时按该快照生成，因此同一进程里新旧运行可能看到不同的 `send` 描述。
 
-`agent.rate_limits.sends_per_window` / `window_seconds` 限制同一 Chat 在滑动窗口内的 `telegram_sends` 行数，不区分状态（失败的尝试同样消耗额度，否则失败重试的循环就没有刹车）；超出时 Tool Call 记为 `error`/`send_rate_limited`，不写 `telegram_sends`。这是长活 Invocation 取代 per-Invocation `max_sends` 的刹车。
+`agent.rate_limits.sends_per_window` / `window_seconds` 限制同一 Chat 在滑动窗口内的 `host_sends` 行数，不区分状态（失败的尝试同样消耗额度，否则失败重试的循环就没有刹车）；超出时 Tool Call 记为 `error`/`send_rate_limited`，不写 `host_sends`。这是长活 Invocation 取代 per-Invocation `max_sends` 的刹车。
 
 ### 一条消息对应一个话题
 
@@ -459,12 +461,12 @@ Alarm 是第一个 `plugin_id = "alarm"` 的 consumer，通过 `execute.call` �
 
 `send_reply` 把一次回复拆成 2–4 条连续消息按顺序发出：`parts` 的每一项是一条消息，字段与 `send` 相同（文本、`kind: "sticker"` + `stk_` 引用、`kind: "image"` + `image_generation_id` 与可选说明、`kind: "file"`），顶层可选 `reply_to_message_id`。它不是第二条发送通道，每一条都走完整的 `send` 管线：
 
-- **先全部检查，再发第一条**：字段与 kind 是否匹配、Reply 目标是否可见、`send_max_text_length` 与 `send_disallow_blank_lines`、Sticker 引用授权、图片 generation 是否属于本 Conversation 且有成品、文件来源的 `img_` 授权（读取与原图反查留到该条发送时）、图片与文件说明长度、abort/deadline，以及本 Chat 滑动窗口剩余额度是否容得下全部条数。任一项不过，整次调用记为一条 `send_reply` 的 `error` Tool Call，不写 `telegram_sends`、不调用 Telegram、不消耗额度。
-- **逐条发送**：第 n 条以 `<tool_call_id>:<n>` 作为自己的 `send` Tool Call 走原有流程（审计、`telegram_sends`、限流计数、429 重试、写入可见历史、完成回执首条文字的 @ 提及）；外层另有一条 `tool_name = 'send_reply'` 的 `tool_calls` 行，成功时 `result_text` 为 `telegram_message_ids=…`。
+- **先全部检查，再发第一条**：字段与 kind 是否匹配、Reply 目标是否可见、`send_max_text_length` 与 `send_disallow_blank_lines`、Sticker 引用授权、图片 generation 是否属于本 Conversation 且有成品、文件来源的 `img_` 授权（读取与原图反查留到该条发送时）、图片与文件说明长度、abort/deadline，以及本 Chat 滑动窗口剩余额度是否容得下全部条数。任一项不过，整次调用记为一条 `send_reply` 的 `error` Tool Call，不写 `host_sends`、不调用 Telegram、不消耗额度。
+- **逐条发送**：第 n 条以 `<tool_call_id>:<n>` 作为自己的 `send` Tool Call 走原有流程（审计、`host_sends`、限流计数、429 重试、写入可见历史、完成回执首条文字的 @ 提及）；外层另有一条 `tool_name = 'send_reply'` 的 `tool_calls` 行，成功时 `result_text` 为 `telegram_message_ids=…`。
 - **Reply 只挂在第一条**：顶层 `reply_to_message_id` 只给第一条，后续几条不带 Reply。因此「同一消息只回复一次」守卫只作用于第一条：目标已被回复过时第一条被拒，整次什么都不发。
 - **send 屏障只拦第一条**：第一条发出后，期间到达的新消息不再拦下后面几条（429 等待后也不再判断屏障），避免把一次回复切成两半；新消息按原规则在本轮之后注入。
 - **中途失败**：第 k 条失败（Telegram 错误、结果未知、abort 等）时停止，前面已发出的保留；外层 `send_reply` 行记为 `error`，错误码取自失败那条，`result_text` 记录已发出的 message ID；Tool 结果向模型列出已发出的消息并要求不要重发，剩余条目不尝试。
-- **计数**：每一条都是一行 `telegram_sends`，各自计入 `sends_used` 与 `sends_per_window`；成功的 `send_reply` 在 Conversation Context 中算作**一次**发送（一个 toolResult 带 `send_seq`）。它与 `send` 一样计入 send nudge 判定、收尾模式只保留的工具与 `execute` 不可调用的原语。
+- **计数**：每一条都是一行 `host_sends`，各自计入 `sends_used` 与 `sends_per_window`；成功的 `send_reply` 在 Conversation Context 中算作**一次**发送（一个 toolResult 带 `send_seq`）。它与 `send` 一样计入 send nudge 判定、收尾模式只保留的工具与 `execute` 不可调用的原语。
 - Scene 重放把它合成为每条一个 `send` 输出（`<id>:<n>`），同样先检查全部条目，第一条受场景内的同一消息只回复一次约束。
 
 ### send 屏障
@@ -472,7 +474,7 @@ Alarm 是第一个 `plugin_id = "alarm"` 的 consumer，通过 `execute.call` �
 `agent.send_barrier_enabled` 开启时，`send` 在所有输入校验都通过、即将写 pending 审计之前多做一次判断：模型组织回复期间，同一 Conversation 是否又开了 `collecting` Bucket。若有，就不发这条，而是：
 
 1. 在同一事务里把这个 Bucket attach 进当前 Invocation（与到期 attach 同一个 `attachBucketToInvocation`：写 `invocation_buckets`、Bucket 置 `running`、按 `sequence_no` 续写 `invocation_messages` 快照），再 `queueInjection`。
-2. 本次 Tool Call 记为 `error` / `send_barrier`，不写 `telegram_sends`、不消耗发送配额；Tool 结果告诉模型新消息紧随其后，请读完再决定发什么——两批延续同一个话题时可以一条消息同时回应，是不同话题则各发一条。
+2. 本次 Tool Call 记为 `error` / `send_barrier`，不写 `host_sends`、不消耗发送配额；Tool 结果告诉模型新消息紧随其后，请读完再决定发什么——两批延续同一个话题时可以一条消息同时回应，是不同话题则各发一条。
 3. 该 turn 结束时，turn 边界上既有的 `injectPending` 把这批 steer 进去（它本身就是一个 checkpoint），模型在下一次调用里同时看到被拦的原因与新批次。
 
 约束：
@@ -487,7 +489,7 @@ Alarm 是第一个 `plugin_id = "alarm"` 的 consumer，通过 `execute.call` �
 成功发送后：
 
 - `tool_calls` 记为 success。
-- `telegram_sends` 保存 Telegram 返回 ID/时间。
+- `host_sends` 保存 Telegram 返回 ID/时间。
 - 发送内容写入可见消息历史。
 - Agent 的私有 Assistant 文本仍不进入 Telegram。
 
@@ -608,8 +610,8 @@ Sticker 视觉元数据通过严格 Tool Call 返回：中文描述、情绪、�
 
 `/cut_topic` 仅对 Bot 管理员开放，用于在群聊上下文被旧话题污染时手动切断历史：
 
-1. 把命令消息自身的 Telegram message ID 写入 `conversation_context_cutoffs`（每 Conversation 一行，即 Chat + Forum Topic；重复执行只会前移切点，更旧的命令不会把切点往回挪）。Forum 中切一个 Topic 不影响同群其他 Topic 的 history。该 Topic 还没有任何入库消息时（没有 Conversation 行）不写切点，因为没有可切的历史。
-2. 之后新建的 Invocation 在冻结 history 快照时排除 `telegram_message_id <= 切点` 的消息，命令消息本身也在切点上，因此不会进入下一个会话的上下文。
+1. 把命令消息自身的线上 message ID 写入 `conversation_context_cutoffs.message_no`（每 Conversation 一行，即 Chat + Forum Topic；重复执行只会前移切点，更旧的命令不会把切点往回挪）。Forum 中切一个 Topic 不影响同群其他 Topic 的 history。该 Topic 还没有任何入库消息时（没有 Conversation 行）不写切点，因为没有可切的历史。
+2. 之后新建的 Invocation 在冻结 history 快照时排除 `message_no <= 切点` 的消息，命令消息本身也在切点上，因此不会进入下一个会话的上下文。
 3. 先中断该 Conversation 正在运行的 Invocation（`BucketScheduler.abortConversation`，abort reason `context_cut`），再清空 canonical history（`head_seq` 推进到 `next_seq`、`context_refs` 全删、`generation` 递增），并驱逐进程内的 Agent 缓存。三步都必要：运行中的那次调用把切点前的 transcript 和一份运行开始时的 `head_seq` 快照都留在内存里，不中断它就会继续按被切掉的历史回答，还可能把这份更旧的 `head_seq` 写回去覆盖切点；`generation` 递增让它在中断信号落地前已经排好的写入直接被 `ConversationContextStore` 拒绝。
 4. 不删除任何消息、Revision 或已淘汰的 Context 行（只软标记）；被切 Conversation 之外的已排队/运行中 Invocation 不受影响，启动追赶的 `new` 消息也不受影响。
 
@@ -635,7 +637,7 @@ Sticker 视觉元数据通过严格 Tool Call 返回：中文描述、情绪、�
 3. `telegram_updates.allowed/rejection_reason`。
 4. Bucket 与 Invocation 是否进入终态。
 5. `model_calls` 是否 success，Token 是否计入。
-6. `tool_calls` 与 `telegram_sends` 是否 success/outcome_unknown。
+6. `tool_calls` 与 `host_sends` 是否 success/outcome_unknown。
 7. 媒体问题检查 `media_analyses` 和对应 Vision `model_calls`。
 
 一次自然语言回复看似成功，不代表内部 Tool 都成功；必须以审计表为准。
