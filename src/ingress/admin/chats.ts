@@ -336,7 +336,7 @@ function chatSettings(
         participation: chat.participation ?? null,
         group_memory: chat.group_memory ?? null,
         proactive_reply: chat.proactive_reply ?? null,
-        effective_proactive_reply: resolveProactiveReply(config, chat),
+        effective_proactive_reply: resolveProactiveReply({ proactive_reply: config.telegram?.proactive_reply }, chat),
         timezone: chat.timezone ?? null,
         mcp: chat.mcp ?? null,
         effective: agentSettingsView(config, chat),
@@ -359,7 +359,7 @@ export function listChats(
     timezone: file.timezone,
     global_participation: file.telegram?.participation ?? null,
     global_proactive_reply: file.telegram?.proactive_reply ?? null,
-    effective_global_proactive_reply: resolveProactiveReply(file),
+    effective_global_proactive_reply: resolveProactiveReply({ proactive_reply: file.telegram?.proactive_reply }),
     defaults: agentSettingsView(file),
     models: Object.entries(file.providers).flatMap(([provider, definition]) =>
       definition.models

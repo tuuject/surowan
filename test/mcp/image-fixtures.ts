@@ -68,7 +68,7 @@ export async function imageFixture(payloadMaxBytes = 1_048_576) {
     conversationId: seed.conversationId,
     // The MCP binding is resolved from the published configuration, which lists
     // this Telegram chat; the seeded admin rows keep their own internal ids.
-    chatId: BigInt(f.loaded.config.telegram.chats[0]?.id ?? 0),
+    hostChatId: BigInt(f.loaded.config.telegram.chats[0]?.id ?? 0),
     internalChatId: seed.chatId,
     header,
   };

@@ -5,6 +5,11 @@ import type { RawConfig } from '../../../platform/config/index.ts';
 import type { BusinessStore } from '../../../store/store.ts';
 import { telegramHostSql } from '../../../store/host-scope.ts';
 
+/** The configured sticker sets; a Telegram-only section, read in the sticker module. */
+export function configuredStickerSets(config: RawConfig): readonly ConfiguredStickerSet[] {
+  return config.telegram.sticker_sets ?? [];
+}
+
 export interface StickerSetPublishDeps {
   readonly store: BusinessStore;
   readonly abortInvocations: (ids: readonly bigint[], reason: string) => number;

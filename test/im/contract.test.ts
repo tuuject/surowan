@@ -28,7 +28,7 @@ test('a topic id beyond the number range survives ref construction unchanged', (
   // way to the ref rounds it into a different topic.
   const threadId = 9_007_199_254_740_993n;
   const conversation = identityConversation(
-    { chatId: -1001234567890n, threadId, conversationId: 7n },
+    { hostChatId: -1001234567890n, internalChatId: -1001234567890n, threadId, conversationId: 7n },
     'telegram',
     'group',
   );
@@ -40,6 +40,10 @@ test('topic ids that only differ in low bits produce different conversation keys
   // Both values round to the same number, so rate windows and typing loops
   // keyed by a rounded id would silently share state across two topics.
   const ref = (threadId: bigint) =>
-    identityConversation({ chatId: -1001234567890n, threadId, conversationId: 7n }, 'telegram', 'group');
+    identityConversation(
+      { hostChatId: -1001234567890n, internalChatId: -1001234567890n, threadId, conversationId: 7n },
+      'telegram',
+      'group',
+    );
   expect(conversationKey(ref(9_007_199_254_740_995n))).not.toBe(conversationKey(ref(9_007_199_254_740_996n)));
 });

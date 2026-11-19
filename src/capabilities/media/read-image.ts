@@ -1,7 +1,7 @@
 import type { AgentTool } from '@earendil-works/pi-agent-core';
 import { sql } from 'drizzle-orm';
 import Type from 'typebox';
-import { hostExecutionProfile } from '../../platform/host-profile.ts';
+import { hostExecutionProfile, policyScopeChatId } from '../../platform/host-profile.ts';
 import type { CapabilityRefResolver, InvocationContext } from '../../platform/invocation-context.ts';
 import { finishToolCall, rejectToolCall, startToolCall } from '../../store/store.ts';
 import type { MemoBlobStore } from '../../context/memo-pad/blobs.ts';
@@ -108,7 +108,10 @@ export function createReadImageTool(
             run,
             {
               kind: 'chat',
-              chatId: context.chatId,
+              scopeChatId: policyScopeChatId(context.hostKind, {
+                hostChatId: context.hostChatId,
+                chatId: context.internalChatId,
+              }),
               invocationId: context.invocationId,
               hostKind: context.hostKind,
             },

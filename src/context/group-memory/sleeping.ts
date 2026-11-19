@@ -4,8 +4,9 @@ import { type HostKind, isHostKind } from '../../platform/im-host/identity.ts';
 import type { RuntimeConfigurationStore } from '../../platform/runtime-config.ts';
 import type { SecretStore } from '../../platform/secrets.ts';
 import { resolveToolModel, type ToolModelSelection } from '../../platform/tool-model.ts';
+import { resolveChatConfig } from '../../platform/config/index.ts';
 import type { BusinessStore } from '../../store/store.ts';
-import { isChatPaused, resolveChatConfig } from '../../store/store.ts';
+import { isChatPaused } from '../../store/store.ts';
 import { activeSleepUntil } from '../../store/sleep.ts';
 import { candidateChats, isChatBusy } from './chats.ts';
 import { consolidateDay } from './consolidate.ts';
@@ -221,8 +222,10 @@ export class SleepingService {
       activeSleepUntil(this.#store.orm, clock()) === null &&
       !isChatPaused(this.#store.orm, batch.chatId) &&
       (batch.lane !== 'live' || !isChatBusy(this.#store, batch.chatId)) &&
-      resolveChatConfig(this.#configStore.current().config, this.#store.orm, batch.telegramChatId)?.group_memory
-        ?.enabled === true &&
+      resolveChatConfig(this.#configStore.current().config, this.#store.orm, {
+        hostKind: batch.hostKind,
+        hostChatId: batch.hostChatId,
+      })?.group_memory?.enabled === true &&
       this.#groupMemory.lane(batch.chatId, batch.lane)?.claimedAt === claimedAt;
     const fields = { chat_id: batch.chatId.toString(), lane: batch.lane, day: batch.day };
     const first = batch.rows[0]?.messageNo ?? 0n;
@@ -295,8 +298,10 @@ export class SleepingService {
         return false;
       }
       const stillEnabled =
-        resolveChatConfig(this.#configStore.current().config, this.#store.orm, batch.telegramChatId)?.group_memory
-          ?.enabled === true;
+        resolveChatConfig(this.#configStore.current().config, this.#store.orm, {
+          hostKind: batch.hostKind,
+          hostChatId: batch.hostChatId,
+        })?.group_memory?.enabled === true;
       if (!stillEnabled) {
         // The Admin switched the Chat off while the model was running: do
         // not write memories for a Chat whose capability is already gone.

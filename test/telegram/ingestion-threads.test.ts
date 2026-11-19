@@ -101,7 +101,12 @@ describe('Telegram ingestion', () => {
       const { store, ingestion } = await setup(undefined, BOT);
       const result = ingestion.ingest(mentionUpdate(1, 10));
       expect(result.bucketId).toBeDefined();
-      expect(result.mention).toEqual({ chatId: 123456789n, threadId: 0n });
+      expect(result.mention).toEqual({
+        hostKind: 'telegram',
+        hostChatId: 123456789n,
+        internalChatId: 1n,
+        threadId: 0n,
+      });
       const topic = ingestion.ingest(
         mentionUpdate(2, 11, {
           message_thread_id: 77,
@@ -109,7 +114,12 @@ describe('Telegram ingestion', () => {
           chat: { id: 123456789, type: 'supergroup', title: 'Forum', is_forum: true },
         }),
       );
-      expect(topic.mention).toEqual({ chatId: 123456789n, threadId: 77n });
+      expect(topic.mention).toEqual({
+        hostKind: 'telegram',
+        hostChatId: 123456789n,
+        internalChatId: 1n,
+        threadId: 77n,
+      });
       store.close();
     });
 
@@ -146,7 +156,12 @@ describe('Telegram ingestion', () => {
             blocks: [{ type: 'paragraph', text: ['ping ', { type: 'mention', text: `@${username}`, username }] }],
           },
         });
-      expect(ingestion.ingest(rich(1, 10, BOT.toLowerCase())).mention).toEqual({ chatId: 123456789n, threadId: 0n });
+      expect(ingestion.ingest(rich(1, 10, BOT.toLowerCase())).mention).toEqual({
+        hostKind: 'telegram',
+        hostChatId: 123456789n,
+        internalChatId: 1n,
+        threadId: 0n,
+      });
       expect(ingestion.ingest(rich(2, 11, 'SomeoneElse')).mention).toBeUndefined();
       store.close();
     });

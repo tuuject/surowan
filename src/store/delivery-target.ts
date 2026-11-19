@@ -1,10 +1,11 @@
 import { eq, sql } from 'drizzle-orm';
 import type { RawConfig } from '../platform/config/index.ts';
+import { resolveChatConfig } from '../platform/config/index.ts';
 import { completeAgentSettings, resolveAgentSettings } from '../platform/config/resolve.ts';
 import { hostExecutionProfile } from '../platform/host-profile.ts';
 import { parseHostKind } from '../platform/im-host/identity.ts';
 import { rooms } from './schema/index.ts';
-import { isChatPaused, type Orm, resolveChatConfig } from './store.ts';
+import { isChatPaused, type Orm } from './store.ts';
 
 /** Where an injected task round would land: one Conversation and its Chat. */
 export interface DeliveryTarget {
@@ -61,7 +62,8 @@ export function deliveryBlockReason(
   if (target.hostChatId === null) {
     return 'chat_removed';
   }
-  const chatConfig = resolveChatConfig(config, orm, target.hostChatId);
+  const hostKind = parseHostKind(target.hostKind);
+  const chatConfig = resolveChatConfig(config, orm, { hostKind, hostChatId: target.hostChatId });
   if (chatConfig === undefined) {
     return 'chat_removed';
   }

@@ -34,8 +34,9 @@
 
 import { randomUUID } from 'node:crypto';
 import type { RawConfig } from '../../platform/config/index.ts';
+import { resolveChatConfig } from '../../platform/config/index.ts';
+import type { HostKind } from '../../platform/im-host/identity.ts';
 import type { BusinessStore } from '../../store/store.ts';
-import { resolveChatConfig } from '../../store/store.ts';
 
 import { MEDIA_MISSING, compareMessages, loadHistoryWindow } from './render.ts';
 import { loadBotSlice, loadOpeningBatch, loadSliceBatch, loadSource, type SceneMessage } from './rows.ts';
@@ -66,7 +67,9 @@ export interface SceneContext {
   readonly cutoffAt: string;
   readonly bucketId: bigint;
   readonly conversationId: bigint;
-  readonly chatId: bigint;
+  readonly hostKind: HostKind;
+  readonly hostChatId: bigint | null;
+  readonly internalChatId: bigint;
   readonly threadId: bigint;
   /** Media row IDs referenced by the rendered messages, for statistics only. */
   readonly mediaIds: readonly bigint[];
@@ -92,13 +95,16 @@ export function buildSceneContext(
       ? undefined
       : loadBotSlice(store, invocationId, originalSource, options.beforeSendId);
   const source = slice === undefined ? originalSource : { ...originalSource, createdAt: slice.cutoffAt };
-  const chatConfig = resolveChatConfig(config, store.orm, source.chatId);
+  const chatConfig = resolveChatConfig(config, store.orm, {
+    hostKind: source.hostKind,
+    hostChatId: source.hostChatId,
+  });
   if (chatConfig === undefined) {
-    throw new Error(`Scene context: chat ${source.chatId} is no longer configured`);
+    throw new Error(`Scene context: chat ${source.hostChatId} is no longer configured`);
   }
   const topics = chatConfig.topic_ids;
   if (topics !== undefined && !topics.some((topicId) => BigInt(topicId) === source.threadId)) {
-    throw new Error(`Scene context: topic ${source.threadId} of chat ${source.chatId} is not allowed`);
+    throw new Error(`Scene context: topic ${source.threadId} of chat ${source.hostChatId} is not allowed`);
   }
   const opening =
     slice === undefined
@@ -240,7 +246,9 @@ export function buildSceneContext(
     cutoffAt: source.createdAt,
     bucketId: source.bucketId,
     conversationId: source.conversationId,
-    chatId: source.chatId,
+    hostKind: source.hostKind,
+    hostChatId: source.hostChatId,
+    internalChatId: source.internalChatId,
     threadId: source.threadId,
     mediaIds: [...mediaIds],
     mediaRefs: selectedRefs,

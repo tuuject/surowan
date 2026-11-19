@@ -41,7 +41,7 @@ describe('cut_topic', () => {
     expect(contexts.retained(header)).toHaveLength(1);
 
     const command = ingestion.ingest(commandUpdate(3, 12, FIRST_CHAT), new Date(start.getTime() + 2_000)).command;
-    expect(await commands.run(command!, FIRST_CHAT, ALICE)).toContain('清空');
+    expect(await commands.run(command!, { hostKind: 'telegram', hostChatId: FIRST_CHAT }, ALICE)).toContain('清空');
 
     // The truncation has to reach the transcript too: otherwise the command
     // would only trim the rendered history while the model kept its memory.
@@ -121,7 +121,7 @@ describe('cut_topic', () => {
         new Date(start.getTime() + 2_000),
       ).command;
       expect(command?.threadId).toBeUndefined();
-      expect(await commands.run(command!, FIRST_CHAT, ALICE)).toContain('清空');
+      expect(await commands.run(command!, { hostKind: 'telegram', hostChatId: FIRST_CHAT }, ALICE)).toContain('清空');
 
       const reopened = contexts.header(conversationId);
       expect(reopened?.headSeq).toBe(reopened?.nextSeq);

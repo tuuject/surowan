@@ -12,7 +12,7 @@ import type { InvocationConfigSnapshot } from '../../platform/runtime-config.ts'
 import { estimateTextTokens } from '../../platform/token-estimate.ts';
 import { capabilitiesFor } from './support.ts';
 import type { RunScope, RunState, RuntimeServices } from './types.ts';
-import { logContextRebuilt, logZzzExposure } from './observability.ts';
+import { logContextRebuilt, logZzzExposure, scopeChatId } from './observability.ts';
 import { createAgentRun } from './run-agent.ts';
 import { executeRun } from './run-finish.ts';
 import { bindRequestHooks, subscribeRunEvents } from './run-hooks.ts';
@@ -114,7 +114,7 @@ export async function runInvocation(
     invocationId,
     conversationId: identity.conversationId,
     hostKind: identity.hostKind,
-    chatId: identity.chatId,
+    hostChatId: identity.hostChatId,
     internalChatId: identity.internalChatId,
     threadId: identity.threadId,
     completion: identity.completion,
@@ -150,7 +150,7 @@ export async function runInvocation(
     ? createZzzTool({
         orm: services.store.orm,
         invocationId,
-        chatId: identity.chatId,
+        chatId: scopeChatId(identity),
         onSleep: () => {
           state.sleepRequested = true;
         },
@@ -159,7 +159,7 @@ export async function runInvocation(
   const initialBudget = dailyBudget();
   const zzzExposed = zzz !== undefined && !bypassDailyBudget() && isLowDailyTokenBudget(initialBudget);
   if (zzzExposed) {
-    logZzzExposure(invocationId, identity.chatId, initialBudget);
+    logZzzExposure(invocationId, scopeChatId(identity), initialBudget);
   }
 
   const scope: RunScope = {

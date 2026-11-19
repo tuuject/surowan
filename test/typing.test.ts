@@ -40,7 +40,7 @@ function transportFixture() {
 
 function targetOf(host: TelegramHost, chatId: string, threadId: bigint): ImDeliveryTarget {
   const conversation = identityConversation(
-    { chatId: BigInt(chatId), threadId, conversationId: 1n },
+    { hostChatId: BigInt(chatId), internalChatId: BigInt(chatId), threadId, conversationId: 1n },
     'telegram',
     'group',
   );

@@ -6,7 +6,8 @@ import type { InvocationConfigSnapshot, RuntimeConfigurationStore } from '../../
 import type { LongTaskService } from '../../store/long-tasks/index.ts';
 import { PlaygroundStore } from '../../store/playground/index.ts';
 import { buckets, invocations } from '../../store/schema/index.ts';
-import { type BusinessStore, resolveChatConfig } from '../../store/store.ts';
+import { resolveChatConfig } from '../../platform/config/index.ts';
+import type { BusinessStore } from '../../store/store.ts';
 import { activeHosts, conversationsOfHosts, type HostReadiness } from '../host-scope.ts';
 import type { InvocationQueueService } from '../invocation-queue/index.ts';
 import type { ActiveInvocation, InvocationRow } from './execution.ts';
@@ -222,7 +223,10 @@ export function launchQueued(deps: SchedulerLoopDeps): void {
         isHostKind(candidate.host_kind) &&
         hostExecutionProfile(candidate.host_kind).chatSource === 'config' &&
         (candidate.telegram_chat_id === null ||
-          resolveChatConfig(snapshot.config, deps.store.orm, candidate.telegram_chat_id) === undefined)
+          resolveChatConfig(snapshot.config, deps.store.orm, {
+            hostKind: candidate.host_kind,
+            hostChatId: candidate.telegram_chat_id,
+          }) === undefined)
       ) {
         deps.store.orm
           .update(invocations)

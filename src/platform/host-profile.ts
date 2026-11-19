@@ -160,21 +160,11 @@ export function hostsWhere(predicate: (profile: HostExecutionProfile) => boolean
 }
 
 /**
- * The host whose `mcp` trait is on. MCP bindings only ever resolve for that
- * host's chats, so registry-time previews validate as that host.
- */
-export function mcpCapableHost(): HostKind {
-  const host = hostsWhere((profile) => profile.mcp).at(0);
-  if (host === undefined) {
-    throw new Error('No MCP-capable host kind');
-  }
-  return host;
-}
-
-/**
  * The chat id a policy scope uses for one stored row: a `config` chat is
  * addressed by its host-native id, a `room` chat by its internal chat id.
- * Neither is ever used as the other's id.
+ * Neither is ever used as the other's id, and a `config` chat that lost its
+ * host-native id is a storage bug — failing here beats silently scoping every
+ * such row under one id.
  */
 export function policyScopeChatId(
   kind: HostKind,
@@ -182,7 +172,10 @@ export function policyScopeChatId(
 ): bigint {
   switch (PROFILES[kind].chatSource) {
     case 'config':
-      return ids.hostChatId ?? 0n;
+      if (ids.hostChatId === null) {
+        throw new Error(`Chat ${ids.chatId} on ${kind} has no host chat id`);
+      }
+      return ids.hostChatId;
     case 'room':
       return ids.chatId;
   }

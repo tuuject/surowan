@@ -35,7 +35,8 @@ export class DocSpaceError extends Error {
  */
 export interface DocAccessContext {
   readonly conversationId: bigint;
-  readonly chatId: bigint;
+  /** Internal `chats.id`; never a host-native id. */
+  readonly internalChatId: bigint;
 }
 
 export interface DocSpaceSummary {

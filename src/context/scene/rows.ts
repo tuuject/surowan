@@ -4,6 +4,8 @@
  */
 
 import { sql } from 'drizzle-orm';
+import type { HostKind } from '../../platform/im-host/identity.ts';
+import { parseHostKind } from '../../platform/im-host/identity.ts';
 import type { BusinessStore } from '../../store/store.ts';
 
 import {
@@ -31,7 +33,11 @@ export interface SceneSource {
   readonly conversationId: bigint;
   readonly createdAt: string;
   readonly threadId: bigint;
-  readonly chatId: bigint;
+  readonly hostKind: HostKind;
+  /** The host's own chat id; `null` for a room. */
+  readonly hostChatId: bigint | null;
+  /** Internal `chats.id`. */
+  readonly internalChatId: bigint;
 }
 
 /** One rendered message plus the media rows it references, for statistics. */
@@ -93,10 +99,12 @@ export function loadSource(store: BusinessStore, invocationId: bigint): SceneSou
       conversation_id: bigint;
       created_at: string;
       message_thread_id: bigint;
-      host_chat_id: bigint;
+      host_kind: string;
+      host_chat_id: bigint | null;
+      internal_chat_id: bigint;
     }>(
       sql`SELECT i.bucket_id, i.conversation_id, i.created_at, b.kind AS bucket_kind,
-                 v.message_thread_id, c.host_chat_id
+                 v.message_thread_id, c.host_kind, c.host_chat_id, c.id AS internal_chat_id
           FROM invocations i
           JOIN buckets b ON b.id = i.bucket_id
           JOIN conversations v ON v.id = i.conversation_id
@@ -113,7 +121,9 @@ export function loadSource(store: BusinessStore, invocationId: bigint): SceneSou
     conversationId: source.conversation_id,
     createdAt: source.created_at,
     threadId: source.message_thread_id,
-    chatId: source.host_chat_id,
+    hostKind: parseHostKind(source.host_kind),
+    hostChatId: source.host_chat_id,
+    internalChatId: source.internal_chat_id,
   };
 }
 

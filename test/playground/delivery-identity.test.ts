@@ -161,7 +161,7 @@ describe('Bot Playground virtual delivery', () => {
   test('local activity expires on its own without polling', () => {
     const host = hostFor('碗');
     const conversation = identityConversation(
-      { chatId: 70n, threadId: 0n, conversationId: 70n },
+      { hostChatId: null, internalChatId: 70n, threadId: 0n, conversationId: 70n },
       'playground',
       'private',
     );

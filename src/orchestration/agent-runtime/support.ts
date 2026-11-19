@@ -20,7 +20,7 @@ import { createMemoReadTools } from '../../context/memo-pad/tools/index.ts';
 import { createCapabilityResolver } from '../../context/refs.ts';
 import type { ContextHeader } from '../../context/store/types.ts';
 import type { RawConfig } from '../../platform/config/index.ts';
-import { hostExecutionProfile } from '../../platform/host-profile.ts';
+import { hostExecutionProfile, policyScopeChatId } from '../../platform/host-profile.ts';
 import type { HostKind } from '../../platform/im-host/identity.ts';
 import type { ImHost } from '../../platform/im-host/index.ts';
 import {
@@ -159,7 +159,17 @@ export function sceneToolDefinitions(
         ? createZzzTool({
             orm: services.store.orm,
             invocationId: context.invocationId,
-            chatId: context.chatId,
+            // A scene preview context is synthetic (internal id 0): it has no
+            // stored chat row and never reaches a transport, so its scope is
+            // the explicit 0n. A real context goes through policyScopeChatId —
+            // a config host missing its native id fails loudly there.
+            chatId:
+              context.internalChatId === 0n
+                ? 0n
+                : policyScopeChatId(context.hostKind, {
+                    hostChatId: context.hostChatId,
+                    chatId: context.internalChatId,
+                  }),
             onSleep: () => {},
           })
         : undefined,

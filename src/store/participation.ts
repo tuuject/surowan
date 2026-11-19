@@ -1,6 +1,9 @@
 import { eq, sql } from 'drizzle-orm';
 import type { Message } from 'grammy/types';
+import { allConfiguredChats, hostIntakeSettings, resolveChatConfig } from '../platform/config/index.ts';
 import type { RawConfig } from '../platform/config/index.ts';
+import type { ChatConfigRef } from '../platform/config/index.ts';
+import type { HostKind } from '../platform/im-host/identity.ts';
 import {
   type BotIdentity,
   compileParticipation,
@@ -10,7 +13,7 @@ import {
   type TriggerKind,
 } from '../platform/participation.ts';
 import type { RuntimeConfigurationStore } from '../platform/runtime-config.ts';
-import { isChatPaused, type Orm, resolveChatConfig } from './store.ts';
+import { isChatPaused, type Orm } from './store.ts';
 import { conversationAttention } from './schema/index.ts';
 
 export interface ParticipationDecision {
@@ -44,10 +47,10 @@ export class ParticipationRegistry {
   /**
    * `undefined` means the chat participates unrestricted. Private chats never
    * gate, so a global schedule cannot silence direct messages. Rules are keyed
-   * by the configured chat ID, so migrated supergroups resolve like
-   * `resolveChatConfig`.
+   * by the host and the configured chat ID, so migrated supergroups resolve
+   * like `resolveChatConfig` and two hosts can never share a rule.
    */
-  ruleFor(orm: Orm, telegramChatId: bigint, chatType: string): ParticipationRule | undefined {
+  ruleFor(orm: Orm, chat: ChatConfigRef, chatType: string): ParticipationRule | undefined {
     if (chatType === 'private') {
       return undefined;
     }
@@ -57,13 +60,17 @@ export class ParticipationRegistry {
       // Chat additions are hot-applied configuration changes: recompile the
       // rules whenever the published generation moved on.
       const rules = new Map<string, ParticipationRule | undefined>();
-      for (const chat of snapshot.config.telegram.chats) {
+      const globalForHost = new Map<HostKind, ReturnType<typeof hostIntakeSettings>['participation']>();
+      for (const { host, chat: configured } of allConfiguredChats(snapshot.config)) {
+        if (!globalForHost.has(host)) {
+          globalForHost.set(host, hostIntakeSettings(snapshot.config, host).participation);
+        }
         rules.set(
-          String(chat.id),
+          `${host}:${configured.id}`,
           compileParticipation({
-            global: snapshot.config.telegram.participation,
-            chat: chat.participation,
-            timezone: chat.timezone ?? snapshot.config.timezone,
+            global: globalForHost.get(host),
+            chat: configured.participation,
+            timezone: configured.timezone ?? snapshot.config.timezone,
           }),
         );
       }
@@ -71,8 +78,8 @@ export class ParticipationRegistry {
       this.#config = config = snapshot.config;
       this.#rules = rules;
     }
-    const chatConfig = resolveChatConfig(config, orm, telegramChatId);
-    return chatConfig === undefined ? undefined : this.#rules.get(String(chatConfig.id));
+    const chatConfig = resolveChatConfig(config, orm, chat);
+    return chatConfig === undefined ? undefined : this.#rules.get(`${chat.hostKind}:${chatConfig.id}`);
   }
 }
 

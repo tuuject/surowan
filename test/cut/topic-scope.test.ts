@@ -22,7 +22,7 @@ describe('cut_topic', () => {
     ingestion.ingest(groupUpdate(1, 10, `polluted ${FIRST_CHAT}`, FIRST_CHAT), start);
     ingestion.ingest(groupUpdate(2, 10, `polluted ${SECOND_CHAT}`, SECOND_CHAT), start);
     const command = ingestion.ingest(commandUpdate(3, 11, FIRST_CHAT), new Date(start.getTime() + 1_000)).command;
-    await commands.run(command!, FIRST_CHAT, ALICE);
+    await commands.run(command!, { hostKind: 'telegram', hostChatId: FIRST_CHAT }, ALICE);
     expect(
       store.db.prepare<[], { count: bigint }>('SELECT COUNT(*) AS count FROM conversation_context_cutoffs').get()
         ?.count,
@@ -59,9 +59,13 @@ describe('cut_topic', () => {
     const { store, ingestion, commands } = await setup();
     const command = ingestion.ingest(commandUpdate(1, 10, FIRST_CHAT), new Date()).command;
     expect(command).toEqual({ name: 'cut_topic', messageId: 10n });
-    expect(await commands.run(command!, FIRST_CHAT, { id: 99n, name: 'Mallory', username: 'mallory' })).toBe(
-      '该命令仅对本 Bot 的管理员可用。',
-    );
+    expect(
+      await commands.run(
+        command!,
+        { hostKind: 'telegram', hostChatId: FIRST_CHAT },
+        { id: 99n, name: 'Mallory', username: 'mallory' },
+      ),
+    ).toBe('该命令仅对本 Bot 的管理员可用。');
     expect(
       store.db.prepare<[], { count: bigint }>('SELECT COUNT(*) AS count FROM conversation_context_cutoffs').get()
         ?.count,
@@ -85,7 +89,7 @@ describe('cut_topic', () => {
     commandUpdate.message!.entities = [{ offset: 0, length: 10, type: 'bot_command' }];
     const command = ingestion.ingest(commandUpdate, at(70)).command;
     expect(command).toEqual({ name: 'cut_topic', messageId: 12n, threadId: 100n });
-    await commands.run(command!, FIRST_CHAT, ALICE);
+    await commands.run(command!, { hostKind: 'telegram', hostChatId: FIRST_CHAT }, ALICE);
     expect(
       store.db.prepare<[], { count: bigint }>('SELECT COUNT(*) AS count FROM conversation_context_cutoffs').get()
         ?.count,

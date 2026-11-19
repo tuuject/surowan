@@ -1,5 +1,6 @@
 import { hostExecutionProfile } from '../../../platform/host-profile.ts';
-import { resolveChatConfig, type BusinessStore } from '../../../store/store.ts';
+import { resolveChatConfig } from '../../../platform/config/index.ts';
+import type { BusinessStore } from '../../../store/store.ts';
 import type { CapabilityRefResolver, InvocationContext } from '../../../platform/invocation-context.ts';
 import type { RuntimeConfigurationStore } from '../../../platform/runtime-config.ts';
 import type { MemoBlobStore } from '../blobs.ts';
@@ -30,7 +31,12 @@ export function memoChatRemoved(env: MemoToolEnvironment): boolean {
   if (hostExecutionProfile(env.context.hostKind).chatSource !== 'config') {
     return false;
   }
-  return resolveChatConfig(env.configStore.current().config, env.store.orm, env.context.chatId) === undefined;
+  return (
+    resolveChatConfig(env.configStore.current().config, env.store.orm, {
+      hostKind: env.context.hostKind,
+      hostChatId: env.context.hostChatId,
+    }) === undefined
+  );
 }
 
 /** One-line summary for a tool result; summaries are untrusted data, not markup. */

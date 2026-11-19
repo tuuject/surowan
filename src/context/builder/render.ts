@@ -216,7 +216,9 @@ export function renderInjection(deps: RenderDependencies, config: RawConfig, inp
     const rendered = injector.render({
       config,
       orm: deps.orm,
-      chatId: identity.chatId,
+      hostKind: identity.hostKind,
+      hostChatId: identity.hostChatId,
+      internalChatId: identity.internalChatId,
       privateChat: identity.chatType === 'private',
       messageTexts,
       remainingCharacters: injectionBudget,

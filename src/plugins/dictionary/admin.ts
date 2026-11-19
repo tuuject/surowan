@@ -279,6 +279,7 @@ export function parseDictionarySettingsBody(value: unknown): DictionaryInjection
 
 export function dictionarySettingsView(
   config: Parameters<typeof resolveDictionaryInjectionMode>[0],
+  chats: Parameters<typeof resolveDictionaryInjectionMode>[1],
   chatId: bigint | null,
   revision: string,
 ): DictionarySettingsView {
@@ -286,13 +287,13 @@ export function dictionarySettingsView(
   if (chatId === null) {
     return { revision, injection_mode: globalMode, override_mode: null, effective_mode: globalMode };
   }
-  const chat = config.telegram.chats.find((candidate) => BigInt(candidate.id) === chatId);
+  const chat = chats.find((candidate) => BigInt(candidate.id) === chatId);
   const override = chat?.dictionary_injection_mode ?? null;
   return {
     revision,
     injection_mode: globalMode,
     override_mode: override,
-    effective_mode: resolveDictionaryInjectionMode(config, chatId),
+    effective_mode: resolveDictionaryInjectionMode(config, chats, chatId),
   };
 }
 

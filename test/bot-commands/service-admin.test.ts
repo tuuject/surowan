@@ -21,36 +21,46 @@ describe('bot command service', () => {
       throw new Error('Expected queued invocation');
     }
     const mallory: CommandSender = { id: 99n, name: 'Mallory', username: 'mallory' };
-    expect(await commands.run({ name: 'pause' }, 123456789n, mallory, FIXED_NOW)).toBe(
-      '该命令仅对本 Bot 的管理员可用。',
-    );
+    expect(
+      await commands.run({ name: 'pause' }, { hostKind: 'telegram', hostChatId: 123456789n }, mallory, FIXED_NOW),
+    ).toBe('该命令仅对本 Bot 的管理员可用。');
     expect(store.db.prepare<[], { count: bigint }>('SELECT COUNT(*) AS count FROM chat_pause').get()?.count).toBe(0n);
     expect(store.db.prepare<[], { state: string }>('SELECT state FROM buckets').get()?.state).toBe('queued');
     expect(store.db.prepare<[], { state: string }>('SELECT state FROM invocations').get()?.state).toBe('queued');
-    expect(await commands.run({ name: 'resume' }, 123456789n, mallory, FIXED_NOW)).toBe(
-      '该命令仅对本 Bot 的管理员可用。',
-    );
+    expect(
+      await commands.run({ name: 'resume' }, { hostKind: 'telegram', hostChatId: 123456789n }, mallory, FIXED_NOW),
+    ).toBe('该命令仅对本 Bot 的管理员可用。');
     store.close();
   });
 
   test('anonymous senders and absent admins are denied', async () => {
     const { store, commands } = await setup(() => {});
-    expect(await commands.run({ name: 'pause' }, 123456789n, null, FIXED_NOW)).toBe('该命令仅对本 Bot 的管理员可用。');
+    expect(
+      await commands.run({ name: 'pause' }, { hostKind: 'telegram', hostChatId: 123456789n }, null, FIXED_NOW),
+    ).toBe('该命令仅对本 Bot 的管理员可用。');
     const stranger: CommandSender = { id: 42n, name: 'Alice', username: 'alice' };
-    expect(await commands.run({ name: 'pause' }, 123456789n, stranger, FIXED_NOW)).toBe(
-      '该命令仅对本 Bot 的管理员可用。',
-    );
-    expect(await commands.run({ name: 'status' }, 123456789n, stranger, FIXED_NOW)).toContain('本群模型');
+    expect(
+      await commands.run({ name: 'pause' }, { hostKind: 'telegram', hostChatId: 123456789n }, stranger, FIXED_NOW),
+    ).toBe('该命令仅对本 Bot 的管理员可用。');
+    expect(
+      await commands.run({ name: 'status' }, { hostKind: 'telegram', hostChatId: 123456789n }, stranger, FIXED_NOW),
+    ).toContain('本群模型');
     expect(store.db.prepare<[], { count: bigint }>('SELECT COUNT(*) AS count FROM chat_pause').get()?.count).toBe(0n);
     store.close();
   });
 
   test('whoami replies with the sender id and is not admin gated', async () => {
     const { store, commands } = await setup();
-    expect(await commands.run({ name: 'whoami' }, 123456789n, ALICE, FIXED_NOW)).toBe('42');
+    expect(
+      await commands.run({ name: 'whoami' }, { hostKind: 'telegram', hostChatId: 123456789n }, ALICE, FIXED_NOW),
+    ).toBe('42');
     const stranger: CommandSender = { id: 99n, name: 'Mallory', username: 'mallory' };
-    expect(await commands.run({ name: 'whoami' }, 123456789n, stranger, FIXED_NOW)).toBe('99');
-    expect(await commands.run({ name: 'whoami' }, 123456789n, null, FIXED_NOW)).toBe('无法识别发送者。');
+    expect(
+      await commands.run({ name: 'whoami' }, { hostKind: 'telegram', hostChatId: 123456789n }, stranger, FIXED_NOW),
+    ).toBe('99');
+    expect(
+      await commands.run({ name: 'whoami' }, { hostKind: 'telegram', hostChatId: 123456789n }, null, FIXED_NOW),
+    ).toBe('无法识别发送者。');
     store.close();
   });
 
@@ -80,9 +90,14 @@ describe('bot command service', () => {
       const { store, commands, configStore, configPath } = await allowlistSetup();
       const before = configStore.current();
       const stranger: CommandSender = { id: 99n, name: 'Mallory', username: 'mallory' };
-      expect(await commands.run({ name: 'allowlist' }, 987654321n, stranger, FIXED_NOW)).toBe(
-        '该命令仅对本 Bot 的管理员可用。',
-      );
+      expect(
+        await commands.run(
+          { name: 'allowlist' },
+          { hostKind: 'telegram', hostChatId: 987654321n },
+          stranger,
+          FIXED_NOW,
+        ),
+      ).toBe('该命令仅对本 Bot 的管理员可用。');
       expect(configStore.current()).toBe(before);
       expect(await loadConfig(configPath).then((loaded) => loaded.fileConfig.telegram?.chats)).toHaveLength(1);
       store.close();
@@ -91,16 +106,18 @@ describe('bot command service', () => {
     test('replies that a configured chat is already allowlisted', async () => {
       const { store, commands, configStore } = await allowlistSetup();
       const before = configStore.current();
-      expect(await commands.run({ name: 'allowlist' }, 123456789n, ALICE, FIXED_NOW)).toBe('本群已在白名单中。');
+      expect(
+        await commands.run({ name: 'allowlist' }, { hostKind: 'telegram', hostChatId: 123456789n }, ALICE, FIXED_NOW),
+      ).toBe('本群已在白名单中。');
       expect(configStore.current()).toBe(before);
       store.close();
     });
 
     test('appends the chat to the file, hot-applies it and reports success', async () => {
       const { store, commands, configStore, configPath } = await allowlistSetup();
-      expect(await commands.run({ name: 'allowlist' }, 987654321n, ALICE, FIXED_NOW)).toBe(
-        '已将本群加入白名单，配置已立即生效。',
-      );
+      expect(
+        await commands.run({ name: 'allowlist' }, { hostKind: 'telegram', hostChatId: 987654321n }, ALICE, FIXED_NOW),
+      ).toBe('已将本群加入白名单，配置已立即生效。');
       expect(await loadConfig(configPath).then((loaded) => loaded.fileConfig.telegram?.chats.at(-1))).toEqual({
         id: 987654321,
       });
@@ -122,7 +139,12 @@ describe('bot command service', () => {
         }),
       );
       const before = configStore.current();
-      const reply = await commands.run({ name: 'allowlist' }, 987654321n, ALICE, FIXED_NOW);
+      const reply = await commands.run(
+        { name: 'allowlist' },
+        { hostKind: 'telegram', hostChatId: 987654321n },
+        ALICE,
+        FIXED_NOW,
+      );
       expect(reply).toContain('加入白名单失败');
       expect(configStore.current()).toBe(before);
       store.close();

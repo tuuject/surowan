@@ -119,9 +119,14 @@ test('telegram.admins hot-applies and gates bot commands without a restart', asy
   try {
     fixture.ingestion.ingest(textUpdate(1, 10, 'hello'), new Date());
     const stranger = { id: 7n, name: 'Stranger', username: null };
-    expect(await fixture.commands.run({ name: 'pause' }, BigInt(CHAT_ID), stranger, new Date())).toBe(
-      '该命令仅对本 Bot 的管理员可用。',
-    );
+    expect(
+      await fixture.commands.run(
+        { name: 'pause' },
+        { hostKind: 'telegram', hostChatId: BigInt(CHAT_ID) },
+        stranger,
+        new Date(),
+      ),
+    ).toBe('该命令仅对本 Bot 的管理员可用。');
 
     await fixture.patch((config) => {
       config.telegram.admins = [7];
@@ -129,7 +134,14 @@ test('telegram.admins hot-applies and gates bot commands without a restart', asy
     const reloaded = await fixture.reloader.reloadFromFile();
     expect(reloaded.ok).toBe(true);
 
-    expect(await fixture.commands.run({ name: 'pause' }, BigInt(CHAT_ID), stranger, new Date())).toContain('已暂停');
+    expect(
+      await fixture.commands.run(
+        { name: 'pause' },
+        { hostKind: 'telegram', hostChatId: BigInt(CHAT_ID) },
+        stranger,
+        new Date(),
+      ),
+    ).toContain('已暂停');
   } finally {
     fixture.store.close();
   }

@@ -92,7 +92,12 @@ export async function runStartupCatchUp(options: StartupCatchUpOptions): Promise
       if (command !== undefined && message !== undefined) {
         // In update order, so a later /resume or /pause wins exactly as it
         // would have live; duplicates never get here (ingestion dedupes them).
-        await options.commands.run(command, BigInt(message.chat.id), commandSender(message), receivedAt);
+        await options.commands.run(
+          command,
+          { hostKind: 'telegram', hostChatId: BigInt(message.chat.id) },
+          commandSender(message),
+          receivedAt,
+        );
       }
     }
     const lastUpdate = updates.at(-1);

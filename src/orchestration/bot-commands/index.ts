@@ -2,14 +2,14 @@ import { botCommandToken } from '../../platform/bot-command.ts';
 import { and, eq } from 'drizzle-orm';
 import type { Message } from 'grammy/types';
 import { ConversationContextStore } from '../../context/store/index.ts';
-import type { ChatConfigEntry } from '../../platform/config/index.ts';
+import { hostIntakeSettings, resolveChatConfig } from '../../platform/config/index.ts';
+import type { ChatConfigEntry, ChatConfigRef } from '../../platform/config/index.ts';
 import type { BotCommandConfigWriter } from '../../platform/config/write.ts';
 import type { AgentModelSwitcher } from '../../platform/models/switch.ts';
 import type { RuntimeConfigurationStore } from '../../platform/runtime-config.ts';
-import { telegramHostScope } from '../../store/host-scope.ts';
 import { ParticipationRegistry } from '../../store/participation.ts';
 import { chats } from '../../store/schema/index.ts';
-import { type BusinessStore, resolveChatConfig } from '../../store/store.ts';
+import type { BusinessStore } from '../../store/store.ts';
 import type { ConversationRuntime } from '../conversation-runtime.ts';
 import type { BucketScheduler } from '../scheduler/index.ts';
 import {
@@ -202,93 +202,93 @@ export class BotCommandService {
 
   async run(
     command: ParsedCommand,
-    telegramChatId: bigint,
+    chat: ChatConfigRef,
     sender: CommandSender | null,
     now = new Date(),
   ): Promise<string> {
     switch (command.name) {
       case 'pause':
-        return this.#adminGate(sender) ? this.#pause(telegramChatId, now) : DENIED_REPLY;
+        return this.#adminGate(sender, chat.hostKind) ? this.#pause(chat, now) : DENIED_REPLY;
       case 'resume':
-        return this.#adminGate(sender) ? this.#resume(telegramChatId) : DENIED_REPLY;
+        return this.#adminGate(sender, chat.hostKind) ? this.#resume(chat) : DENIED_REPLY;
       case 'status':
-        return this.#status(telegramChatId, now);
+        return this.#status(chat, now);
       case 'model':
-        return this.#adminGate(sender) ? await this.#modelSwitch(command.argument, telegramChatId) : DENIED_REPLY;
+        return this.#adminGate(sender, chat.hostKind) ? await this.#modelSwitch(command.argument, chat) : DENIED_REPLY;
       case 'effort':
-        return this.#adminGate(sender) ? await this.#effortSwitch(command.argument, telegramChatId) : DENIED_REPLY;
+        return this.#adminGate(sender, chat.hostKind) ? await this.#effortSwitch(command.argument, chat) : DENIED_REPLY;
       case 'cut_topic':
-        return this.#adminGate(sender)
-          ? this.#cutTopic(telegramChatId, command.messageId, command.threadId, now)
+        return this.#adminGate(sender, chat.hostKind)
+          ? this.#cutTopic(chat, command.messageId, command.threadId, now)
           : DENIED_REPLY;
       case 'rebuild_context':
-        return this.#adminGate(sender)
-          ? rebuildContext(this.#sessionDeps(), telegramChatId, command.threadId, now)
+        return this.#adminGate(sender, chat.hostKind)
+          ? rebuildContext(this.#sessionDeps(), chat, command.threadId, now)
           : DENIED_REPLY;
       case 'whoami':
         return sender === null ? '无法识别发送者。' : sender.id.toString();
       case 'allowlist':
-        return this.#adminGate(sender) ? await this.#allowlist(telegramChatId) : DENIED_REPLY;
+        return this.#adminGate(sender, chat.hostKind) ? await this.#allowlist(chat) : DENIED_REPLY;
       case 'ignoreme':
       case 'unignoreme':
-        return await this.#setSelfIgnored(telegramChatId, sender, command.name === 'ignoreme');
+        return await this.#setSelfIgnored(chat, sender, command.name === 'ignoreme');
     }
   }
 
-  #adminGate(sender: CommandSender | null): boolean {
+  #adminGate(sender: CommandSender | null, hostKind: ChatConfigRef['hostKind']): boolean {
     if (sender === null) {
       return false;
     }
-    // The whitelist is `telegram.admins`, read from the live configuration so a
-    // hot-applied list change takes effect on the next command.
-    const admins = this.#configStore.current().config.telegram.admins ?? [];
+    // The whitelist is the host's `admins` intake setting, read from the live
+    // configuration so a hot-applied list change takes effect on the next command.
+    const admins = hostIntakeSettings(this.#configStore.current().config, hostKind).admins;
     return admins.some((id) => BigInt(id) === sender.id);
   }
 
-  #pause(telegramChatId: bigint, now: Date): string {
-    return pauseChat(this.#sessionDeps(), telegramChatId, now);
+  #pause(chat: ChatConfigRef, now: Date): string {
+    return pauseChat(this.#sessionDeps(), chat, now);
   }
 
-  #resume(telegramChatId: bigint): string {
-    return resumeChat(this.#sessionDeps(), telegramChatId);
+  #resume(chat: ChatConfigRef): string {
+    return resumeChat(this.#sessionDeps(), chat);
   }
 
-  #cutTopic(telegramChatId: bigint, messageId: bigint | undefined, threadId: bigint | undefined, now: Date): string {
-    return cutTopic(this.#sessionDeps(), telegramChatId, messageId, threadId, now);
+  #cutTopic(chat: ChatConfigRef, messageId: bigint | undefined, threadId: bigint | undefined, now: Date): string {
+    return cutTopic(this.#sessionDeps(), chat, messageId, threadId, now);
   }
 
-  async #allowlist(telegramChatId: bigint): Promise<string> {
-    return await allowlistChat(this.#configDeps(), telegramChatId);
+  async #allowlist(chat: ChatConfigRef): Promise<string> {
+    return await allowlistChat(this.#configDeps(), chat);
   }
 
-  async #setSelfIgnored(telegramChatId: bigint, sender: CommandSender | null, ignored: boolean): Promise<string> {
-    return await setSelfIgnored(this.#configDeps(), telegramChatId, sender, ignored);
+  async #setSelfIgnored(chat: ChatConfigRef, sender: CommandSender | null, ignored: boolean): Promise<string> {
+    return await setSelfIgnored(this.#configDeps(), chat, sender, ignored);
   }
 
-  async #modelSwitch(argument: string | undefined, telegramChatId: bigint): Promise<string> {
-    return await switchChatModel(this.#configDeps(), argument, telegramChatId);
+  async #modelSwitch(argument: string | undefined, chat: ChatConfigRef): Promise<string> {
+    return await switchChatModel(this.#configDeps(), argument, chat);
   }
 
-  async #effortSwitch(argument: string | undefined, telegramChatId: bigint): Promise<string> {
-    return await switchChatEffort(this.#configDeps(), argument, telegramChatId);
+  async #effortSwitch(argument: string | undefined, chat: ChatConfigRef): Promise<string> {
+    return await switchChatEffort(this.#configDeps(), argument, chat);
   }
 
-  #status(telegramChatId: bigint, now: Date): string {
-    return chatStatus(this.#statusDeps(), telegramChatId, now);
+  #status(chat: ChatConfigRef, now: Date): string {
+    return chatStatus(this.#statusDeps(), chat, now);
   }
 
-  #internalChatId(telegramChatId: bigint): bigint | null {
+  #internalChatId(chat: ChatConfigRef): bigint | null {
     return (
       this.#store.orm
         .select({ id: chats.id })
         .from(chats)
-        .where(and(telegramHostScope(chats.hostKind), eq(chats.hostChatId, telegramChatId)))
+        .where(and(eq(chats.hostKind, chat.hostKind), eq(chats.hostChatId, chat.hostChatId ?? 0n)))
         .get()?.id ?? null
     );
   }
 
-  #chatConfig(telegramChatId: bigint): ChatConfigEntry | undefined {
-    return resolveChatConfig(this.#configStore.current().config, this.#store.orm, telegramChatId);
+  #chatConfig(chat: ChatConfigRef): ChatConfigEntry | undefined {
+    return resolveChatConfig(this.#configStore.current().config, this.#store.orm, chat);
   }
 
   #sessionDeps(): BotCommandSessionDeps {
@@ -297,7 +297,7 @@ export class BotCommandService {
       scheduler: this.#scheduler,
       contexts: this.#contexts,
       conversationRuntime: this.#conversationRuntime,
-      internalChatId: (telegramChatId) => this.#internalChatId(telegramChatId),
+      internalChatId: (chat) => this.#internalChatId(chat),
     };
   }
 

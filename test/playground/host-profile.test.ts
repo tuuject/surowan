@@ -10,7 +10,6 @@ import {
   TELEGRAM_PROFILE,
   hostExecutionProfile,
   hostsWhere,
-  mcpCapableHost,
   policyScopeChatId,
 } from '../../src/platform/host-profile.ts';
 import type { ContextInjector } from '../../src/context/injector.ts';
@@ -49,7 +48,8 @@ function context(overrides: Partial<InvocationContext>): InvocationContext {
   return {
     invocationId: 0n,
     conversationId: 0n,
-    chatId: 0n,
+    hostChatId: 0n,
+    internalChatId: 0n,
     callerUserId: 0n,
     messageId: null,
     hostKind: 'telegram',
@@ -102,13 +102,14 @@ describe('host execution profile', () => {
     expect(hostsWhere((profile) => profile.connection === 'none')).toEqual(['playground']);
     expect(hostsWhere((profile) => profile.mediaSource === 'download')).toEqual(['telegram']);
     expect(hostsWhere((profile) => profile.sleep)).toEqual(['telegram']);
-    expect(mcpCapableHost()).toBe('telegram');
   });
 
   test('policyScopeChatId picks the id the host is addressed by', () => {
     expect(policyScopeChatId('telegram', { hostChatId: 7n, chatId: 3n })).toBe(7n);
     expect(policyScopeChatId('playground', { hostChatId: null, chatId: 3n })).toBe(3n);
-    expect(policyScopeChatId('telegram', { hostChatId: null, chatId: 3n })).toBe(0n);
+    // A config-sourced chat that lost its native id is a storage bug, not a
+    // silent `0n` scope shared by every such row.
+    expect(() => policyScopeChatId('telegram', { hostChatId: null, chatId: 3n })).toThrow(/host chat id/i);
   });
 
   test('model-visible wording stays pinned per host', () => {
@@ -153,7 +154,8 @@ describe('host execution profile', () => {
       hostKind: 'playground',
       invocationId: 1n,
       conversationId: room.conversationId,
-      chatId: room.chatId,
+      hostChatId: room.chatId,
+      internalChatId: room.chatId,
     });
 
     expect(() => service.invocationScope('alarm', live, ['telegram'])).toThrow(/not enabled on the playground host/);

@@ -1,7 +1,8 @@
 import type { RawConfig } from '../../platform/config/index.ts';
+import { resolveChatConfig } from '../../platform/config/index.ts';
 import { type HostKind, isHostKind } from '../../platform/im-host/identity.ts';
 import type { BusinessStore } from '../../store/store.ts';
-import { isChatPaused, resolveChatConfig } from '../../store/store.ts';
+import { isChatPaused } from '../../store/store.ts';
 import { candidateChats, isChatBusy, type GroupMemoryChatRow } from './chats.ts';
 import { chatLocalDay, localDayWindow, previousDay } from './day.ts';
 import {
@@ -26,7 +27,7 @@ export interface LaneCandidate {
 
 export interface Batch {
   readonly chatId: bigint;
-  readonly telegramChatId: bigint;
+  readonly hostChatId: bigint;
   /** The host the Chat itself lives on; readiness is checked against it. */
   readonly hostKind: HostKind;
   readonly lane: GroupMemoryLaneKind;
@@ -80,7 +81,12 @@ function splitBacklog(
   if (oldest === undefined) {
     return;
   }
-  const timezone = resolveChatConfig(config, store.orm, chat.host_chat_id)?.timezone ?? config.timezone;
+  const hostKind = isHostKind(chat.host_kind) ? chat.host_kind : undefined;
+  const timezone =
+    (hostKind === undefined
+      ? undefined
+      : resolveChatConfig(config, store.orm, { hostKind, hostChatId: chat.host_chat_id })
+    )?.timezone ?? config.timezone;
   const yesterday = previousDay(chatLocalDay(now.toISOString(), timezone));
   if (chatLocalDay(oldest.sentAt, timezone) >= yesterday) {
     return;
@@ -113,7 +119,7 @@ export function batchFor(
   if (hostKind === undefined) {
     return undefined;
   }
-  const chat = resolveChatConfig(config, store.orm, row.host_chat_id);
+  const chat = resolveChatConfig(config, store.orm, { hostKind, hostChatId: row.host_chat_id });
   if (chat?.group_memory?.enabled !== true) {
     return undefined;
   }
@@ -158,7 +164,7 @@ export function batchFor(
       return undefined;
     }
   }
-  return { chatId: row.id, telegramChatId: row.host_chat_id, hostKind, lane: candidate.lane, day, rows };
+  return { chatId: row.id, hostChatId: row.host_chat_id, hostKind, lane: candidate.lane, day, rows };
 }
 
 function trimToBudget(rows: readonly GroupMemoryMessageRow[]): readonly GroupMemoryMessageRow[] {

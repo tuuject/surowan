@@ -83,7 +83,7 @@ describe('rebuild_context', () => {
       .run(chatId);
     const command = ingestion.ingest(rebuildCommandUpdate(3, 12, FIRST_CHAT), at(2)).command;
     expect(command).toEqual({ name: 'rebuild_context', messageId: 12n });
-    expect(await commands.run(command!, FIRST_CHAT, ALICE)).toContain('丢弃');
+    expect(await commands.run(command!, { hostKind: 'telegram', hostChatId: FIRST_CHAT }, ALICE)).toContain('丢弃');
 
     const rebuilt = contexts.header(conversationId);
     if (rebuilt === undefined) {
@@ -113,7 +113,7 @@ describe('rebuild_context', () => {
     const at = (seconds: number): Date => new Date(start.getTime() + seconds * 1_000);
     ingestion.ingest(groupUpdate(1, 10, 'polluted', FIRST_CHAT), at(0));
     const cut = ingestion.ingest(commandUpdate(2, 11, FIRST_CHAT), at(1)).command;
-    await commands.run(cut!, FIRST_CHAT, ALICE);
+    await commands.run(cut!, { hostKind: 'telegram', hostChatId: FIRST_CHAT }, ALICE);
     ingestion.ingest(groupUpdate(3, 12, 'after cut', FIRST_CHAT), at(2));
     const conversationId = conversationIdOf(store, FIRST_CHAT);
     if (conversationId === undefined) {
@@ -122,7 +122,7 @@ describe('rebuild_context', () => {
     seedContext(store, conversationId, 'stale transcript');
 
     const rebuild = ingestion.ingest(rebuildCommandUpdate(4, 13, FIRST_CHAT), at(3)).command;
-    expect(await commands.run(rebuild!, FIRST_CHAT, ALICE)).toContain('丢弃');
+    expect(await commands.run(rebuild!, { hostKind: 'telegram', hostChatId: FIRST_CHAT }, ALICE)).toContain('丢弃');
     expect(
       store.db
         .prepare<[], { telegram_message_id: bigint }>(
@@ -183,7 +183,7 @@ describe('rebuild_context', () => {
       });
 
       const command = ingestion.ingest(rebuildCommandUpdate(2, 11, FIRST_CHAT), new Date()).command;
-      expect(await commands.run(command!, FIRST_CHAT, ALICE)).toContain('丢弃');
+      expect(await commands.run(command!, { hostKind: 'telegram', hostChatId: FIRST_CHAT }, ALICE)).toContain('丢弃');
       expect(abortReason).toBe('context_rebuild');
       expect(contexts.retained(contexts.header(conversationId)!)).toEqual([]);
       // A late message_end or GC from the aborted run cannot append into or move
@@ -223,7 +223,7 @@ describe('rebuild_context', () => {
     update.message!.entities = [{ offset: 0, length: REBUILD_COMMAND_LENGTH, type: 'bot_command' }];
     const command = ingestion.ingest(update, at(2)).command;
     expect(command).toEqual({ name: 'rebuild_context', messageId: 12n, threadId: 100n });
-    expect(await commands.run(command!, FIRST_CHAT, ALICE)).toContain('丢弃');
+    expect(await commands.run(command!, { hostKind: 'telegram', hostChatId: FIRST_CHAT }, ALICE)).toContain('丢弃');
 
     expect(contextsA.retained(contextsA.header(topicA)!)).toEqual([]);
     expect(contextsB.retained(contextsB.header(topicB)!)).toHaveLength(1);
@@ -233,15 +233,21 @@ describe('rebuild_context', () => {
   test('is admin-only, safe to repeat, and a no-op before a Context exists', async () => {
     const { store, ingestion, commands } = await setup();
     const denied = ingestion.ingest(rebuildCommandUpdate(1, 10, FIRST_CHAT), new Date()).command;
-    expect(await commands.run(denied!, FIRST_CHAT, { id: 99n, name: 'Mallory', username: 'mallory' })).toBe(
-      '该命令仅对本 Bot 的管理员可用。',
-    );
+    expect(
+      await commands.run(
+        denied!,
+        { hostKind: 'telegram', hostChatId: FIRST_CHAT },
+        { id: 99n, name: 'Mallory', username: 'mallory' },
+      ),
+    ).toBe('该命令仅对本 Bot 的管理员可用。');
     expect(
       store.db.prepare<[], { count: bigint }>('SELECT COUNT(*) AS count FROM conversation_contexts').get()?.count,
     ).toBe(0n);
 
     // No stored Chat at all: the command still answers instead of failing.
-    expect(await commands.run({ name: 'rebuild_context' }, SECOND_CHAT, ALICE)).toContain('尚未入库');
+    expect(
+      await commands.run({ name: 'rebuild_context' }, { hostKind: 'telegram', hostChatId: SECOND_CHAT }, ALICE),
+    ).toContain('尚未入库');
 
     ingestion.ingest(groupUpdate(2, 11, 'hello', FIRST_CHAT), new Date('2026-08-15T00:00:00.000Z'));
     const conversationId = conversationIdOf(store, FIRST_CHAT);
@@ -249,10 +255,12 @@ describe('rebuild_context', () => {
       throw new Error('Expected a conversation');
     }
     const command = ingestion.ingest(rebuildCommandUpdate(3, 12, FIRST_CHAT), new Date()).command;
-    expect(await commands.run(command!, FIRST_CHAT, ALICE)).toContain('还没有连续 Context');
+    expect(await commands.run(command!, { hostKind: 'telegram', hostChatId: FIRST_CHAT }, ALICE)).toContain(
+      '还没有连续 Context',
+    );
     const contexts = seedContext(store, conversationId, 'accumulated');
-    expect(await commands.run(command!, FIRST_CHAT, ALICE)).toContain('丢弃');
-    expect(await commands.run(command!, FIRST_CHAT, ALICE)).toContain('丢弃');
+    expect(await commands.run(command!, { hostKind: 'telegram', hostChatId: FIRST_CHAT }, ALICE)).toContain('丢弃');
+    expect(await commands.run(command!, { hostKind: 'telegram', hostChatId: FIRST_CHAT }, ALICE)).toContain('丢弃');
     expect(contexts.retained(contexts.header(conversationId)!)).toEqual([]);
     expect(
       store.db.prepare<[], { count: bigint }>('SELECT COUNT(*) AS count FROM conversation_context_cutoffs').get()

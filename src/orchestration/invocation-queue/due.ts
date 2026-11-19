@@ -1,7 +1,8 @@
 import { and, eq, sql } from 'drizzle-orm';
 import { completeAgentSettings, resolveAgentSettings } from '../../platform/config/resolve.ts';
+import { resolveChatConfig } from '../../platform/config/index.ts';
+import { parseHostKind } from '../../platform/im-host/identity.ts';
 import { buckets } from '../../store/schema/index.ts';
-import { resolveChatConfig } from '../../store/store.ts';
 import {
   enqueueBucketInvocation,
   type InvocationQueueDeps,
@@ -113,18 +114,22 @@ export function attachDueBucket(
   }
   // Paused chats never reach here: the due query excludes them.
   const chat = store.orm
-    .all<{ chat_id: bigint; telegram_chat_id: bigint; type: string }>(
-      sql`SELECT c.id AS chat_id, c.host_chat_id AS telegram_chat_id, c.type FROM conversations v JOIN chats c ON c.id = v.chat_id WHERE v.id = ${bucket.conversation_id}`,
+    .all<{ chat_id: bigint; telegram_chat_id: bigint; host_kind: string; type: string }>(
+      sql`SELECT c.id AS chat_id, c.host_chat_id AS telegram_chat_id, c.host_kind, c.type FROM conversations v JOIN chats c ON c.id = v.chat_id WHERE v.id = ${bucket.conversation_id}`,
     )
     .at(0);
   if (chat === undefined) {
     throw new Error(`Bucket ${bucket.id} has no chat`);
   }
+  const hostKind = parseHostKind(chat.host_kind);
   // The same gates as opening a run: a batch that could not start its own
   // invocation must not reach a running one either. Skipping it here also
   // keeps the waiter asleep, so a run idling through its grace period is not
   // woken for another model turn while the bot sleeps.
-  const attachChat = resolveChatConfig(deps.configStore.current().config, store.orm, chat.telegram_chat_id);
+  const attachChat = resolveChatConfig(deps.configStore.current().config, store.orm, {
+    hostKind,
+    hostChatId: chat.telegram_chat_id,
+  });
   if (attachChat === undefined) {
     markBucketSkipped(deps, bucket.id, now, 'chat_removed');
     return true;
@@ -145,6 +150,7 @@ export function attachDueBucket(
       deps,
       bucket.id,
       chat.chat_id,
+      hostKind,
       chat.telegram_chat_id,
       chat.type,
       bucket.conversation_id,
@@ -203,8 +209,8 @@ export function queueCollectingBucket(
 ): bigint | undefined {
   const store = deps.store;
   const chat = store.orm
-    .all<{ chat_id: bigint; telegram_chat_id: bigint; type: string; paused: bigint }>(
-      sql`SELECT c.id AS chat_id, c.host_chat_id AS telegram_chat_id, c.type,
+    .all<{ chat_id: bigint; telegram_chat_id: bigint; host_kind: string; type: string; paused: bigint }>(
+      sql`SELECT c.id AS chat_id, c.host_chat_id AS telegram_chat_id, c.host_kind, c.type,
               EXISTS(SELECT 1 FROM chat_pause p WHERE p.chat_id = c.id) AS paused
        FROM conversations v JOIN chats c ON c.id = v.chat_id WHERE v.id = ${bucket.conversation_id}`,
     )
@@ -216,8 +222,9 @@ export function queueCollectingBucket(
     markBucketSkipped(deps, bucket.id, now, 'chat_paused');
     return undefined;
   }
+  const hostKind = parseHostKind(chat.host_kind);
   const current = deps.configStore.current().config;
-  const chatConfig = resolveChatConfig(current, store.orm, chat.telegram_chat_id);
+  const chatConfig = resolveChatConfig(current, store.orm, { hostKind, hostChatId: chat.telegram_chat_id });
   if (chatConfig === undefined) {
     markBucketSkipped(deps, bucket.id, now, 'chat_removed');
     return undefined;
@@ -238,6 +245,7 @@ export function queueCollectingBucket(
       deps,
       bucket.id,
       chat.chat_id,
+      hostKind,
       chat.telegram_chat_id,
       chat.type,
       bucket.conversation_id,

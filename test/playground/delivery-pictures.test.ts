@@ -40,7 +40,7 @@ describe('Bot Playground virtual delivery', () => {
       now: () => NOW,
     });
     const conversation = identityConversation(
-      { chatId: room.chatId, threadId: 0n, conversationId: room.conversationId },
+      { hostChatId: null, internalChatId: room.chatId, threadId: 0n, conversationId: room.conversationId },
       'playground',
       'private',
     );
@@ -130,7 +130,7 @@ describe('Bot Playground virtual delivery', () => {
       now: () => NOW,
     });
     const conversation = identityConversation(
-      { chatId: room.chatId, threadId: 0n, conversationId: room.conversationId },
+      { hostChatId: null, internalChatId: room.chatId, threadId: 0n, conversationId: room.conversationId },
       'playground',
       'private',
     );

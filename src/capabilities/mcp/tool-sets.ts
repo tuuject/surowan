@@ -10,10 +10,10 @@
 import type { AgentTool } from '@earendil-works/pi-agent-core';
 import Type, { type TUnsafe } from 'typebox';
 import Compile from 'typebox/compile';
+import { allConfiguredChats, resolveChatConfig } from '../../platform/config/index.ts';
+import { hostExecutionProfile } from '../../platform/host-profile.ts';
 import type { FileChat, McpServerConfig, RawConfig } from '../../platform/config/index.ts';
-import { mcpCapableHost } from '../../platform/host-profile.ts';
 import { type InvocationContext, previewContext } from '../../platform/invocation-context.ts';
-import { resolveChatConfig } from '../../store/store.ts';
 import { boundChatServers, sameMcpServerConfig, serverToolPolicy } from './bindings.ts';
 import { executeMcpTool, type McpCallDeps } from './calls.ts';
 import type { McpResultDetails, McpToolResult } from './content.ts';
@@ -84,7 +84,7 @@ export function assertBindingsSatisfied(
   definitions: readonly McpToolDefinition[],
 ): void {
   const available = new Set(definitions.map((definition) => definition.originalName));
-  for (const chat of state.config.telegram.chats) {
+  for (const { chat } of allConfiguredChats(state.config)) {
     for (const binding of chat.mcp ?? []) {
       if (binding.server !== server.alias) {
         continue;
@@ -119,7 +119,7 @@ export function assertBindingsSatisfied(
  */
 export function assertConfigBindings(state: McpState, config: RawConfig): void {
   const configured = new Map((config.mcp?.servers ?? []).map((server) => [server.alias, server]));
-  for (const chat of config.telegram.chats) {
+  for (const { chat } of allConfiguredChats(config)) {
     for (const binding of chat.mcp ?? []) {
       const serverConfig = configured.get(binding.server);
       const instance = state.servers.get(binding.server);
@@ -196,24 +196,32 @@ export function definitions(
  * so the union is validated whenever such a Chat exists.
  */
 export function resolutions(state: McpState, config: RawConfig): ToolSetResolution[] {
-  const groups = new Map<string, { chatIds: number[]; definitions: McpToolDefinition[] }>();
-  for (const chat of config.telegram.chats) {
+  const resolved = new Map<
+    string,
+    { host: ToolSetResolution['host']; chatIds: number[]; definitions: McpToolDefinition[] }
+  >();
+  for (const { host, chat } of allConfiguredChats(config)) {
+    // Same gate createTools applies: a host without the mcp trait contributes
+    // no tool set at all.
+    if (!hostExecutionProfile(host).mcp) {
+      continue;
+    }
     const chatDefinitions = definitions(state, config, chat);
-    const signature = JSON.stringify(
+    const signature = `${host}|${JSON.stringify(
       chatDefinitions.map((definition) => [
         definition.exposedName,
         definition.policy.readOnly,
         definition.policy.timeoutMs,
       ]),
-    );
-    const group = groups.get(signature);
+    )}`;
+    const group = resolved.get(signature);
     if (group === undefined) {
-      groups.set(signature, { chatIds: [chat.id], definitions: chatDefinitions });
+      resolved.set(signature, { host, chatIds: [chat.id], definitions: chatDefinitions });
     } else {
       group.chatIds.push(chat.id);
     }
   }
-  return [...groups.values()];
+  return [...resolved.values()];
 }
 
 /** The tools of one Chat under the configuration an invocation runs with. */
@@ -224,7 +232,10 @@ export function chatTools(
   context: InvocationContext,
   invocationDeadline: number,
 ): AgentTool[] {
-  const chat = resolveChatConfig(config, state.store.orm, context.chatId);
+  const chat = resolveChatConfig(config, state.store.orm, {
+    hostKind: context.hostKind,
+    hostChatId: context.hostChatId,
+  });
   return chat === undefined ? [] : buildTools(callDeps, definitions(state, config, chat), context, invocationDeadline);
 }
 
@@ -263,11 +274,11 @@ async function executeTool(
 
 /** The 61-tool cap and the model fit, checked per resolved set. */
 export function validateResolution(state: McpState, callDeps: McpCallDeps, resolution: ToolSetResolution): void {
-  const tools = buildTools(callDeps, resolution.definitions, previewContext(mcpCapableHost()), Number.MAX_SAFE_INTEGER);
+  const tools = buildTools(callDeps, resolution.definitions, previewContext(resolution.host), Number.MAX_SAFE_INTEGER);
   if (tools.length > 61) {
     throw new Error(
       `MCP tool set of chat ${resolution.chatIds.join(',')} has ${tools.length} tools; maximum alongside built-ins is 61`,
     );
   }
-  state.registryValidator?.(tools, resolution.chatIds);
+  state.registryValidator?.(tools, resolution.chatIds, resolution.host);
 }

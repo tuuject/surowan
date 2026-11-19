@@ -1,5 +1,6 @@
 import { and, eq, sql } from 'drizzle-orm';
 import type { ConversationContextStore } from '../../context/store/index.ts';
+import type { ChatConfigRef } from '../../platform/config/index.ts';
 import { chatPause, conversationContextCutoffs, conversations } from '../../store/schema/index.ts';
 import type { BusinessStore } from '../../store/store.ts';
 import type { ConversationRuntime } from '../conversation-runtime.ts';
@@ -10,13 +11,13 @@ export interface BotCommandSessionDeps {
   readonly scheduler: BucketScheduler;
   readonly contexts: ConversationContextStore;
   readonly conversationRuntime: ConversationRuntime | undefined;
-  internalChatId(telegramChatId: bigint): bigint | null;
+  internalChatId(chat: ChatConfigRef): bigint | null;
 }
 
-export function pauseChat(deps: BotCommandSessionDeps, telegramChatId: bigint, now: Date): string {
-  const chatId = deps.internalChatId(telegramChatId);
+export function pauseChat(deps: BotCommandSessionDeps, chat: ChatConfigRef, now: Date): string {
+  const chatId = deps.internalChatId(chat);
   if (chatId === null) {
-    throw new Error(`Chat ${telegramChatId} has no stored row`);
+    throw new Error(`Chat ${chat.hostChatId} has no stored row`);
   }
   const timestamp = now.toISOString();
   deps.store.transaction(() => {
@@ -51,10 +52,10 @@ export function pauseChat(deps: BotCommandSessionDeps, telegramChatId: bigint, n
   return '已暂停本群互动，发送 /resume 可恢复。';
 }
 
-export function resumeChat(deps: BotCommandSessionDeps, telegramChatId: bigint): string {
-  const chatId = deps.internalChatId(telegramChatId);
+export function resumeChat(deps: BotCommandSessionDeps, chat: ChatConfigRef): string {
+  const chatId = deps.internalChatId(chat);
   if (chatId === null) {
-    throw new Error(`Chat ${telegramChatId} has no stored row`);
+    throw new Error(`Chat ${chat.hostChatId} has no stored row`);
   }
   deps.store.orm.delete(chatPause).where(eq(chatPause.chatId, chatId)).run();
   return '已恢复本群互动。';
@@ -71,7 +72,7 @@ export function resumeChat(deps: BotCommandSessionDeps, telegramChatId: bigint):
 // seeing everything through its retained transcript.
 export function cutTopic(
   deps: BotCommandSessionDeps,
-  telegramChatId: bigint,
+  chat: ChatConfigRef,
   messageId: bigint | undefined,
   threadId: bigint | undefined,
   now: Date,
@@ -79,9 +80,9 @@ export function cutTopic(
   if (messageId === undefined) {
     throw new Error(`cut_topic command is missing its Telegram message ID`);
   }
-  const chatId = deps.internalChatId(telegramChatId);
+  const chatId = deps.internalChatId(chat);
   if (chatId === null) {
-    throw new Error(`Chat ${telegramChatId} has no stored row`);
+    throw new Error(`Chat ${chat.hostChatId} has no stored row`);
   }
   const timestamp = now.toISOString();
   const conversationId = deps.store.orm
@@ -116,7 +117,7 @@ export function cutTopic(
         JSON.stringify({
           event: 'context_cleared',
           conversation_id: conversationId.toString(),
-          chat_id: telegramChatId.toString(),
+          chat_id: chat.hostChatId?.toString() ?? 'null',
           head_seq: header.headSeq.toString(),
           at: timestamp,
         }),
@@ -139,11 +140,11 @@ export function cutTopic(
 // history.
 export function rebuildContext(
   deps: BotCommandSessionDeps,
-  telegramChatId: bigint,
+  chat: ChatConfigRef,
   threadId: bigint | undefined,
   now: Date,
 ): string {
-  const chatId = deps.internalChatId(telegramChatId);
+  const chatId = deps.internalChatId(chat);
   if (chatId === null) {
     return '当前 Chat 尚未入库，无需重建连续 Context。';
   }
@@ -165,7 +166,7 @@ export function rebuildContext(
     JSON.stringify({
       event: 'context_rebuilt',
       conversation_id: conversationId.toString(),
-      chat_id: telegramChatId.toString(),
+      chat_id: chat.hostChatId?.toString() ?? 'null',
       reason: 'rebuild_context',
       at: now.toISOString(),
     }),

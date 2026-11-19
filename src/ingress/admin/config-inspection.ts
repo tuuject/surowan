@@ -2,7 +2,8 @@ import type { RawConfig } from '../../platform/config/index.ts';
 import type { ConfigController } from '../../platform/config/write.ts';
 import type { RuntimeConfigurationStore } from '../../platform/runtime-config.ts';
 import type { SecretStore } from '../../platform/secrets.ts';
-import { type Orm, resolveChatConfig } from '../../store/store.ts';
+import { configuredTelegramChat } from './chat-ref.ts';
+import type { Orm } from '../../store/store.ts';
 import { hashPromptContent } from '../../store/prompt-versions.ts';
 import { AdminQueryError } from './audit/shared.ts';
 import { listProviders } from './providers/read.ts';
@@ -173,7 +174,7 @@ export function configuredPromptView(config: RawConfig, orm: Orm, scope: 'global
       core_read_only: true,
     };
   }
-  const chat = chatId === undefined ? undefined : resolveChatConfig(config, orm, chatId);
+  const chat = chatId === undefined ? undefined : configuredTelegramChat(config, orm, chatId);
   if (chat === undefined) {
     throw new AdminQueryError('chat_unconfigured', 'The requested chat is not configured', 404);
   }

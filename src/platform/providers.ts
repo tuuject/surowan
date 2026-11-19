@@ -25,7 +25,9 @@ import type {
   SecretRef,
   ThinkingLevelConfig,
 } from './config/index.ts';
+import { allConfiguredChats, configuredChats } from './config/index.ts';
 import { activeVisionModel, completeAgentSettings, resolveAgentSettings } from './config/resolve.ts';
+import type { HostKind } from './im-host/identity.ts';
 import type { ConfigurationModels } from './runtime-config.ts';
 import type { SecretStore } from './secrets.ts';
 import { thinkingLevelMap } from './thinking-levels.ts';
@@ -138,7 +140,7 @@ export function configuredAgentModels(
 ): { readonly model: Model<Api>; readonly thinkingLevel: ThinkingLevelConfig }[] {
   const selected = [
     resolveAgentSettings(config),
-    ...config.telegram.chats.map((chat) => resolveAgentSettings(config, chat)),
+    ...allConfiguredChats(config).map(({ chat }) => resolveAgentSettings(config, chat)),
   ];
   const seen = new Set<string>();
   return selected.flatMap((settings) => {
@@ -163,19 +165,21 @@ export function configuredAgentModels(
 }
 
 /**
- * The registered models the given Telegram Chats can run on, restricted to
- * `models` (the configured set) and deduplicated by provider and model id. A
- * Chat without an override follows the global agent settings, so it appears in
- * the global entry as well; only the pair matters here, not the thinking level.
+ * The registered models the given configured Chats of one host can run on,
+ * restricted to `models` (the configured set) and deduplicated by provider and
+ * model id. A Chat without an override follows the global agent settings, so it
+ * appears in the global entry as well; only the pair matters here, not the
+ * thinking level.
  */
-export function modelsForTelegramChats(
+export function modelsForChats(
   config: RawConfig,
   models: readonly Model<Api>[],
-  telegramChatIds: readonly number[],
+  chatIds: readonly number[],
+  host: HostKind,
 ): Model<Api>[] {
-  const wanted = new Set(telegramChatIds.map((id) => String(id)));
+  const wanted = new Set(chatIds.map((id) => String(id)));
   const selected: Model<Api>[] = [];
-  for (const chat of config.telegram.chats) {
+  for (const chat of configuredChats(config, host)) {
     if (!wanted.has(String(chat.id))) {
       continue;
     }

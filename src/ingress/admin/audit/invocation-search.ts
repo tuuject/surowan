@@ -7,7 +7,8 @@ import {
   parseMessageTimeWindow,
 } from '../../../platform/message-time.ts';
 import { telegramHostSql } from '../../../store/host-scope.ts';
-import { type Orm, resolveChatConfig } from '../../../store/store.ts';
+import { configuredTelegramChat } from '../chat-ref.ts';
+import type { Orm } from '../../../store/store.ts';
 import {
   AdminQueryError,
   escapeLike,
@@ -128,7 +129,7 @@ function resolveFilterTimezone(orm: Orm, query: ListQuery, config: RawConfig | u
   }
   const chat = optionalFilter(query.chat);
   if (chat !== undefined) {
-    const chatTimezone = resolveChatConfig(config, orm, parseId(chat, 'chat'))?.timezone;
+    const chatTimezone = configuredTelegramChat(config, orm, parseId(chat, 'chat'))?.timezone;
     if (chatTimezone !== undefined && chatTimezone.length > 0) {
       return chatTimezone;
     }

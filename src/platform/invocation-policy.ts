@@ -14,10 +14,11 @@
  * debounce window itself is resolved in `config/resolve.ts`, because config
  * validation checks it per host before any policy exists.
  */
-import type { ChatConfigEntry, RawConfig } from './config/index.ts';
-import { hostExecutionProfile } from './host-profile.ts';
+import { resolveChatConfig } from './config/index.ts';
+import type { RawConfig } from './config/index.ts';
+import { hostExecutionProfile, policyScopeChatId } from './host-profile.ts';
 import type { HostKind } from './im-host/identity.ts';
-import { resolveChatConfig, type Orm } from '../store/store.ts';
+import type { Orm } from '../store/store.ts';
 import { resolveAgentSettings } from './config/resolve.ts';
 
 /** The resolved agent settings for one scope. */
@@ -26,17 +27,21 @@ export type InvocationAgentSettings = ReturnType<typeof resolveAgentSettings>;
 /** The chat a policy belongs to, as core sees it. */
 export interface InvocationScope {
   readonly hostKind: HostKind;
-  /**
-   * The host's chat id: the Telegram chat id for Telegram, the internal chat
-   * id for a Playground room. It is never used as another host's id.
-   */
+  /** Internal `chats.id`: the row's own identity, never a host-native id. */
   readonly chatId: bigint;
+  /**
+   * The host's own chat id (`chats.host_chat_id`): the Telegram chat id for
+   * Telegram, `null` for a host that addresses its chats internally.
+   */
+  readonly hostChatId: bigint | null;
   readonly chatType: string;
 }
 
 export interface InvocationPolicy {
   readonly hostKind: HostKind;
+  /** Internal `chats.id`. */
   readonly chatId: bigint;
+  readonly hostChatId: bigint | null;
   readonly chatType: string;
   readonly agent: InvocationAgentSettings;
   readonly timezone: string;
@@ -57,14 +62,6 @@ export function invocationGateKey(hostKind: HostKind, chatId: bigint): string {
   return `${hostKind}:${chatId}`;
 }
 
-/** The configured chat entry for a scope, or undefined on a room host. */
-export function invocationChatEntry(config: RawConfig, orm: Orm, scope: InvocationScope): ChatConfigEntry | undefined {
-  if (hostExecutionProfile(scope.hostKind).chatSource !== 'config') {
-    return undefined;
-  }
-  return resolveChatConfig(config, orm, scope.chatId);
-}
-
 /**
  * Resolve the policy for a scope.
  *
@@ -74,17 +71,21 @@ export function invocationChatEntry(config: RawConfig, orm: Orm, scope: Invocati
  * and no debounce window.
  */
 export function resolveInvocationPolicy(config: RawConfig, orm: Orm, scope: InvocationScope): InvocationPolicy {
-  const chat = invocationChatEntry(config, orm, scope);
+  const chat = resolveChatConfig(config, orm, scope);
   if (hostExecutionProfile(scope.hostKind).chatSource === 'config' && chat === undefined) {
-    throw new Error(`Invocation chat ${scope.chatId} is no longer configured`);
+    throw new Error(`Invocation chat ${scope.hostChatId} is no longer configured`);
   }
   return {
     hostKind: scope.hostKind,
     chatId: scope.chatId,
+    hostChatId: scope.hostChatId,
     chatType: scope.chatType,
     agent: resolveAgentSettings(config, chat),
     timezone: chat?.timezone ?? config.timezone,
     instructions: chat?.instructions ?? '',
-    gateKey: invocationGateKey(scope.hostKind, scope.chatId),
+    gateKey: invocationGateKey(
+      scope.hostKind,
+      policyScopeChatId(scope.hostKind, { hostChatId: scope.hostChatId, chatId: scope.chatId }),
+    ),
   };
 }

@@ -62,7 +62,7 @@ export function createDocumentTools(
 }
 
 function accessContext(context: InvocationContext): DocAccessContext {
-  return { conversationId: context.conversationId, chatId: context.chatId };
+  return { conversationId: context.conversationId, internalChatId: context.internalChatId };
 }
 
 function createListDocumentsTool(

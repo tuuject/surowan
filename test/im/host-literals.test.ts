@@ -26,6 +26,8 @@ const ALLOWLIST: Readonly<Record<string, string>> = {
   'adapters/local-monolith/config/': 'the adapter config layer writes telegram.* paths',
   'adapters/local-monolith/runtime/': 'the composition root wires per-host readiness',
   'ingress/telegram-ingestion/': "Telegram intake is Telegram's own edge",
+  'startup-catch-up.ts': 'the getUpdates backlog drain names its own host',
+  'runtime-catch-up.ts': 'the getUpdates re-drain names its own host',
   'ingress/playground.ts': 'the room ingress writes the room host kind',
   'ingress/admin/': 'Admin routes and queries are the per-host HTTP surface',
   'store/playground/': 'the room store writes its own host kind',

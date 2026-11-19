@@ -12,6 +12,7 @@ import { composeAgentPrompt, PromptOverrideError, preparePromptOverride } from '
 import type { KeyedSemaphore } from '../../platform/concurrency.ts';
 import { configuredToolSchemaKeywords, type RawConfig } from '../../platform/config/index.ts';
 import { invocationGateKey } from '../../platform/invocation-policy.ts';
+import { policyScopeChatId } from '../../platform/host-profile.ts';
 import type { SecretStore } from '../../platform/secrets.ts';
 import { estimateTextTokens } from '../../platform/token-estimate.ts';
 import { applyToolSchemaKeywords } from '../../platform/tool-schema.ts';
@@ -198,7 +199,13 @@ export async function runReplay(
         fail('turn_budget', 'Replay turn budget exhausted');
         throw new Error('Replay turn budget');
       }
-      const release = await modelGate.acquire(invocationGateKey(source.hostKind, source.chatId), signal);
+      const release = await modelGate.acquire(
+        invocationGateKey(
+          source.hostKind,
+          policyScopeChatId(source.hostKind, { hostChatId: source.hostChatId, chatId: source.internalChatId }),
+        ),
+        signal,
+      );
       try {
         signal.throwIfAborted();
         turns += 1;
@@ -352,7 +359,7 @@ export async function runReplay(
     source_invocation_id: id.toString(),
     scene: sceneMetadata(scene),
     conversation_id: source.conversationId.toString(),
-    chat_id: source.chatId.toString(),
+    chat_id: source.hostChatId?.toString() ?? 'null',
     thread_id: source.threadId.toString(),
     model: { provider: model.provider, id: model.id, thinking_level: settings.thinking_level },
     overrides: {

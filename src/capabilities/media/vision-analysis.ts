@@ -42,7 +42,7 @@ const IMAGE_CACHE_DAYS = 30;
 export type AnalysisScope =
   | {
       readonly kind: 'chat';
-      readonly chatId: bigint;
+      readonly scopeChatId: bigint;
       readonly invocationId: bigint;
       readonly hostKind: HostKind;
     }
@@ -159,7 +159,7 @@ async function analyze(
     const releaseVision = await deps.visionSemaphore.acquire(signal, scope.kind === 'sticker_index' ? 1 : 0);
     const releaseChat =
       scope.kind === 'chat'
-        ? await deps.modelGate.acquire(invocationGateKey(scope.hostKind, scope.chatId), signal)
+        ? await deps.modelGate.acquire(invocationGateKey(scope.hostKind, scope.scopeChatId), signal)
         : undefined;
     try {
       const callId = startVisionCall(deps, scope, analysisId, run);
@@ -337,7 +337,7 @@ function finishVisionCall(
         .values({
           utcDate: now.slice(0, 10),
           scope: hostExecutionProfile(scope.hostKind).budgetScope,
-          resource: scope.chatId.toString(),
+          resource: scope.scopeChatId.toString(),
           metric: 'model_tokens',
           amount: meteredTokens(usage),
           updatedAt: now,

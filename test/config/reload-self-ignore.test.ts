@@ -24,7 +24,11 @@ test('non-admin members can persist self-ignore, stay audited, and opt back in w
     const ignored = ingest('/ignoreme 99', true);
     expect(ignored.command).toMatchObject({ name: 'ignoreme' });
     expect(ignored.messageId).toBeUndefined();
-    const reply = await fixture.commands.run(ignored.command!, BigInt(CHAT_ID), ADMIN);
+    const reply = await fixture.commands.run(
+      ignored.command!,
+      { hostKind: 'telegram', hostChatId: BigInt(CHAT_ID) },
+      ADMIN,
+    );
     expect(reply).toContain('/unignoreme');
     expect(fixture.configStore.current().config.telegram.chats[0]?.ignored_user_ids).toEqual([42]);
     expect((await loadConfig(fixture.configPath)).config.telegram.chats[0]?.ignored_user_ids).toEqual([42]);
@@ -35,7 +39,7 @@ test('non-admin members can persist self-ignore, stay audited, and opt back in w
     const generation = fixture.configStore.current().generation;
     const written = await fixture.readText();
     const repeated = ingest('/ignoreme', true);
-    await fixture.commands.run(repeated.command!, BigInt(CHAT_ID), ADMIN);
+    await fixture.commands.run(repeated.command!, { hostKind: 'telegram', hostChatId: BigInt(CHAT_ID) }, ADMIN);
     expect(await fixture.readText()).toBe(written);
     expect(fixture.configStore.current().generation).toBe(generation);
 
@@ -56,12 +60,18 @@ test('non-admin members can persist self-ignore, stay audited, and opt back in w
 
     const restored = ingest('/unignoreme', true);
     expect(restored.command).toMatchObject({ name: 'unignoreme' });
-    expect(await fixture.commands.run(restored.command!, BigInt(CHAT_ID), ADMIN)).toContain('已恢复接收');
+    expect(
+      await fixture.commands.run(restored.command!, { hostKind: 'telegram', hostChatId: BigInt(CHAT_ID) }, ADMIN),
+    ).toContain('已恢复接收');
     expect(fixture.configStore.current().config.telegram.chats[0]?.ignored_user_ids).toEqual([]);
     expect((await loadConfig(fixture.configPath)).config.telegram.chats[0]?.ignored_user_ids).toEqual([]);
     const restoredGeneration = fixture.configStore.current().generation;
     const restoredText = await fixture.readText();
-    await fixture.commands.run(ingest('/unignoreme', true).command!, BigInt(CHAT_ID), ADMIN);
+    await fixture.commands.run(
+      ingest('/unignoreme', true).command!,
+      { hostKind: 'telegram', hostChatId: BigInt(CHAT_ID) },
+      ADMIN,
+    );
     expect(await fixture.readText()).toBe(restoredText);
     expect(fixture.configStore.current().generation).toBe(restoredGeneration);
     expect(ingest('after opting back in').bucketId).toBeDefined();
@@ -104,8 +114,8 @@ test('self-ignore updates merge concurrent members by file Chat ID and preserve 
       config.telegram.chats.reverse();
     });
     await Promise.all([
-      fixture.commands.run({ name: 'ignoreme' }, BigInt(CHAT_ID), ADMIN),
-      fixture.commands.run({ name: 'ignoreme' }, BigInt(CHAT_ID), bob),
+      fixture.commands.run({ name: 'ignoreme' }, { hostKind: 'telegram', hostChatId: BigInt(CHAT_ID) }, ADMIN),
+      fixture.commands.run({ name: 'ignoreme' }, { hostKind: 'telegram', hostChatId: BigInt(CHAT_ID) }, bob),
     ]);
     const active = fixture.configStore.current().config;
     const disk = (await loadConfig(fixture.configPath)).config;
@@ -116,8 +126,8 @@ test('self-ignore updates merge concurrent members by file Chat ID and preserve 
     expect(fixture.ingestion.ingest(groupUpdate(1, 10, otherChat, 42)).bucketId).toBeDefined();
     expect(fixture.ingestion.ingest(groupUpdate(2, 11, CHAT_ID, 42))).toEqual({});
     await Promise.all([
-      fixture.commands.run({ name: 'unignoreme' }, BigInt(CHAT_ID), ADMIN),
-      fixture.commands.run({ name: 'unignoreme' }, BigInt(CHAT_ID), bob),
+      fixture.commands.run({ name: 'unignoreme' }, { hostKind: 'telegram', hostChatId: BigInt(CHAT_ID) }, ADMIN),
+      fixture.commands.run({ name: 'unignoreme' }, { hostKind: 'telegram', hostChatId: BigInt(CHAT_ID) }, bob),
     ]);
     expect(
       (await loadConfig(fixture.configPath)).config.telegram.chats.find((chat) => chat.id === CHAT_ID)
@@ -143,7 +153,13 @@ test('self-ignore in a migrated Forum Chat uses the configured ID and affects al
     const migration = groupUpdate(1, 10, newChat);
     migration.message = { ...migration.message!, migrate_from_chat_id: oldChat };
     fixture.ingestion.ingest(migration);
-    expect(await fixture.commands.run({ name: 'ignoreme', threadId: 8n }, BigInt(newChat), ADMIN)).toContain('已忽略');
+    expect(
+      await fixture.commands.run(
+        { name: 'ignoreme', threadId: 8n },
+        { hostKind: 'telegram', hostChatId: BigInt(newChat) },
+        ADMIN,
+      ),
+    ).toContain('已忽略');
     expect((await loadConfig(fixture.configPath)).fileConfig.telegram?.chats).toEqual([
       { id: oldChat, ignored_user_ids: [42] },
     ]);
@@ -160,7 +176,7 @@ test('self-ignore in a migrated Forum Chat uses the configured ID and affects al
     topic.message.entities = [{ type: 'bot_command', offset: 0, length: 11 }];
     const command = fixture.ingestion.ingest(topic).command;
     expect(command).toMatchObject({ name: 'unignoreme', threadId: 9n });
-    await fixture.commands.run(command!, BigInt(newChat), ADMIN);
+    await fixture.commands.run(command!, { hostKind: 'telegram', hostChatId: BigInt(newChat) }, ADMIN);
     expect(fixture.ingestion.ingest(groupUpdate(4, 12, newChat)).bucketId).toBeDefined();
   } finally {
     fixture.store.close();
@@ -201,7 +217,9 @@ test('self-ignore rejects unknown senders, unsafe IDs and missing Chats without 
   try {
     const before = fixture.configStore.current();
     const text = await fixture.readText();
-    expect(await fixture.commands.run({ name: 'ignoreme' }, BigInt(CHAT_ID), null)).toContain('无法识别发送者');
+    expect(
+      await fixture.commands.run({ name: 'ignoreme' }, { hostKind: 'telegram', hostChatId: BigInt(CHAT_ID) }, null),
+    ).toContain('无法识别发送者');
     for (const id of [0n, -1n, BigInt(Number.MAX_SAFE_INTEGER) + 1n]) {
       expect(await fixture.reloader.setChatUserIgnored(CHAT_ID, id, true)).toMatchObject({
         ok: false,
@@ -209,14 +227,18 @@ test('self-ignore rejects unknown senders, unsafe IDs and missing Chats without 
         fileWritten: false,
       });
     }
-    expect(await fixture.commands.run({ name: 'ignoreme' }, -999n, ADMIN)).toBe('本 Chat 未在配置中找到。');
+    expect(await fixture.commands.run({ name: 'ignoreme' }, { hostKind: 'telegram', hostChatId: -999n }, ADMIN)).toBe(
+      '本 Chat 未在配置中找到。',
+    );
     expect(await fixture.readText()).toBe(text);
     expect(fixture.configStore.current()).toBe(before);
     await fixture.patch((config) => {
       config.telegram.chats = [{ id: -999 }];
     });
     const removedText = await fixture.readText();
-    expect(await fixture.commands.run({ name: 'ignoreme' }, BigInt(CHAT_ID), ADMIN)).toContain('更新忽略名单失败');
+    expect(
+      await fixture.commands.run({ name: 'ignoreme' }, { hostKind: 'telegram', hostChatId: BigInt(CHAT_ID) }, ADMIN),
+    ).toContain('更新忽略名单失败');
     expect(await fixture.readText()).toBe(removedText);
     expect(fixture.configStore.current()).toBe(before);
   } finally {
@@ -232,7 +254,11 @@ test('self-ignore reports apply failures after persisting and repeated commands 
     await fixture.patch((config) => {
       customProvider(config.providers, 'vision').api_key = { jar: 'missing-entry' };
     });
-    const reply = await fixture.commands.run({ name: 'ignoreme' }, BigInt(CHAT_ID), ADMIN);
+    const reply = await fixture.commands.run(
+      { name: 'ignoreme' },
+      { hostKind: 'telegram', hostChatId: BigInt(CHAT_ID) },
+      ADMIN,
+    );
     expect(reply).toContain('已写入 config.jsonc，但应用失败');
     expect((await loadConfig(fixture.configPath)).config.telegram.chats[0]?.ignored_user_ids).toEqual([42]);
     expect(fixture.configStore.current()).toBe(before);
@@ -241,7 +267,11 @@ test('self-ignore reports apply failures after persisting and repeated commands 
     customProvider(corrected.providers, 'vision').api_key = { jar: 'vision' };
     await fixture.writeText(`${JSON.stringify(corrected, null, 2)}\n`);
     const saved = await fixture.readText();
-    const retried = await fixture.commands.run({ name: 'ignoreme' }, BigInt(CHAT_ID), ADMIN);
+    const retried = await fixture.commands.run(
+      { name: 'ignoreme' },
+      { hostKind: 'telegram', hostChatId: BigInt(CHAT_ID) },
+      ADMIN,
+    );
     expect(retried).toContain('已忽略');
     expect(retried).toContain('立即生效');
     expect(await fixture.readText()).toBe(saved);

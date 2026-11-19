@@ -6,7 +6,6 @@
 import { reconcileStickerSets } from '../../../capabilities/stickers/sets.ts';
 import type { Context } from 'grammy';
 import { ConversationContextStore } from '../../../context/store/index.ts';
-import { previewContext } from '../../../platform/invocation-context.ts';
 import { WEB_SEARCH_PROVIDERS } from '../../../plugins/web-search/extension.ts';
 import { runStartupCatchUp } from '../../../startup-catch-up.ts';
 import { recordPromptVersionsFromConfig } from '../../../store/prompt-versions.ts';
@@ -35,7 +34,7 @@ import {
 } from './chat-lifecycle.ts';
 import { createMcpPublication } from './mcp-publication.ts';
 import type { ServeAssembly, ServeHosts, ServeServices } from './serve.ts';
-import { publishStickerSets } from './sticker-sets.ts';
+import { configuredStickerSets, publishStickerSets } from './sticker-sets.ts';
 import { ALLOWED_UPDATES, logEvent, replyToCommand, resolveConversation, type ServeContext } from './support.ts';
 import { abortRunningInvocationsOnSearchDisable } from './web-search-availability.ts';
 
@@ -162,10 +161,6 @@ export async function startCoreRuntime(session: ServeContext, assembly: ServeAss
     skillVisibility: skillVisibleForHost,
   });
   state.scheduler = startedScheduler;
-  // Tool registries are validated against a host this process binds: the
-  // send tools resolve their host, and a missing one is a hard failure. Both
-  // hosts are always bound, even while Telegram has no instance.
-  const preview = previewContext('telegram');
   // The provider set is decided by the loaded plugins; every configuration read
   // below (and in the panel's write path) validates engine ids against it.
   const searchProviders = plugins.extensions(WEB_SEARCH_PROVIDERS).map((provider) => provider.rule);
@@ -177,7 +172,7 @@ export async function startCoreRuntime(session: ServeContext, assembly: ServeAss
   let publishedConfig = configStore.current().config;
   // The panel lists sticker sets from the store; mirror the started
   // configuration now instead of waiting for a Telegram connection to sync.
-  reconcileStickerSets(store, publishedConfig.telegram.sticker_sets ?? []);
+  reconcileStickerSets(store, configuredStickerSets(publishedConfig));
   // The configuration the group-memory cutover last completed against. It only
   // advances when a cutover succeeds, so a failed one is retried by the next
   // apply (the reloader reruns this hook while its publication is pending).
@@ -193,7 +188,6 @@ export async function startCoreRuntime(session: ServeContext, assembly: ServeAss
     isHostReady,
     mcp: mcpManager,
     runtime,
-    preview,
   });
   const configReloader = new ConfigReloader({
     loaded,

@@ -9,7 +9,7 @@ import {
   validateToolRegistry,
 } from './support.ts';
 import type { AgentRun, RoundControl, RunScope, StopReason } from './types.ts';
-import { logContextInjected, logZzzExposure } from './observability.ts';
+import { logContextInjected, logZzzExposure, scopeChatId } from './observability.ts';
 import { collectTranscriptMessageIds, estimateMessagesTokens, estimateTranscriptCharacters } from './transcript.ts';
 
 /**
@@ -174,7 +174,7 @@ export function createRoundControl(scope: RunScope, run: AgentRun): RoundControl
     const nextTools = (turnContext.tools ?? tools).filter((tool) => tool.name !== 'zzz');
     if (shouldExposeZzz && zzz !== undefined) {
       nextTools.push(zzz);
-      logZzzExposure(invocationId, identity.chatId, budget);
+      logZzzExposure(invocationId, scopeChatId(identity), budget);
       state.estimatedInputTokens += estimateToolDefinitionTokens(zzz);
     }
     validateToolRegistry(nextTools, model.contextWindow);

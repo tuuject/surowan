@@ -133,7 +133,9 @@ test('a dropped server stops handing out tools and a queued call is refused as s
     expect(
       f.manager.createTools(f.context, Date.now() + 60_000, f.loaded.config).map((candidate) => candidate.name),
     ).toEqual([]);
-    expect(f.manager.toolNamesForChat(BigInt(CHAT), f.loaded.config)).toEqual(['local__echo']);
+    expect(f.manager.toolNamesForChat({ hostKind: 'telegram', hostChatId: BigInt(CHAT) }, f.loaded.config)).toEqual([
+      'local__echo',
+    ]);
 
     // A definition handed out earlier is refused without a request: audited as
     // `server_unavailable`, never `outcome_unknown`, and the refusal does not

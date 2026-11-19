@@ -14,6 +14,7 @@ import {
 import type { TUnsafe } from 'typebox';
 import type { AsyncSemaphore } from '../../platform/concurrency.ts';
 import type { McpServerConfig, SecretRef } from '../../platform/config/index.ts';
+import type { HostKind } from '../../platform/im-host/identity.ts';
 import type { SecretStore } from '../../platform/secrets.ts';
 import type { McpToolPolicy } from './bindings.ts';
 
@@ -119,11 +120,11 @@ export interface ManagedServer {
 }
 
 /**
- * Checks one resolved tool set of one configuration. `chatIds` are the Telegram
- * Chats that resolve to it, so the caller can validate against every model those
- * Chats can run on instead of every configured model.
+ * Checks one resolved tool set of one configuration. `chatIds` are the Chats of
+ * `host` that resolve to it, so the caller can validate against every model
+ * those Chats can run on instead of every configured model.
  */
-export type RegistryValidator = (tools: readonly AgentTool[], chatIds: readonly number[]) => void;
+export type RegistryValidator = (tools: readonly AgentTool[], chatIds: readonly number[], host: HostKind) => void;
 export type McpCallResult = CallToolResult | CompatibilityCallToolResult;
 
 export class CompatibleTransport implements Transport {

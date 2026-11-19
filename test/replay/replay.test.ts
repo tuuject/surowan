@@ -134,7 +134,8 @@ test('a scene replay runs the historical public chat under the current config wi
   expect(contexts[0]).toMatchObject({
     invocationId: f.seed.invocationA,
     conversationId: f.seed.conversationId,
-    chatId: 123_456_789n,
+    hostChatId: 123_456_789n,
+    internalChatId: f.seed.chatId,
     threadId: 0n,
   });
   // The whole database, production tables included, is untouched.

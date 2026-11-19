@@ -25,7 +25,7 @@ test('a tool handed out by a replaced instance is rejected instead of reaching t
   const chat = seedChat(f.store, BigInt(CHAT_A));
   const invocationId = queueInvocation(f.store, chat.conversationId, new Date().toISOString());
   const previous = f.configStore.current().config;
-  const context = contextFor(invocationId, BigInt(CHAT_A), chat.conversationId);
+  const context = contextFor(invocationId, BigInt(CHAT_A), chat.chatId, chat.conversationId);
   const stale = f.manager
     .createTools(context, Date.now() + 30_000, previous)
     .find((tool) => tool.name === 'alpha__echo');

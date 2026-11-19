@@ -76,7 +76,7 @@ test('builds a bot-send slice from the frozen inputs between two bot messages', 
   expect(scene.mediaRefs.size).toBe(0);
   expect(scene.bucketId).toBe(OPENING_BUCKET);
   expect(scene.conversationId).toBe(CONVERSATION);
-  expect(scene.chatId).toBe(123_456_789n);
+  expect(scene.hostChatId).toBe(123_456_789n);
   expect(scene.threadId).toBe(0n);
   expect(scene.replyMessageIds).toEqual(['900', '901']);
   expect(scene.text.startsWith('<runtime_state>\ncurrent_time: ')).toBe(true);

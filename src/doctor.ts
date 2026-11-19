@@ -31,11 +31,12 @@ import { MediaService } from './capabilities/media/index.ts';
 import { AgentRuntime } from './orchestration/agent-runtime/index.ts';
 import { KeyedSemaphore } from './platform/concurrency.ts';
 import { configuredModel, type McpServerConfig, type ProviderConfig, type RawConfig } from './platform/config/index.ts';
+import { HOST_KINDS } from './platform/im-host/identity.ts';
 import { unwiredImHost } from './platform/im-host/index.ts';
 import { previewContext } from './platform/invocation-context.ts';
 import { keychainPath, migrateKeychain } from './platform/keychain.ts';
 import { type PromptTemplateValues, renderPromptTemplate } from './platform/prompt-template.ts';
-import { buildModelRegistry, configuredAgentModels, modelsForTelegramChats } from './platform/providers.ts';
+import { buildModelRegistry, configuredAgentModels, modelsForChats } from './platform/providers.ts';
 import { RuntimeConfigurationStore } from './platform/runtime-config.ts';
 import { SecretStore } from './platform/secrets.ts';
 import { pickEnv, spawnProcess } from './platform/subprocess.ts';
@@ -236,22 +237,26 @@ async function runDoctorChecks(
         ...manager.createTools(context, deadline, config),
       ],
     });
-    const preview = previewContext('telegram');
     // The base registry (no MCP tools) must fit every configured model, even
-    // ones no Telegram Chat uses: Playground work runs on those too.
+    // ones no Telegram Chat uses: Playground work runs on those too. Each host
+    // is checked with its own preview — the built-ins it measures against are
+    // host-specific.
     for (const { model } of agentModels) {
-      runtime.validateAdditionalTools(preview, [], model);
+      for (const host of HOST_KINDS) {
+        runtime.validateAdditionalTools(previewContext(host), [], model);
+      }
     }
-    manager.setRegistryValidator((mcpTools, chatIds) => {
+    manager.setRegistryValidator((mcpTools, chatIds, host) => {
       // Each Chat gets its own tool set, so the models checked here are the ones
       // those Chats can actually run on.
-      const chatModels = modelsForTelegramChats(
+      const chatModels = modelsForChats(
         config,
         agentModels.map((entry) => entry.model),
         chatIds,
+        host,
       );
       for (const model of chatModels) {
-        runtime.validateAdditionalTools(preview, mcpTools, model);
+        runtime.validateAdditionalTools(previewContext(host), mcpTools, model);
       }
     });
     // Every configured server is probed (start() does not wait for any), and
