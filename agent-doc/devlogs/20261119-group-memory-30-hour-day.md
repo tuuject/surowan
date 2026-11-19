@@ -111,3 +111,43 @@ Git Bash 会把 `DOCS_BASE_PATH=/` 改写成 Windows 路径，导致 `prepare.ts
 ```txt
 385c98ff Add an optional 30-hour clock to group memory date search
 ```
+
+## 后续修正：合并 develop 与 review 意见
+
+open-code-review 审阅本 PR 后，按 high / medium 意见做了三处修正。第 3 节的 SQL 已被下面的写法取代。
+
+### 1. 合并 develop：`messages` 列改名
+
+develop（IMH 系列）把 `messages.telegram_message_id` / `telegram_date` 改名为 `message_no` / `sent_at`，并让 `resolveChatConfig` 改用 `{ hostKind, hostChatId }` 查找。`tools/read.ts` 是文本冲突，按 develop 的写法解决。`store.ts` 的原生 `sql` 模板和 `tools.test.ts` 里插第二个 Chat 的 SQL（`telegram_chat_id` → `host_chat_id`）都**没有文本冲突、自动合并**，但运行时报 `no such column`。原生 SQL 不经过类型检查，`pnpm run check` 也发现不了，所以这两处单独列在合并提交里。
+
+### 2. 30 小时制只按时间归属
+
+原写法只看 `g.day = day` 与次日两天，再用首条消息时间筛选。Chat 换过时区后，旧事件按旧时区的日期归档，就会出错：例如从 UTC 换到 Asia/Tokyo，东京 11-18 07:00 的事件归档在 11-17，搜 11-18 时找不到，却会出现在 11-17 的结果里。
+
+`dayCondition`（`src/context/group-memory/store.ts`）改为只按时间判断归属：首条消息仍在时看 `m.sent_at` 是否落在 `[start, end)`；首条原文已不在时退回 `g.day = day`。`g.day BETWEEN day-2 AND day+2` 只用来把读取限制在 `(chat_id, day)` 索引上：窗口落在当日 00:00 到次日 06:00 之间，时区偏移都在 ±14h 内，事件首条消息所在的本地日期最多偏两天。`non_overlapping` 下相邻日期仍然恰好划分全部事件。
+
+### 3. Admin 写入逐字段编辑
+
+`updateChatGroupMemory`（`src/ingress/admin/chats.ts`）原来整段替换 `group_memory`，会丢掉节内的 jsonc 注释（这个问题在加 `idle_minutes` 时就已存在）。现在 Chat 已有该节时逐字段发 edit，没有时才整段创建。删除字段（`value: undefined`）只发给文件里确实存在的字段，因为 `writeConfigEdits` 遇到没改动任何内容的 edit 会报错。
+
+### 验证
+
+新测试先在修复前的代码上复现原故障。做法是用脚本临时换回旧实现，跑完再还原：
+
+- `test/group-memory/tools.test.ts`「places events by their first message after the Chat timezone changed」：旧列名下报 `no such column: m.telegram_date`；旧归属逻辑下列表不符（11-18 漏掉归档在 11-17 的东京早晨事件）。
+- `test/admin/chats.test.ts`「group memory writes keep the comments inside the section」：整段替换时，文件里的注释消失。
+
+```bash
+pnpm test                       # Test Files 445 passed | 1 skipped (446); Tests 2221 passed | 9 skipped (2230)
+pnpm run admin:build && pnpm run admin:test:e2e 09-chats-group-memory 01-routes   # 29 passed
+pnpm run check && pnpm run lint && git diff --check   # exit 0
+```
+
+`test/group-memory/store.test.ts` 的「a keyword search reaches an entry older than thousands of non-matching ones」在本机单独跑约 4.4 s，接近 vitest 默认的 5 s 超时，并发时偶尔超时；在未改动的 develop（`9b810e33`）上同样超时（5.27 s），与本 PR 无关。
+
+未执行：真实 Telegram 群的人工验收；没有在真实配置里实际改时区来验证。本轮未改 `apps/docs/`，所以没有重跑 docs 构建。
+
+```txt
+436d1663 Merge develop into the group memory 30-hour clock branch
+b8cecfe6 Place 30-hour search events by time and edit group memory per field
+```
