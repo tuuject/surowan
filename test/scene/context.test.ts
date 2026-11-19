@@ -41,7 +41,7 @@ describe('scene context', () => {
     const scene = buildSceneContext(store, fixture.loaded.config, invocationId, DEFAULT_OPTIONS);
 
     expect(scene.cutoffAt).toBe(at(50).toISOString());
-    expect(scene.chatId).toBe(GROUP_CHAT);
+    expect(scene.hostChatId).toBe(GROUP_CHAT);
     expect(scene.threadId).toBe(0n);
     expect(scene.conversationId).toBe(conversationId);
     expect(scene.bucketId).toBe(invocationBucket(store, invocationId));

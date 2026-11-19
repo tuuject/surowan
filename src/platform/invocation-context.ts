@@ -104,10 +104,14 @@ export interface InvocationContext {
   readonly conversationId: bigint;
   /**
    * The host this invocation runs for. A Telegram-only capability must check
-   * it before reading `chatId` as a Telegram chat id.
+   * it before reading `hostChatId` as a Telegram chat id.
    */
   readonly hostKind: HostKind;
-  readonly chatId: bigint;
+  /**
+   * The host's own chat id (`chats.host_chat_id`): the Telegram chat id for
+   * Telegram, `null` for a host that addresses its chats internally.
+   */
+  readonly hostChatId: bigint | null;
   /** Internal `chats.id`; Memo Pad and blob ownership use this, never the platform id. */
   readonly internalChatId: bigint;
   readonly threadId: bigint;
@@ -133,7 +137,7 @@ export class InvocationContextState implements InvocationContext {
   readonly invocationId: bigint;
   readonly conversationId: bigint;
   readonly hostKind: HostKind;
-  readonly chatId: bigint;
+  readonly hostChatId: bigint | null;
   readonly internalChatId: bigint;
   readonly threadId: bigint;
   readonly memoReads: MemoReadState;
@@ -149,7 +153,7 @@ export class InvocationContextState implements InvocationContext {
     readonly invocationId: bigint;
     readonly conversationId: bigint;
     readonly hostKind: HostKind;
-    readonly chatId: bigint;
+    readonly hostChatId: bigint | null;
     readonly internalChatId: bigint;
     readonly threadId: bigint;
     readonly completion: CompletionContext | null;
@@ -157,7 +161,7 @@ export class InvocationContextState implements InvocationContext {
     this.invocationId = identity.invocationId;
     this.conversationId = identity.conversationId;
     this.hostKind = identity.hostKind;
-    this.chatId = identity.chatId;
+    this.hostChatId = identity.hostChatId;
     this.internalChatId = identity.internalChatId;
     this.threadId = identity.threadId;
     this.#completion = identity.completion;
@@ -243,7 +247,7 @@ export function previewContext(hostKind: HostKind): InvocationContext {
     invocationId: 0n,
     conversationId: 0n,
     hostKind,
-    chatId: 0n,
+    hostChatId: null,
     internalChatId: 0n,
     threadId: 0n,
     systemPrompt: '',

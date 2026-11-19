@@ -208,7 +208,7 @@ describe('participation gate', () => {
         invocationId: first,
         conversationId,
         internalChatId: 0n,
-        chatId: BigInt(GROUP_CHAT_ID),
+        hostChatId: BigInt(GROUP_CHAT_ID),
         hostKind: 'telegram',
         threadId: 0n,
         chatType: 'supergroup',
@@ -217,7 +217,8 @@ describe('participation gate', () => {
         timezone: config.timezone,
         policy: resolveInvocationPolicy(config, store.orm, {
           hostKind: 'telegram',
-          chatId: BigInt(GROUP_CHAT_ID),
+          chatId: 1n,
+          hostChatId: BigInt(GROUP_CHAT_ID),
           chatType: 'supergroup',
         }),
       },

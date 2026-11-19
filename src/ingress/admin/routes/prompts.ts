@@ -2,7 +2,8 @@ import type { RuntimeConfigurationStore } from '../../../platform/runtime-config
 import type { SecretStore } from '../../../platform/secrets.ts';
 import type { BucketScheduler } from '../../../orchestration/scheduler/index.ts';
 import type { ConfigController } from '../../../platform/config/write.ts';
-import { resolveChatConfig, type BusinessStore } from '../../../store/store.ts';
+import { configuredTelegramChat } from '../chat-ref.ts';
+import type { BusinessStore } from '../../../store/store.ts';
 import { getPromptVersion } from '../../../store/prompt-versions.ts';
 import { REPLAY_BODY_MAX_BYTES, json, readJsonObject, requiredRevision } from '../http.ts';
 import { parseId } from '../audit/shared.ts';
@@ -128,7 +129,7 @@ export function createPromptsAdminHandler(deps: PromptsAdminDeps) {
     if (query.scope === 'group') {
       // Same resolution as `configuredPromptView`, so the panel's chat filter
       // accepts the configured or migrated ID it already shows.
-      const chat = resolveChatConfig(configStore.current().config, store.orm, query.chatId);
+      const chat = configuredTelegramChat(configStore.current().config, store.orm, query.chatId);
       if (chat === undefined) {
         return json({ error: 'chat_unconfigured', message: 'The requested chat is not configured' }, 404);
       }
@@ -144,7 +145,7 @@ export function createPromptsAdminHandler(deps: PromptsAdminDeps) {
       if (body.chat_id === undefined) {
         return json({ error: 'invalid_body', message: 'chat_id is required for the group scope' }, 400);
       }
-      const chat = resolveChatConfig(configStore.current().config, store.orm, BigInt(body.chat_id));
+      const chat = configuredTelegramChat(configStore.current().config, store.orm, BigInt(body.chat_id));
       if (chat === undefined) {
         return json({ error: 'chat_unconfigured', message: 'The requested chat is not configured' }, 404);
       }

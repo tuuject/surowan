@@ -2,10 +2,13 @@ import type { Message } from 'grammy/types';
 import { isOriginalAsk } from '../../platform/bot-command.ts';
 import { type SQL, sql } from 'drizzle-orm';
 import { completeAgentSettings, resolveAgentSettings } from '../../platform/config/resolve.ts';
+import { hostIntakeSettings, resolveChatConfig } from '../../platform/config/index.ts';
+import { parseHostKind } from '../../platform/im-host/identity.ts';
+import { hostsWhere } from '../../platform/host-profile.ts';
 import { isConversationActive } from '../../store/participation.ts';
 import { bucketMessages, buckets } from '../../store/schema/index.ts';
 import { telegramHostSql } from '../../store/host-scope.ts';
-import { isChatPaused, resolveChatConfig } from '../../store/store.ts';
+import { isChatPaused } from '../../store/store.ts';
 import {
   enqueueBucketInvocation,
   type InvocationQueueDeps,
@@ -22,6 +25,7 @@ interface CatchUpMessageRow {
   readonly conversation_id: bigint;
   readonly chat_id: bigint;
   readonly telegram_chat_id: bigint;
+  readonly host_kind: string;
   readonly chat_type: string;
   readonly telegram_message_id: bigint;
   readonly telegram_date: string;
@@ -53,11 +57,19 @@ export function selectCatchUpMessages(
   unbucketedOnly: boolean,
 ): CatchUpMessageRow[] {
   const config = deps.configStore.current().config;
+  // The query is Telegram-scoped, so the sticker-trigger flag is the config
+  // bucket host's; asking every such host keeps this file free of a host
+  // literal.
+  const stickerTrigger = hostsWhere((profile) => profile.chatSource === 'config' && profile.intake === 'bucket').some(
+    (host) => hostIntakeSettings(config, host).sticker_trigger_enabled === true,
+  )
+    ? 1n
+    : 0n;
   const unbucketed = unbucketedOnly
     ? sql`AND NOT EXISTS (SELECT 1 FROM bucket_messages bm WHERE bm.message_id = m.id)`
     : sql``;
   const sessionMessages = sql`
-       SELECT m.id, m.conversation_id, m.chat_id, c.host_chat_id AS telegram_chat_id, c.type AS chat_type,
+       SELECT m.id, m.conversation_id, m.chat_id, c.host_chat_id AS telegram_chat_id, c.host_kind, c.type AS chat_type,
               m.message_no AS telegram_message_id, m.sent_at AS telegram_date,
               -- Only the original new message can be an ask trigger; edits keep
               -- their normal revisions but must not turn history into a wakeup.
@@ -66,7 +78,7 @@ export function selectCatchUpMessages(
               CASE WHEN r.kind <> 'service' AND COALESCE(s.is_bot, 0) = 0
                         AND (r.kind <> 'sticker' OR r.text IS NOT NULL OR r.caption IS NOT NULL
                              OR EXISTS (SELECT 1 FROM media WHERE revision_id = r.id AND kind <> 'sticker')
-                             OR ${config.telegram.sticker_trigger_enabled === true ? 1n : 0n} = 1) THEN 1 ELSE 0 END AS eligible_human
+                             OR ${stickerTrigger} = 1) THEN 1 ELSE 0 END AS eligible_human
        FROM messages m
        JOIN message_revisions r ON r.id = m.current_revision_id
        LEFT JOIN senders s ON s.id = r.sender_id
@@ -86,7 +98,7 @@ export function selectCatchUpMessages(
        FROM session_messages
        WHERE conversation_id IN (SELECT conversation_id FROM session_messages WHERE eligible_human = 1)
      )
-     SELECT id, conversation_id, chat_id, telegram_chat_id, chat_type, telegram_message_id, telegram_date, raw_fragment_json, eligible_human
+     SELECT id, conversation_id, chat_id, telegram_chat_id, host_kind, chat_type, telegram_message_id, telegram_date, raw_fragment_json, eligible_human
      FROM ranked
      WHERE message_rank <= ${BigInt(config.agent.history_messages)}
      ORDER BY conversation_id, telegram_date, telegram_message_id`,
@@ -94,7 +106,11 @@ export function selectCatchUpMessages(
   const conversations = new Map(selected.map((message) => [message.conversation_id, message]));
   const selectedIds = new Set(selected.map((message) => message.id));
   for (const message of conversations.values()) {
-    const rule = deps.participation.ruleFor(deps.store.orm, message.telegram_chat_id, message.chat_type);
+    const rule = deps.participation.ruleFor(
+      deps.store.orm,
+      { hostKind: parseHostKind(message.host_kind), hostChatId: message.telegram_chat_id },
+      message.chat_type,
+    );
     if (!rule?.askOnly) {
       continue;
     }
@@ -185,7 +201,11 @@ export function materializeCatchUpBuckets(
     if (latest === undefined) {
       continue;
     }
-    const rule = deps.participation.ruleFor(store.orm, latest.telegram_chat_id, latest.chat_type);
+    const rule = deps.participation.ruleFor(
+      store.orm,
+      { hostKind: parseHostKind(latest.host_kind), hostChatId: latest.telegram_chat_id },
+      latest.chat_type,
+    );
     const batchMessages = rule?.askOnly
       ? messages.filter(
           (message) =>
@@ -193,7 +213,10 @@ export function materializeCatchUpBuckets(
             isOriginalAsk(JSON.parse(message.raw_fragment_json) as Message, deps.bot?.username ?? null),
         )
       : messages;
-    const catchUpChat = resolveChatConfig(configStore.current().config, store.orm, latest.telegram_chat_id);
+    const catchUpChat = resolveChatConfig(configStore.current().config, store.orm, {
+      hostKind: parseHostKind(latest.host_kind),
+      hostChatId: latest.telegram_chat_id,
+    });
     let skipReason =
       catchUpChat === undefined
         ? 'chat_removed'
@@ -260,6 +283,7 @@ export function materializeCatchUpBuckets(
           deps,
           bucketId,
           latest.chat_id,
+          parseHostKind(latest.host_kind),
           latest.telegram_chat_id,
           latest.chat_type,
           latest.conversation_id,
@@ -282,6 +306,10 @@ export function materializeCatchUpBuckets(
 // A chat outside its active periods only receives a catch-up bucket when a
 // mention, reply, or keyword hit already refreshed its attention window.
 function participationBlocks(deps: InvocationQueueDeps, message: CatchUpMessageRow, now: Date): boolean {
-  const rule = deps.participation.ruleFor(deps.store.orm, message.telegram_chat_id, message.chat_type);
+  const rule = deps.participation.ruleFor(
+    deps.store.orm,
+    { hostKind: parseHostKind(message.host_kind), hostChatId: message.telegram_chat_id },
+    message.chat_type,
+  );
   return rule !== undefined && !isConversationActive(deps.store.orm, rule, message.conversation_id, now);
 }

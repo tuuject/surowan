@@ -4,6 +4,7 @@
  * mutable state the connection and tool-set modules read and write.
  */
 import type { RawConfig } from '../../platform/config/index.ts';
+import type { HostKind } from '../../platform/im-host/identity.ts';
 import type { SecretStore } from '../../platform/secrets.ts';
 import type { BusinessStore } from '../../store/store.ts';
 import type { ManagedServer, McpToolDefinition, RegistryValidator } from './support.ts';
@@ -28,6 +29,8 @@ export interface McpServerReconcileResult {
 
 /** A distinct per-Chat tool set and the Chats that resolve to it. */
 export interface ToolSetResolution {
+  /** The host whose configured Chats resolve to this set; a set never spans hosts. */
+  readonly host: HostKind;
   readonly chatIds: readonly number[];
   readonly definitions: readonly McpToolDefinition[];
 }

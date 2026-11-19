@@ -46,12 +46,16 @@ describe('long-lived invocation', () => {
       f.host.activity.start(
         {
           conversation: identityConversation(
-            { chatId: BigInt(CHAT_ID), threadId: 0n, conversationId: 1n },
+            { hostChatId: BigInt(CHAT_ID), internalChatId: BigInt(CHAT_ID), threadId: 0n, conversationId: 1n },
             'telegram',
             'private',
           ),
           policy: f.host.policy(
-            identityConversation({ chatId: BigInt(CHAT_ID), threadId: 0n, conversationId: 1n }, 'telegram', 'private'),
+            identityConversation(
+              { hostChatId: BigInt(CHAT_ID), internalChatId: BigInt(CHAT_ID), threadId: 0n, conversationId: 1n },
+              'telegram',
+              'private',
+            ),
           ),
         },
         'until_delivery',

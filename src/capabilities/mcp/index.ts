@@ -8,12 +8,13 @@
  * model fit) and the public surface the composition root uses.
  */
 import type { AgentTool } from '@earendil-works/pi-agent-core';
-import type { RawConfig } from '../../platform/config/index.ts';
-import { hostExecutionProfile, mcpCapableHost } from '../../platform/host-profile.ts';
+import { type ChatConfigRef, resolveChatConfig, type RawConfig } from '../../platform/config/index.ts';
+import { hostExecutionProfile } from '../../platform/host-profile.ts';
+import type { HostKind } from '../../platform/im-host/identity.ts';
 import { type InvocationContext, previewContext } from '../../platform/invocation-context.ts';
 import type { SecretStore } from '../../platform/secrets.ts';
 import type { McpServerAvailability } from '../../platform/warning-catalog.ts';
-import { type BusinessStore, resolveChatConfig } from '../../store/store.ts';
+import type { BusinessStore } from '../../store/store.ts';
 import { localImageAssets } from '../media/local-assets.ts';
 import type { McpCallDeps } from './calls.ts';
 import {
@@ -153,11 +154,11 @@ export class McpManager {
    * before it stops anything, so it can name the calls a stopped run left
    * unresolved.
    */
-  toolNamesForChat(chatId: bigint, config: RawConfig): string[] {
-    const chat = resolveChatConfig(config, this.#state.store.orm, chatId);
-    return chat === undefined
+  toolNamesForChat(chat: ChatConfigRef, config: RawConfig): string[] {
+    const resolved = resolveChatConfig(config, this.#state.store.orm, chat);
+    return resolved === undefined
       ? []
-      : definitions(this.#state, config, chat, { includeUnavailable: true }).map(
+      : definitions(this.#state, config, resolved, { includeUnavailable: true }).map(
           (definition) => definition.exposedName,
         );
   }
@@ -191,7 +192,9 @@ export class McpManager {
    * Definitions come from the connected servers, so a server the candidate adds
    * appears only after `reconcile` has connected it.
    */
-  toolSets(config: RawConfig): { readonly chatIds: readonly number[]; readonly tools: readonly AgentTool[] }[] {
+  toolSets(
+    config: RawConfig,
+  ): { readonly chatIds: readonly number[]; readonly host: HostKind; readonly tools: readonly AgentTool[] }[] {
     // Configuration validation can only check a binding against an explicit
     // server list; a wildcard server's names are known once it has discovered
     // them. An unchanged connected server will not reconnect, so its binding is
@@ -199,10 +202,11 @@ export class McpManager {
     assertConfigBindings(this.#state, config);
     return resolutions(this.#state, config).map((resolution) => ({
       chatIds: resolution.chatIds,
+      host: resolution.host,
       tools: buildTools(
         this.#callDeps,
         resolution.definitions,
-        previewContext(mcpCapableHost()),
+        previewContext(resolution.host),
         Number.MAX_SAFE_INTEGER,
       ),
     }));

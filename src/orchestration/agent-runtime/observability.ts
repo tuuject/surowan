@@ -3,11 +3,16 @@ import { and, eq, isNull, sql } from 'drizzle-orm';
 import type { ContextIdentity, Injection } from '../../context/builder/index.ts';
 import type { ContextGcPlan } from '../../context/gc.ts';
 import type { ContextHeader } from '../../context/store/types.ts';
-import type { BudgetScope } from '../../platform/host-profile.ts';
+import { type BudgetScope, policyScopeChatId } from '../../platform/host-profile.ts';
 import { serializeModelRequestForAudit } from '../../platform/models/request-audit.ts';
 import { dailyUsage, modelCalls } from '../../store/schema/index.ts';
 import { type DailyTokenBudget, meteredTokens } from '../../store/sleep.ts';
 import type { RuntimeServices } from './types.ts';
+
+/** The id `chat_id` logs carry: the host-native id on a wired host, the internal row id on a room. */
+export function scopeChatId(identity: ContextIdentity): bigint {
+  return policyScopeChatId(identity.hostKind, { hostChatId: identity.hostChatId, chatId: identity.internalChatId });
+}
 
 export function logZzzExposure(invocationId: bigint, chatId: bigint, budget: DailyTokenBudget): void {
   console.log(
@@ -55,7 +60,7 @@ export function logContextRebuilt(
     JSON.stringify({
       event: 'context_rebuilt',
       conversation_id: identity.conversationId.toString(),
-      chat_id: identity.chatId.toString(),
+      chat_id: scopeChatId(identity).toString(),
       thread_id: identity.threadId.toString(),
       system_prompt_hash: systemPromptHash,
       reason,
@@ -73,7 +78,7 @@ export function logContextRealigned(
     JSON.stringify({
       event: 'context_realigned',
       conversation_id: identity.conversationId.toString(),
-      chat_id: identity.chatId.toString(),
+      chat_id: scopeChatId(identity).toString(),
       head_seq: header.headSeq.toString(),
       boundary_seq: boundarySeq === null ? null : boundarySeq.toString(),
       cleared: boundarySeq === null,
@@ -94,7 +99,7 @@ export function logContextInjected(
       event: 'context_injected',
       invocation_id: invocationId.toString(),
       conversation_id: identity.conversationId.toString(),
-      chat_id: identity.chatId.toString(),
+      chat_id: scopeChatId(identity).toString(),
       bucket_id: bucketId.toString(),
       seq: seq.toString(),
       checkpoint: true,

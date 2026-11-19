@@ -123,7 +123,7 @@ export function seedInvocationContext(seeded: SeededChat, invocationId: bigint):
     invocationId,
     conversationId: seeded.conversationId,
     hostKind: 'telegram',
-    chatId: seeded.telegramChatId,
+    hostChatId: seeded.telegramChatId,
     internalChatId: seeded.chatId,
     threadId: 0n,
     completion: null,

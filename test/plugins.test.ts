@@ -196,6 +196,14 @@ test('the context builder runs injectors in order on a shrinking budget and plac
     }
     expect(first.messageTexts).toEqual(['hello injectors']);
     expect(first.privateChat).toBe(true);
+    // The injector sees both identities, distinctly: the native Telegram id on
+    // hostChatId and the stored chat row id on internalChatId. With the fields
+    // swapped these assertions fail.
+    expect(first.hostKind).toBe('telegram');
+    expect(first.hostChatId).toBe(123456789n);
+    const seededChatId = store.db.prepare<[], { id: number | bigint }>('SELECT id FROM chats').get()?.id;
+    expect(first.internalChatId).toBe(BigInt(seededChatId ?? 0));
+    expect(first.internalChatId).not.toBe(first.hostChatId);
     expect([...first.carried]).toEqual(['first-old']);
     expect([...silent.carried]).toEqual([]);
     expect(first.remainingCharacters).toBeGreaterThan(firstBlock.length);

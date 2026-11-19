@@ -198,3 +198,15 @@ export function configuredToolSchemaKeywords(
 ): ToolSchemaKeywords | undefined {
   return configuredModel(config, providerAlias, modelId)?.tool_schema_keywords;
 }
+
+// The projection lives in its own module but exports through the same barrel.
+export {
+  type ChatConfigRef,
+  type HostIntakeSettings,
+  allConfiguredChats,
+  configuredChats,
+  hostIntakeSettings,
+  mapConfiguredChats,
+  resolveChatConfig,
+  storedChatsForConfig,
+} from './projection.ts';

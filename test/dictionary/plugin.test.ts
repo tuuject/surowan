@@ -24,7 +24,7 @@ test('the plugin contributes its capabilities with the pre-migration side-effect
       invocationId: 0n,
       conversationId: 0n,
       hostKind: 'telegram',
-      chatId: 123456789n,
+      hostChatId: 123456789n,
       internalChatId: 0n,
       threadId: 0n,
       systemPrompt: '',
@@ -85,10 +85,10 @@ test('the injection mode resolves per chat, overriding the global default', () =
     dictionary: { injection_mode: 'aggressive' as const },
     telegram: { chats: [{ id: 123456789, dictionary_injection_mode: 'off' as const }, { id: 999 }] },
   };
-  expect(resolveDictionaryInjectionMode(config, 123456789n)).toBe('off');
-  expect(resolveDictionaryInjectionMode(config, 999n)).toBe('aggressive');
-  expect(resolveDictionaryInjectionMode(config, 5n)).toBe('aggressive');
-  expect(resolveDictionaryInjectionMode({ telegram: { chats: [] } }, 5n)).toBe('on_demand');
+  expect(resolveDictionaryInjectionMode(config, config.telegram.chats, 123456789n)).toBe('off');
+  expect(resolveDictionaryInjectionMode(config, config.telegram.chats, 999n)).toBe('aggressive');
+  expect(resolveDictionaryInjectionMode(config, config.telegram.chats, 5n)).toBe('aggressive');
+  expect(resolveDictionaryInjectionMode({}, [], 5n)).toBe('on_demand');
 });
 
 test('the tool model inherits the global agent settings until one is configured', () => {

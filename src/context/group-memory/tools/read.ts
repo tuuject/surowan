@@ -1,5 +1,6 @@
 import type { AgentTool } from '@earendil-works/pi-agent-core';
-import { finishToolCall, resolveChatConfig, startToolCall } from '../../../store/store.ts';
+import { resolveChatConfig } from '../../../platform/config/index.ts';
+import { finishToolCall, startToolCall } from '../../../store/store.ts';
 import type { BusinessStore } from '../../../store/store.ts';
 import type { RuntimeConfigurationStore } from '../../../platform/runtime-config.ts';
 import type { InvocationContext } from '../../../platform/invocation-context.ts';
@@ -31,7 +32,10 @@ export interface GroupMemoryReadEnvironment {
  * an id or range from another Chat reads as empty.
  */
 export function createGroupMemoryReadTools(env: GroupMemoryReadEnvironment): readonly AgentTool[] {
-  const chat = resolveChatConfig(env.configStore.current().config, env.store.orm, env.context.chatId);
+  const chat = resolveChatConfig(env.configStore.current().config, env.store.orm, {
+    hostKind: env.context.hostKind,
+    hostChatId: env.context.hostChatId,
+  });
   if (chat?.group_memory?.enabled !== true) {
     return [];
   }
@@ -68,8 +72,10 @@ function createSearchTool(
       );
       try {
         if (
-          resolveChatConfig(env.configStore.current().config, env.store.orm, env.context.chatId)?.group_memory
-            ?.enabled !== true
+          resolveChatConfig(env.configStore.current().config, env.store.orm, {
+            hostKind: env.context.hostKind,
+            hostChatId: env.context.hostChatId,
+          })?.group_memory?.enabled !== true
         ) {
           throw new Error('Group memory is disabled for this Chat');
         }
@@ -113,8 +119,10 @@ function createReadMessagesTool(
       );
       try {
         if (
-          resolveChatConfig(env.configStore.current().config, env.store.orm, env.context.chatId)?.group_memory
-            ?.enabled !== true
+          resolveChatConfig(env.configStore.current().config, env.store.orm, {
+            hostKind: env.context.hostKind,
+            hostChatId: env.context.hostChatId,
+          })?.group_memory?.enabled !== true
         ) {
           throw new Error('Group memory is disabled for this Chat');
         }

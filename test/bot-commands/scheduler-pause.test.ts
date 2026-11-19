@@ -10,7 +10,7 @@ describe('scheduler pause enforcement', () => {
     const { store, ingestion, scheduler, commands } = await setup();
     const start = new Date('2026-08-15T00:00:00.000Z');
     ingestion.ingest(textUpdate(1, 10, 'hello'), start);
-    await commands.run({ name: 'pause' }, 123456789n, ALICE, FIXED_NOW);
+    await commands.run({ name: 'pause' }, { hostKind: 'telegram', hostChatId: 123456789n }, ALICE, FIXED_NOW);
     const chatId = store.db
       .prepare<[], { chat_id: bigint }>('SELECT chat_id FROM conversations LIMIT 1')
       .get()!.chat_id;
@@ -38,7 +38,7 @@ describe('scheduler pause enforcement', () => {
       .prepare('INSERT INTO app_state(key, value, updated_at) VALUES (?, ?, ?)')
       .run(STARTUP_CATCH_UP_STATE_KEY, start.toISOString(), start.toISOString());
     ingestion.ingestCatchUp(textUpdate(1, 10, 'pending'), start);
-    await commands.run({ name: 'pause' }, 123456789n, ALICE, FIXED_NOW);
+    await commands.run({ name: 'pause' }, { hostKind: 'telegram', hostChatId: 123456789n }, ALICE, FIXED_NOW);
     expect(scheduler.finishStartupCatchUp(start)).toEqual([]);
     const bucket = store.db
       .prepare<[], { state: string; error_code: string | null }>('SELECT state, error_code FROM buckets')

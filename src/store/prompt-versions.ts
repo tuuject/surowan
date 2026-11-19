@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import { and, desc, eq, sql } from 'drizzle-orm';
+import { allConfiguredChats } from '../platform/config/index.ts';
 import type { RawConfig } from '../platform/config/index.ts';
 import type { Orm } from './store.ts';
 import { promptVersions } from './schema/index.ts';
@@ -91,7 +92,7 @@ export function recordPromptVersion(
  */
 export function recordPromptVersionsFromConfig(orm: Orm, config: RawConfig, now = new Date()): void {
   recordPromptVersion(orm, 'global', 0n, config.agent.system_prompt, 'external', undefined, undefined, now);
-  for (const chat of config.telegram.chats) {
+  for (const { chat } of allConfiguredChats(config)) {
     const chatId = BigInt(chat.id);
     if (chat.instructions.length === 0 && latestPromptVersion(orm, 'group', chatId) === undefined) {
       // A chat that never had a group prompt has no starting state to record.

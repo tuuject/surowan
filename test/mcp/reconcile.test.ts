@@ -27,7 +27,7 @@ const CHAT_B = 222_222_222;
 const CHAT_ANY = -100_333_333_333;
 
 function contextFor(chatId: bigint): InvocationContext {
-  return { ...previewContext('telegram'), chatId };
+  return { ...previewContext('telegram'), hostChatId: chatId, internalChatId: chatId };
 }
 
 function server(alias: string, pidFile: string): McpServerConfig {
@@ -143,8 +143,10 @@ test('a removed server is stopped on its own and disappears from the Chat that b
     const result = await f.reconcile(next.config);
     expect(result).toEqual({ added: [], replaced: [], removed: ['beta'], failed: [], stale: false });
     expect(f.stateOf('beta')?.state).toBe('stopped');
-    expect(f.manager.toolNamesForChat(BigInt(CHAT_B), next.config)).toEqual([]);
-    expect(f.manager.toolNamesForChat(BigInt(CHAT_A), next.config)).toEqual(['alpha__echo']);
+    expect(f.manager.toolNamesForChat({ hostKind: 'telegram', hostChatId: BigInt(CHAT_B) }, next.config)).toEqual([]);
+    expect(f.manager.toolNamesForChat({ hostKind: 'telegram', hostChatId: BigInt(CHAT_A) }, next.config)).toEqual([
+      'alpha__echo',
+    ]);
   } finally {
     await f.close();
   }
@@ -178,7 +180,7 @@ test('an added server connects and reaches the Chats that resolve to it', async 
     });
     expect(f.stateOf('gamma')?.state).toBe('ready');
     // A Chat without a binding reaches every server, including the new one.
-    expect(f.manager.toolNamesForChat(BigInt(CHAT_ANY), next.config)).toEqual([
+    expect(f.manager.toolNamesForChat({ hostKind: 'telegram', hostChatId: BigInt(CHAT_ANY) }, next.config)).toEqual([
       'alpha__echo',
       'beta__echo',
       'gamma__echo',
@@ -276,7 +278,9 @@ test('flipping the deprecated required key alone is a no-op: same process, same 
     expect(result).toEqual({ added: [], replaced: [], removed: [], failed: [], stale: false });
     expect(await f.pidOf('alpha')).toBe(alphaPid);
     expect(f.stateOf('alpha')?.state).toBe('ready');
-    expect(f.manager.toolNamesForChat(BigInt(CHAT_A), next.config)).toEqual(['alpha__echo']);
+    expect(f.manager.toolNamesForChat({ hostKind: 'telegram', hostChatId: BigInt(CHAT_A) }, next.config)).toEqual([
+      'alpha__echo',
+    ]);
     expect(f.manager.createTools(contextFor(BigInt(CHAT_A)), Date.now() + 30_000, next.config)).toHaveLength(1);
   } finally {
     await f.close();

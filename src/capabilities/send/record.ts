@@ -85,7 +85,7 @@ export function recordOutgoingMessage(
   const chat = environment.store.orm
     .select({ id: chats.id })
     .from(chats)
-    .where(and(eq(chats.hostKind, environment.context.hostKind), eq(chats.hostChatId, environment.context.chatId)))
+    .where(eq(chats.id, environment.context.internalChatId))
     .get();
   if (chat === undefined) {
     throw new Error('Outgoing chat row does not exist');

@@ -40,16 +40,21 @@ function sendEnvironment(
   store: SqliteStore,
   transport: TelegramTransport,
   ids: {
-    readonly chatId: bigint;
+    readonly hostChatId: bigint;
+    readonly internalChatId: bigint;
     readonly threadId: bigint;
     readonly conversationId: bigint;
     readonly invocationId: bigint;
-    readonly internalChatId: bigint;
   },
 ): SendToolEnvironment {
   const { host, conversation } = testSendToolEnv(
     transport,
-    { chatId: ids.chatId, threadId: ids.threadId, conversationId: ids.conversationId },
+    {
+      hostChatId: ids.hostChatId,
+      internalChatId: ids.internalChatId,
+      threadId: ids.threadId,
+      conversationId: ids.conversationId,
+    },
     { scope: 'group' },
   );
   return {
@@ -60,7 +65,7 @@ function sendEnvironment(
       ...previewContext('telegram'),
       invocationId: ids.invocationId,
       conversationId: ids.conversationId,
-      chatId: ids.chatId,
+      hostChatId: ids.hostChatId,
       internalChatId: ids.internalChatId,
       threadId: ids.threadId,
     },
@@ -76,7 +81,13 @@ function sendEnvironment(
 test('a topic id beyond the number range survives stored-conversation resolution', async () => {
   const { store } = await openTestStore();
   const { conversationId } = seedTelegramConversation(store, { threadId: UNSAFE_TOPIC });
-  const ref = resolveConversation(store, { chatId: 123456789n, threadId: UNSAFE_TOPIC, conversationId });
+  const ref = resolveConversation(store, {
+    hostKind: 'telegram',
+    hostChatId: 123456789n,
+    internalChatId: 123456789n,
+    threadId: UNSAFE_TOPIC,
+    conversationId,
+  });
   expect(ref.topicId).toBe(UNSAFE_TOPIC);
 });
 
@@ -85,11 +96,11 @@ test('a topic id beyond the number range survives send-target resolution', async
   const { chatId, conversationId } = seedTelegramConversation(store, { threadId: UNSAFE_TOPIC });
   seedInvocation(store, 5n, conversationId);
   const environment = sendEnvironment(store, spyingTransport([]), {
-    chatId: 123456789n,
+    hostChatId: 123456789n,
+    internalChatId: chatId,
     threadId: UNSAFE_TOPIC,
     conversationId,
     invocationId: 5n,
-    internalChatId: chatId,
   });
   const outcome = await prepareSend(environment, new Set(), 'call-lossless', { kind: 'text', text: 'hi' }, undefined, {
     barrier: false,
@@ -132,11 +143,11 @@ test('a topic id the wire cannot carry is refused instead of rounded', async () 
   seedInvocation(store, 5n, conversationId);
   const calls: unknown[][] = [];
   const environment = sendEnvironment(store, spyingTransport(calls), {
-    chatId: 123456789n,
+    hostChatId: 123456789n,
+    internalChatId: chatId,
     threadId: UNSAFE_TOPIC,
     conversationId,
     invocationId: 5n,
-    internalChatId: chatId,
   });
   await expect(
     deliverSend(environment, new Set(), 'call-unsafe', { kind: 'text', text: 'hi' }, undefined, { barrier: false }),

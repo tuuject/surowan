@@ -1,6 +1,6 @@
+import { configuredChats, resolveChatConfig } from '../../platform/config/index.ts';
 import type { DictionaryInjectionMode, FileChat } from '../../platform/config/index.ts';
 import { escapeXml } from '../../platform/spoilers.ts';
-import { resolveChatConfig } from '../../store/store.ts';
 import type { ContextInjector } from '../../context/injector.ts';
 import type { DictionaryEntryRecord } from './tools.ts';
 import { DictionaryStore } from './store.ts';
@@ -138,11 +138,11 @@ export function notYetInjected(
 export function resolveDictionaryInjectionMode(
   config: {
     readonly dictionary?: { readonly injection_mode?: DictionaryInjectionMode };
-    readonly telegram: { readonly chats: readonly Pick<FileChat, 'id' | 'dictionary_injection_mode'>[] };
   },
+  chats: readonly Pick<FileChat, 'id' | 'dictionary_injection_mode'>[],
   chatId: bigint,
 ): DictionaryInjectionMode {
-  const chat = config.telegram.chats.find((candidate) => BigInt(candidate.id) === chatId);
+  const chat = chats.find((candidate) => BigInt(candidate.id) === chatId);
   return chat?.dictionary_injection_mode ?? config.dictionary?.injection_mode ?? 'on_demand';
 }
 
@@ -169,17 +169,28 @@ export function createDictionaryInjector(): ContextInjector {
     },
     render(input) {
       const empty = { text: '', signatures: [] as readonly string[], count: 0 };
-      const mode = resolveDictionaryInjectionMode(input.config, input.chatId);
+      // Dictionary entries are scoped by the host-native Chat id; a room has
+      // none and its internal id must never be read as one.
+      if (input.hostChatId === null) {
+        return empty;
+      }
+      const chats = configuredChats(input.config, input.hostKind);
+      const mode = resolveDictionaryInjectionMode(input.config, chats, input.hostChatId);
       if (mode === 'off') {
         return empty;
       }
-      if (resolveChatConfig(input.config, input.orm, input.chatId) === undefined) {
+      if (
+        resolveChatConfig(input.config, input.orm, {
+          hostKind: input.hostKind,
+          hostChatId: input.hostChatId,
+        }) === undefined
+      ) {
         return empty;
       }
       const store = new DictionaryStore(input.orm);
       // A private chat can only read the global dictionary; a group sees global
       // plus its own chat's entries, never another group's.
-      const effective = input.privateChat ? store.globalEntries() : store.effective(input.chatId);
+      const effective = input.privateChat ? store.globalEntries() : store.effective(input.hostChatId);
       const candidates =
         mode === 'aggressive'
           ? notYetInjected(effective, input.carried)

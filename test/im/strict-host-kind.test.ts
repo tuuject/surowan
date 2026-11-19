@@ -23,7 +23,7 @@ import { ContextRefStore } from '../../src/context/refs.ts';
 import { generationEligibilityForHosts } from '../../src/image/host-eligibility.ts';
 import { InvocationQueueService } from '../../src/orchestration/invocation-queue/index.ts';
 import { invocationsLeavingModel, withAgentModel } from '../../src/orchestration/model-switch.ts';
-import { parseHostKind } from '../../src/platform/im-host/identity.ts';
+import { identityConversation, parseHostKind } from '../../src/platform/im-host/identity.ts';
 import { previewContext } from '../../src/platform/invocation-context.ts';
 import { deliveryBlockReason } from '../../src/store/delivery-target.ts';
 import { LongTaskService } from '../../src/store/long-tasks/index.ts';
@@ -45,12 +45,82 @@ test('parseHostKind accepts known kinds and rejects everything else by name', ()
   }
 });
 
+test('a Telegram target without a native id never yields a ref on the internal id', async () => {
+  const { store } = await openTestStore();
+  const seed = seedTelegramConversation(store, { chatId: 7n, telegramChatId: 424242n });
+  // Stored-row path: the ref carries the native id.
+  const resolved = resolveConversation(store, {
+    hostKind: 'telegram',
+    hostChatId: 424242n,
+    internalChatId: seed.chatId,
+    threadId: 0n,
+    conversationId: seed.conversationId,
+  });
+  expect(resolved.chatId).toBe('424242');
+  // Synthetic path (no stored row, no native id): the ref is the explicit
+  // non-delivery '0', never the internal row id on the wire.
+  const synthetic = resolveConversation(store, {
+    hostKind: 'telegram',
+    hostChatId: null,
+    internalChatId: 7n,
+    threadId: 0n,
+    conversationId: 0n,
+  });
+  expect(synthetic.chatId).toBe('0');
+  expect(synthetic.chatId).not.toBe('7');
+  // A stored Telegram row missing its native id is a data bug: loud, not internal.
+  store.db
+    .prepare(
+      "INSERT INTO chats(id, host_kind, host_chat_id, canonical_chat_id, type, updated_at) VALUES (8, 'telegram', NULL, NULL, 'group', '2025-01-01T00:00:00.000Z')",
+    )
+    .run();
+  store.db
+    .prepare(
+      'INSERT INTO conversations(id, chat_id, message_thread_id, created_at, updated_at) VALUES (55, 8, 0, ?, ?)',
+    )
+    .run('2025-01-01T00:00:00.000Z', '2025-01-01T00:00:00.000Z');
+  expect(() =>
+    resolveConversation(store, {
+      hostKind: 'telegram',
+      hostChatId: null,
+      internalChatId: 8n,
+      threadId: 0n,
+      conversationId: 55n,
+    }),
+  ).toThrow(/no host chat id/);
+});
+
+test('identityConversation refuses to put an internal id on a config-host wire', () => {
+  expect(() =>
+    identityConversation(
+      { hostChatId: null, internalChatId: 7n, threadId: 0n, conversationId: 1n },
+      'telegram',
+      'group',
+    ),
+  ).toThrow(/no host chat id/);
+  // A room host is addressed internally: the internal id IS the wire id.
+  const room = identityConversation(
+    { hostChatId: null, internalChatId: 7n, threadId: 0n, conversationId: 1n },
+    'playground',
+    'group',
+  );
+  expect(room.chatId).toBe('7');
+});
+
 test('stored-conversation resolution rejects an unknown host_kind', async () => {
   const { store } = await openTestStore();
   const { chatId, conversationId } = seedTelegramConversation(store);
   corruptHostKind(store, chatId);
   // Before the fix this resolved the conversation as Telegram and delivered.
-  expect(() => resolveConversation(store, { chatId: 123456789n, threadId: 0n, conversationId })).toThrow(/host kind/i);
+  expect(() =>
+    resolveConversation(store, {
+      hostKind: 'telegram',
+      hostChatId: 123456789n,
+      internalChatId: 123456789n,
+      threadId: 0n,
+      conversationId,
+    }),
+  ).toThrow(/host kind/i);
 });
 
 test('a task scope is never built for an unknown or missing conversation host', async () => {

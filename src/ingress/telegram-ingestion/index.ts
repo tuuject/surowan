@@ -3,9 +3,10 @@ import type { Update } from 'grammy/types';
 import { conversationThreadId, type ParsedCommand, parseBotCommand } from '../../orchestration/bot-commands/index.ts';
 import { mentionsBot } from '../../platform/participation.ts';
 import type { RuntimeConfigurationStore } from '../../platform/runtime-config.ts';
+import { resolveChatConfig } from '../../platform/config/index.ts';
 import { evaluateParticipation, ParticipationRegistry } from '../../store/participation.ts';
 import { telegramUpdates } from '../../store/schema/index.ts';
-import { asRunResult, type BusinessStore, resolveChatConfig } from '../../store/store.ts';
+import { asRunResult, type BusinessStore } from '../../store/store.ts';
 import { appendToBucket, type TelegramBucketDeps } from './buckets.ts';
 import {
   type AllowedChatsState,
@@ -25,7 +26,12 @@ export interface IngestResult {
    * Set when a live human message @-mentions the bot and joined a bucket, so
    * the host can show typing before the bucket window closes.
    */
-  readonly mention?: { readonly chatId: bigint; readonly threadId: bigint };
+  readonly mention?: {
+    readonly hostKind: 'telegram';
+    readonly hostChatId: bigint;
+    readonly internalChatId: bigint;
+    readonly threadId: bigint;
+  };
 }
 
 export class TelegramIngestion {
@@ -144,7 +150,10 @@ export class TelegramIngestion {
       upsertChat(this.#chatDeps, chat, chatId, receivedAt);
       return {};
     }
-    const chatConfig = resolveChatConfig(this.#configStore.current().config, this.#store.orm, chatId);
+    const chatConfig = resolveChatConfig(this.#configStore.current().config, this.#store.orm, {
+      hostKind: 'telegram',
+      hostChatId: chatId,
+    });
     const ignoredUserIds = chatConfig?.ignored_user_ids ?? [];
     const selfIgnoreCommand = handledCommand?.name === 'ignoreme' || handledCommand?.name === 'unignoreme';
     if (
@@ -178,7 +187,11 @@ export class TelegramIngestion {
     if (!edited) {
       // The window is refreshed even during startup catch-up, so a mention that
       // arrived while the process was down still leaves the chat awake.
-      const rule = this.#participation.ruleFor(this.#store.orm, chatId, chat.type);
+      const rule = this.#participation.ruleFor(
+        this.#store.orm,
+        { hostKind: 'telegram', hostChatId: chatId },
+        chat.type,
+      );
       const decision = evaluateParticipation({
         orm: this.#store.orm,
         rule,
@@ -210,7 +223,7 @@ export class TelegramIngestion {
     return {
       messageId: stored.id,
       ...(bucketId === undefined ? {} : { bucketId }),
-      ...(mentioned ? { mention: { chatId, threadId } } : {}),
+      ...(mentioned ? { mention: { hostKind: 'telegram', hostChatId: chatId, internalChatId, threadId } } : {}),
     };
   }
 }

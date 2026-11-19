@@ -1,7 +1,8 @@
 import { sql } from 'drizzle-orm';
 import type { RawConfig } from '../../../platform/config/index.ts';
 import { deliveryBlockReason } from '../../../store/delivery-target.ts';
-import { type Orm, resolveChatConfig } from '../../../store/store.ts';
+import { configuredTelegramChat } from '../chat-ref.ts';
+import type { Orm } from '../../../store/store.ts';
 import { telegramHostSql } from '../../../store/host-scope.ts';
 
 /**
@@ -50,7 +51,7 @@ export function listRecurringTargets(orm: Orm, config: RawConfig): RecurringTarg
     let threads: bigint[];
     if (chat.host_kind === 'telegram') {
       const chatConfig =
-        chat.telegram_chat_id === null ? undefined : resolveChatConfig(config, orm, chat.telegram_chat_id);
+        chat.telegram_chat_id === null ? undefined : configuredTelegramChat(config, orm, chat.telegram_chat_id);
       if (chatConfig === undefined) {
         continue;
       }

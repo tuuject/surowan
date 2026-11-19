@@ -37,7 +37,7 @@ test('adding a server aborts nothing and reaches the Chats that resolve to it', 
   expect(result.servers).toMatchObject({ added: ['gamma'], replaced: [], removed: [] });
   expect(f.store.orm.select().from(invocations).where(eq(invocations.id, invocationId)).get()?.state).toBe('running');
   // The new Chat has no binding, so it reaches every server; the next Invocation picks gamma up.
-  expect([...f.manager.toolNamesForChat(BigInt(CHAT_ANY), next)].sort()).toEqual(
+  expect([...f.manager.toolNamesForChat({ hostKind: 'telegram', hostChatId: BigInt(CHAT_ANY) }, next)].sort()).toEqual(
     ['alpha__echo', 'beta__echo', 'gamma__echo', 'scripted__echo'].sort(),
   );
 });
@@ -80,15 +80,19 @@ test('a new Chat resolves its binding from the published config before the manag
   });
   const pending = await f.apply(next);
   expect(pending.settled).toBe(false);
-  expect(f.manager.createTools(contextFor(0n, BigInt(CHAT_ANY), 0n), Date.now() + 30_000, next)).toEqual([]);
+  expect(f.manager.createTools(contextFor(0n, BigInt(CHAT_ANY), 900_001n, 0n), Date.now() + 30_000, next)).toEqual([]);
   expect(
-    f.manager.createTools(contextFor(0n, BigInt(CHAT_ANY + 1), 0n), Date.now() + 30_000, next).map((tool) => tool.name),
+    f.manager
+      .createTools(contextFor(0n, BigInt(CHAT_ANY + 1), 900_002n, 0n), Date.now() + 30_000, next)
+      .map((tool) => tool.name),
   ).toEqual(['beta__echo']);
   // The alias still publishes the previous instance, whose configuration is not
   // the one this Chat resolved: no tools until the reconcile replaces it.
-  expect(f.manager.createTools(contextFor(0n, BigInt(CHAT_ANY + 2), 0n), Date.now() + 30_000, next)).toEqual([]);
+  expect(f.manager.createTools(contextFor(0n, BigInt(CHAT_ANY + 2), 900_003n, 0n), Date.now() + 30_000, next)).toEqual(
+    [],
+  );
   // A Chat the published configuration does not list reaches nothing either.
-  expect(f.manager.createTools(contextFor(0n, 987_654_321n, 0n), Date.now() + 30_000, next)).toEqual([]);
+  expect(f.manager.createTools(contextFor(0n, 987_654_321n, 900_004n, 0n), Date.now() + 30_000, next)).toEqual([]);
   release();
   await pending.completion;
 });

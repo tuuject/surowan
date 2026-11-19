@@ -211,7 +211,7 @@ export const deliver = (
   replyToMessageId?: bigint,
 ) => {
   const conversation = identityConversation(
-    { chatId: target.chatId, threadId: 0n, conversationId: target.conversationId },
+    { hostChatId: null, internalChatId: target.chatId, threadId: 0n, conversationId: target.conversationId },
     'playground',
     'private',
   );

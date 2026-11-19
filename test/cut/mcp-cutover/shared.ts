@@ -299,8 +299,15 @@ export function now(): string {
   return new Date('2026-01-01T00:00:00.000Z').toISOString();
 }
 
-export function contextFor(invocationId: bigint, chatId: bigint, conversationId: bigint): InvocationContext {
-  return { ...previewContext('telegram'), invocationId, chatId, conversationId, internalChatId: chatId };
+export function contextFor(
+  invocationId: bigint,
+  hostChatId: bigint,
+  internalChatId: bigint,
+  conversationId: bigint,
+): InvocationContext {
+  // Distinct native and internal ids: a path resolving by internalChatId must
+  // fail these tests, not pass because both fields happen to be equal.
+  return { ...previewContext('telegram'), invocationId, hostChatId, internalChatId, conversationId };
 }
 
 export function textOf(result: { content: readonly { type: string; text?: string }[] }): string {

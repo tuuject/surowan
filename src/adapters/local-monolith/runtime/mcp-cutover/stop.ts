@@ -8,6 +8,7 @@
  */
 import { and, eq, inArray } from 'drizzle-orm';
 import type { RawConfig } from '../../../../platform/config/index.ts';
+import { parseHostKind } from '../../../../platform/im-host/identity.ts';
 import { MCP_CONFIG_CHANGED_ABORT_CAUSE } from '../../../../store/abort-cause.ts';
 import { chats, conversations, invocations } from '../../../../store/schema/index.ts';
 import type { Orm } from '../../../../store/store.ts';
@@ -60,7 +61,9 @@ export async function stopEverything(
       state.stopped.set(row.id.toString(), {
         ...row,
         roundInProgress: deps.roundInProgress(row.conversationId),
-        toolNames: new Set(deps.mcp.toolNamesForChat(row.telegramChatId, previous)),
+        toolNames: new Set(
+          deps.mcp.toolNamesForChat({ hostKind: parseHostKind(row.hostKind), hostChatId: row.hostChatId }, previous),
+        ),
       });
     }
     // Written before the stop: the row must keep its cause even if this process
@@ -89,7 +92,8 @@ function runningInvocations(orm: Orm, conversationIds: readonly bigint[]): Runni
     .select({
       id: invocations.id,
       conversationId: invocations.conversationId,
-      telegramChatId: chats.hostChatId,
+      hostKind: chats.hostKind,
+      hostChatId: chats.hostChatId,
     })
     .from(invocations)
     .innerJoin(conversations, eq(conversations.id, invocations.conversationId))
@@ -98,9 +102,9 @@ function runningInvocations(orm: Orm, conversationIds: readonly bigint[]): Runni
     .orderBy(invocations.id)
     .all()
     .flatMap((row) =>
-      row.telegramChatId === null
+      row.hostChatId === null
         ? []
-        : [{ id: row.id, conversationId: row.conversationId, telegramChatId: row.telegramChatId }],
+        : [{ id: row.id, conversationId: row.conversationId, hostKind: row.hostKind, hostChatId: row.hostChatId }],
     );
 }
 

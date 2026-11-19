@@ -166,9 +166,13 @@ describe('alarm canonical context', () => {
         const commandUpdate = update(2, '/cut_topic');
         commandUpdate.message!.entities = [{ offset: 0, length: 10, type: 'bot_command' }];
         const command = f.ingestion.ingest(commandUpdate).command;
-        expect(await commands.run(command!, BigInt(CHAT_ID), { id: 42n, name: 'Alice', username: 'alice' })).toContain(
-          '清空',
-        );
+        expect(
+          await commands.run(
+            command!,
+            { hostKind: 'telegram', hostChatId: BigInt(CHAT_ID) },
+            { id: 42n, name: 'Alice', username: 'alice' },
+          ),
+        ).toContain('清空');
         expect(contexts.header(1n)?.headSeq).toBe(before.nextSeq);
         expect(f.conversationRuntime.cachedAgent(1n)).toBeUndefined();
         expect(log).toHaveBeenCalledWith(expect.stringContaining('"event":"context_cleared"'));

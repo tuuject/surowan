@@ -58,7 +58,7 @@ describe('Bot Playground virtual delivery', () => {
     const room = createRoom({ chatId: 40n, title: 'media', selfDisplayName: '碗' });
     const host = hostFor('碗');
     const conversation = identityConversation(
-      { chatId: room.chatId, threadId: 0n, conversationId: room.conversationId },
+      { hostChatId: null, internalChatId: room.chatId, threadId: 0n, conversationId: room.conversationId },
       'playground',
       'private',
     );
@@ -100,7 +100,7 @@ describe('Bot Playground virtual delivery', () => {
     const room = createRoom({ chatId: 45n, title: 'long', selfDisplayName: '碗' });
     const host = hostFor('碗');
     const conversation = identityConversation(
-      { chatId: room.chatId, threadId: 0n, conversationId: room.conversationId },
+      { hostChatId: null, internalChatId: room.chatId, threadId: 0n, conversationId: room.conversationId },
       'playground',
       'private',
     );
@@ -124,7 +124,7 @@ describe('Bot Playground virtual delivery', () => {
     const room = createRoom({ chatId: 46n, title: 'parts', selfDisplayName: '碗' });
     const host = hostFor('碗');
     const conversation = identityConversation(
-      { chatId: room.chatId, threadId: 0n, conversationId: room.conversationId },
+      { hostChatId: null, internalChatId: room.chatId, threadId: 0n, conversationId: room.conversationId },
       'playground',
       'private',
     );

@@ -92,7 +92,7 @@ describe('send image delivery ledger', () => {
     completeInvocation(fixture.store, first.invocationId);
 
     const second = openConversation(fixture, 2, new Date(START.getTime() + 20_000), OTHER_CHAT_ID);
-    expect(second.chatId).toBe(BigInt(OTHER_CHAT_ID));
+    expect(second.hostChatId).toBe(BigInt(OTHER_CHAT_ID));
     const result = await buildTool(fixture, second, { api }).tool.execute('c-2', {
       kind: 'image',
       image_generation_id: GENERATION_ID,

@@ -41,10 +41,28 @@ describe('bot command service', () => {
       const { store, commands, configStore } = await commandSetup();
       const before = configStore.current();
       const stranger: CommandSender = { id: 99n, name: 'Mallory', username: 'mallory' };
-      expect(await commands.run({ name: 'effort' }, CHAT_ID, stranger, FIXED_NOW)).toBe(DENIED);
-      expect(await commands.run({ name: 'effort', argument: 'high' }, CHAT_ID, stranger, FIXED_NOW)).toBe(DENIED);
-      expect(await commands.run({ name: 'effort', argument: 'default' }, CHAT_ID, stranger, FIXED_NOW)).toBe(DENIED);
-      expect(await commands.run({ name: 'effort' }, CHAT_ID, null, FIXED_NOW)).toBe(DENIED);
+      expect(
+        await commands.run({ name: 'effort' }, { hostKind: 'telegram', hostChatId: CHAT_ID }, stranger, FIXED_NOW),
+      ).toBe(DENIED);
+      expect(
+        await commands.run(
+          { name: 'effort', argument: 'high' },
+          { hostKind: 'telegram', hostChatId: CHAT_ID },
+          stranger,
+          FIXED_NOW,
+        ),
+      ).toBe(DENIED);
+      expect(
+        await commands.run(
+          { name: 'effort', argument: 'default' },
+          { hostKind: 'telegram', hostChatId: CHAT_ID },
+          stranger,
+          FIXED_NOW,
+        ),
+      ).toBe(DENIED);
+      expect(
+        await commands.run({ name: 'effort' }, { hostKind: 'telegram', hostChatId: CHAT_ID }, null, FIXED_NOW),
+      ).toBe(DENIED);
       expect(configStore.current()).toBe(before);
       store.close();
     });
@@ -54,7 +72,12 @@ describe('bot command service', () => {
         config.telegram.admins = [42];
         config.telegram.chats = [{ id: 123456789, provider: 'vision', model: 'vision-model', thinking_level: 'off' }];
       });
-      const reply = await commands.run({ name: 'effort' }, CHAT_ID, ALICE, FIXED_NOW);
+      const reply = await commands.run(
+        { name: 'effort' },
+        { hostKind: 'telegram', hostChatId: CHAT_ID },
+        ALICE,
+        FIXED_NOW,
+      );
       expect(reply).toContain('本群模型: vision / vision-model');
       expect(reply).toContain('思考强度: off\n');
       expect(reply).toContain('可选: off（该模型不支持思考）');
@@ -70,12 +93,19 @@ describe('bot command service', () => {
           model.nickname = '常用聊天模型 A';
         }
       });
-      const menu = (await commands.run({ name: 'effort' }, CHAT_ID, ALICE, FIXED_NOW)).split('\n');
+      const menu = (
+        await commands.run({ name: 'effort' }, { hostKind: 'telegram', hostChatId: CHAT_ID }, ALICE, FIXED_NOW)
+      ).split('\n');
       expect(menu[0]).toBe('本群模型: 常用聊天模型 A');
       expect(menu).toContain(`可选: ${SUPPORTED}`);
       expect(menu.join('\n')).not.toContain('agent / agent-model');
 
-      const unsupported = await commands.run({ name: 'effort', argument: 'xhigh' }, CHAT_ID, ALICE, FIXED_NOW);
+      const unsupported = await commands.run(
+        { name: 'effort', argument: 'xhigh' },
+        { hostKind: 'telegram', hostChatId: CHAT_ID },
+        ALICE,
+        FIXED_NOW,
+      );
       expect(unsupported).toBe(`常用聊天模型 A 不支持思考强度 xhigh。可选: ${SUPPORTED}`);
       store.close();
     });
@@ -89,7 +119,12 @@ describe('bot command service', () => {
           model.thinking_levels = ['high'];
         }
       });
-      const reply = await commands.run({ name: 'effort' }, CHAT_ID, ALICE, FIXED_NOW);
+      const reply = await commands.run(
+        { name: 'effort' },
+        { hostKind: 'telegram', hostChatId: CHAT_ID },
+        ALICE,
+        FIXED_NOW,
+      );
       expect(reply.split('\n')).toEqual([
         '本群模型: agent / agent-model',
         '思考强度: high（继承全局）',
@@ -107,10 +142,15 @@ describe('bot command service', () => {
         config.telegram.chats = [{ id: 123456789, thinking_level: 'high' }];
       });
       try {
-        expect(await commands.run({ name: 'effort' }, CHAT_ID, ALICE, FIXED_NOW)).toBe(
-          '本群尚未配置模型，无法查看或设置思考强度。',
+        expect(
+          await commands.run({ name: 'effort' }, { hostKind: 'telegram', hostChatId: CHAT_ID }, ALICE, FIXED_NOW),
+        ).toBe('本群尚未配置模型，无法查看或设置思考强度。');
+        const reply = await commands.run(
+          { name: 'effort', argument: 'default' },
+          { hostKind: 'telegram', hostChatId: CHAT_ID },
+          ALICE,
+          FIXED_NOW,
         );
-        const reply = await commands.run({ name: 'effort', argument: 'default' }, CHAT_ID, ALICE, FIXED_NOW);
         expect(reply).toBe('已清除本群思考强度覆盖，跟随全局 low，将在下一次 agent session 生效。');
         expect((await loadConfig(reloader.configPath)).fileConfig.telegram?.chats).toEqual([{ id: 123456789 }]);
       } finally {
@@ -124,7 +164,12 @@ describe('bot command service', () => {
         config.telegram.chats.push({ id: -1009876543210 });
       });
       try {
-        const reply = await commands.run({ name: 'effort', argument: 'high' }, CHAT_ID, ALICE, FIXED_NOW);
+        const reply = await commands.run(
+          { name: 'effort', argument: 'high' },
+          { hostKind: 'telegram', hostChatId: CHAT_ID },
+          ALICE,
+          FIXED_NOW,
+        );
         expect(reply).toBe('已为本群设置思考强度: high，已写入 config.jsonc，将在下一次 agent session 生效。');
         const loaded = await loadConfig(reloader.configPath);
         const chat = loaded.fileConfig.telegram?.chats.find((entry) => entry.id === 123456789);
@@ -134,9 +179,11 @@ describe('bot command service', () => {
         expect(loaded.fileConfig.telegram?.chats.find((entry) => entry.id === -1009876543210)).not.toHaveProperty(
           'thinking_level',
         );
-        expect((await commands.run({ name: 'status' }, CHAT_ID, ALICE, FIXED_NOW)).split('\n')[1]).toBe(
-          '思考强度: high',
-        );
+        expect(
+          (
+            await commands.run({ name: 'status' }, { hostKind: 'telegram', hostChatId: CHAT_ID }, ALICE, FIXED_NOW)
+          ).split('\n')[1],
+        ).toBe('思考强度: high');
       } finally {
         store.close();
       }
@@ -148,9 +195,14 @@ describe('bot command service', () => {
         config.telegram.chats = [{ id: 123456789, provider: 'vision', model: 'vision-model', thinking_level: 'off' }];
       });
       try {
-        expect(await commands.run({ name: 'effort', argument: 'off' }, CHAT_ID, ALICE, FIXED_NOW)).toContain(
-          '已为本群设置思考强度: off',
-        );
+        expect(
+          await commands.run(
+            { name: 'effort', argument: 'off' },
+            { hostKind: 'telegram', hostChatId: CHAT_ID },
+            ALICE,
+            FIXED_NOW,
+          ),
+        ).toContain('已为本群设置思考强度: off');
         const loaded = await loadConfig(reloader.configPath);
         expect(loaded.fileConfig.telegram?.chats).toEqual([
           { id: 123456789, provider: 'vision', model: 'vision-model', thinking_level: 'off' },
@@ -165,10 +217,20 @@ describe('bot command service', () => {
       const before = configStore.current();
       const original = await loadConfig(reloader.configPath);
       try {
-        const unknown = await commands.run({ name: 'effort', argument: 'ultra' }, CHAT_ID, ALICE, FIXED_NOW);
+        const unknown = await commands.run(
+          { name: 'effort', argument: 'ultra' },
+          { hostKind: 'telegram', hostChatId: CHAT_ID },
+          ALICE,
+          FIXED_NOW,
+        );
         expect(unknown.startsWith('无效的思考强度: ultra。\n')).toBe(true);
         expect(unknown).toContain(`可选: ${SUPPORTED}`);
-        const unsupported = await commands.run({ name: 'effort', argument: 'xhigh' }, CHAT_ID, ALICE, FIXED_NOW);
+        const unsupported = await commands.run(
+          { name: 'effort', argument: 'xhigh' },
+          { hostKind: 'telegram', hostChatId: CHAT_ID },
+          ALICE,
+          FIXED_NOW,
+        );
         expect(unsupported).toBe(`agent / agent-model 不支持思考强度 xhigh。可选: ${SUPPORTED}`);
         expect(configStore.current()).toBe(before);
         expect((await loadConfig(reloader.configPath)).fileConfig).toEqual(original.fileConfig);
@@ -183,16 +245,28 @@ describe('bot command service', () => {
         config.telegram.chats = [{ id: 123456789, provider: 'agent', model: 'agent-model', thinking_level: 'high' }];
       });
       try {
-        const reply = await commands.run({ name: 'effort', argument: 'default' }, CHAT_ID, ALICE, FIXED_NOW);
+        const reply = await commands.run(
+          { name: 'effort', argument: 'default' },
+          { hostKind: 'telegram', hostChatId: CHAT_ID },
+          ALICE,
+          FIXED_NOW,
+        );
         expect(reply).toBe('已清除本群思考强度覆盖，跟随全局 low，将在下一次 agent session 生效。');
         expect((await loadConfig(reloader.configPath)).fileConfig.telegram?.chats).toEqual([
           { id: 123456789, provider: 'agent', model: 'agent-model' },
         ]);
-        const status = (await commands.run({ name: 'status' }, CHAT_ID, ALICE, FIXED_NOW)).split('\n');
+        const status = (
+          await commands.run({ name: 'status' }, { hostKind: 'telegram', hostChatId: CHAT_ID }, ALICE, FIXED_NOW)
+        ).split('\n');
         expect(status[0]).toBe('本群模型: agent / agent-model');
         expect(status[1]).toBe('思考强度: low（继承全局）');
         const generation = configStore.current().generation;
-        const again = await commands.run({ name: 'effort', argument: 'default' }, CHAT_ID, ALICE, FIXED_NOW);
+        const again = await commands.run(
+          { name: 'effort', argument: 'default' },
+          { hostKind: 'telegram', hostChatId: CHAT_ID },
+          ALICE,
+          FIXED_NOW,
+        );
         expect(again).toContain('已清除本群思考强度覆盖');
         expect(configStore.current().generation).toBe(generation);
       } finally {
@@ -212,10 +286,17 @@ describe('bot command service', () => {
           .insert(chatMigrations)
           .values({ oldChatId: BigInt(oldId), newChatId: BigInt(newId), receivedAt: FIXED_NOW.toISOString() })
           .run();
-        expect(await commands.run({ name: 'effort' }, BigInt(newId), ALICE, FIXED_NOW)).toContain('思考强度: low\n');
-        expect(await commands.run({ name: 'effort', argument: 'high' }, BigInt(newId), ALICE, FIXED_NOW)).toContain(
-          '已为本群设置思考强度: high',
-        );
+        expect(
+          await commands.run({ name: 'effort' }, { hostKind: 'telegram', hostChatId: BigInt(newId) }, ALICE, FIXED_NOW),
+        ).toContain('思考强度: low\n');
+        expect(
+          await commands.run(
+            { name: 'effort', argument: 'high' },
+            { hostKind: 'telegram', hostChatId: BigInt(newId) },
+            ALICE,
+            FIXED_NOW,
+          ),
+        ).toContain('已为本群设置思考强度: high');
         expect((await loadConfig(reloader.configPath)).fileConfig.telegram?.chats).toEqual([
           { id: oldId, thinking_level: 'high' },
         ]);

@@ -60,38 +60,60 @@ describe('bot command service', () => {
       const { store, commands, configStore } = await commandSetup();
       const before = configStore.current();
       const stranger: CommandSender = { id: 99n, name: 'Mallory', username: 'mallory' };
-      expect(await commands.run({ name: 'model' }, 123456789n, stranger, FIXED_NOW)).toBe(
-        '该命令仅对本 Bot 的管理员可用。',
-      );
-      expect(await commands.run({ name: 'model', argument: '2' }, 123456789n, stranger, FIXED_NOW)).toBe(
-        '该命令仅对本 Bot 的管理员可用。',
-      );
-      expect(await commands.run({ name: 'model', argument: 'default' }, 123456789n, stranger, FIXED_NOW)).toBe(
-        '该命令仅对本 Bot 的管理员可用。',
-      );
+      expect(
+        await commands.run({ name: 'model' }, { hostKind: 'telegram', hostChatId: 123456789n }, stranger, FIXED_NOW),
+      ).toBe('该命令仅对本 Bot 的管理员可用。');
+      expect(
+        await commands.run(
+          { name: 'model', argument: '2' },
+          { hostKind: 'telegram', hostChatId: 123456789n },
+          stranger,
+          FIXED_NOW,
+        ),
+      ).toBe('该命令仅对本 Bot 的管理员可用。');
+      expect(
+        await commands.run(
+          { name: 'model', argument: 'default' },
+          { hostKind: 'telegram', hostChatId: 123456789n },
+          stranger,
+          FIXED_NOW,
+        ),
+      ).toBe('该命令仅对本 Bot 的管理员可用。');
       expect(configStore.current()).toBe(before);
       store.close();
     });
 
     test('paginates model options by global index in pages of 20', async () => {
       const { store, commands } = await commandSetup(manyModelTransform(40));
-      const firstPage = (await commands.run({ name: 'model' }, 123456789n, ALICE, FIXED_NOW)).split('\n');
+      const firstPage = (
+        await commands.run({ name: 'model' }, { hostKind: 'telegram', hostChatId: 123456789n }, ALICE, FIXED_NOW)
+      ).split('\n');
       expect(firstPage).toContain('可用模型（第 1/3 页，共 42 条）:');
       expect(firstPage).toContain('1. agent / agent-model（Agent Model）');
       expect(firstPage).toContain('20. agent / agent-extra-19（Agent Extra 19）');
       expect(firstPage.some((line: string) => line.startsWith('21. '))).toBe(false);
 
       const secondPage = (
-        await commands.run({ name: 'model', argument: 'page 2' }, 123456789n, ALICE, FIXED_NOW)
+        await commands.run(
+          { name: 'model', argument: 'page 2' },
+          { hostKind: 'telegram', hostChatId: 123456789n },
+          ALICE,
+          FIXED_NOW,
+        )
       ).split('\n');
       expect(secondPage).toContain('可用模型（第 2/3 页，共 42 条）:');
       expect(secondPage).toContain('21. agent / agent-extra-20（Agent Extra 20）');
       expect(secondPage).toContain('40. agent / agent-extra-39（Agent Extra 39）');
       expect(secondPage.filter((line: string) => /^\d+\. /.test(line))).toHaveLength(20);
 
-      const thirdPage = (await commands.run({ name: 'model', argument: 'page 3' }, 123456789n, ALICE, FIXED_NOW)).split(
-        '\n',
-      );
+      const thirdPage = (
+        await commands.run(
+          { name: 'model', argument: 'page 3' },
+          { hostKind: 'telegram', hostChatId: 123456789n },
+          ALICE,
+          FIXED_NOW,
+        )
+      ).split('\n');
       expect(thirdPage).toContain('可用模型（第 3/3 页，共 42 条）:');
       expect(thirdPage).toContain('41. agent / agent-extra-40（Agent Extra 40）');
       expect(thirdPage).toContain('42. vision / vision-model（Vision Model）');
@@ -108,7 +130,9 @@ describe('bot command service', () => {
         }
       });
       try {
-        const menu = (await commands.run({ name: 'model' }, 123456789n, ALICE, FIXED_NOW)).split('\n');
+        const menu = (
+          await commands.run({ name: 'model' }, { hostKind: 'telegram', hostChatId: 123456789n }, ALICE, FIXED_NOW)
+        ).split('\n');
         expect(menu).toContain('本群模型: 常用聊天模型 A（继承全局）');
         expect(menu).toContain('1. 常用聊天模型 A');
         // A model without a nickname keeps the original row format.
@@ -117,17 +141,32 @@ describe('bot command service', () => {
         expect(menu.join('\n')).not.toContain('Agent Model');
 
         // The nickname does not move the model in the list: index 1 still switches to it.
-        const switched = await commands.run({ name: 'model', argument: '1' }, 123456789n, ALICE, FIXED_NOW);
+        const switched = await commands.run(
+          { name: 'model', argument: '1' },
+          { hostKind: 'telegram', hostChatId: 123456789n },
+          ALICE,
+          FIXED_NOW,
+        );
         expect(switched).toContain('已为本群切换: 常用聊天模型 A');
         expect(switched).not.toContain('agent / agent-model');
         const loaded = await loadConfig(reloader.configPath);
         expect(loaded.fileConfig.telegram?.chats[0]).toMatchObject({ provider: 'agent', model: 'agent-model' });
 
-        const overridden = await commands.run({ name: 'model' }, 123456789n, ALICE, FIXED_NOW);
+        const overridden = await commands.run(
+          { name: 'model' },
+          { hostKind: 'telegram', hostChatId: 123456789n },
+          ALICE,
+          FIXED_NOW,
+        );
         expect(overridden).toContain('本群模型: 常用聊天模型 A\n');
         expect(overridden).not.toContain('（继承全局）');
 
-        const reset = await commands.run({ name: 'model', argument: 'default' }, 123456789n, ALICE, FIXED_NOW);
+        const reset = await commands.run(
+          { name: 'model', argument: 'default' },
+          { hostKind: 'telegram', hostChatId: 123456789n },
+          ALICE,
+          FIXED_NOW,
+        );
         expect(reset).toContain('跟随全局 常用聊天模型 A');
         expect(reset).not.toContain('agent / agent-model');
       } finally {
@@ -141,7 +180,12 @@ describe('bot command service', () => {
         config.telegram.chats.push({ id: -1001234567890 });
       });
       try {
-        const reply = await commands.run({ name: 'model', argument: '21' }, 123456789n, ALICE, FIXED_NOW);
+        const reply = await commands.run(
+          { name: 'model', argument: '21' },
+          { hostKind: 'telegram', hostChatId: 123456789n },
+          ALICE,
+          FIXED_NOW,
+        );
         expect(reply).toContain('已为本群切换: agent / agent-extra-20');
         expect(reply).toContain('思考强度已重置为该模型最弱的一档: off');
         expect(switcher.current()?.model).toBe('agent-model');
@@ -153,9 +197,14 @@ describe('bot command service', () => {
         });
         expect(loaded.fileConfig.telegram?.chats[1]?.model).toBeUndefined();
         expect(configStore.current().config.telegram.chats[0]?.model).toBe('agent-extra-20');
-        expect(await commands.run({ name: 'status' }, -1001234567890n, ALICE, FIXED_NOW)).toContain(
-          '本群模型: agent / agent-model（继承全局）',
-        );
+        expect(
+          await commands.run(
+            { name: 'status' },
+            { hostKind: 'telegram', hostChatId: -1001234567890n },
+            ALICE,
+            FIXED_NOW,
+          ),
+        ).toContain('本群模型: agent / agent-model（继承全局）');
       } finally {
         store.close();
       }
@@ -165,7 +214,12 @@ describe('bot command service', () => {
       const { store, commands, configStore } = await commandSetup(manyModelTransform(40));
       const before = configStore.current();
       for (const argument of ['page 0', 'page 4', 'page 999999999999999999999999999999999999999']) {
-        const reply = await commands.run({ name: 'model', argument }, 123456789n, ALICE, FIXED_NOW);
+        const reply = await commands.run(
+          { name: 'model', argument },
+          { hostKind: 'telegram', hostChatId: 123456789n },
+          ALICE,
+          FIXED_NOW,
+        );
         expect(reply.startsWith('无效页码。')).toBe(true);
         expect(reply).toContain('本群模型: agent / agent-model（继承全局）');
         expect(reply).toContain('可用模型（第 1/3 页，共 42 条）:');
@@ -177,8 +231,18 @@ describe('bot command service', () => {
     test('/model default clears all chat overrides and is idempotent', async () => {
       const { store, commands, reloader, configStore } = await commandSetup();
       try {
-        await commands.run({ name: 'model', argument: '2' }, 123456789n, ALICE, FIXED_NOW);
-        const reply = await commands.run({ name: 'model', argument: 'default' }, 123456789n, ALICE, FIXED_NOW);
+        await commands.run(
+          { name: 'model', argument: '2' },
+          { hostKind: 'telegram', hostChatId: 123456789n },
+          ALICE,
+          FIXED_NOW,
+        );
+        const reply = await commands.run(
+          { name: 'model', argument: 'default' },
+          { hostKind: 'telegram', hostChatId: 123456789n },
+          ALICE,
+          FIXED_NOW,
+        );
         expect(reply).toContain('已清除本群模型覆盖');
         expect(reply).toContain('跟随全局 agent / agent-model');
         expect(reply).toContain('已立即生效');
@@ -187,11 +251,16 @@ describe('bot command service', () => {
           expect(loaded.fileConfig.telegram?.chats[0]).not.toHaveProperty(key);
         }
         const generation = configStore.current().generation;
-        await commands.run({ name: 'model', argument: 'default' }, 123456789n, ALICE, FIXED_NOW);
-        expect(configStore.current().generation).toBe(generation);
-        expect(await commands.run({ name: 'status' }, 123456789n, ALICE, FIXED_NOW)).toContain(
-          '思考强度: low（继承全局）',
+        await commands.run(
+          { name: 'model', argument: 'default' },
+          { hostKind: 'telegram', hostChatId: 123456789n },
+          ALICE,
+          FIXED_NOW,
         );
+        expect(configStore.current().generation).toBe(generation);
+        expect(
+          await commands.run({ name: 'status' }, { hostKind: 'telegram', hostChatId: 123456789n }, ALICE, FIXED_NOW),
+        ).toContain('思考强度: low（继承全局）');
       } finally {
         store.close();
       }
@@ -209,22 +278,34 @@ describe('bot command service', () => {
           .insert(chatMigrations)
           .values({ oldChatId: BigInt(oldId), newChatId: BigInt(newId), receivedAt: FIXED_NOW.toISOString() })
           .run();
-        expect(await commands.run({ name: 'model' }, BigInt(newId), ALICE, FIXED_NOW)).toContain('思考强度: high\n');
+        expect(
+          await commands.run({ name: 'model' }, { hostKind: 'telegram', hostChatId: BigInt(newId) }, ALICE, FIXED_NOW),
+        ).toContain('思考强度: high\n');
         const switched = await commands.run(
           { name: 'model', argument: '2', threadId: 7n },
-          BigInt(newId),
+          { hostKind: 'telegram', hostChatId: BigInt(newId) },
           ALICE,
           FIXED_NOW,
         );
         expect(switched).toContain('已为本群切换: vision / vision-model');
-        expect(await commands.run({ name: 'model', threadId: 8n }, BigInt(newId), ALICE, FIXED_NOW)).toContain(
-          '本群模型: vision / vision-model\n',
-        );
+        expect(
+          await commands.run(
+            { name: 'model', threadId: 8n },
+            { hostKind: 'telegram', hostChatId: BigInt(newId) },
+            ALICE,
+            FIXED_NOW,
+          ),
+        ).toContain('本群模型: vision / vision-model\n');
         const loaded = await loadConfig(reloader.configPath);
         expect(loaded.fileConfig.telegram?.chats).toEqual([
           { id: oldId, provider: 'vision', model: 'vision-model', thinking_level: 'off' },
         ]);
-        await commands.run({ name: 'model', argument: 'default', threadId: 8n }, BigInt(newId), ALICE, FIXED_NOW);
+        await commands.run(
+          { name: 'model', argument: 'default', threadId: 8n },
+          { hostKind: 'telegram', hostChatId: BigInt(newId) },
+          ALICE,
+          FIXED_NOW,
+        );
         expect((await loadConfig(reloader.configPath)).fileConfig.telegram?.chats).toEqual([{ id: oldId }]);
       } finally {
         store.close();
@@ -235,7 +316,12 @@ describe('bot command service', () => {
       const { store, commands, configStore } = await commandSetup();
       const before = configStore.current();
       for (const argument of ['0', '3', '500', 'abc', '1x', 'reset']) {
-        const reply = await commands.run({ name: 'model', argument }, 123456789n, ALICE, FIXED_NOW);
+        const reply = await commands.run(
+          { name: 'model', argument },
+          { hostKind: 'telegram', hostChatId: 123456789n },
+          ALICE,
+          FIXED_NOW,
+        );
         expect(reply).toContain('无效序号');
         expect(configStore.current()).toBe(before);
       }
@@ -293,7 +379,12 @@ describe('bot command service', () => {
         file.agent = { ...file.agent, provider: 'vision', model: 'vision-model', thinking_level: 'off' };
         await writeFile(reloader.configPath, JSON.stringify(file, null, 2));
 
-        const reply = await commands.run({ name: 'model', argument: '2' }, 123456789n, ALICE, FIXED_NOW);
+        const reply = await commands.run(
+          { name: 'model', argument: '2' },
+          { hostKind: 'telegram', hostChatId: 123456789n },
+          ALICE,
+          FIXED_NOW,
+        );
         expect(reply).toContain('已为本群切换: vision / vision-model，已写入 config.jsonc 并立即生效。');
         expect(reply).toContain('已终止 1 个仍在使用旧模型的会话，它们正在处理的消息不会再得到回复。');
         expect(aborted).toEqual([mine]);
@@ -305,7 +396,12 @@ describe('bot command service', () => {
         expect(runOf(OTHER_CHAT)).toMatchObject({ state: 'completed' });
 
         // Back to the global model, which nothing runs on now: nothing to stop.
-        const reset = await commands.run({ name: 'model', argument: 'default' }, 123456789n, ALICE, FIXED_NOW);
+        const reset = await commands.run(
+          { name: 'model', argument: 'default' },
+          { hostKind: 'telegram', hostChatId: 123456789n },
+          ALICE,
+          FIXED_NOW,
+        );
         expect(reset).toContain('已立即生效');
         expect(reset).not.toContain('已终止');
       } finally {

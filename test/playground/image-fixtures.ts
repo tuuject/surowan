@@ -309,7 +309,7 @@ function roomToolContext(f: Fixture, invocationId: bigint): InvocationContext {
     invocationId,
     conversationId: f.room.conversationId,
     hostKind: 'playground',
-    chatId: f.room.chatId,
+    hostChatId: null,
     internalChatId: f.room.chatId,
     threadId: 0n,
     systemPrompt: '',

@@ -3,7 +3,8 @@ import type { Message } from 'grammy/types';
 import { GroupMemoryStore } from '../../context/group-memory/store.ts';
 import type { RuntimeConfigurationStore } from '../../platform/runtime-config.ts';
 import { chatMigrations, chats } from '../../store/schema/index.ts';
-import { type BusinessStore, resolveChatConfig } from '../../store/store.ts';
+import { resolveChatConfig } from '../../platform/config/index.ts';
+import type { BusinessStore } from '../../store/store.ts';
 
 /**
  * The allowlist cache `TelegramIngestion` owns and this module rebuilds and
@@ -116,7 +117,10 @@ export function upsertChat(deps: TelegramChatDeps, chat: Message['chat'], chatId
   }
   if (
     existing === undefined &&
-    resolveChatConfig(deps.configStore.current().config, deps.store.orm, chatId)?.group_memory?.enabled === true
+    resolveChatConfig(deps.configStore.current().config, deps.store.orm, {
+      hostKind: 'telegram',
+      hostChatId: chatId,
+    })?.group_memory?.enabled === true
   ) {
     // Ingestion owns the first stored message, so establish its lane before it arrives.
     new GroupMemoryStore(deps.store.orm).activate(row.id, 0n, receivedAt);

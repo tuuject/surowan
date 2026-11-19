@@ -96,7 +96,7 @@ export async function harness(transform: (config: FixtureConfig, directory: stri
     ...previewContext('telegram'),
     invocationId,
     conversationId: seeded.conversationId,
-    chatId: BigInt(CHAT),
+    hostChatId: BigInt(CHAT),
     internalChatId: seeded.chatId,
   };
   const pid = (alias: string) => join(directory, `${alias}.pid`);

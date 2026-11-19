@@ -11,7 +11,7 @@ function context(f: Awaited<ReturnType<typeof groupMemoryFixture>>, invocationId
     invocationId,
     conversationId: f.conversationId,
     hostKind: 'telegram',
-    chatId: f.telegramChatId,
+    hostChatId: f.telegramChatId,
     internalChatId: f.chatId,
     threadId: 0n,
     completion: null,

@@ -14,6 +14,8 @@ import {
   type ConversationScope,
   type ImConversationRef,
   identityConversation,
+  toChatId,
+  toConversationId,
 } from '../src/platform/im-host/identity.ts';
 import type { ImSendRatePolicy } from '../src/platform/im-host/policy.ts';
 import type {
@@ -157,7 +159,7 @@ export function renderInvocationContext(
   return {
     invocationId,
     hostKind: identity.hostKind,
-    chatId: identity.chatId,
+    hostChatId: identity.hostChatId,
     internalChatId: identity.internalChatId,
     threadId: identity.threadId,
     completion: identity.completion,
@@ -472,7 +474,18 @@ export function testTelegramRuntime(
   const scope = options.scope ?? 'private';
   return {
     hosts: { telegram: testTelegramHost(transport, options) },
-    conversation: (target) => identityConversation(target, 'telegram', scope),
+    // Mirrors resolveConversation: a synthetic target (no native id) gets the
+    // explicit non-delivery '0' ref, never the internal id on the wire.
+    conversation: (target) =>
+      target.hostChatId === null
+        ? {
+            host: 'telegram',
+            id: toConversationId(target.conversationId),
+            chatId: toChatId('0'),
+            topicId: target.threadId === 0n ? null : target.threadId,
+            scope,
+          }
+        : identityConversation(target, 'telegram', scope),
   };
 }
 
@@ -505,7 +518,12 @@ export function trackTempDirectory(bag: string[], directory: string): void {
 /** The host plus the conversation ref the send tool environment now asks for. */
 export function testSendToolEnv(
   transport: TelegramTransport,
-  context: { readonly chatId: bigint; readonly threadId: bigint; readonly conversationId: bigint },
+  context: {
+    readonly hostChatId: bigint | null;
+    readonly internalChatId: bigint;
+    readonly threadId: bigint;
+    readonly conversationId: bigint;
+  },
   options: {
     readonly scope?: ConversationScope;
     readonly sendRate?: ImSendRatePolicy;

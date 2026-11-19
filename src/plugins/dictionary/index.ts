@@ -1,6 +1,8 @@
 import { join } from 'node:path';
+import { eq } from 'drizzle-orm';
 import { capability } from '../../capabilities/execute-tool.ts';
 import { hostExecutionProfile } from '../../platform/host-profile.ts';
+import { chats } from '../../store/schema/index.ts';
 import { definePlugin } from '../plugin.ts';
 import { createDictionaryTools } from './tools.ts';
 import { createDictionaryInjector } from './injection.ts';
@@ -15,17 +17,26 @@ export default definePlugin({
   id: 'dictionary',
   hosts: ['telegram'],
   skills: [join(import.meta.dirname, 'skills', 'dictionary')],
-  capabilities: (scope) =>
+  capabilities: (scope) => {
     // Dictionary scopes are configured chats. A room's chat id is internal and
     // must never be read as one, so the tools are not offered to a room.
-    hostExecutionProfile(scope.context.hostKind).chatSource === 'config'
-      ? createDictionaryTools({
-          store: new DictionaryStore(scope.orm),
-          orm: scope.orm,
-          invocationId: scope.context.invocationId,
-          chatId: scope.context.chatId,
-          privateChat: scope.context.chatId > 0n,
-        }).map((tool) => capability(tool, true))
-      : [],
+    if (hostExecutionProfile(scope.context.hostKind).chatSource !== 'config' || scope.context.hostChatId === null) {
+      return [];
+    }
+    // Private versus group comes from the stored Chat type, never from the
+    // sign of an id: a room's internal id carries no such meaning.
+    const chatType = scope.orm
+      .select({ type: chats.type })
+      .from(chats)
+      .where(eq(chats.id, scope.context.internalChatId))
+      .get()?.type;
+    return createDictionaryTools({
+      store: new DictionaryStore(scope.orm),
+      orm: scope.orm,
+      invocationId: scope.context.invocationId,
+      chatId: scope.context.hostChatId,
+      privateChat: chatType === 'private',
+    }).map((tool) => capability(tool, true));
+  },
   contextInjectors: [createDictionaryInjector()],
 });

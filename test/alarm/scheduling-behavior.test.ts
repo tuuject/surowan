@@ -163,7 +163,7 @@ describe('alarm scheduling behavior', () => {
     expect(
       await commands.run(
         { name: 'pause' },
-        123456789n,
+        { hostKind: 'telegram', hostChatId: 123456789n },
         { id: 42n, name: 'Alice', username: null },
         new Date('2026-08-15T00:00:00.000Z'),
       ),

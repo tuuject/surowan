@@ -134,7 +134,8 @@ export function proactiveAllows(
   deps: InvocationQueueDeps,
   bucketId: bigint,
   chatId: bigint,
-  telegramChatId: bigint,
+  hostKind: HostKind,
+  hostChatId: bigint,
   chatType: string,
   conversationId: bigint,
   chat: Pick<ChatConfigEntry, 'proactive_reply'>,
@@ -144,11 +145,12 @@ export function proactiveAllows(
   if (proactive === undefined) {
     return true;
   }
-  const rule = deps.participation.ruleFor(deps.store.orm, telegramChatId, chatType);
+  const rule = deps.participation.ruleFor(deps.store.orm, { hostKind, hostChatId }, chatType);
   return proactive.decide({
     bucketId,
     chatId,
-    telegramChatId,
+    hostKind,
+    hostChatId,
     chatType,
     conversationId,
     chat,

@@ -19,14 +19,14 @@ describe('cut_topic', () => {
 
     ingestion.ingest(groupUpdate(1, 10, 'polluted', FIRST_CHAT), at(0));
     const first = ingestion.ingest(commandUpdate(2, 11, FIRST_CHAT), at(1)).command;
-    await commands.run(first!, FIRST_CHAT, ALICE);
+    await commands.run(first!, { hostKind: 'telegram', hostChatId: FIRST_CHAT }, ALICE);
 
     // After the first cut, the trigger itself is the only eligible message and
     // sits in its own bucket, so the frozen history is empty.
     expect(invocationHistory(store, ingestion, scheduler, FIRST_CHAT, 3, 12, 'fresh start', at(17))).toEqual([]);
 
     const second = ingestion.ingest(commandUpdate(4, 13, FIRST_CHAT), at(34)).command;
-    await commands.run(second!, FIRST_CHAT, ALICE);
+    await commands.run(second!, { hostKind: 'telegram', hostChatId: FIRST_CHAT }, ALICE);
     expect(
       store.db
         .prepare<[], { telegram_message_id: bigint }>(

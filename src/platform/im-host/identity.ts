@@ -114,15 +114,43 @@ export function conversationKey(conversation: ImConversationRef): string {
  * confused.
  */
 export function identityConversation(
-  target: { readonly chatId: bigint; readonly threadId: bigint; readonly conversationId: bigint },
+  target: {
+    readonly hostChatId: bigint | null;
+    readonly internalChatId: bigint;
+    readonly threadId: bigint;
+    readonly conversationId: bigint;
+  },
   host: HostKind,
   scope: ConversationScope,
 ): ImConversationRef {
   return {
     host,
     id: toConversationId(target.conversationId),
-    chatId: toChatId(target.chatId.toString()),
+    chatId: toChatId(wireChatId(target, host)),
     topicId: target.threadId === 0n ? null : target.threadId,
     scope,
   };
+}
+
+/**
+ * The id a ref puts on the wire, mirroring the `chatSource` profile trait (kept
+ * in `host-profile.ts`, which cannot be imported here): a `config` chat is
+ * addressed by its host-native id, a `room` chat by its internal chat id. A
+ * missing native id on a `config` host is a data bug — never the internal id.
+ */
+function wireChatId(
+  target: { readonly hostChatId: bigint | null; readonly internalChatId: bigint },
+  host: HostKind,
+): string {
+  switch (host) {
+    case 'telegram':
+      if (target.hostChatId === null) {
+        throw new Error(`Telegram target ${target.internalChatId} has no host chat id`);
+      }
+      return target.hostChatId.toString();
+    case 'playground':
+      return target.internalChatId.toString();
+    default:
+      return unreachableHostKind(host);
+  }
 }

@@ -1,6 +1,7 @@
 import type { RuntimeConfigurationStore } from '../../../platform/runtime-config.ts';
 import type { SecretStore } from '../../../platform/secrets.ts';
 import type { ConfigController, ConfigEdit } from '../../../platform/config/write.ts';
+import { configuredChats } from '../../../platform/config/index.ts';
 import type { AgentModelSwitcher } from '../../../platform/models/switch.ts';
 import { resolveToolModel } from '../../../platform/tool-model.ts';
 import type { BusinessStore } from '../../../store/store.ts';
@@ -101,7 +102,7 @@ export function createDictionaryAdminHandler(deps: DictionaryAdminDeps) {
     }
     if (request.method === 'GET') {
       const { loaded, revision } = await readConfigFile(reloader, secrets);
-      return json(dictionarySettingsView(loaded.config, chatId, revision));
+      return json(dictionarySettingsView(loaded.config, configuredChats(loaded.config, 'telegram'), chatId, revision));
     }
     if (request.method !== 'PUT') {
       return json({ error: 'method_not_allowed', message: 'Use GET or PUT for dictionary settings' }, 405);
@@ -140,7 +141,7 @@ export function createDictionaryAdminHandler(deps: DictionaryAdminDeps) {
       }
     }
     if (edits.length === 0) {
-      return json(dictionarySettingsView(loaded.config, chatId, revision));
+      return json(dictionarySettingsView(loaded.config, configuredChats(loaded.config, 'telegram'), chatId, revision));
     }
     const result = await reloader.writeAndApply(edits, revision);
     if (!result.ok) {
@@ -150,7 +151,14 @@ export function createDictionaryAdminHandler(deps: DictionaryAdminDeps) {
       return json({ error: result.code, message }, CONFIG_WRITE_STATUS[result.code] ?? 409);
     }
     const view = await readConfigFile(reloader, secrets);
-    return json(dictionarySettingsView(view.loaded.config, chatId, view.revision));
+    return json(
+      dictionarySettingsView(
+        view.loaded.config,
+        configuredChats(view.loaded.config, 'telegram'),
+        chatId,
+        view.revision,
+      ),
+    );
   };
 
   /**
