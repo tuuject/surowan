@@ -121,7 +121,7 @@ describe('playground image generation', () => {
       .values({
         id: 100n,
         hostKind: 'telegram',
-        telegramChatId: 100n,
+        hostChatId: 100n,
         canonicalChatId: 100n,
         type: 'private',
         updatedAt: now,
@@ -133,7 +133,7 @@ describe('playground image generation', () => {
       .values({
         id: 200n,
         hostKind: 'playground',
-        telegramChatId: null,
+        hostChatId: null,
         canonicalChatId: null,
         type: 'group',
         updatedAt: now,

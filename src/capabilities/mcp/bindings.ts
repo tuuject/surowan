@@ -12,6 +12,7 @@
  * a different connection refers to another alias.
  */
 
+import { allConfiguredChats } from '../../platform/config/index.ts';
 import { deepEqual } from '../../platform/config/diff-merge.ts';
 import type { FileChat, McpServerConfig, RawConfig } from '../../platform/config/index.ts';
 
@@ -106,10 +107,13 @@ export function affectedMcpChatIds(
   /** Aliases whose secret references rotated: every Chat reaching one is affected. */
   rotated: ReadonlySet<string> = new Set(),
 ): number[] {
-  const before = new Map(previous.telegram.chats.map((chat) => [chat.id, chat]));
+  // A configured id is only unique inside its own host, so the lookup key
+  // carries the host prefix; the reported id stays the configured number the
+  // caller (Telegram cutover today) names Chats by.
+  const before = new Map(allConfiguredChats(previous).map(({ host, chat }) => [`${host}:${chat.id}`, chat]));
   const affected: number[] = [];
-  for (const chat of next.telegram.chats) {
-    const previousChat = before.get(chat.id);
+  for (const { host, chat } of allConfiguredChats(next)) {
+    const previousChat = before.get(`${host}:${chat.id}`);
     if (previousChat !== undefined && chatMcpChanged(previous, next, previousChat, chat, rotated)) {
       affected.push(chat.id);
     }

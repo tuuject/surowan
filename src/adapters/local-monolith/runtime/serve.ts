@@ -23,7 +23,7 @@ import type { ToolImageStore } from '../../../orchestration/agent-runtime/types.
 import type { HostReadiness } from '../../../orchestration/host-scope.ts';
 import { KeyedSemaphore } from '../../../platform/concurrency.ts';
 import { ImConnectionRegistry } from '../../../platform/im-connection.ts';
-import type { HostKind } from '../../../platform/im-host/identity.ts';
+import { type HostKind, unreachableHostKind } from '../../../platform/im-host/identity.ts';
 import type { ImHost } from '../../../platform/im-host/index.ts';
 import { AgentModelSwitcher } from '../../../platform/models/switch.ts';
 import { buildModelRegistry } from '../../../platform/providers.ts';
@@ -159,7 +159,16 @@ export async function startServeServices(session: ServeContext, environment: Ser
   // covers the window in which an instance is being replaced.
   const servedHosts: readonly HostKind[] = ['telegram', 'playground'];
   const telegramReadiness = new TelegramReadiness(connections);
-  const isHostReady: HostReadiness = (host) => host === 'playground' || telegramReadiness.isReady();
+  const isHostReady: HostReadiness = (host) => {
+    switch (host) {
+      case 'telegram':
+        return telegramReadiness.isReady();
+      case 'playground':
+        return true;
+      default:
+        return unreachableHostKind(host);
+    }
+  };
   const imageEligible = generationEligibilityForHosts(openedStore, servedHosts, isHostReady);
   const imageService = createImageService(openedStore, loaded.config, {
     logger: { warn: (message) => logEvent('image_service_warning', { message }) },
@@ -215,7 +224,7 @@ export async function startServeServices(session: ServeContext, environment: Ser
     store,
     configStore,
     secrets,
-    mediaClient,
+    downloaders: { telegram: mediaClient },
     modelGate,
     localAssets: playgroundAssets,
   });

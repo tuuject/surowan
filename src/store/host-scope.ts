@@ -1,5 +1,6 @@
-import { eq, type SQL } from 'drizzle-orm';
+import { eq, sql, type SQL } from 'drizzle-orm';
 import type { AnySQLiteColumn } from 'drizzle-orm/sqlite-core';
+import type { HostKind } from '../platform/im-host/identity.ts';
 import { chats } from './schema/index.ts';
 
 /**
@@ -17,6 +18,32 @@ import { chats } from './schema/index.ts';
  */
 export function telegramHostScope(column: AnySQLiteColumn = chats.hostKind): SQL {
   return eq(column, 'telegram');
+}
+
+/**
+ * `telegramHostScope()` for statements written with the `sql` template:
+ * `telegramHostSql('ch.host_kind')`. The expression is always a code literal
+ * naming the aliased column — never user input.
+ */
+export function telegramHostSql(hostKindExpression: string): SQL {
+  return sql.raw(`${hostKindExpression} = 'telegram'`);
+}
+
+/**
+ * `<expr> IN (...)` over the hosts a trait predicate selects, for statements
+ * written with the `sql` template: `hostKindsSql('c.host_kind', hostsWhere(p => p.sleep))`.
+ * The expression is always a code literal naming the aliased column — never
+ * user input. An empty host list matches nothing instead of degrading into an
+ * unscoped read.
+ */
+export function hostKindsSql(hostKindExpression: string, hosts: readonly HostKind[]): SQL {
+  if (hosts.length === 0) {
+    return sql`1 = 0`;
+  }
+  return sql`${sql.raw(hostKindExpression)} IN (${sql.join(
+    hosts.map((host) => sql`${host}`),
+    sql`, `,
+  )})`;
 }
 
 /**

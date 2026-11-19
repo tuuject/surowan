@@ -58,7 +58,7 @@ describe('alarm scheduler', () => {
 
     const removedChat = store.db
       .prepare<[string], { id: bigint }>(
-        "INSERT INTO chats(telegram_chat_id, canonical_chat_id, type, title, updated_at) VALUES (999999999, 999999999, 'group', 'Removed', ?) RETURNING id",
+        "INSERT INTO chats(host_chat_id, canonical_chat_id, type, title, updated_at, host_kind) VALUES (999999999, 999999999, 'group', 'Removed', ?, 'telegram') RETURNING id",
       )
       .get(new Date().toISOString());
     const removedConversation = store.db

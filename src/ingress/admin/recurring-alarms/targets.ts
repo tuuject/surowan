@@ -1,7 +1,9 @@
 import { sql } from 'drizzle-orm';
 import type { RawConfig } from '../../../platform/config/index.ts';
 import { deliveryBlockReason } from '../../../store/delivery-target.ts';
-import { type Orm, resolveChatConfig } from '../../../store/store.ts';
+import { configuredTelegramChat } from '../chat-ref.ts';
+import type { Orm } from '../../../store/store.ts';
+import { telegramHostSql } from '../../../store/host-scope.ts';
 
 /**
  * One Conversation a recurring alarm may target. `conversation_id` is null for
@@ -36,8 +38,8 @@ interface ChatRow {
  */
 export function listRecurringTargets(orm: Orm, config: RawConfig): RecurringTargetOption[] {
   const chats = orm.all<ChatRow>(
-    sql`SELECT id, host_kind, telegram_chat_id, type, title FROM chats
-        WHERE (host_kind = 'telegram' AND telegram_chat_id IS NOT NULL)
+    sql`SELECT id, host_kind, host_chat_id AS telegram_chat_id, type, title FROM chats
+        WHERE (${telegramHostSql('host_kind')} AND host_chat_id IS NOT NULL)
            OR (host_kind = 'playground' AND id IN (SELECT chat_id FROM rooms))
         ORDER BY host_kind DESC, id`,
   );
@@ -49,7 +51,7 @@ export function listRecurringTargets(orm: Orm, config: RawConfig): RecurringTarg
     let threads: bigint[];
     if (chat.host_kind === 'telegram') {
       const chatConfig =
-        chat.telegram_chat_id === null ? undefined : resolveChatConfig(config, orm, chat.telegram_chat_id);
+        chat.telegram_chat_id === null ? undefined : configuredTelegramChat(config, orm, chat.telegram_chat_id);
       if (chatConfig === undefined) {
         continue;
       }
@@ -70,7 +72,7 @@ export function listRecurringTargets(orm: Orm, config: RawConfig): RecurringTarg
           conversationId: conversation?.id ?? 0n,
           chatId: chat.id,
           hostKind: chat.host_kind,
-          telegramChatId: chat.telegram_chat_id,
+          hostChatId: chat.telegram_chat_id,
           messageThreadId: thread,
         }) ?? null;
       options.push({

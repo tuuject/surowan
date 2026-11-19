@@ -31,7 +31,8 @@ export const NO_SERVER_CHANGES: McpServerReconcileResult = {
 export interface RunningInvocation {
   readonly id: bigint;
   readonly conversationId: bigint;
-  readonly telegramChatId: bigint;
+  readonly hostKind: string;
+  readonly hostChatId: bigint | null;
 }
 
 /** One run this cutover stopped, with what its continuation still needs. */

@@ -16,7 +16,7 @@ describe('LongTaskService', () => {
     const roomChat = ctx(roomConversationId, { hostKind: 'playground', invocationId: 301n });
     const all = new LongTaskService(store.orm);
     const telegramTask = all
-      .invocationScope('alarm', telegramChat)
+      .invocationScope('alarm', telegramChat, ['telegram'])
       .create({ payload: { kind: 'telegram' }, scheduledAt: due, timerResult: { kind: 'telegram' } }, new Date());
     const roomTask = all
       .invocationScope('alarm', roomChat, ['telegram', 'playground'])
@@ -54,7 +54,7 @@ describe('LongTaskService', () => {
       woken = true;
     });
     const past = new Date(Date.now() - 60_000).toISOString();
-    const scope = tasks.invocationScope('alarm', ctx(conversationId));
+    const scope = tasks.invocationScope('alarm', ctx(conversationId), ['telegram']);
     const created = scope.create({
       payload: { summary: 'timer' },
       delivery: { bypassDailyBudget: true },
@@ -78,7 +78,7 @@ describe('LongTaskService', () => {
     seedInvocation(store, 100n, conversationId);
     const tasks = new LongTaskService(store.orm);
     const future = new Date(Date.now() + 3600_000).toISOString();
-    const scope = tasks.invocationScope('alarm', ctx(conversationId));
+    const scope = tasks.invocationScope('alarm', ctx(conversationId), ['telegram']);
     const created = scope.create({
       payload: {},
       delivery: { bypassDailyBudget: false },
@@ -95,7 +95,7 @@ describe('LongTaskService', () => {
     const tasks = new LongTaskService(store.orm);
     const t1 = new Date(Date.now() + 7200_000).toISOString();
     const t0 = new Date(Date.now() + 3600_000).toISOString();
-    const scope = tasks.invocationScope('alarm', ctx(conversationId));
+    const scope = tasks.invocationScope('alarm', ctx(conversationId), ['telegram']);
     scope.create({ payload: {}, delivery: { bypassDailyBudget: false }, scheduledAt: t1 });
     scope.create({ payload: {}, delivery: { bypassDailyBudget: false }, scheduledAt: t0 });
     expect(tasks.nextDeadline()).toBe(t0);

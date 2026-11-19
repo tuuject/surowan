@@ -1,10 +1,10 @@
 import { asc, desc, eq, inArray, sql } from 'drizzle-orm';
-import type { RawConfig } from '../../platform/config/index.ts';
+import type { TelegramRuntimeConfig } from '../../platform/config/index.ts';
 import type { BusinessStore } from '../../store/store.ts';
 import { stickerSets, stickers } from '../../store/schema/index.ts';
 
 /** One `telegram.sticker_sets` entry: `name` is the identity, `alias` its nickname. */
-export type ConfiguredStickerSet = NonNullable<RawConfig['telegram']['sticker_sets']>[number];
+export type ConfiguredStickerSet = NonNullable<TelegramRuntimeConfig['sticker_sets']>[number];
 
 /**
  * Mirrors the configured sticker sets into the store, synchronously and without

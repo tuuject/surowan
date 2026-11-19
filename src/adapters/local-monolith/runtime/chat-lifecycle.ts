@@ -1,10 +1,11 @@
 import { and, eq, inArray } from 'drizzle-orm';
 import { ConversationContextStore } from '../../../context/store/index.ts';
+import { configuredChats, resolveChatConfig } from '../../../platform/config/index.ts';
 import type { RawConfig } from '../../../platform/config/index.ts';
 import { telegramChatIdentity } from '../../../store/chat-identity.ts';
 import type { LongTaskService } from '../../../store/long-tasks/index.ts';
 import { buckets, chats, conversations, invocations, taskReceipts } from '../../../store/schema/index.ts';
-import { type BusinessStore, resolveChatConfig } from '../../../store/store.ts';
+import type { BusinessStore } from '../../../store/store.ts';
 import { logEvent } from './support.ts';
 
 /**
@@ -12,14 +13,18 @@ import { logEvent } from './support.ts';
  * file may remove several at once; the stored rows stay untouched here.
  */
 export function removedTelegramChatIds(previous: RawConfig, next: RawConfig): bigint[] {
-  const nextIds = new Set(next.telegram.chats.map((chat) => String(chat.id)));
-  return previous.telegram.chats.filter((chat) => !nextIds.has(String(chat.id))).map((chat) => BigInt(chat.id));
+  const nextIds = new Set(configuredChats(next, 'telegram').map((chat) => String(chat.id)));
+  return configuredChats(previous, 'telegram')
+    .filter((chat) => !nextIds.has(String(chat.id)))
+    .map((chat) => BigInt(chat.id));
 }
 
 /** Telegram Chat ids that appeared in the published configuration. */
 export function addedTelegramChatIds(previous: RawConfig, next: RawConfig): bigint[] {
-  const previousIds = new Set(previous.telegram.chats.map((chat) => String(chat.id)));
-  return next.telegram.chats.filter((chat) => !previousIds.has(String(chat.id))).map((chat) => BigInt(chat.id));
+  const previousIds = new Set(configuredChats(previous, 'telegram').map((chat) => String(chat.id)));
+  return configuredChats(next, 'telegram')
+    .filter((chat) => !previousIds.has(String(chat.id)))
+    .map((chat) => BigInt(chat.id));
 }
 
 /** A Chat whose group-memory switch changed between two published configurations. */
@@ -30,8 +35,10 @@ export interface GroupMemoryToggle {
 
 /** Chats present in both configurations whose `group_memory.enabled` changed. */
 export function toggledGroupMemoryChats(previous: RawConfig, next: RawConfig): GroupMemoryToggle[] {
-  const before = new Map(previous.telegram.chats.map((chat) => [String(chat.id), chat.group_memory?.enabled === true]));
-  return next.telegram.chats
+  const before = new Map(
+    configuredChats(previous, 'telegram').map((chat) => [String(chat.id), chat.group_memory?.enabled === true]),
+  );
+  return configuredChats(next, 'telegram')
     .filter(
       (chat) => before.has(String(chat.id)) && before.get(String(chat.id)) !== (chat.group_memory?.enabled === true),
     )
@@ -225,7 +232,9 @@ export function conversationIdsForTelegramChats(
     return [];
   }
   const runtimeIds = telegramChatIdentity(store, telegramChatIds).filter(
-    (id) => unauthorizedIn === undefined || resolveChatConfig(unauthorizedIn, store.orm, id) === undefined,
+    (id) =>
+      unauthorizedIn === undefined ||
+      resolveChatConfig(unauthorizedIn, store.orm, { hostKind: 'telegram', hostChatId: id }) === undefined,
   );
   if (runtimeIds.length === 0) {
     return [];
@@ -233,7 +242,7 @@ export function conversationIdsForTelegramChats(
   const chatRows = store.orm
     .select({ id: chats.id })
     .from(chats)
-    .where(and(eq(chats.hostKind, 'telegram'), inArray(chats.telegramChatId, runtimeIds)))
+    .where(and(eq(chats.hostKind, 'telegram'), inArray(chats.hostChatId, runtimeIds)))
     .all();
   if (chatRows.length === 0) {
     return [];

@@ -312,7 +312,7 @@ test('a delivered generation is replayed as a no-op when its receipt is answered
   expect(
     f.store.db
       .prepare<[], { telegram_message_id: bigint }>(
-        `SELECT m.telegram_message_id AS telegram_message_id
+        `SELECT m.message_no AS telegram_message_id
          FROM context_refs r
          JOIN media md ON md.id = r.media_id
          JOIN message_revisions mr ON mr.id = md.revision_id

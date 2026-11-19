@@ -1,4 +1,6 @@
 import { and, eq, sql } from 'drizzle-orm';
+import { hostExecutionProfile } from '../../platform/host-profile.ts';
+import { isHostKind, parseHostKind } from '../../platform/im-host/identity.ts';
 import { buckets, invocationBuckets, taskReceipts } from '../../store/schema/index.ts';
 import {
   enqueueBucketInvocation,
@@ -20,7 +22,7 @@ export function processReceiptsDue(deps: InvocationQueueDeps, now = new Date()):
   const sleepUntil = sleepUntilFor(deps, now);
   return store.transaction(() => {
     const pending = store.orm.all<ReceiptRow>(
-      sql`SELECT r.task_id, t.conversation_id, v.chat_id, c.telegram_chat_id, v.message_thread_id,
+      sql`SELECT r.task_id, t.conversation_id, v.chat_id, c.host_chat_id AS telegram_chat_id, v.message_thread_id,
                  c.host_kind AS host_kind,
                  json_extract(t.delivery_json, '$.bypassDailyBudget') AS bypass_daily_budget
        FROM task_receipts r JOIN long_tasks t ON t.id = r.task_id
@@ -46,10 +48,14 @@ export function processReceiptsDue(deps: InvocationQueueDeps, now = new Date()):
           .run();
         continue;
       }
-      // Only the Telegram host has a global sleep window; a Playground room
-      // never waits out a chat sleep, and never inherits its bypass either.
-      if (receipt.host_kind === 'telegram' && sleepUntil !== null && receipt.bypass_daily_budget !== 1n) {
-        continue;
+      // Only a sleep-capable host waits out the global window; a Playground
+      // room never does. The bypass flag counts only on a host whose profile
+      // grants it — the same combination the agent runtime reads.
+      if (isHostKind(receipt.host_kind)) {
+        const profile = hostExecutionProfile(receipt.host_kind);
+        if (profile.sleep && sleepUntil !== null && !(profile.budgetBypass && receipt.bypass_daily_budget === 1n)) {
+          continue;
+        }
       }
       const running = runningInvocationId(deps, receipt.conversation_id);
       if (running !== undefined) {
@@ -111,7 +117,9 @@ function insertReceiptInvocation(deps: InvocationQueueDeps, receipt: ReceiptRow,
     throw new Error('buckets insert returned no row');
   }
   const bucketId = created.id;
-  const invocationId = running ?? enqueueBucketInvocation(deps, bucketId, receipt.conversation_id, now, true);
+  const invocationId =
+    running ??
+    enqueueBucketInvocation(deps, bucketId, receipt.conversation_id, parseHostKind(receipt.host_kind), now, true);
   if (running !== undefined) {
     store.orm.insert(invocationBuckets).values({ invocationId, bucketId, attachedAt: timestamp }).run();
   }

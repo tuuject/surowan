@@ -9,8 +9,12 @@
 
 import type { HostKind } from './im-host/identity.ts';
 
-/** The IM integrations a process may hold a connection for. */
-export type ImNamespace = Exclude<HostKind, 'playground'>;
+/**
+ * The IM integrations a process may hold a connection for: every host kind.
+ * A host whose `connection` trait is `none` never registers a slot and stays
+ * `disabled` here; readiness gates on the trait before asking the registry.
+ */
+export type ImNamespace = HostKind;
 
 /** Why an IM connection is unusable because of its configuration. */
 export type ImConnectionConfigError = 'unauthorized' | 'conflict' | 'token_unreadable';

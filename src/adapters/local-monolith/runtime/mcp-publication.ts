@@ -16,8 +16,9 @@ import type { ConversationRuntime } from '../../../orchestration/conversation-ru
 import type { HostReadiness } from '../../../orchestration/host-scope.ts';
 import type { BucketScheduler } from '../../../orchestration/scheduler/index.ts';
 import type { RawConfig } from '../../../platform/config/index.ts';
-import type { InvocationContext } from '../../../platform/invocation-context.ts';
-import { configuredAgentModels, modelsForTelegramChats } from '../../../platform/providers.ts';
+import { HOST_KINDS } from '../../../platform/im-host/identity.ts';
+import { previewContext } from '../../../platform/invocation-context.ts';
+import { configuredAgentModels, modelsForChats } from '../../../platform/providers.ts';
 import type { RuntimeConfigurationStore } from '../../../platform/runtime-config.ts';
 import type { SecretStore } from '../../../platform/secrets.ts';
 import type { BusinessStore } from '../../../store/store.ts';
@@ -31,8 +32,6 @@ export interface McpPublicationOptions {
   readonly isHostReady: HostReadiness;
   readonly mcp: McpManager;
   readonly runtime: AgentRuntime;
-  /** The tool registry validation context; it never authorizes an invocation. */
-  readonly preview: InvocationContext;
 }
 
 export interface McpPublication {
@@ -59,7 +58,7 @@ export interface McpPublication {
 }
 
 export function createMcpPublication(options: McpPublicationOptions): McpPublication {
-  const { configStore, conversationRuntime, isHostReady, mcp, preview, runtime, scheduler, secrets, store } = options;
+  const { configStore, conversationRuntime, isHostReady, mcp, runtime, scheduler, secrets, store } = options;
   // One serialized MCP cutover for the process lifetime: a handed-off cutover
   // keeps its fences up, so the next publish must wait for it to finish before
   // it reconciles anything (see `createMcpCutover`).
@@ -76,29 +75,35 @@ export function createMcpPublication(options: McpPublicationOptions): McpPublica
 
   return {
     validateModel(candidate, model) {
-      runtime.validateAdditionalTools(preview, [], model);
+      for (const host of HOST_KINDS) {
+        runtime.validateAdditionalTools(previewContext(host), [], model);
+      }
       for (const toolSet of mcp.toolSets(candidate)) {
-        if (modelsForTelegramChats(candidate, [model], toolSet.chatIds).length === 0) {
+        if (modelsForChats(candidate, [model], toolSet.chatIds, toolSet.host).length === 0) {
           continue;
         }
-        runtime.validateAdditionalTools(preview, toolSet.tools, model);
+        runtime.validateAdditionalTools(previewContext(toolSet.host), toolSet.tools, model);
       }
     },
     validateRegistry() {
-      mcp.setRegistryValidator((mcpTools, chatIds) => {
+      mcp.setRegistryValidator((mcpTools, chatIds, host) => {
         const snapshot = configStore.current();
         const models = configuredAgentModels(snapshot.config, snapshot.models).map((entry) => entry.model);
         // Only the models the Chats that resolve to this set can run on: a set a
         // large-context Chat uses must not fail a small-context Chat's server.
-        for (const model of modelsForTelegramChats(snapshot.config, models, chatIds)) {
-          runtime.validateAdditionalTools(preview, mcpTools, model);
+        // The preview is built for the binding's own host so its built-ins
+        // (wording, host-specific tools) are the ones the check measures.
+        for (const model of modelsForChats(snapshot.config, models, chatIds, host)) {
+          runtime.validateAdditionalTools(previewContext(host), mcpTools, model);
         }
       });
       // The base registry (no MCP tools) must fit every configured model,
       // including one no Telegram Chat uses and a configuration without Chats.
       // The reload path checks the same thing per apply.
       for (const { model } of configuredAgentModels(configStore.current().config, configStore.current().models)) {
-        runtime.validateAdditionalTools(preview, [], model);
+        for (const host of HOST_KINDS) {
+          runtime.validateAdditionalTools(previewContext(host), [], model);
+        }
       }
     },
     async publish(previous, next, generation, rotated = new Set<string>()) {

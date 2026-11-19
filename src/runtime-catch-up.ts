@@ -14,7 +14,8 @@
 
 import type { Message, Update } from 'grammy/types';
 import type { TelegramIngestion } from './ingress/telegram-ingestion/index.ts';
-import { type BotCommandService, commandSender, parseBotCommand } from './orchestration/bot-commands/index.ts';
+import { commandSender, parseBotCommand } from './ingress/telegram-ingestion/commands.ts';
+import type { BotCommandService } from './orchestration/bot-commands/index.ts';
 import type { StartupCatchUpApi } from './startup-catch-up.ts';
 
 /** How many messages of one chat a runtime pass keeps; older ones are dropped. */
@@ -99,7 +100,12 @@ export async function runRuntimeCatchUp(options: RuntimeCatchUpOptions): Promise
     if (command !== undefined && message !== undefined) {
       // In update order, so a later /resume or /pause wins exactly as it
       // would have live; duplicates never get here (ingestion dedupes them).
-      await options.commands.run(command, BigInt(message.chat.id), commandSender(message), receivedAt);
+      await options.commands.run(
+        command,
+        { hostKind: 'telegram', hostChatId: BigInt(message.chat.id) },
+        commandSender(message),
+        receivedAt,
+      );
     }
   }
   const counts = {

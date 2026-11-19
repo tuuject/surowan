@@ -85,7 +85,7 @@ export function parseConsolidatedEvents(text: string, rows: readonly GroupMemory
     (message) => new GroupMemoryInvalidOutputError(message),
     'invalid events',
   );
-  const known = new Set(rows.map((row) => row.telegramMessageId));
+  const known = new Set(rows.map((row) => row.messageNo));
   const events: GroupMemoryEvent[] = [];
   for (const [index, raw] of parsed.events.entries()) {
     const position = `event ${index + 1}`;
@@ -201,13 +201,13 @@ export async function consolidateDay(
       ok: false,
       errorCode: 'tool_model_unavailable',
       errorDetail: dependencies.secrets.redact(errorMessage(error)),
-      through: options.rows.at(-1)?.telegramMessageId ?? 0n,
+      through: options.rows.at(-1)?.messageNo ?? 0n,
       messages: options.rows.length,
       modelCalls: 0,
     };
   }
   const rows = rowsWithinModel(model, options.rows);
-  const through = rows.at(-1)?.telegramMessageId;
+  const through = rows.at(-1)?.messageNo;
   if (through === undefined) {
     return {
       ok: false,
@@ -291,7 +291,7 @@ async function callOnce(
     if (row === undefined) {
       throw new Error('model_calls insert returned no row');
     }
-    options.onCall?.({ through: rows.at(-1)?.telegramMessageId ?? 0n, messages: rows.length, modelCalls: attempt });
+    options.onCall?.({ through: rows.at(-1)?.messageNo ?? 0n, messages: rows.length, modelCalls: attempt });
     return row;
   });
   const controller = new AbortController();

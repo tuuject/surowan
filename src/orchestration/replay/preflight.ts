@@ -7,10 +7,13 @@ import { type Api, getSupportedThinkingLevels, type Model } from '@earendil-work
 import { eq } from 'drizzle-orm';
 import type { SceneContext } from '../../context/scene/index.ts';
 import type { ActiveAgentSettings, RawConfig } from '../../platform/config/index.ts';
+import { hostExecutionProfile } from '../../platform/host-profile.ts';
+import { type HostKind, isHostKind } from '../../platform/im-host/identity.ts';
 import type { InvocationConfigSnapshot, RuntimeConfigurationStore } from '../../platform/runtime-config.ts';
 import { isThinkingLevel } from '../../platform/thinking-levels.ts';
+import { resolveChatConfig } from '../../platform/config/index.ts';
 import { chats, conversations, invocations } from '../../store/schema/index.ts';
-import { type BusinessStore, resolveChatConfig } from '../../store/store.ts';
+import type { BusinessStore } from '../../store/store.ts';
 import type { ReplayError, ReplayModelSelection } from './index.ts';
 import { completeAgentSettings, resolveAgentSettings } from '../../platform/config/resolve.ts';
 
@@ -26,8 +29,12 @@ export interface ReplayGuardDeps {
 
 /** Source identity only; no historical model requests or private agent history. */
 export interface ReplaySource {
+  readonly hostKind: HostKind;
   readonly conversationId: bigint;
-  readonly chatId: bigint;
+  /** Host-native Chat id; null for a host without a wire identity. */
+  readonly hostChatId: bigint | null;
+  /** Internal `chats.id` of the source Chat. */
+  readonly internalChatId: bigint;
   readonly threadId: bigint;
 }
 
@@ -89,7 +96,8 @@ export function checkReplaySource(deps: ReplayGuardDeps, id: bigint): ReplayChec
       state: invocations.state,
       finishedAt: invocations.finishedAt,
       hostKind: chats.hostKind,
-      chatId: chats.telegramChatId,
+      hostChatId: chats.hostChatId,
+      internalChatId: chats.id,
       conversationId: conversations.id,
       threadId: conversations.messageThreadId,
     })
@@ -108,10 +116,14 @@ export function checkReplaySource(deps: ReplayGuardDeps, id: bigint): ReplayChec
       message: 'Replay requires a finished invocation',
     };
   }
-  // Replay resolves the Telegram chat configuration, so it can only reproduce
-  // Telegram-hosted invocations. Say so explicitly instead of reading a
-  // Telegram id that a virtual row does not have.
-  if (source.hostKind !== 'telegram' || source.chatId === null) {
+  // Replay resolves the configured chat entry, so it can only reproduce
+  // invocations on a config-backed host. Say so explicitly instead of reading
+  // a host-native id that a virtual room does not have.
+  if (
+    !isHostKind(source.hostKind) ||
+    hostExecutionProfile(source.hostKind).chatSource !== 'config' ||
+    source.hostChatId === null
+  ) {
     return {
       ok: false,
       code: 'replay_host_unsupported',
@@ -121,8 +133,10 @@ export function checkReplaySource(deps: ReplayGuardDeps, id: bigint): ReplayChec
   return {
     ok: true,
     source: {
+      hostKind: source.hostKind,
       conversationId: source.conversationId,
-      chatId: source.chatId,
+      hostChatId: source.hostChatId,
+      internalChatId: source.internalChatId,
       threadId: source.threadId,
     },
   };
@@ -142,7 +156,10 @@ export function checkReplayRuntime(
 ): ReplayRuntimeCheck {
   const snapshot = deps.configStore.beginInvocation();
   const config: RawConfig = snapshot.config;
-  const chat = resolveChatConfig(config, deps.store.orm, source.chatId);
+  const chat = resolveChatConfig(config, deps.store.orm, {
+    hostKind: source.hostKind,
+    hostChatId: source.hostChatId,
+  });
   if (chat === undefined) {
     return { ok: false, code: 'replay_chat_unconfigured', message: 'The source chat is no longer configured' };
   }

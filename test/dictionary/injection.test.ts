@@ -267,7 +267,7 @@ test.each([
     expect(
       store.db
         .prepare<[], { text: string | null }>(
-          'SELECT r.text FROM messages m JOIN message_revisions r ON r.id = m.current_revision_id WHERE m.telegram_message_id = 11',
+          'SELECT r.text FROM messages m JOIN message_revisions r ON r.id = m.current_revision_id WHERE m.message_no = 11',
         )
         .get()?.text,
     ).toBe('后改词');

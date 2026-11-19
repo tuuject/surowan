@@ -41,7 +41,11 @@ export interface ContextInjector {
 export interface ContextInjectionInput {
   readonly config: RawConfig;
   readonly orm: Orm;
-  readonly chatId: bigint;
+  readonly hostKind: HostKind;
+  /** Host-native Chat id; null for a room, which never scopes stored entries. */
+  readonly hostChatId: bigint | null;
+  /** Internal `chats.id` of the active Chat. */
+  readonly internalChatId: bigint;
   /** A private chat; it may only see global data, never another chat's. */
   readonly privateChat: boolean;
   /** The text and caption of this batch's selected messages (history + new), for on-demand matching. */

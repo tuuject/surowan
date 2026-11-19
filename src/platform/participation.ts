@@ -1,17 +1,10 @@
-import { isAsk } from './bot-command.ts';
-import type { Message } from 'grammy/types';
 import type { ParticipationConfig, ParticipationWindowConfig } from './config/index.ts';
-import { richMessageMentions, richMessagePlainText } from './telegram-markdown/index.ts';
+import type { MessageCues } from './im-host/cues.ts';
 
 /** Default length of the post-trigger attention window, in seconds. */
 export const DEFAULT_ATTENTION_WINDOW_SECONDS = 300;
 
 export type TriggerKind = 'ask' | 'mention' | 'reply_to_bot' | 'keyword';
-
-export interface BotIdentity {
-  readonly id: bigint;
-  readonly username: string | null;
-}
 
 interface CompiledWindow {
   readonly startMinutes: number;
@@ -104,91 +97,31 @@ export function isWithinActiveWindows(rule: ParticipationRule, now: Date): boole
 
 /** An explicit ask wins over mention, reply and keyword cues. */
 export function matchTriggerKind(
-  message: Message,
-  bot: BotIdentity,
+  cues: MessageCues,
   keywords: readonly string[],
   includeAsk = true,
 ): TriggerKind | null {
-  if (includeAsk && isAsk(message, bot.username)) {
+  if (includeAsk && cues.asksBot) {
     return 'ask';
   }
-  if (mentionsBot(message, bot)) {
+  if (cues.mentionsBot) {
     return 'mention';
   }
-  if (repliesToBot(message, bot)) {
+  if (cues.repliesToBot) {
     return 'reply_to_bot';
   }
-  return containsKeyword(message, keywords) ? 'keyword' : null;
-}
-
-/**
- * Whether the message @-mentions the bot by username or by a text mention of
- * its id, in its text, its caption, or anywhere in a rich message.
- */
-export function mentionsBot(message: Message, bot: BotIdentity): boolean {
-  const username = bot.username?.toLowerCase() ?? null;
-  if (
-    message.rich_message !== undefined &&
-    richMessageMentions(message.rich_message).some((mention) =>
-      mention.kind === 'user' ? BigInt(mention.id) === bot.id : mention.username.toLowerCase() === username,
-    )
-  ) {
-    return true;
-  }
-  // `entities` offsets index `text`; `caption_entities` offsets index `caption`.
-  const sources = [
-    [message.text, message.entities],
-    [message.caption, message.caption_entities],
-  ] as const;
-  for (const [content, entities] of sources) {
-    for (const entity of entities ?? []) {
-      if (entity.type === 'text_mention') {
-        if (BigInt(entity.user.id) === bot.id) {
-          return true;
-        }
-        continue;
-      }
-      // A plain `mention` only carries "@username" text, so the token must be
-      // compared against this bot's username rather than trusted as-is.
-      if (entity.type !== 'mention' || username === null || content === undefined) {
-        continue;
-      }
-      if (
-        content
-          .slice(entity.offset, entity.offset + entity.length)
-          .slice(1)
-          .toLowerCase() === username
-      ) {
-        return true;
-      }
-    }
-  }
-  return false;
-}
-
-function repliesToBot(message: Message, bot: BotIdentity): boolean {
-  const reply = message.reply_to_message;
-  return reply?.from !== undefined && BigInt(reply.from.id) === bot.id;
-}
-
-function containsKeyword(message: Message, keywords: readonly string[]): boolean {
   if (keywords.length === 0) {
-    return false;
+    return null;
   }
-  // A rich message has no text; its visible text stands in for it.
-  const rich = message.rich_message === undefined ? undefined : richMessagePlainText(message.rich_message);
-  for (const content of [message.text, message.caption, rich]) {
-    if (content === undefined) {
-      continue;
-    }
+  for (const content of cues.texts) {
     const haystack = content.toLowerCase();
     for (const keyword of keywords) {
       if (haystack.includes(keyword)) {
-        return true;
+        return 'keyword';
       }
     }
   }
-  return false;
+  return null;
 }
 
 function compileWindow(window: ParticipationWindowConfig): CompiledWindow {

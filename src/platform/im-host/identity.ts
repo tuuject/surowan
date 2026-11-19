@@ -1,7 +1,34 @@
-/** Where a conversation physically lives. */
-export type HostKind = 'telegram' | 'playground';
+/** Where a conversation physically lives. The tuple is the one source; the union derives from it. */
+export const HOST_KINDS = ['telegram', 'playground'] as const;
 
-export const HOST_KINDS = ['telegram', 'playground'] as const satisfies readonly HostKind[];
+export type HostKind = (typeof HOST_KINDS)[number];
+
+/** Whether `value` is one of the host kinds this build serves. */
+export function isHostKind(value: unknown): value is HostKind {
+  return (HOST_KINDS as readonly unknown[]).includes(value);
+}
+
+/**
+ * Reads a stored `host_kind` — or fails loudly.
+ *
+ * Storage outlives the build that wrote it: a kind this build does not know
+ * must stop the read with an error that names the value, never be folded into
+ * a host it may not mean. Everything a stored kind decides for one operation
+ * — scheduling, delivery, model accounting, media access — goes through this
+ * parser; batch loops that must not let one bad row stall the rest ask
+ * {@link isHostKind} instead.
+ */
+export function parseHostKind(value: unknown): HostKind {
+  if (isHostKind(value)) {
+    return value;
+  }
+  throw new Error(`Unknown host kind: ${String(value)}`);
+}
+
+/** The `default` arm of a `switch` that already covers every `HostKind`. */
+export function unreachableHostKind(kind: never): never {
+  throw new Error(`Unhandled host kind: ${String(kind)}`);
+}
 
 /**
  * Whether a conversation is a one-to-one chat or a shared room. Scope, not
@@ -58,7 +85,7 @@ export interface ImConversationRef {
   /** Internal. Never rendered into a prompt. */
   readonly chatId: ChatId;
   /** Host-side sub-conversation (a Telegram forum topic). `null` for the whole chat. */
-  readonly topicId: number | null;
+  readonly topicId: bigint | null;
   readonly scope: ConversationScope;
 }
 
@@ -87,15 +114,43 @@ export function conversationKey(conversation: ImConversationRef): string {
  * confused.
  */
 export function identityConversation(
-  target: { readonly chatId: bigint; readonly threadId: bigint; readonly conversationId: bigint },
+  target: {
+    readonly hostChatId: bigint | null;
+    readonly internalChatId: bigint;
+    readonly threadId: bigint;
+    readonly conversationId: bigint;
+  },
   host: HostKind,
   scope: ConversationScope,
 ): ImConversationRef {
   return {
     host,
     id: toConversationId(target.conversationId),
-    chatId: toChatId(target.chatId.toString()),
-    topicId: target.threadId === 0n ? null : Number(target.threadId),
+    chatId: toChatId(wireChatId(target, host)),
+    topicId: target.threadId === 0n ? null : target.threadId,
     scope,
   };
+}
+
+/**
+ * The id a ref puts on the wire, mirroring the `chatSource` profile trait (kept
+ * in `host-profile.ts`, which cannot be imported here): a `config` chat is
+ * addressed by its host-native id, a `room` chat by its internal chat id. A
+ * missing native id on a `config` host is a data bug — never the internal id.
+ */
+function wireChatId(
+  target: { readonly hostChatId: bigint | null; readonly internalChatId: bigint },
+  host: HostKind,
+): string {
+  switch (host) {
+    case 'telegram':
+      if (target.hostChatId === null) {
+        throw new Error(`Telegram target ${target.internalChatId} has no host chat id`);
+      }
+      return target.hostChatId.toString();
+    case 'playground':
+      return target.internalChatId.toString();
+    default:
+      return unreachableHostKind(host);
+  }
 }

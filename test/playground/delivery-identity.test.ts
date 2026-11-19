@@ -120,11 +120,11 @@ describe('Bot Playground virtual delivery', () => {
     expect(secondOutcome.messages[0]!.messageId).toBe(2n);
 
     const written = roomMessages(room.conversationId);
-    expect(written.map((row) => row.localSequenceNo)).toEqual([1n, 2n]);
+    expect(written.map((row) => row.messageNo)).toEqual([1n, 2n]);
     const [question, reply] = written;
     expect(question?.id).not.toBe(1n);
     expect(reply?.localReplyToMessageId).toBe(question?.id);
-    expect(reply?.telegramMessageId).toBeNull();
+    expect(reply?.messageNo).toBe(2n);
     expect(telegramTransport).not.toHaveBeenCalled();
   });
 
@@ -161,7 +161,7 @@ describe('Bot Playground virtual delivery', () => {
   test('local activity expires on its own without polling', () => {
     const host = hostFor('碗');
     const conversation = identityConversation(
-      { chatId: 70n, threadId: 0n, conversationId: 70n },
+      { hostChatId: null, internalChatId: 70n, threadId: 0n, conversationId: 70n },
       'playground',
       'private',
     );

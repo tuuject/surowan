@@ -141,14 +141,15 @@ function prepareScene(store: SqliteStore, seed: ReturnType<typeof seedAdminFixtu
   orm
     .insert(messages)
     .values({
+      hostKind: 'telegram',
       id: HISTORY_MESSAGE,
       conversationId: seed.conversationId,
       chatId: seed.chatId,
-      telegramMessageId: 880n,
+      messageNo: 880n,
       currentRevisionId: null,
       visible: true,
       sentByBot: true,
-      telegramDate: '2026-09-10T07:58:00.000Z',
+      sentAt: '2026-09-10T07:58:00.000Z',
       receivedAt: '2026-09-10T07:58:01.000Z',
     })
     .run();
@@ -177,6 +178,7 @@ function prepareScene(store: SqliteStore, seed: ReturnType<typeof seedAdminFixtu
       id: HISTORY_MEDIA,
       revisionId: HISTORY_REVISION,
       kind: 'photo',
+      hostKind: 'telegram',
       fileId: 'file_history_seed',
       fileUniqueId: 'unique_history_seed',
       mimeType: 'image/jpeg',
@@ -189,14 +191,15 @@ function prepareScene(store: SqliteStore, seed: ReturnType<typeof seedAdminFixtu
   orm
     .insert(messages)
     .values({
+      hostKind: 'telegram',
       id: LATE_MESSAGE,
       conversationId: seed.conversationId,
       chatId: seed.chatId,
-      telegramMessageId: 999n,
+      messageNo: 999n,
       currentRevisionId: null,
       visible: true,
       sentByBot: false,
-      telegramDate: '2026-09-10T08:30:00.000Z',
+      sentAt: '2026-09-10T08:30:00.000Z',
       receivedAt: '2026-09-10T08:30:00.000Z',
     })
     .run();

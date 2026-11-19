@@ -11,7 +11,7 @@ describe('LongTaskService', () => {
     const { store, conversationId } = await initDb();
     seedInvocation(store, 100n, conversationId);
     const tasks = new LongTaskService(store.orm);
-    const scope = tasks.invocationScope('test-plugin', ctx(conversationId));
+    const scope = tasks.invocationScope('test-plugin', ctx(conversationId), ['telegram']);
     const created = scope.create({ payload: {}, delivery: { bypassDailyBudget: false } });
     const handle = tasks.scoped('test-plugin', conversationId);
     expect(handle.complete(created.taskId)).toBe(true);
@@ -22,7 +22,7 @@ describe('LongTaskService', () => {
     const { store, conversationId } = await initDb();
     seedInvocation(store, 100n, conversationId);
     const tasks = new LongTaskService(store.orm);
-    const scope = tasks.invocationScope('plugin-x', ctx(conversationId));
+    const scope = tasks.invocationScope('plugin-x', ctx(conversationId), ['telegram']);
     const created = scope.create({ payload: {}, delivery: { bypassDailyBudget: false } });
     expect(tasks.scoped('plugin-y', conversationId).complete(created.taskId)).toBe(false);
   });
@@ -31,7 +31,7 @@ describe('LongTaskService', () => {
     const { store, conversationId } = await initDb();
     seedInvocation(store, 100n, conversationId);
     const tasks = new LongTaskService(store.orm);
-    const scope = tasks.invocationScope('plugin-x', ctx(conversationId));
+    const scope = tasks.invocationScope('plugin-x', ctx(conversationId), ['telegram']);
     const created = scope.create({ payload: {}, delivery: { bypassDailyBudget: false } });
     store.db.prepare('DELETE FROM invocations WHERE id = 100').run();
     expect(tasks.scoped('plugin-x', 999n).complete(created.taskId)).toBe(false);
@@ -42,7 +42,7 @@ describe('LongTaskService', () => {
     const { store, conversationId } = await initDb();
     seedInvocation(store, 100n, conversationId);
     const tasks = new LongTaskService(store.orm);
-    const scope = tasks.invocationScope('test-plugin', ctx(conversationId));
+    const scope = tasks.invocationScope('test-plugin', ctx(conversationId), ['telegram']);
     const created = scope.create({ payload: { data: 'x' }, delivery: { bypassDailyBudget: false } });
     tasks.scoped('test-plugin', conversationId).complete(created.taskId);
 
@@ -74,7 +74,7 @@ describe('LongTaskService', () => {
     const { store, conversationId } = await initDb();
     seedInvocation(store, 100n, conversationId);
     const tasks = new LongTaskService(store.orm);
-    const scope = tasks.invocationScope('test-plugin', ctx(conversationId));
+    const scope = tasks.invocationScope('test-plugin', ctx(conversationId), ['telegram']);
     const created = scope.create({ payload: {}, delivery: { bypassDailyBudget: false } });
     expect(tasks.scoped('test-plugin', conversationId).cancel(created.taskId)).toBe(true);
 
@@ -88,7 +88,7 @@ describe('LongTaskService', () => {
     const { store, conversationId } = await initDb();
     seedInvocation(store, 100n, conversationId);
     const tasks = new LongTaskService(store.orm);
-    const scope = tasks.invocationScope('alarm', ctx(conversationId));
+    const scope = tasks.invocationScope('alarm', ctx(conversationId), ['telegram']);
     const created = scope.create({ payload: {}, delivery: { bypassDailyBudget: false } });
     const handle = tasks.scoped('alarm', conversationId);
     expect(handle.fail(created.taskId, { code: 'first' })).toBe(true);
@@ -106,7 +106,7 @@ describe('LongTaskService', () => {
     const tasks = new LongTaskService(store.orm, () => {
       wakes += 1;
     });
-    const scope = tasks.invocationScope('alarm', ctx(conversationId));
+    const scope = tasks.invocationScope('alarm', ctx(conversationId), ['telegram']);
     const created = scope.create({ payload: {}, delivery: { bypassDailyBudget: false } });
     expect(wakes).toBe(1);
     expect(tasks.scoped('other', conversationId).complete(created.taskId)).toBe(false);

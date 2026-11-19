@@ -221,13 +221,13 @@ export function dictionaryView(store: DictionaryStore, query: DictionaryQuery) {
  */
 export function listDictionaryChatOptions(orm: Orm) {
   return orm
-    .select({ telegramChatId: chats.telegramChatId, title: chats.title, type: chats.type })
+    .select({ telegramChatId: chats.hostChatId, title: chats.title, type: chats.type })
     .from(chats)
     .where(telegramHostScope())
-    .orderBy(chats.telegramChatId)
+    .orderBy(chats.hostChatId)
     .all()
     .map((row) => ({
-      id: telegramIdentity(row.telegramChatId, 'chats.telegram_chat_id').toString(),
+      id: telegramIdentity(row.telegramChatId, 'chats.host_chat_id').toString(),
       title: row.title,
       type: row.type,
     }));
@@ -279,6 +279,7 @@ export function parseDictionarySettingsBody(value: unknown): DictionaryInjection
 
 export function dictionarySettingsView(
   config: Parameters<typeof resolveDictionaryInjectionMode>[0],
+  chats: Parameters<typeof resolveDictionaryInjectionMode>[1],
   chatId: bigint | null,
   revision: string,
 ): DictionarySettingsView {
@@ -286,13 +287,13 @@ export function dictionarySettingsView(
   if (chatId === null) {
     return { revision, injection_mode: globalMode, override_mode: null, effective_mode: globalMode };
   }
-  const chat = config.telegram.chats.find((candidate) => BigInt(candidate.id) === chatId);
+  const chat = chats.find((candidate) => BigInt(candidate.id) === chatId);
   const override = chat?.dictionary_injection_mode ?? null;
   return {
     revision,
     injection_mode: globalMode,
     override_mode: override,
-    effective_mode: resolveDictionaryInjectionMode(config, chatId),
+    effective_mode: resolveDictionaryInjectionMode(config, chats, chatId),
   };
 }
 

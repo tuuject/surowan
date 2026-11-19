@@ -209,7 +209,9 @@ test('a web image fetched through execute reaches the provider as pixels and sta
     ['image_call', 'success', false],
     ['image_call:web_fetch', 'success', false],
   ]);
-  const chat = store.orm.get<{ id: bigint }>(sql`SELECT id FROM chats WHERE telegram_chat_id = ${BigInt(CHAT_ID)}`);
+  const chat = store.orm.get<{ id: bigint }>(
+    sql`SELECT id FROM chats WHERE host_kind = 'telegram' AND host_chat_id = ${BigInt(CHAT_ID)}`,
+  );
   expect(assets.assetFor(chat?.id ?? 0n, assetId)).not.toBeNull();
   store.close();
 });

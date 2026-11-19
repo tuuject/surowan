@@ -44,7 +44,7 @@ describe('scene context', () => {
       .insert(conversationContextCutoffs)
       .values({
         conversationId,
-        telegramMessageId: 10n,
+        messageNo: 10n,
         createdAt: at(25).toISOString(),
         updatedAt: at(25).toISOString(),
       })
@@ -245,7 +245,7 @@ describe('scene context', () => {
     store.orm
       .update(messages)
       .set({ receivedAt: new Date(at(50).getTime() + 1).toISOString() })
-      .where(eq(messages.telegramMessageId, 9n))
+      .where(eq(messages.messageNo, 9n))
       .run();
 
     const scene = buildSceneContext(store, fixture.loaded.config, invocationId, DEFAULT_OPTIONS);

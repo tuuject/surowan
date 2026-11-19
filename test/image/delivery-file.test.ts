@@ -1,10 +1,13 @@
 import type { Update } from 'grammy/types';
-import { describe, expect, test } from 'vitest';
+import { join } from 'node:path';
+import { afterAll, describe, expect, test } from 'vitest';
+import { loadConfig } from '../../src/adapters/local-monolith/config/index.ts';
 import { SqliteStore } from '../../src/adapters/local-monolith/database.ts';
-import { grammyTelegramTransport } from '../../src/adapters/local-monolith/telegram/host.ts';
+import { grammyTelegramTransport } from '../../src/adapters/local-monolith/telegram/grammy-transport.ts';
 import type { CapabilityRefResolver } from '../../src/platform/invocation-context.ts';
 import { imageDeliveryState } from '../../src/store/image-delivery.ts';
-import { invocationCapabilities, type TestInvocationContext } from '../helpers.ts';
+import { invocationCapabilities, type TestInvocationContext, writeTestConfig } from '../helpers.ts';
+import { buildDatabaseBelow, cleanupSchemaDirectories, makeSchemaDirectory } from '../schema/fixtures.ts';
 import {
   ASSET_A,
   ASSET_B,
@@ -21,6 +24,8 @@ import {
   setup,
   toolCalls,
 } from './delivery-fixtures.ts';
+
+afterAll(cleanupSchemaDirectories);
 
 /**
  * `send kind:file`: pictures delivered uncompressed as Telegram documents.
@@ -298,24 +303,63 @@ describe('send kind:file', () => {
   });
 
   test('migration 049 rebuilds the ledger for the file kind without losing a row or an index', async () => {
-    const fixture = await setup();
-    const context = openConversation(fixture, 1, START);
-    const { tool } = buildTool(fixture, context, { mediaFiles: unreadable });
-    await tool.execute('img-1', { kind: 'image', image_generation_id: GENERATION_ID });
-    await tool.execute('file-1', { kind: 'file', image_generation_id: GENERATION_ID });
-    const ledger = (store: SqliteStore) => store.db.prepare('SELECT * FROM host_sends ORDER BY id').all();
-    const indexes = (store: SqliteStore) =>
-      store.db
-        .prepare("SELECT name, sql FROM sqlite_master WHERE type = 'index' AND tbl_name = 'host_sends' ORDER BY name")
-        .all();
-    const before = { rows: ledger(fixture.store), indexes: indexes(fixture.store) };
-    expect(before.indexes).toHaveLength(3);
-    fixture.store.db.exec('DELETE FROM schema_migrations WHERE version = 49');
-    fixture.store.close();
+    // 049's file still names the pre-064 telegram_message_id column, so the
+    // replay runs on a database built at 063: every earlier migration applied
+    // by hand, the ledger seeded under its old column names, then the runner
+    // replays 049 for real before 064 renames the column.
+    const directory = await makeSchemaDirectory();
+    const configPath = join(directory, 'config.jsonc');
+    await writeTestConfig(directory, configPath);
+    const loaded = await loadConfig(configPath);
 
-    const store = await SqliteStore.open(fixture.config);
+    const legacy = await buildDatabaseBelow(loaded, 64);
+    legacy.exec(`
+      INSERT INTO chats (id, host_kind, telegram_chat_id, canonical_chat_id, type, updated_at)
+        VALUES (1, 'telegram', 123456789, 123456789, 'private', '2026-01-01T00:00:00.000Z');
+      INSERT INTO senders (id, host_kind, telegram_type, telegram_id, display_name, is_bot, updated_at)
+        VALUES (10, 'telegram', 'user', 999, 'Surowan', 1, '2026-01-01T00:00:00.000Z');
+      INSERT INTO conversations (id, chat_id, message_thread_id, created_at, updated_at)
+        VALUES (100, 1, 0, '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z');
+      INSERT INTO buckets (id, conversation_id, state, first_received_at, deadline_at, created_at, updated_at)
+        VALUES (3000, 100, 'completed', '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:15.000Z', '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:15.000Z');
+      INSERT INTO invocations (id, bucket_id, conversation_id, state, config_hash, prompt_version, created_at)
+        VALUES (5000, 3000, 100, 'completed', 'hash', 1, '2026-01-01T00:00:16.000Z');
+      INSERT INTO messages (id, conversation_id, chat_id, host_kind, telegram_message_id, visible, sent_by_bot, telegram_date, received_at)
+        VALUES (1000, 100, 1, 'telegram', 500, 1, 1, '2026-01-01T00:00:05.000Z', '2026-01-01T00:00:05.000Z'),
+               (1001, 100, 1, 'telegram', 700, 1, 1, '2026-01-01T00:00:06.000Z', '2026-01-01T00:00:06.000Z');
+      INSERT INTO message_revisions (id, message_id, revision_no, sender_id, kind, text, created_at, raw_fragment_json)
+        VALUES (2000, 1000, 1, 10, 'image', NULL, '2026-01-01T00:00:05.000Z', '{}'),
+               (2001, 1001, 1, 10, 'file', '原图', '2026-01-01T00:00:06.000Z', '{}');
+      UPDATE messages SET current_revision_id = CASE id WHEN 1000 THEN 2000 WHEN 1001 THEN 2001 END;
+      INSERT INTO tool_calls (id, invocation_id, tool_call_id, tool_name, arguments_json, state, side_effect, created_at)
+        VALUES (8000, 5000, 'img-1', 'send', '{}', 'success', 1, '2026-01-01T00:00:17.000Z'),
+               (8001, 5000, 'file-1', 'send', '{}', 'success', 1, '2026-01-01T00:00:18.000Z');
+      INSERT INTO host_sends (id, tool_call_id, conversation_id, kind, request_json, state, telegram_message_id, created_at, finished_at, message_id)
+        VALUES (9000, 8000, 100, 'image', '{"kind":"image","generation_id":"g1"}', 'success', 500, '2026-01-01T00:00:17.000Z', '2026-01-01T00:00:17.500Z', 1000),
+               (9001, 8001, 100, 'file', '{"kind":"file","generation_id":"g1","files":2}', 'success', 700, '2026-01-01T00:00:18.000Z', '2026-01-01T00:00:18.500Z', 1001);
+    `);
+    expect(legacy.pragma('foreign_key_check')).toEqual([]);
+    const LEDGER =
+      'SELECT id, tool_call_id, conversation_id, kind, request_json, state, telegram_message_id, response_json, error_code, created_at, finished_at, message_id FROM host_sends ORDER BY id';
+    const before = {
+      rows: legacy.prepare(LEDGER).all(),
+      indexes: legacy
+        .prepare("SELECT name, sql FROM sqlite_master WHERE type = 'index' AND tbl_name = 'host_sends' ORDER BY name")
+        .all(),
+    };
+    expect(before.indexes).toHaveLength(3);
+    legacy.exec('DELETE FROM schema_migrations WHERE version = 49');
+    legacy.close();
+
+    const store = await SqliteStore.open(loaded.config);
     trackStore(store);
-    expect({ rows: ledger(store), indexes: indexes(store) }).toEqual(before);
+    const upgraded = {
+      rows: store.db.prepare(LEDGER.replace('telegram_message_id', 'message_no AS telegram_message_id')).all(),
+      indexes: store.db
+        .prepare("SELECT name, sql FROM sqlite_master WHERE type = 'index' AND tbl_name = 'host_sends' ORDER BY name")
+        .all(),
+    };
+    expect(upgraded).toEqual(before);
     expect(store.db.prepare('SELECT count(*) AS n FROM schema_migrations WHERE version = 49').get()).toEqual({
       n: 1n,
     });

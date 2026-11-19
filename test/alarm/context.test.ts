@@ -165,13 +165,13 @@ describe('alarm authorization', () => {
     finishInvocation(store, first, new Date(at.getTime() + 2_000).toISOString());
     store.db
       .prepare(
-        "INSERT INTO senders(telegram_type, telegram_id, is_bot, display_name, updated_at) VALUES ('sender_chat', 777, 0, 'Channel', ?)",
+        "INSERT INTO senders(host_sender_type, host_sender_id, is_bot, display_name, updated_at, host_kind) VALUES ('sender_chat', 777, 0, 'Channel', ?, 'telegram')",
       )
       .run(at.toISOString());
     ingestion.ingest(update(2, 'anonymous'), new Date(at.getTime() + 3_000));
     store.db
       .prepare(
-        "UPDATE message_revisions SET sender_id = (SELECT id FROM senders WHERE telegram_type = 'sender_chat' LIMIT 1) WHERE message_id = (SELECT id FROM messages WHERE telegram_message_id = 2)",
+        "UPDATE message_revisions SET sender_id = (SELECT id FROM senders WHERE host_sender_type = 'sender_chat' LIMIT 1) WHERE message_id = (SELECT id FROM messages WHERE message_no = 2)",
       )
       .run();
     const context = build(processOne(scheduler, new Date(at.getTime() + 4_000)));

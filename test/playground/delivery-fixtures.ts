@@ -85,7 +85,7 @@ export const createRoom = (input: {
     .values({
       id: input.chatId,
       hostKind: 'playground',
-      telegramChatId: null,
+      hostChatId: null,
       canonicalChatId: null,
       // A room is a virtual chat: no Telegram ids, and the documented type.
       type: 'virtual',
@@ -211,7 +211,7 @@ export const deliver = (
   replyToMessageId?: bigint,
 ) => {
   const conversation = identityConversation(
-    { chatId: target.chatId, threadId: 0n, conversationId: target.conversationId },
+    { hostChatId: null, internalChatId: target.chatId, threadId: 0n, conversationId: target.conversationId },
     'playground',
     'private',
   );

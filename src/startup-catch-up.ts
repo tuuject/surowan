@@ -1,7 +1,8 @@
 import { eq } from 'drizzle-orm';
 import type { Update } from 'grammy/types';
 import type { TelegramIngestion } from './ingress/telegram-ingestion/index.ts';
-import { type BotCommandService, commandSender } from './orchestration/bot-commands/index.ts';
+import { commandSender } from './ingress/telegram-ingestion/commands.ts';
+import type { BotCommandService } from './orchestration/bot-commands/index.ts';
 import { type BucketScheduler, STARTUP_CATCH_UP_STATE_KEY } from './orchestration/scheduler/index.ts';
 import type { BusinessStore } from './store/store.ts';
 import { appState } from './store/schema/index.ts';
@@ -92,7 +93,12 @@ export async function runStartupCatchUp(options: StartupCatchUpOptions): Promise
       if (command !== undefined && message !== undefined) {
         // In update order, so a later /resume or /pause wins exactly as it
         // would have live; duplicates never get here (ingestion dedupes them).
-        await options.commands.run(command, BigInt(message.chat.id), commandSender(message), receivedAt);
+        await options.commands.run(
+          command,
+          { hostKind: 'telegram', hostChatId: BigInt(message.chat.id) },
+          commandSender(message),
+          receivedAt,
+        );
       }
     }
     const lastUpdate = updates.at(-1);

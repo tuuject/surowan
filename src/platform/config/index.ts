@@ -138,6 +138,8 @@ export type RawConfig = Omit<FileConfig, 'agent' | 'vision' | 'telegram' | 'deve
 export type ImageConfig = RawConfig['image'];
 export type ProviderConfig = RawConfig['providers'][string];
 export type McpServerConfig = NonNullable<RawConfig['mcp']>['servers'][number];
+/** One configured chat entry: the `telegram.chats` shape today's config-sourced host resolves. */
+export type ChatConfigEntry = TelegramRuntimeConfig['chats'][number];
 
 /**
  * Combines a validated `FileConfig` with already-read prompt texts.
@@ -196,3 +198,15 @@ export function configuredToolSchemaKeywords(
 ): ToolSchemaKeywords | undefined {
   return configuredModel(config, providerAlias, modelId)?.tool_schema_keywords;
 }
+
+// The projection lives in its own module but exports through the same barrel.
+export {
+  type ChatConfigRef,
+  type HostIntakeSettings,
+  allConfiguredChats,
+  configuredChats,
+  hostIntakeSettings,
+  mapConfiguredChats,
+  resolveChatConfig,
+  storedChatsForConfig,
+} from './projection.ts';

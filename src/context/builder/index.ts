@@ -3,7 +3,8 @@ import { sql } from 'drizzle-orm';
 import { CAPABILITIES_PROMPT, CORE_AGENT_PROTOCOL } from '../../platform/agent-protocol.ts';
 import { type AgentPromptLayers, composeAgentPrompt } from '../../platform/agent-prompt.ts';
 import { configuredModel, type RawConfig } from '../../platform/config/index.ts';
-import type { HostKind } from '../../platform/im-host/identity.ts';
+import { hostExecutionProfile } from '../../platform/host-profile.ts';
+import { parseHostKind, type HostKind } from '../../platform/im-host/identity.ts';
 import type { CompletionContext, DirectImage, VisibleSender } from '../../platform/invocation-context.ts';
 import { resolveInvocationPolicy, type InvocationPolicy } from '../../platform/invocation-policy.ts';
 import type { PromptTemplateModel, PromptTemplateValues } from '../../platform/prompt-template.ts';
@@ -34,8 +35,8 @@ export class InjectionTooLargeError extends Error {
 interface InvocationIdentityRow {
   readonly conversation_id: bigint;
   readonly chat_id: bigint;
-  readonly host_kind: HostKind;
-  readonly telegram_chat_id: bigint | null;
+  readonly host_kind: string;
+  readonly host_chat_id: bigint | null;
   readonly message_thread_id: bigint;
   readonly chat_type: string;
   readonly bucket_kind: 'realtime' | 'startup_catch_up';
@@ -45,8 +46,8 @@ interface InvocationIdentityRow {
 export interface ContextIdentity {
   readonly invocationId: bigint;
   readonly conversationId: bigint;
-  /** The host's chat id: Telegram chat id, or the internal chat id of a room. */
-  readonly chatId: bigint;
+  /** The host's own chat id; `null` for a host that addresses its chats internally. */
+  readonly hostChatId: bigint | null;
   /** Internal `chats.id`; Memo Pad and blob ownership use this. */
   readonly internalChatId: bigint;
   readonly hostKind: HostKind;
@@ -149,7 +150,7 @@ export class ContextBuilder {
   identity(config: RawConfig, invocationId: bigint): ContextIdentity {
     const identity = this.#store.orm
       .all<InvocationIdentityRow>(
-        sql`SELECT i.conversation_id, c.id AS chat_id, c.host_kind, c.telegram_chat_id,
+        sql`SELECT i.conversation_id, c.id AS chat_id, c.host_kind, c.host_chat_id,
                 v.message_thread_id, c.type AS chat_type,
                 b.kind AS bucket_kind, b.id AS bucket_id
          FROM invocations i
@@ -162,20 +163,18 @@ export class ContextBuilder {
     if (identity === undefined) {
       throw new Error(`Invocation ${invocationId} does not exist`);
     }
-    const hostKind: HostKind = identity.host_kind;
-    // A Telegram chat is addressed by its platform id; a room by its internal
-    // chat id. Neither is ever used as the other host's id.
-    const chatId = hostKind === 'telegram' ? (identity.telegram_chat_id ?? 0n) : identity.chat_id;
+    const hostKind = parseHostKind(identity.host_kind);
     const policy = resolveInvocationPolicy(config, this.#store.orm, {
       hostKind,
-      chatId,
+      chatId: identity.chat_id,
+      hostChatId: identity.host_chat_id,
       chatType: identity.chat_type,
     });
     return {
       invocationId,
       conversationId: identity.conversation_id,
-      chatId: policy.chatId,
-      internalChatId: identity.chat_id,
+      hostChatId: policy.hostChatId,
+      internalChatId: policy.chatId,
       hostKind,
       threadId: identity.message_thread_id,
       chatType: identity.chat_type,
@@ -214,7 +213,7 @@ export class ContextBuilder {
     const conversationMode =
       identity.chatType === 'private' ? 'Conversation mode: private chat.' : 'Conversation mode: group chat.';
     const directImages = supportsImages && options?.imageInput !== 'on_demand';
-    const hostImages = identity.hostKind === 'telegram' ? 'Telegram images and Stickers' : 'images posted in the room';
+    const hostImages = hostExecutionProfile(identity.hostKind).wording.imageSources;
     const imageHandling =
       vision === undefined
         ? directImages

@@ -9,7 +9,7 @@ import { McpManager } from '../../src/capabilities/mcp/index.ts';
 import { awaitServerAttempts } from '../../src/capabilities/mcp/availability.ts';
 import { type InvocationContext, previewContext } from '../../src/platform/invocation-context.ts';
 import { keychainPath } from '../../src/platform/keychain.ts';
-import { buildModelRegistry, configuredAgentModels, modelsForTelegramChats } from '../../src/platform/providers.ts';
+import { buildModelRegistry, configuredAgentModels, modelsForChats } from '../../src/platform/providers.ts';
 import { SecretStore } from '../../src/platform/secrets.ts';
 import { testConfigJsonc, writeTestConfig, type FixtureConfig } from '../helpers.ts';
 
@@ -94,7 +94,7 @@ async function harness(transform: (config: FixtureConfig) => void): Promise<Harn
 }
 
 function contextFor(chatId: bigint): InvocationContext {
-  return { ...previewContext('telegram'), chatId };
+  return { ...previewContext('telegram'), hostChatId: chatId, internalChatId: chatId };
 }
 
 test('a Chat sees only its bound servers, tools and policies; no binding means every server', async () => {
@@ -348,17 +348,19 @@ test('a per-chat MCP set is validated against the models its own Chats can run o
   try {
     const configured = configuredAgentModels(f.config, f.models).map((entry) => entry.model);
     expect(configured.map((model) => model.id).sort()).toEqual(['agent-model', 'vision-model']);
-    expect(modelsForTelegramChats(f.config, configured, [CHAT_BOUND]).map((model) => model.id)).toEqual([
+    expect(modelsForChats(f.config, configured, [CHAT_BOUND], 'telegram').map((model) => model.id)).toEqual([
       'vision-model',
     ]);
-    expect(modelsForTelegramChats(f.config, configured, [CHAT_ALL]).map((model) => model.id)).toEqual(['agent-model']);
+    expect(modelsForChats(f.config, configured, [CHAT_ALL], 'telegram').map((model) => model.id)).toEqual([
+      'agent-model',
+    ]);
     expect(
-      modelsForTelegramChats(f.config, configured, [CHAT_BOUND, CHAT_ALL])
+      modelsForChats(f.config, configured, [CHAT_BOUND, CHAT_ALL], 'telegram')
         .map((model) => model.id)
         .sort(),
     ).toEqual(['agent-model', 'vision-model']);
     // An unconfigured Chat id resolves to no model, not to every model.
-    expect(modelsForTelegramChats(f.config, configured, [999])).toEqual([]);
+    expect(modelsForChats(f.config, configured, [999], 'telegram')).toEqual([]);
   } finally {
     await f.close();
   }

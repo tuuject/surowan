@@ -1,8 +1,11 @@
 /**
  * Shared invocation-context value types. This is a leaf module: it must not
- * import any other src module, because context-builder, memory, and every tool
- * boundary depend on these types.
+ * import any other src module — the one exception is the `HostKind` type
+ * below, type-only and erased at build — because context-builder, memory, and
+ * every tool boundary depend on these types.
  */
+
+import type { HostKind } from './im-host/identity.ts';
 
 // ── JSON value types (leaf, shared by store and plugins) ───────────
 
@@ -101,10 +104,14 @@ export interface InvocationContext {
   readonly conversationId: bigint;
   /**
    * The host this invocation runs for. A Telegram-only capability must check
-   * it before reading `chatId` as a Telegram chat id.
+   * it before reading `hostChatId` as a Telegram chat id.
    */
-  readonly hostKind: 'telegram' | 'playground';
-  readonly chatId: bigint;
+  readonly hostKind: HostKind;
+  /**
+   * The host's own chat id (`chats.host_chat_id`): the Telegram chat id for
+   * Telegram, `null` for a host that addresses its chats internally.
+   */
+  readonly hostChatId: bigint | null;
   /** Internal `chats.id`; Memo Pad and blob ownership use this, never the platform id. */
   readonly internalChatId: bigint;
   readonly threadId: bigint;
@@ -129,8 +136,8 @@ export interface InvocationContext {
 export class InvocationContextState implements InvocationContext {
   readonly invocationId: bigint;
   readonly conversationId: bigint;
-  readonly hostKind: 'telegram' | 'playground';
-  readonly chatId: bigint;
+  readonly hostKind: HostKind;
+  readonly hostChatId: bigint | null;
   readonly internalChatId: bigint;
   readonly threadId: bigint;
   readonly memoReads: MemoReadState;
@@ -145,8 +152,8 @@ export class InvocationContextState implements InvocationContext {
   constructor(identity: {
     readonly invocationId: bigint;
     readonly conversationId: bigint;
-    readonly hostKind: 'telegram' | 'playground';
-    readonly chatId: bigint;
+    readonly hostKind: HostKind;
+    readonly hostChatId: bigint | null;
     readonly internalChatId: bigint;
     readonly threadId: bigint;
     readonly completion: CompletionContext | null;
@@ -154,7 +161,7 @@ export class InvocationContextState implements InvocationContext {
     this.invocationId = identity.invocationId;
     this.conversationId = identity.conversationId;
     this.hostKind = identity.hostKind;
-    this.chatId = identity.chatId;
+    this.hostChatId = identity.hostChatId;
     this.internalChatId = identity.internalChatId;
     this.threadId = identity.threadId;
     this.#completion = identity.completion;
@@ -235,12 +242,12 @@ export class InvocationContextState implements InvocationContext {
 }
 
 /** Neutral context for registry-time tool validation, outside any invocation. */
-export function previewContext(hostKind: InvocationContext['hostKind'] = 'telegram'): InvocationContext {
+export function previewContext(hostKind: HostKind): InvocationContext {
   return {
     invocationId: 0n,
     conversationId: 0n,
     hostKind,
-    chatId: 0n,
+    hostChatId: null,
     internalChatId: 0n,
     threadId: 0n,
     systemPrompt: '',

@@ -99,7 +99,7 @@ export interface ContextStats {
 
 export interface ConversationContextSummary {
   readonly conversationId: bigint;
-  readonly telegramChatId: bigint;
+  readonly hostChatId: bigint | null;
   readonly messageThreadId: bigint;
   readonly headSeq: bigint;
   readonly nextSeq: bigint;

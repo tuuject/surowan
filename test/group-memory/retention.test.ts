@@ -34,6 +34,7 @@ test('online retention never deletes chat messages, revisions or media', async (
         .values({
           revisionId: revision.id,
           kind: 'photo',
+          hostKind: 'telegram',
           fileId: `${unique}-file`,
           fileUniqueId: unique,
           telegramJson: '{}',
@@ -46,7 +47,7 @@ test('online retention never deletes chat messages, revisions or media', async (
     purgeExpiredData(f.store.orm, f.configStore.current().config, new Date('2026-10-01T00:00:00.000Z'));
 
     const remaining = f.store.orm.select().from(messages).all();
-    expect(remaining.map((row) => row.telegramMessageId)).toEqual([4005n, 5000n]);
+    expect(remaining.map((row) => row.messageNo)).toEqual([4005n, 5000n]);
     expect(remaining.every((row) => row.currentRevisionId !== null)).toBe(true);
     const revisions = f.store.orm.select().from(messageRevisions).all();
     expect(revisions.map((row) => row.text)).toEqual(expect.arrayContaining(['old but kept', 'also kept']));

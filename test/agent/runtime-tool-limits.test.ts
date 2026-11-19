@@ -126,9 +126,9 @@ test('counts tool descriptions in registry limits', async () => {
     execute: async () => ({ content: [{ type: 'text', text: 'ok' }], details: {} }),
   };
 
-  expect(() => runtime.validateAdditionalTools(previewContext(), [oversizedDescriptionTool], faux.getModel())).toThrow(
-    'Tool registry exceeds 10%',
-  );
+  expect(() =>
+    runtime.validateAdditionalTools(previewContext('telegram'), [oversizedDescriptionTool], faux.getModel()),
+  ).toThrow('Tool registry exceeds 10%');
   store.close();
 });
 
@@ -164,7 +164,7 @@ test('the registry preflight counts the group memory tools although the preview 
     parameters: Type.Object({}, { additionalProperties: false }),
     execute: async () => ({ content: [{ type: 'text', text: 'ok' }], details: {} }),
   };
-  expect(() => runtime.validateAdditionalTools(previewContext(), [colliding], faux.getModel())).toThrow(
+  expect(() => runtime.validateAdditionalTools(previewContext('telegram'), [colliding], faux.getModel())).toThrow(
     'Duplicate tool name: read_group_messages',
   );
   store.close();

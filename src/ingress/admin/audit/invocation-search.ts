@@ -6,7 +6,9 @@ import {
   parseMessageTimeInstant,
   parseMessageTimeWindow,
 } from '../../../platform/message-time.ts';
-import { type Orm, resolveChatConfig } from '../../../store/store.ts';
+import { telegramHostSql } from '../../../store/host-scope.ts';
+import { configuredTelegramChat } from '../chat-ref.ts';
+import type { Orm } from '../../../store/store.ts';
 import {
   AdminQueryError,
   escapeLike,
@@ -59,14 +61,14 @@ const SEND_INVOCATION = sql`tc.invocation_id`;
 // The published text lives in the outgoing message; a send whose outgoing row
 // is gone falls back to the send arguments that the host accepted.
 const SEND_TEXT = sql`COALESCE(r.text, r.caption, json_extract(tc.arguments_json, '$.text'))`;
-const SEND_DATE = sql`COALESCE(m.telegram_date, ts.finished_at)`;
+const SEND_DATE = sql`COALESCE(m.sent_at, ts.finished_at)`;
 // A room delivery links its outgoing message directly; a Telegram send only
 // knows the message id Telegram assigned.
 const SEND_SOURCE = sql`FROM host_sends ts
        JOIN tool_calls tc ON tc.id = ts.tool_call_id
        LEFT JOIN messages m ON m.sent_by_bot = 1 AND (m.id = ts.message_id
          OR (ts.message_id IS NULL AND m.conversation_id = ts.conversation_id
-           AND m.telegram_message_id = ts.telegram_message_id))
+           AND m.message_no = ts.message_no))
        LEFT JOIN message_revisions r ON r.id = m.current_revision_id`;
 
 /**
@@ -127,7 +129,7 @@ function resolveFilterTimezone(orm: Orm, query: ListQuery, config: RawConfig | u
   }
   const chat = optionalFilter(query.chat);
   if (chat !== undefined) {
-    const chatTimezone = resolveChatConfig(config, orm, parseId(chat, 'chat'))?.timezone;
+    const chatTimezone = configuredTelegramChat(config, orm, parseId(chat, 'chat'))?.timezone;
     if (chatTimezone !== undefined && chatTimezone.length > 0) {
       return chatTimezone;
     }
@@ -198,8 +200,8 @@ function matchedMessagesSelect(filter: InvocationMessageFilter, scope: Invocatio
        FROM invocation_messages im
        WHERE ${sql.join(incomingMatchedConditions(filter, scope), sql` AND `)}`;
   const send = sql`SELECT tc.invocation_id AS invocation_id, 'bot' AS source,
-              COALESCE(ts.telegram_message_id, m.telegram_message_id) AS telegram_message_id,
-              m.local_sequence_no AS room_seq,
+              COALESCE(ts.message_no, CASE WHEN ${telegramHostSql('m.host_kind')} THEN m.message_no END) AS telegram_message_id,
+              CASE WHEN m.host_kind = 'playground' THEN m.message_no END AS room_seq,
               ts.id AS telegram_send_id,
               ${SEND_DATE} AS at,
               ${SEND_TEXT} AS text

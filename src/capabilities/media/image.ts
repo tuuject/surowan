@@ -75,7 +75,7 @@ export async function prepareMediaImage(
   media: MediaRow,
   inputPath: string,
   directory: string,
-  downloader: MediaDownloader,
+  downloader: MediaDownloader | undefined,
   signal: AbortSignal,
   local?: { readonly path: string },
 ): Promise<NormalizedImage> {
@@ -83,6 +83,9 @@ export async function prepareMediaImage(
     // A local asset already is a still image; there is nothing to download and
     // no Telegram fallback if the file is missing.
     return normalizeImage(local.path, directory, signal);
+  }
+  if (downloader === undefined) {
+    throw new Error('Media row has no downloader for its host');
   }
   if (media.kind !== 'sticker') {
     await downloader.download(media.fileId, inputPath, signal);

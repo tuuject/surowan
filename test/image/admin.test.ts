@@ -71,7 +71,14 @@ async function fixture(): Promise<{
   const now = new Date().toISOString();
   store.orm
     .insert(chats)
-    .values({ id: 100n, telegramChatId: 100n, canonicalChatId: 100n, type: 'private', updatedAt: now })
+    .values({
+      hostKind: 'telegram',
+      id: 100n,
+      hostChatId: 100n,
+      canonicalChatId: 100n,
+      type: 'private',
+      updatedAt: now,
+    })
     .run();
   store.orm.insert(conversations).values({ id: 42n, chatId: 100n, createdAt: now, updatedAt: now }).run();
   const service = createImageService(store, loaded.config, {

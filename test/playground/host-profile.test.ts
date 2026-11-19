@@ -5,12 +5,18 @@ import { join } from 'node:path';
 import { loadConfig } from '../../src/adapters/local-monolith/config/index.ts';
 import { SqliteStore } from '../../src/adapters/local-monolith/database.ts';
 import type { ExecutableCapability } from '../../src/capabilities/execute-tool.ts';
-import { PLAYGROUND_PROFILE, TELEGRAM_PROFILE, hostExecutionProfile } from '../../src/platform/host-profile.ts';
+import {
+  PLAYGROUND_PROFILE,
+  TELEGRAM_PROFILE,
+  hostExecutionProfile,
+  hostsWhere,
+  policyScopeChatId,
+} from '../../src/platform/host-profile.ts';
 import type { ContextInjector } from '../../src/context/injector.ts';
 import type { HostKind } from '../../src/platform/im-host/identity.ts';
 import type { InvocationContext } from '../../src/platform/invocation-context.ts';
 import { BUILTIN_PLUGINS } from '../../src/plugins/builtin.ts';
-import { loadPlugins, pluginHosts, type AgentPlugin } from '../../src/plugins/plugin.ts';
+import { loadPlugins, pluginHosts } from '../../src/plugins/plugin.ts';
 import { LongTaskService } from '../../src/store/long-tasks/index.ts';
 import { PlaygroundStore } from '../../src/store/playground/index.ts';
 import { dailyUsage } from '../../src/store/schema/index.ts';
@@ -42,7 +48,8 @@ function context(overrides: Partial<InvocationContext>): InvocationContext {
   return {
     invocationId: 0n,
     conversationId: 0n,
-    chatId: 0n,
+    hostChatId: 0n,
+    internalChatId: 0n,
     callerUserId: 0n,
     messageId: null,
     hostKind: 'telegram',
@@ -72,9 +79,49 @@ describe('host execution profile', () => {
     expect(TELEGRAM_PROFILE.budgetBypass).toBe(true);
   });
 
-  test('an unlisted plugin is Telegram only', () => {
-    const plugin: AgentPlugin = { id: 'unlisted' };
-    expect(pluginHosts(plugin)).toEqual(['telegram']);
+  test('each new trait equals the branch it replaced', () => {
+    // A room never waits on the global sleep, never resolves a configured chat
+    // entry, never downloads media and never holds a process connection.
+    expect(PLAYGROUND_PROFILE.chatSource).toBe('room');
+    expect(PLAYGROUND_PROFILE.intake).toBe('release');
+    expect(PLAYGROUND_PROFILE.deliveryRecord).toBe('sequence');
+    expect(PLAYGROUND_PROFILE.mediaSource).toBe('local_asset');
+    expect(PLAYGROUND_PROFILE.connection).toBe('none');
+    expect(PLAYGROUND_PROFILE.snapshotFormat).toBe('plasticwan.invocation-snapshot.playground.v1');
+
+    expect(TELEGRAM_PROFILE.chatSource).toBe('config');
+    expect(TELEGRAM_PROFILE.intake).toBe('bucket');
+    expect(TELEGRAM_PROFILE.deliveryRecord).toBe('wire');
+    expect(TELEGRAM_PROFILE.mediaSource).toBe('download');
+    expect(TELEGRAM_PROFILE.connection).toBe('registry');
+    expect(TELEGRAM_PROFILE.snapshotFormat).toBe('plasticwan.invocation-snapshot.v1');
+  });
+
+  test('hostsWhere selects hosts by trait in a stable order', () => {
+    expect(hostsWhere((profile) => profile.chatSource === 'config')).toEqual(['telegram']);
+    expect(hostsWhere((profile) => profile.connection === 'none')).toEqual(['playground']);
+    expect(hostsWhere((profile) => profile.mediaSource === 'download')).toEqual(['telegram']);
+    expect(hostsWhere((profile) => profile.sleep)).toEqual(['telegram']);
+  });
+
+  test('policyScopeChatId picks the id the host is addressed by', () => {
+    expect(policyScopeChatId('telegram', { hostChatId: 7n, chatId: 3n })).toBe(7n);
+    expect(policyScopeChatId('playground', { hostChatId: null, chatId: 3n })).toBe(3n);
+    // A config-sourced chat that lost its native id is a storage bug, not a
+    // silent `0n` scope shared by every such row.
+    expect(() => policyScopeChatId('telegram', { hostChatId: null, chatId: 3n })).toThrow(/host chat id/i);
+  });
+
+  test('model-visible wording stays pinned per host', () => {
+    expect(TELEGRAM_PROFILE.wording.historyTag).toBe('untrusted_telegram_history');
+    expect(PLAYGROUND_PROFILE.wording.historyTag).toBe('untrusted_room_history');
+    expect(TELEGRAM_PROFILE.wording.readImageLabel).toBe('Read Telegram image');
+    expect(PLAYGROUND_PROFILE.wording.readImageLabel).toBe('Read room image');
+    expect(TELEGRAM_PROFILE.wording.memberProfileLabel).toBe('Read Telegram member profile');
+    expect(PLAYGROUND_PROFILE.wording.memberProfileLabel).toBe('Read room member profile');
+  });
+
+  test('plugin hosts are declared explicitly and validated', () => {
     expect(pluginHosts({ id: 'listed', hosts: ['playground'] })).toEqual(['playground']);
     expect(() => pluginHosts({ id: 'bad', hosts: ['discord' as never] })).toThrow(/unknown host/);
   });
@@ -107,7 +154,8 @@ describe('host execution profile', () => {
       hostKind: 'playground',
       invocationId: 1n,
       conversationId: room.conversationId,
-      chatId: room.chatId,
+      hostChatId: room.chatId,
+      internalChatId: room.chatId,
     });
 
     expect(() => service.invocationScope('alarm', live, ['telegram'])).toThrow(/not enabled on the playground host/);
@@ -144,11 +192,11 @@ describe('host execution profile', () => {
       return hosts === undefined ? base : { ...base, hosts };
     };
     const loaded = loadPlugins([
-      { id: 'telegram-only', contextInjectors: [injector('telegram-only')] },
+      { id: 'telegram-only', hosts: ['telegram'], contextInjectors: [injector('telegram-only')] },
       { id: 'both', hosts: ['telegram', 'playground'], contextInjectors: [injector('both')] },
       { id: 'narrowed', hosts: ['telegram', 'playground'], contextInjectors: [injector('narrowed', ['telegram'])] },
       // An injector cannot widen past its plugin.
-      { id: 'widened', contextInjectors: [injector('widened', ['telegram', 'playground'])] },
+      { id: 'widened', hosts: ['telegram'], contextInjectors: [injector('widened', ['telegram', 'playground'])] },
     ]);
 
     expect(Object.fromEntries(loaded.contextInjectors.map((entry) => [entry.name, entry.hosts]))).toEqual({

@@ -1,8 +1,9 @@
-import { isOriginalAsk } from '../platform/bot-command.ts';
 import { eq, sql } from 'drizzle-orm';
-import type { Message } from 'grammy/types';
+import { hostIntakeSettings } from '../platform/config/index.ts';
 import type { FileChat } from '../platform/config/index.ts';
+import type { HostKind } from '../platform/im-host/identity.ts';
 import { matchTriggerKind, type TriggerKind } from '../platform/participation.ts';
+import { rawFragmentReader } from '../platform/raw-fragments.ts';
 import { proactiveReplyFingerprint, resolveProactiveReply, sampleProactiveReply } from '../platform/proactive-reply.ts';
 import type { RuntimeConfigurationStore } from '../platform/runtime-config.ts';
 import { proactiveReplyState } from '../store/schema/index.ts';
@@ -45,7 +46,10 @@ export class ProactiveReplyGate {
     readonly bucketId: bigint;
     /** Internal `chats.id`, the counter key. */
     readonly chatId: bigint;
-    readonly telegramChatId: bigint;
+    /** Which IM host the Chat belongs to; the intake flags read under it. */
+    readonly hostKind: HostKind;
+    /** Host-native Chat id, logged as the wire identity. */
+    readonly hostChatId: bigint;
     readonly chatType: string;
     readonly conversationId: bigint;
     readonly chat: Pick<FileChat, 'proactive_reply'>;
@@ -55,15 +59,18 @@ export class ProactiveReplyGate {
     if (options.chatType === 'private') {
       return { allowed: true, reason: 'disabled', triggerKind: null };
     }
-    const settings = resolveProactiveReply(this.#configStore.current().config, options.chat);
+    const settings = resolveProactiveReply(
+      hostIntakeSettings(this.#configStore.current().config, options.hostKind),
+      options.chat,
+    );
     if (!settings.enabled) {
       return { allowed: true, reason: 'disabled', triggerKind: null };
     }
-    const triggerKind = this.#directTriggerKind(options.bucketId, options.keywords);
+    const triggerKind = this.#directTriggerKind(options.bucketId, options.keywords, options.hostKind);
     if (triggerKind !== null) {
       this.#log({
         event: 'agent_proactive_reply_bypassed',
-        chat_id: options.telegramChatId.toString(),
+        chat_id: options.hostChatId.toString(),
         conversation_id: options.conversationId.toString(),
         bucket_id: options.bucketId.toString(),
         trigger_kind: triggerKind,
@@ -104,7 +111,7 @@ export class ProactiveReplyGate {
       .run();
     this.#log({
       event: 'agent_proactive_reply_sampled',
-      chat_id: options.telegramChatId.toString(),
+      chat_id: options.hostChatId.toString(),
       conversation_id: options.conversationId.toString(),
       bucket_id: options.bucketId.toString(),
       attempt: sample.attempt,
@@ -123,8 +130,10 @@ export class ProactiveReplyGate {
    * A direct cue anywhere in the frozen batch makes the whole batch direct:
    * one attempt is one aggregated batch, not one message.
    */
-  #directTriggerKind(bucketId: bigint, keywords: readonly string[]): TriggerKind | null {
-    const stickerTrigger = this.#configStore.current().config.telegram.sticker_trigger_enabled === true ? 1 : 0;
+  #directTriggerKind(bucketId: bigint, keywords: readonly string[], hostKind: HostKind): TriggerKind | null {
+    const stickerTrigger = hostIntakeSettings(this.#configStore.current().config, hostKind).sticker_trigger_enabled
+      ? 1
+      : 0;
     const rows = this.#orm.all<{
       raw_fragment_json: string | null;
       original_fragment_json: string;
@@ -136,27 +145,18 @@ export class ProactiveReplyGate {
       // allowed to trigger.
       sqlDirectMessages(bucketId, stickerTrigger),
     );
+    const reader = rawFragmentReader(hostKind);
     for (const row of rows) {
-      try {
-        if (isOriginalAsk(JSON.parse(row.original_fragment_json) as Message, this.#bot.username)) {
-          return 'ask';
-        }
-      } catch {
-        // Keep inspecting current cues when a stored original fragment is malformed.
+      // An original-revision ask stays a direct cue even after the message was
+      // edited; a malformed fragment simply carries no cue. The ask-only read
+      // never walks mention entities or rich text.
+      if (reader.asks(row.original_fragment_json, this.#bot)) {
+        return 'ask';
       }
       if (row.current_eligible !== 1n) {
         continue;
       }
-      if (row.raw_fragment_json === null) {
-        continue;
-      }
-      let message: Message;
-      try {
-        message = JSON.parse(row.raw_fragment_json) as Message;
-      } catch {
-        continue;
-      }
-      const kind = matchTriggerKind(message, this.#bot, keywords, false);
+      const kind = matchTriggerKind(reader.cues(row.raw_fragment_json, this.#bot), keywords, false);
       if (kind !== null) {
         return kind;
       }

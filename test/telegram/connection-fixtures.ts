@@ -392,7 +392,7 @@ export function seedWork(store: SqliteStore): SeededWork {
       {
         id: 900n,
         hostKind: 'telegram',
-        telegramChatId: 123456789n,
+        hostChatId: 123456789n,
         canonicalChatId: 123456789n,
         type: 'private',
         updatedAt: stamp,

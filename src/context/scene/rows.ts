@@ -4,6 +4,8 @@
  */
 
 import { sql } from 'drizzle-orm';
+import type { HostKind } from '../../platform/im-host/identity.ts';
+import { parseHostKind } from '../../platform/im-host/identity.ts';
 import type { BusinessStore } from '../../store/store.ts';
 
 import {
@@ -31,7 +33,11 @@ export interface SceneSource {
   readonly conversationId: bigint;
   readonly createdAt: string;
   readonly threadId: bigint;
-  readonly chatId: bigint;
+  readonly hostKind: HostKind;
+  /** The host's own chat id; `null` for a room. */
+  readonly hostChatId: bigint | null;
+  /** Internal `chats.id`. */
+  readonly internalChatId: bigint;
 }
 
 /** One rendered message plus the media rows it references, for statistics. */
@@ -43,16 +49,16 @@ export interface SceneMessage {
 interface OpeningRow {
   readonly snapshot_json: string;
   readonly revision_id: bigint | null;
-  readonly telegram_message_id: bigint;
-  readonly telegram_date: string;
+  readonly message_no: bigint;
+  readonly sent_at: string;
 }
 
 export interface HistoryRow {
   readonly message_id: bigint;
   readonly snapshot_json: string | null;
   readonly frozen_revision_id: bigint | null;
-  readonly telegram_message_id: bigint;
-  readonly telegram_date: string;
+  readonly message_no: bigint;
+  readonly sent_at: string;
   readonly sent_by_bot: bigint;
   readonly revision_id: bigint | null;
   readonly kind: string | null;
@@ -63,7 +69,7 @@ export interface HistoryRow {
   readonly reply_snapshot_json: string | null;
   readonly forward_origin_json: string | null;
   readonly media_group_id: string | null;
-  readonly sender_telegram_id: bigint | null;
+  readonly sender_host_id: bigint | null;
   readonly sender_display_name: string | null;
   readonly sender_username: string | null;
 }
@@ -93,10 +99,12 @@ export function loadSource(store: BusinessStore, invocationId: bigint): SceneSou
       conversation_id: bigint;
       created_at: string;
       message_thread_id: bigint;
-      telegram_chat_id: bigint;
+      host_kind: string;
+      host_chat_id: bigint | null;
+      internal_chat_id: bigint;
     }>(
       sql`SELECT i.bucket_id, i.conversation_id, i.created_at, b.kind AS bucket_kind,
-                 v.message_thread_id, c.telegram_chat_id
+                 v.message_thread_id, c.host_kind, c.host_chat_id, c.id AS internal_chat_id
           FROM invocations i
           JOIN buckets b ON b.id = i.bucket_id
           JOIN conversations v ON v.id = i.conversation_id
@@ -113,7 +121,9 @@ export function loadSource(store: BusinessStore, invocationId: bigint): SceneSou
     conversationId: source.conversation_id,
     createdAt: source.created_at,
     threadId: source.message_thread_id,
-    chatId: source.telegram_chat_id,
+    hostKind: parseHostKind(source.host_kind),
+    hostChatId: source.host_chat_id,
+    internalChatId: source.internal_chat_id,
   };
 }
 
@@ -125,7 +135,7 @@ export function loadSource(store: BusinessStore, invocationId: bigint): SceneSou
  */
 export function loadOpeningBatch(store: BusinessStore, invocationId: bigint, source: SceneSource): SceneMessage[] {
   const rows = store.orm.all<OpeningRow>(
-    sql`SELECT im.snapshot_json, r.id AS revision_id, m.telegram_message_id, m.telegram_date
+    sql`SELECT im.snapshot_json, r.id AS revision_id, m.message_no, m.sent_at
         FROM invocation_messages im
         JOIN messages m ON m.id = im.message_id
         LEFT JOIN message_revisions r ON r.id = im.revision_id AND r.message_id = m.id
@@ -150,8 +160,8 @@ export function loadOpeningBatch(store: BusinessStore, invocationId: bigint, sou
     }
     if (
       !storedSnapshotValidator.Check(value) ||
-      value.message_id !== row.telegram_message_id.toString() ||
-      value.telegram_date !== row.telegram_date ||
+      value.message_id !== row.message_no.toString() ||
+      value.telegram_date !== row.sent_at ||
       (value.message_thread_id !== undefined && value.message_thread_id !== source.threadId.toString())
     ) {
       throw new Error(`Scene context: invocation ${invocationId} contains an unexpected message snapshot`);
@@ -208,11 +218,11 @@ export function loadBotSlice(
 ): BotSlice {
   const target = store.orm
     .all<{ message_id: bigint; cutoff_at: string }>(
-      sql`SELECT ts.telegram_message_id AS message_id, ts.created_at AS cutoff_at
+      sql`SELECT ts.message_no AS message_id, ts.created_at AS cutoff_at
         FROM host_sends ts JOIN tool_calls tc ON tc.id = ts.tool_call_id
         WHERE ts.id = ${sendId} AND tc.invocation_id = ${invocationId}
           AND ts.conversation_id = ${source.conversationId}
-          AND ts.state = 'success' AND ts.telegram_message_id IS NOT NULL`,
+          AND ts.state = 'success' AND ts.message_no IS NOT NULL`,
     )
     .at(0);
   if (target === undefined) {
@@ -224,13 +234,13 @@ export function loadBotSlice(
   const previous = store.orm
     .all<{ message_id: bigint }>(
       sql`SELECT MAX(message_id) AS message_id FROM (
-          SELECT telegram_message_id AS message_id FROM messages
+          SELECT message_no AS message_id FROM messages
           WHERE conversation_id = ${source.conversationId} AND sent_by_bot = 1
-            AND telegram_message_id < ${target.message_id}
+            AND message_no < ${target.message_id}
           UNION ALL
-          SELECT telegram_message_id AS message_id FROM host_sends
+          SELECT message_no AS message_id FROM host_sends
           WHERE conversation_id = ${source.conversationId} AND state = 'success'
-            AND telegram_message_id < ${target.message_id}
+            AND message_no < ${target.message_id}
         )`,
     )
     .at(0);
@@ -266,22 +276,22 @@ export function loadSliceBatch(
           )
         )
         SELECT m.id AS message_id, im.snapshot_json, r.id AS frozen_revision_id,
-               m.telegram_message_id, m.telegram_date, m.sent_by_bot,
+               m.message_no, m.sent_at, m.sent_by_bot,
                r.id AS revision_id, r.kind, r.text, r.caption, r.raw_fragment_json, r.reply_to_message_id,
                r.reply_snapshot_json, r.forward_origin_json, r.media_group_id,
-               s.telegram_id AS sender_telegram_id, s.display_name AS sender_display_name, s.username AS sender_username
+               s.host_sender_id AS sender_host_id, s.display_name AS sender_display_name, s.username AS sender_username
         FROM eligible im JOIN messages m ON m.id = im.message_id
         LEFT JOIN message_revisions r ON r.id = im.revision_id AND r.message_id = m.id
         LEFT JOIN senders s ON s.id = r.sender_id
         WHERE m.conversation_id = ${source.conversationId} AND m.visible = 1 AND m.sent_by_bot = 0
           AND m.received_at <= ${slice.cutoffAt}
-          AND m.telegram_message_id > ${slice.previousMessageId ?? -1n}
-          AND m.telegram_message_id < ${slice.messageId}
-          AND m.telegram_message_id > COALESCE(
-            (SELECT telegram_message_id FROM conversation_context_cutoffs WHERE conversation_id = ${source.conversationId}), -1)
+          AND m.message_no > ${slice.previousMessageId ?? -1n}
+          AND m.message_no < ${slice.messageId}
+          AND m.message_no > COALESCE(
+            (SELECT message_no FROM conversation_context_cutoffs WHERE conversation_id = ${source.conversationId}), -1)
           AND NOT EXISTS (SELECT 1 FROM eligible newer WHERE newer.message_id = im.message_id
             AND newer.sequence_no > im.sequence_no)
-        ORDER BY m.telegram_date DESC, m.telegram_message_id DESC`,
+        ORDER BY m.sent_at DESC, m.message_no DESC`,
   );
   if (rows.length === 0) {
     throw new SceneSliceError('replay_slice_empty', 'No retained public input exists between these bot messages');

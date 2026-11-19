@@ -2,6 +2,8 @@ import { chmod, mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { ImageContent } from '@earendil-works/pi-ai';
 import { eq } from 'drizzle-orm';
+import { hostExecutionProfile } from '../../platform/host-profile.ts';
+import { type HostKind, parseHostKind, unreachableHostKind } from '../../platform/im-host/identity.ts';
 import type { DirectImage } from '../../platform/invocation-context.ts';
 import type { RuntimeConfigurationStore } from '../../platform/runtime-config.ts';
 import { media as mediaTable } from '../../store/schema/index.ts';
@@ -10,13 +12,26 @@ import type { LocalAssetResolver } from './index.ts';
 import type { MediaDownloader } from './download.ts';
 import { MAX_DOWNLOAD_BYTES, type NormalizedImage, normalizeImage, prepareMediaImage } from './image.ts';
 
-/** A stored row as `prepareMediaImage` wants it, plus the host columns the row may carry. */
-export type RowImageSource = Parameters<typeof prepareMediaImage>[0] & {
-  readonly hostKind?: string;
-  readonly localAssetId?: string | null;
-  /** Absolute path of a Memo blob; checked before host-specific sources. */
-  readonly localFile?: string;
-};
+/**
+ * A stored row as `prepareMediaImage` wants it, plus the host columns the row
+ * may carry. Every source that is not a Memo blob must name its host: the
+ * stored kind decides which reader runs, and a kind this build does not know
+ * fails loudly rather than landing in the Telegram downloader by default.
+ */
+export type RowImageSource = Parameters<typeof prepareMediaImage>[0] &
+  (
+    | {
+        /** Absolute path of a Memo blob; checked before host-specific sources. */
+        readonly localFile: string;
+        readonly hostKind?: string;
+        readonly localAssetId?: string | null;
+      }
+    | {
+        readonly localFile?: undefined;
+        readonly hostKind: string;
+        readonly localAssetId?: string | null;
+      }
+  );
 
 /**
  * What the image-input paths need from the service that owns them. Everything
@@ -25,7 +40,8 @@ export type RowImageSource = Parameters<typeof prepareMediaImage>[0] & {
 export interface MediaImageInputDeps {
   readonly store: BusinessStore;
   readonly configStore: RuntimeConfigurationStore;
-  readonly mediaClient: MediaDownloader;
+  /** One downloader per host whose `mediaSource` is `download`; absent for every other host. */
+  readonly downloaders: Readonly<Partial<Record<HostKind, MediaDownloader>>>;
   readonly localAssets: LocalAssetResolver | undefined;
 }
 
@@ -152,19 +168,33 @@ export async function prepareRowImage(
   if (media.localFile !== undefined) {
     return normalizeImage(media.localFile, directory, signal);
   }
-  if (media.hostKind === 'playground') {
-    if (media.kind === 'sticker') {
-      throw new Error('A room asset cannot be a sticker');
+  const hostKind = parseHostKind(media.hostKind);
+  const mediaSource = hostExecutionProfile(hostKind).mediaSource;
+  switch (mediaSource) {
+    case 'local_asset': {
+      if (media.kind === 'sticker') {
+        throw new Error('A room asset cannot be a sticker');
+      }
+      const assetId = media.localAssetId ?? null;
+      const asset = assetId === null ? null : (deps.localAssets?.resolve(assetId) ?? null);
+      if (asset === null) {
+        throw new Error('Room media is unavailable');
+      }
+      return prepareMediaImage(media, inputPath, directory, deps.downloaders[hostKind], signal, {
+        path: asset.path,
+      });
     }
-    const assetId = media.localAssetId ?? null;
-    const asset = assetId === null ? null : (deps.localAssets?.resolve(assetId) ?? null);
-    if (asset === null) {
-      throw new Error('Room media is unavailable');
+    case 'download': {
+      if (media.localAssetId !== undefined && media.localAssetId !== null) {
+        throw new Error('Telegram media cannot point at a local asset');
+      }
+      const downloader = deps.downloaders[hostKind];
+      if (downloader === undefined) {
+        throw new Error(`No media downloader for host ${hostKind}`);
+      }
+      return prepareMediaImage(media, inputPath, directory, downloader, signal);
     }
-    return prepareMediaImage(media, inputPath, directory, deps.mediaClient, signal, { path: asset.path });
+    default:
+      return unreachableHostKind(mediaSource);
   }
-  if (media.localAssetId !== undefined && media.localAssetId !== null) {
-    throw new Error('Telegram media cannot point at a local asset');
-  }
-  return prepareMediaImage(media, inputPath, directory, deps.mediaClient, signal);
 }

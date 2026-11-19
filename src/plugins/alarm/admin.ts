@@ -10,6 +10,7 @@ import {
   snapshotPage,
   whereSql,
 } from '../../ingress/admin/audit/shared.ts';
+import { telegramHostSql } from '../../store/host-scope.ts';
 import type { Orm } from '../../store/store.ts';
 import type { LongTaskService } from '../../store/long-tasks/index.ts';
 import { longTasks } from '../../store/schema/index.ts';
@@ -81,7 +82,7 @@ const ALARM_SELECT = `SELECT lt.id, lt.conversation_id,
   json_extract(lt.payload_json, '$.target_user_id') AS target_user_id,
   json_extract(lt.payload_json, '$.target_display_name') AS target_display_name,
   json_extract(lt.payload_json, '$.summary') AS summary,
-  ch.telegram_chat_id, ch.type AS chat_type, ch.title AS chat_title, c.message_thread_id
+  ch.host_kind, ch.host_chat_id AS telegram_chat_id, ch.type AS chat_type, ch.title AS chat_title, c.message_thread_id
 FROM long_tasks lt
 LEFT JOIN task_receipts tr ON tr.task_id = lt.id
 JOIN conversations c ON c.id = lt.conversation_id
@@ -109,7 +110,7 @@ export function listAlarms(orm: Orm, query: ListQuery): Page<AlarmAdminItem> {
     conditions.push(sql`state = ${state}`);
   }
   if (query.chat) {
-    conditions.push(sql`telegram_chat_id = ${parseId(query.chat, 'chat')}`);
+    conditions.push(sql`${telegramHostSql('host_kind')} AND telegram_chat_id = ${parseId(query.chat, 'chat')}`);
   }
   if (query.target) {
     conditions.push(sql`target_user_id = ${parsePositiveId(query.target, 'target').toString()}`);

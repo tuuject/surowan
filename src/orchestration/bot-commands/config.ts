@@ -1,12 +1,13 @@
 import { getSupportedThinkingLevels, type ModelThinkingLevel } from '@earendil-works/pi-ai';
-import type { AgentSettings, RawConfig } from '../../platform/config/index.ts';
+import type { AgentSettings, ChatConfigEntry, ChatConfigRef, RawConfig } from '../../platform/config/index.ts';
+import { resolveChatConfig } from '../../platform/config/index.ts';
 import { completeAgentSettings, resolveAgentSettings } from '../../platform/config/resolve.ts';
 import type { BotCommandConfigWriter } from '../../platform/config/write.ts';
 import { modelDisplayLabel } from '../../platform/models/label.ts';
 import type { AgentModelOption, AgentModelSwitcher } from '../../platform/models/switch.ts';
 import type { RuntimeConfigurationStore } from '../../platform/runtime-config.ts';
 import { isThinkingLevel } from '../../platform/thinking-levels.ts';
-import { type BusinessStore, resolveChatConfig } from '../../store/store.ts';
+import type { BusinessStore } from '../../store/store.ts';
 import { abortInvocationsLeavingModel } from '../model-switch.ts';
 import type { BucketScheduler } from '../scheduler/index.ts';
 import type { CommandSender } from './index.ts';
@@ -35,17 +36,17 @@ function switchPaths(configuredChatId: number): ReadonlySet<string> {
 // ingestion passes it through for admins precisely so it can extend the
 // allowlist itself. The entry is appended to `telegram.chats` as `{ id }` and
 // hot-applied, so the chat joins the normal ingestion path without a restart.
-export async function allowlistChat(deps: BotCommandConfigDeps, telegramChatId: bigint): Promise<string> {
-  if (resolveChatConfig(deps.configStore.current().config, deps.store.orm, telegramChatId) !== undefined) {
+export async function allowlistChat(deps: BotCommandConfigDeps, ref: ChatConfigRef): Promise<string> {
+  if (resolveChatConfig(deps.configStore.current().config, deps.store.orm, ref) !== undefined) {
     return '本群已在白名单中。';
   }
   const reloader = deps.configReloader;
   if (reloader === undefined) {
     return '运行时配置应用不可用。';
   }
-  const chatId = Number(telegramChatId);
+  const chatId = ref.hostChatId === null ? Number.NaN : Number(ref.hostChatId);
   if (!Number.isSafeInteger(chatId) || chatId === 0) {
-    return `无效的 Chat ID: ${telegramChatId.toString()}`;
+    return `无效的 Chat ID: ${ref.hostChatId?.toString() ?? 'null'}`;
   }
   const result = await reloader.addChat(chatId);
   if (!result.ok) {
@@ -62,7 +63,7 @@ export async function allowlistChat(deps: BotCommandConfigDeps, telegramChatId: 
 
 export async function setSelfIgnored(
   deps: BotCommandConfigDeps,
-  telegramChatId: bigint,
+  ref: ChatConfigRef,
   sender: CommandSender | null,
   ignored: boolean,
 ): Promise<string> {
@@ -73,7 +74,7 @@ export async function setSelfIgnored(
   if (reloader === undefined) {
     return '运行时配置应用不可用。';
   }
-  const chat = resolveChatConfig(deps.configStore.current().config, deps.store.orm, telegramChatId);
+  const chat = resolveChatConfig(deps.configStore.current().config, deps.store.orm, ref);
   if (chat === undefined) {
     return '本 Chat 未在配置中找到。';
   }
@@ -108,7 +109,7 @@ export async function setSelfIgnored(
 export async function switchChatModel(
   deps: BotCommandConfigDeps,
   argument: string | undefined,
-  telegramChatId: bigint,
+  ref: ChatConfigRef,
 ): Promise<string> {
   const switcher = deps.modelSwitcher;
   const reloader = deps.configReloader;
@@ -117,7 +118,7 @@ export async function switchChatModel(
   }
   const before = deps.configStore.current();
   const config = before.config;
-  const chatConfig = resolveChatConfig(config, deps.store.orm, telegramChatId);
+  const chatConfig = resolveChatConfig(config, deps.store.orm, ref);
   if (chatConfig === undefined) {
     return '本 Chat 未在配置中找到。';
   }
@@ -162,7 +163,7 @@ export async function switchChatModel(
     return stopped === null ? failure : `${failure}\n${stopped}`;
   }
   const current = deps.configStore.current().config;
-  const settings = resolveAgentSettings(current, resolveChatConfig(current, deps.store.orm, telegramChatId));
+  const settings = resolveAgentSettings(current, resolveChatConfig(current, deps.store.orm, ref));
   const active = completeAgentSettings(settings);
   const target = active === undefined ? '未配置' : modelDisplayLabel(current, active.provider, active.model);
   const paths = switchPaths(configuredChatId);
@@ -188,14 +189,14 @@ export async function switchChatModel(
 export async function switchChatEffort(
   deps: BotCommandConfigDeps,
   argument: string | undefined,
-  telegramChatId: bigint,
+  ref: ChatConfigRef,
 ): Promise<string> {
   const reloader = deps.configReloader;
   if (reloader === undefined) {
     return '运行时配置应用不可用。';
   }
   const config = deps.configStore.current().config;
-  const chatConfig = resolveChatConfig(config, deps.store.orm, telegramChatId);
+  const chatConfig = resolveChatConfig(config, deps.store.orm, ref);
   if (chatConfig === undefined) {
     return '本 Chat 未在配置中找到。';
   }
@@ -204,7 +205,7 @@ export async function switchChatEffort(
   // Removing the override needs no model: it must still work when the Chat's
   // model is incomplete or unregistered, which is when the override is stuck.
   if (requested === 'default') {
-    return await resetChatEffort(deps, configuredChatId, telegramChatId);
+    return await resetChatEffort(deps, configuredChatId, ref);
   }
   const effective = resolveAgentSettings(config, chatConfig);
   const { provider, model: modelId, thinking_level: level } = effective;
@@ -249,7 +250,7 @@ export async function switchChatEffort(
 async function resetChatEffort(
   deps: BotCommandConfigDeps,
   configuredChatId: number,
-  telegramChatId: bigint,
+  ref: ChatConfigRef,
 ): Promise<string> {
   const reloader = deps.configReloader;
   if (reloader === undefined) {
@@ -260,7 +261,7 @@ async function resetChatEffort(
     return result.fileWritten ? `已写入 config.jsonc，但应用失败: ${result.message}` : `恢复失败: ${result.message}`;
   }
   const current = deps.configStore.current().config;
-  const inherited = resolveAgentSettings(current, resolveChatConfig(current, deps.store.orm, telegramChatId));
+  const inherited = resolveAgentSettings(current, resolveChatConfig(current, deps.store.orm, ref));
   const lines = [
     `已清除本群思考强度覆盖，跟随全局 ${inherited.thinking_level ?? '未配置'}，将在下一次 agent session 生效。`,
   ];
@@ -280,7 +281,7 @@ function effortMenu(
   provider: string,
   modelId: string,
   level: ModelThinkingLevel | undefined,
-  chatConfig: RawConfig['telegram']['chats'][number],
+  chatConfig: ChatConfigEntry,
   supported: readonly ModelThinkingLevel[],
 ): string {
   // A reasoning model may declare a single level such as `high`; only an
@@ -316,7 +317,7 @@ function modelMenu(
   page: number,
   options: readonly AgentModelOption[],
   effective: AgentSettings,
-  chatConfig: RawConfig['telegram']['chats'][number],
+  chatConfig: ChatConfigEntry,
 ): string {
   const hasProviderOverride = chatConfig.provider !== undefined;
   const hasModelOverride = chatConfig.model !== undefined;

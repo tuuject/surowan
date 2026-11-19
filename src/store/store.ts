@@ -2,7 +2,7 @@ import { and, eq, sql } from 'drizzle-orm';
 import type { BaseSQLiteDatabase } from 'drizzle-orm/sqlite-core';
 import type { RawConfig } from '../platform/config/index.ts';
 import type * as schema from './schema/index.ts';
-import { chatMigrations, chatPause, toolCalls } from './schema/index.ts';
+import { chatPause, toolCalls } from './schema/index.ts';
 
 /** Synchronous, schema-aware SQLite query surface; no native driver leaks into business code. */
 export type Orm = BaseSQLiteDatabase<'sync', SqliteRunResult, typeof schema>;
@@ -129,26 +129,6 @@ export function purgeExpiredData(orm: Orm, config: RawConfig, now = new Date()):
     },
     { behavior: 'immediate' },
   );
-}
-
-export function resolveChatConfig(
-  config: RawConfig,
-  orm: Orm,
-  chatId: bigint,
-): RawConfig['telegram']['chats'][number] | undefined {
-  const direct = config.telegram.chats.find((chat) => BigInt(chat.id) === chatId);
-  if (direct !== undefined) {
-    return direct;
-  }
-  const migration = orm
-    .select({ oldChatId: chatMigrations.oldChatId })
-    .from(chatMigrations)
-    .where(eq(chatMigrations.newChatId, chatId))
-    .get();
-  if (migration === undefined) {
-    return undefined;
-  }
-  return config.telegram.chats.find((chat) => BigInt(chat.id) === migration.oldChatId);
 }
 
 export function isChatPaused(orm: Orm, chatId: bigint): boolean {

@@ -235,7 +235,7 @@ test.each([285_000n, 285_001n])(
     const { store, configStore, runtime } = await runtimeSetup(used);
     try {
       const before = store.db.prepare('SELECT * FROM daily_usage').all();
-      const registry = runtime.sceneToolDefinitions(previewContext(), configStore.current().config);
+      const registry = runtime.sceneToolDefinitions(previewContext('telegram'), configStore.current().config);
       expect(registry.tools.map((tool) => tool.name)).toEqual(
         used === 285_000n
           ? ['read', 'read_member_profile', 'search_memory', 'read_memory', 'send', 'send_reply', 'execute']

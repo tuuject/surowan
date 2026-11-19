@@ -267,7 +267,7 @@ export function querySendToolCalls(store: SqliteStore) {
 export function queryImageSends(store: SqliteStore) {
   return store.db
     .prepare<[], { id: bigint; state: string; request_json: string; telegram_message_id: bigint | null }>(
-      "SELECT id, state, request_json, telegram_message_id FROM host_sends WHERE kind = 'image' ORDER BY id",
+      "SELECT id, state, request_json, message_no AS telegram_message_id FROM host_sends WHERE kind = 'image' ORDER BY id",
     )
     .all();
 }

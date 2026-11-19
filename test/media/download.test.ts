@@ -2,7 +2,8 @@ import { expect, test, vi } from 'vitest';
 import { access, mkdtemp, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { MediaTooLargeError, TelegramMediaClient } from '../../src/capabilities/media/download.ts';
+import { MediaTooLargeError } from '../../src/capabilities/media/download.ts';
+import { TelegramMediaClient } from '../../src/adapters/local-monolith/telegram/media.ts';
 import { trackTempDirectory } from '../helpers.ts';
 import { directories } from './fixtures.ts';
 

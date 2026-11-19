@@ -52,7 +52,7 @@ describe('cut_topic', () => {
       ).not.toBeUndefined();
 
       const command = ingestion.ingest(commandUpdate(3, 12, FIRST_CHAT), new Date()).command;
-      expect(await commands.run(command!, FIRST_CHAT, ALICE)).toContain('清空');
+      expect(await commands.run(command!, { hostKind: 'telegram', hostChatId: FIRST_CHAT }, ALICE)).toContain('清空');
       expect(abortReason).toBe('context_cut');
     } finally {
       release();
@@ -66,7 +66,7 @@ describe('cut_topic', () => {
     const start = new Date('2026-08-15T00:00:00.000Z');
     ingestion.ingest(groupUpdate(1, 10, 'polluted', FIRST_CHAT), start);
     const command = ingestion.ingest(commandUpdate(2, 11, FIRST_CHAT), new Date(start.getTime() + 1_000)).command;
-    await commands.run(command!, FIRST_CHAT, ALICE);
+    await commands.run(command!, { hostKind: 'telegram', hostChatId: FIRST_CHAT }, ALICE);
     await scheduler.stop();
 
     const reopened = new BucketScheduler(store, configStore, async () => ({
@@ -76,13 +76,21 @@ describe('cut_topic', () => {
     const recreatedCommands = new BotCommandService(store, configStore, reopened);
     expect(
       store.db
-        .prepare<[], { telegram_message_id: bigint }>('SELECT telegram_message_id FROM conversation_context_cutoffs')
+        .prepare<[], { telegram_message_id: bigint }>(
+          'SELECT message_no AS telegram_message_id FROM conversation_context_cutoffs',
+        )
         .get()?.telegram_message_id,
     ).toBe(11n);
-    recreatedCommands.run({ name: 'cut_topic', messageId: 20n }, FIRST_CHAT, ALICE);
+    recreatedCommands.run(
+      { name: 'cut_topic', messageId: 20n },
+      { hostKind: 'telegram', hostChatId: FIRST_CHAT },
+      ALICE,
+    );
     expect(
       store.db
-        .prepare<[], { telegram_message_id: bigint }>('SELECT telegram_message_id FROM conversation_context_cutoffs')
+        .prepare<[], { telegram_message_id: bigint }>(
+          'SELECT message_no AS telegram_message_id FROM conversation_context_cutoffs',
+        )
         .get()?.telegram_message_id,
     ).toBe(20n);
     expect(
@@ -104,11 +112,13 @@ describe('cut_topic', () => {
   test('an older cut_topic never moves the cutoff backwards', async () => {
     const { store, ingestion, commands } = await setup();
     ingestion.ingest(groupUpdate(1, 10, 'polluted', FIRST_CHAT), new Date('2026-08-15T00:00:00.000Z'));
-    await commands.run({ name: 'cut_topic', messageId: 20n }, FIRST_CHAT, ALICE);
-    await commands.run({ name: 'cut_topic', messageId: 15n }, FIRST_CHAT, ALICE);
+    await commands.run({ name: 'cut_topic', messageId: 20n }, { hostKind: 'telegram', hostChatId: FIRST_CHAT }, ALICE);
+    await commands.run({ name: 'cut_topic', messageId: 15n }, { hostKind: 'telegram', hostChatId: FIRST_CHAT }, ALICE);
     expect(
       store.db
-        .prepare<[], { telegram_message_id: bigint }>('SELECT telegram_message_id FROM conversation_context_cutoffs')
+        .prepare<[], { telegram_message_id: bigint }>(
+          'SELECT message_no AS telegram_message_id FROM conversation_context_cutoffs',
+        )
         .get()?.telegram_message_id,
     ).toBe(20n);
     store.close();

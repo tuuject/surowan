@@ -71,7 +71,7 @@ function seedTelegramChat(store: SqliteStore, conversationId: bigint): void {
     .values({
       id: 900n,
       hostKind: 'telegram',
-      telegramChatId: 123456789n,
+      hostChatId: 123456789n,
       canonicalChatId: 123456789n,
       type: 'private',
       updatedAt: now,
@@ -363,7 +363,11 @@ describe('connection readiness', () => {
       transport: forwardingTelegramTransport(holder),
       sendRate: () => ({ sendsPerWindow: 6, windowSeconds: 300 }),
     });
-    const conversation = identityConversation({ chatId: 1n, threadId: 0n, conversationId: 1n }, 'telegram', 'private');
+    const conversation = identityConversation(
+      { hostChatId: 1n, internalChatId: 1n, threadId: 0n, conversationId: 1n },
+      'telegram',
+      'private',
+    );
     const request = {
       target: { conversation, policy: host.policy(conversation) },
       parts: [{ kind: 'text' as const, text: 'hello' }],

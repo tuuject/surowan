@@ -8,14 +8,14 @@ import { GROUP_MEMORY_BATCH_MAX_MESSAGES, GROUP_MEMORY_READ_MAX_MESSAGES } from 
  * Both the sleeping worker and `read_group_messages` read the current revision
  * (what the Chat currently shows), never an invocation snapshot: a memory may
  * summarize messages that never triggered an Invocation at all. Rows are
- * selected by Telegram message id so a memory's range means the same thing to
+ * selected by message number so a memory's range means the same thing to
  * the model and to a human scrolling the Chat.
  */
 
 export interface GroupMemoryMessageRow {
   readonly messageId: bigint;
-  readonly telegramMessageId: bigint;
-  readonly telegramDate: string;
+  readonly messageNo: bigint;
+  readonly sentAt: string;
   readonly receivedAt: string;
   readonly sentByBot: boolean;
   readonly threadId: bigint;
@@ -23,7 +23,7 @@ export interface GroupMemoryMessageRow {
   readonly kind: string;
   readonly text: string | null;
   readonly caption: string | null;
-  readonly senderTelegramId: bigint | null;
+  readonly senderHostId: bigint | null;
   readonly senderName: string | null;
   readonly senderUsername: string | null;
   readonly mediaKinds: readonly string[];
@@ -31,8 +31,8 @@ export interface GroupMemoryMessageRow {
 
 interface RawRow {
   readonly message_id: bigint;
-  readonly telegram_message_id: bigint;
-  readonly telegram_date: string;
+  readonly message_no: bigint;
+  readonly sent_at: string;
   readonly received_at: string;
   readonly sent_by_bot: boolean;
   readonly message_thread_id: bigint;
@@ -40,16 +40,16 @@ interface RawRow {
   readonly kind: string;
   readonly text: string | null;
   readonly caption: string | null;
-  readonly sender_telegram_id: bigint | null;
+  readonly sender_host_id: bigint | null;
   readonly sender_name: string | null;
   readonly sender_username: string | null;
 }
 
 const SELECT_ROWS = sql`
-  SELECT m.id AS message_id, m.telegram_message_id, m.telegram_date, m.received_at, m.sent_by_bot,
+  SELECT m.id AS message_id, m.message_no, m.sent_at, m.received_at, m.sent_by_bot,
          v.message_thread_id,
          r.id AS revision_id, r.kind, r.text, r.caption,
-         s.telegram_id AS sender_telegram_id, s.display_name AS sender_name, s.username AS sender_username
+         s.host_sender_id AS sender_host_id, s.display_name AS sender_name, s.username AS sender_username
   FROM messages m
   JOIN conversations v ON v.id = m.conversation_id
   JOIN message_revisions r ON r.id = m.current_revision_id
@@ -78,8 +78,8 @@ function withMedia(orm: Orm, rows: readonly RawRow[]): GroupMemoryMessageRow[] {
   }
   return rows.map((row) => ({
     messageId: row.message_id,
-    telegramMessageId: row.telegram_message_id,
-    telegramDate: row.telegram_date,
+    messageNo: row.message_no,
+    sentAt: row.sent_at,
     receivedAt: row.received_at,
     sentByBot: row.sent_by_bot,
     threadId: row.message_thread_id,
@@ -87,7 +87,7 @@ function withMedia(orm: Orm, rows: readonly RawRow[]): GroupMemoryMessageRow[] {
     kind: row.kind,
     text: row.text,
     caption: row.caption,
-    senderTelegramId: row.sender_telegram_id,
+    senderHostId: row.sender_host_id,
     senderName: row.sender_name,
     senderUsername: row.sender_username,
     mediaKinds: mediaByRevision.get(row.revision_id.toString()) ?? [],
@@ -95,7 +95,7 @@ function withMedia(orm: Orm, rows: readonly RawRow[]): GroupMemoryMessageRow[] {
 }
 
 /**
- * A lane's unconsolidated messages: Telegram ids after `after` and, for a
+ * A lane's unconsolidated messages: message numbers after `after` and, for a
  * backfill lane, at most `until` (inclusive). `until = null` is open-ended.
  */
 export interface PendingRange {
@@ -105,9 +105,9 @@ export interface PendingRange {
 
 function pendingCondition(chatId: bigint, range: PendingRange) {
   return range.until === null
-    ? sql`m.chat_id = ${chatId} AND m.visible = 1 AND m.telegram_message_id > ${range.after}`
-    : sql`m.chat_id = ${chatId} AND m.visible = 1 AND m.telegram_message_id > ${range.after}
-          AND m.telegram_message_id <= ${range.until}`;
+    ? sql`m.chat_id = ${chatId} AND m.visible = 1 AND m.message_no > ${range.after}`
+    : sql`m.chat_id = ${chatId} AND m.visible = 1 AND m.message_no > ${range.after}
+          AND m.message_no <= ${range.until}`;
 }
 
 /** Pending messages of a lane, oldest first, bounded by one batch. */
@@ -120,7 +120,7 @@ export function loadPendingMessages(
   const rows = orm.all<RawRow>(
     sql`${SELECT_ROWS}
         WHERE ${pendingCondition(chatId, range)}
-        ORDER BY m.telegram_message_id
+        ORDER BY m.message_no
         LIMIT ${BigInt(limit)}`,
   );
   return withMedia(orm, rows);
@@ -132,7 +132,7 @@ export function newestPendingMessage(orm: Orm, chatId: bigint, range: PendingRan
     .all<RawRow>(
       sql`${SELECT_ROWS}
           WHERE ${pendingCondition(chatId, range)}
-          ORDER BY m.telegram_message_id DESC
+          ORDER BY m.message_no DESC
           LIMIT 1`,
     )
     .at(0);
@@ -148,38 +148,37 @@ export function countPendingMessages(orm: Orm, chatId: bigint, range: PendingRan
   );
 }
 
-/** The newest stored Telegram message id of a Chat, visible or not; 0 when it has none. */
+/** The newest stored message number of a Chat, visible or not; 0 when it has none. */
 export function newestMessageId(orm: Orm, chatId: bigint): bigint {
   return (
-    orm
-      .all<{ id: bigint | null }>(sql`SELECT max(telegram_message_id) AS id FROM messages WHERE chat_id = ${chatId}`)
-      .at(0)?.id ?? 0n
+    orm.all<{ id: bigint | null }>(sql`SELECT max(message_no) AS id FROM messages WHERE chat_id = ${chatId}`).at(0)
+      ?.id ?? 0n
   );
 }
 
-/** The newest stored Telegram message id sent before `before`, or undefined. */
+/** The newest stored message number sent before `before`, or undefined. */
 export function lastMessageIdBefore(orm: Orm, chatId: bigint, before: string): bigint | undefined {
   return (
     orm
       .all<{ id: bigint | null }>(
-        sql`SELECT max(telegram_message_id) AS id FROM messages WHERE chat_id = ${chatId} AND telegram_date < ${before}`,
+        sql`SELECT max(message_no) AS id FROM messages WHERE chat_id = ${chatId} AND sent_at < ${before}`,
       )
       .at(0)?.id ?? undefined
   );
 }
 
 /** When a stored message was sent, for showing a cursor as a date. */
-export function messageDate(orm: Orm, chatId: bigint, telegramMessageId: bigint): string | null {
+export function messageDate(orm: Orm, chatId: bigint, messageNo: bigint): string | null {
   return (
     orm
-      .all<{ telegram_date: string }>(
-        sql`SELECT telegram_date FROM messages WHERE chat_id = ${chatId} AND telegram_message_id = ${telegramMessageId}`,
+      .all<{ sent_at: string }>(
+        sql`SELECT sent_at FROM messages WHERE chat_id = ${chatId} AND message_no = ${messageNo}`,
       )
-      .at(0)?.telegram_date ?? null
+      .at(0)?.sent_at ?? null
   );
 }
 
-/** Raw messages whose Telegram ids fall in the inclusive range. */
+/** Raw messages whose message numbers fall in the inclusive range. */
 export function loadMessagesInRange(
   orm: Orm,
   chatId: bigint,
@@ -190,8 +189,8 @@ export function loadMessagesInRange(
   const rows = orm.all<RawRow>(
     sql`${SELECT_ROWS}
         WHERE m.chat_id = ${chatId} AND m.visible = 1
-          AND m.telegram_message_id BETWEEN ${firstMessageId} AND ${lastMessageId}
-        ORDER BY m.telegram_message_id
+          AND m.message_no BETWEEN ${firstMessageId} AND ${lastMessageId}
+        ORDER BY m.message_no
         LIMIT ${BigInt(limit)}`,
   );
   return withMedia(orm, rows);
@@ -216,7 +215,7 @@ function renderMessage(row: GroupMemoryMessageRow): string {
   const service = row.kind === 'service' ? ' service' : '';
   const thread = row.threadId === 0n ? '' : ` topic:${row.threadId}`;
   const media = row.mediaKinds.length === 0 ? '' : ` [${row.mediaKinds.join(' ')}]`;
-  const header = `[${row.telegramMessageId}${bot}${service}${thread}] ${who}${username}${media}`;
+  const header = `[${row.messageNo}${bot}${service}${thread}] ${who}${username}${media}`;
   const content = row.text ?? row.caption;
   if (content === null || content.trim().length === 0) {
     return `${header}\n  [${row.kind}]`;

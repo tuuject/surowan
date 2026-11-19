@@ -12,14 +12,14 @@ export function createSeedContext(store: SqliteStore) {
   };
 
   run(
-    "INSERT INTO chats(id, telegram_chat_id, canonical_chat_id, type, title, updated_at) VALUES (?, ?, ?, 'supergroup', 'Chat A', ?)",
+    "INSERT INTO chats(id, host_chat_id, canonical_chat_id, type, title, updated_at, host_kind) VALUES (?, ?, ?, 'supergroup', 'Chat A', ?, 'telegram')",
     101n,
     -100111n,
     -100111n,
     '2025-01-01T00:00:00.000Z',
   );
   run(
-    "INSERT INTO chats(id, telegram_chat_id, canonical_chat_id, type, title, updated_at) VALUES (?, ?, ?, 'supergroup', 'Chat B', ?)",
+    "INSERT INTO chats(id, host_chat_id, canonical_chat_id, type, title, updated_at, host_kind) VALUES (?, ?, ?, 'supergroup', 'Chat B', ?, 'telegram')",
     102n,
     -100222n,
     -100222n,
@@ -38,7 +38,7 @@ export function createSeedContext(store: SqliteStore) {
     );
   }
   run(
-    "INSERT INTO senders(id, telegram_type, telegram_id, display_name, is_bot, updated_at) VALUES (501, 'user', 9001, '测试用户', 0, ?)",
+    "INSERT INTO senders(id, host_sender_type, host_sender_id, display_name, is_bot, updated_at, host_kind) VALUES (501, 'user', 9001, '测试用户', 0, ?, 'telegram')",
     '2025-01-01T00:00:00.000Z',
   );
 
@@ -87,7 +87,7 @@ export function createSeedContext(store: SqliteStore) {
   }): bigint => {
     const revisionId = options.id * 10n + 1n;
     run(
-      'INSERT INTO messages(id, conversation_id, chat_id, telegram_message_id, visible, sent_by_bot, telegram_date, received_at) VALUES (?, ?, ?, ?, 1, ?, ?, ?)',
+      "INSERT INTO messages(id, conversation_id, chat_id, message_no, visible, sent_by_bot, sent_at, received_at, host_kind) VALUES (?, ?, ?, ?, 1, ?, ?, ?, 'telegram')",
       options.id,
       options.conversationId,
       options.chatId,
@@ -188,7 +188,7 @@ export function createSeedContext(store: SqliteStore) {
       input.telegramDate,
     );
     run(
-      'INSERT INTO host_sends(id, tool_call_id, conversation_id, kind, request_json, state, telegram_message_id, response_json, created_at, finished_at) VALUES (?, ?, ?, \'text\', \'{"kind":"text","reply_to_message_id":null}\', \'success\', ?, ?, ?, ?)',
+      'INSERT INTO host_sends(id, tool_call_id, conversation_id, kind, request_json, state, message_no, response_json, created_at, finished_at) VALUES (?, ?, ?, \'text\', \'{"kind":"text","reply_to_message_id":null}\', \'success\', ?, ?, ?, ?)',
       input.sendId,
       input.toolCallId,
       input.conversationId,

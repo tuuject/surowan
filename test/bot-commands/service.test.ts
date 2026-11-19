@@ -11,8 +11,12 @@ describe('bot command service', () => {
     const { store, commands } = await setup();
     try {
       for (const name of ['ignoreme', 'unignoreme'] as const) {
-        expect(await commands.run({ name }, 123456789n, null)).toContain('无法识别发送者');
-        expect(await commands.run({ name }, 123456789n, ALICE)).toBe('运行时配置应用不可用。');
+        expect(await commands.run({ name }, { hostKind: 'telegram', hostChatId: 123456789n }, null)).toContain(
+          '无法识别发送者',
+        );
+        expect(await commands.run({ name }, { hostKind: 'telegram', hostChatId: 123456789n }, ALICE)).toBe(
+          '运行时配置应用不可用。',
+        );
       }
     } finally {
       store.close();
@@ -29,7 +33,12 @@ describe('bot command service', () => {
     }
     expect(store.db.prepare<[], { state: string }>('SELECT state FROM invocations').get()?.state).toBe('queued');
 
-    const reply = await commands.run({ name: 'pause' }, 123456789n, ALICE, FIXED_NOW);
+    const reply = await commands.run(
+      { name: 'pause' },
+      { hostKind: 'telegram', hostChatId: 123456789n },
+      ALICE,
+      FIXED_NOW,
+    );
     expect(reply).toContain('/resume');
     expect(store.db.prepare<[], { paused_at: string }>('SELECT paused_at FROM chat_pause').get()?.paused_at).toBe(
       FIXED_NOW.toISOString(),
@@ -53,8 +62,8 @@ describe('bot command service', () => {
     const start = new Date('2026-08-15T00:00:00.000Z');
     ingestion.ingest(textUpdate(1, 10, 'hello'), start);
     scheduler.processDue(new Date(start.getTime() + 15_000));
-    await commands.run({ name: 'pause' }, 123456789n, ALICE, FIXED_NOW);
-    await commands.run({ name: 'resume' }, 123456789n, ALICE, FIXED_NOW);
+    await commands.run({ name: 'pause' }, { hostKind: 'telegram', hostChatId: 123456789n }, ALICE, FIXED_NOW);
+    await commands.run({ name: 'resume' }, { hostKind: 'telegram', hostChatId: 123456789n }, ALICE, FIXED_NOW);
     expect(store.db.prepare<[], { count: bigint }>('SELECT COUNT(*) AS count FROM chat_pause').get()?.count).toBe(0n);
     ingestion.ingest(textUpdate(2, 11, 'after resume'), new Date(start.getTime() + 30_000));
     expect(scheduler.processDue(new Date(start.getTime() + 45_000))).toHaveLength(1);
@@ -83,15 +92,22 @@ describe('bot command service', () => {
         "INSERT INTO model_calls(invocation_id, role, provider, model, attempt, state, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, total_tokens, created_at, finished_at) VALUES (?, 'agent', 'agent', 'agent-model', 1, 'success', 500, 200, 400, 134, 1234, ?, ?)",
       )
       .run(invocationId, FIXED_NOW.toISOString(), FIXED_NOW.toISOString());
-    const status = await commands.run({ name: 'status' }, 123456789n, ALICE, FIXED_NOW);
+    const status = await commands.run(
+      { name: 'status' },
+      { hostKind: 'telegram', hostChatId: 123456789n },
+      ALICE,
+      FIXED_NOW,
+    );
     expect(status).toContain('本群模型: agent / agent-model（继承全局）');
     expect(status).toContain('思考强度: low（继承全局）');
     expect(status).toContain(
       '本群今日 token 用量: 1,234\n全局今日 token 用量: 1,300 / 300,000 (0.43%)\n读取: 500\n写入: 200\n缓存读取: 400\n缓存写入: 134',
     );
     expect(status).not.toContain('已暂停');
-    await commands.run({ name: 'pause' }, 123456789n, ALICE, FIXED_NOW);
-    expect(await commands.run({ name: 'status' }, 123456789n, ALICE, FIXED_NOW)).toContain('已暂停');
+    await commands.run({ name: 'pause' }, { hostKind: 'telegram', hostChatId: 123456789n }, ALICE, FIXED_NOW);
+    expect(
+      await commands.run({ name: 'status' }, { hostKind: 'telegram', hostChatId: 123456789n }, ALICE, FIXED_NOW),
+    ).toContain('已暂停');
     store.close();
   });
 
@@ -113,7 +129,12 @@ describe('bot command service', () => {
         }
       });
       try {
-        const status = await commands.run({ name: 'status' }, 123456789n, ALICE, FIXED_NOW);
+        const status = await commands.run(
+          { name: 'status' },
+          { hostKind: 'telegram', hostChatId: 123456789n },
+          ALICE,
+          FIXED_NOW,
+        );
         expect(status).toContain(override ? '本群模型: 常用聊天模型 A\n' : '本群模型: 常用聊天模型 A（继承全局）');
         expect(status).not.toContain('agent / agent-model');
       } finally {
@@ -145,7 +166,12 @@ describe('bot command service', () => {
       role: 'user',
     });
 
-    const status = await commands.run({ name: 'status' }, 123456789n, ALICE, FIXED_NOW);
+    const status = await commands.run(
+      { name: 'status' },
+      { hostKind: 'telegram', hostChatId: 123456789n },
+      ALICE,
+      FIXED_NOW,
+    );
     expect(status).toContain(`Context 消息 1，保留 send 0，head_seq ${header.headSeq}`);
     expect(status).toContain('未 GC');
     store.close();
@@ -161,9 +187,9 @@ describe('bot command service', () => {
       models: configStore.current().models,
       visionModel: configStore.current().visionModel,
     });
-    expect(await commands.run({ name: 'status' }, 123456789n, ALICE, FIXED_NOW)).toContain(
-      '本群模型: vision / vision-model（继承全局）',
-    );
+    expect(
+      await commands.run({ name: 'status' }, { hostKind: 'telegram', hostChatId: 123456789n }, ALICE, FIXED_NOW),
+    ).toContain('本群模型: vision / vision-model（继承全局）');
     store.close();
   });
 
@@ -179,9 +205,9 @@ describe('bot command service', () => {
         "INSERT INTO daily_usage(utc_date, scope, resource, metric, amount, updated_at) VALUES (?, 'chat', ?, 'model_tokens', 888, ?)",
       )
       .run(FIXED_NOW.toISOString().slice(0, 10), '987654321', FIXED_NOW.toISOString());
-    expect(await commands.run({ name: 'status' }, 123456789n, ALICE, FIXED_NOW)).toContain(
-      '本群今日 token 用量: 0\n全局今日 token 用量: 888 / 300,000 (0.30%)',
-    );
+    expect(
+      await commands.run({ name: 'status' }, { hostKind: 'telegram', hostChatId: 123456789n }, ALICE, FIXED_NOW),
+    ).toContain('本群今日 token 用量: 0\n全局今日 token 用量: 888 / 300,000 (0.30%)');
     store.close();
   });
 });

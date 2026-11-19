@@ -645,6 +645,6 @@ Sticker 视觉元数据通过严格 Tool Call 返回：中文描述、情绪、�
 
 `participation.ask_only` 可选，默认 false，全局与 Chat 均支持；Chat 显式 false 覆盖全局 true，热应用，私聊不受影响。为 true 时覆盖时段、关键词与注意力窗口：普通消息照常入库与整理记忆，但不创建或加入 Bucket；只有 eligibleHuman 的新 `/ask` 入桶，不记录注意力。新桶存 0/0/0 且不 adopt Bot 消息；已有 collecting 桶可合入多条 ask，attach/defer 不变。
 
-`platform/bot-command.ts` 与控制命令共享分词，识别正文 offset 0 bot_command、忽略大小写并校验目标用户名。`/ask` 不进入 BotCommandService，正文含前缀原样存储；允许 sender_chat 的占位 Bot，不允许真正 Bot。ignored_user_ids 仅对新 ask 例外，编辑仍丢弃。普通模式 ask 优先于 mention/reply/keyword，按正常节拍入桶、刷新时段外注意力、触发 mention typing 并绕过 proactive 抽样。追赶也存 ask；ask-only 每 Conversation 只收 ask，无 ask 记录 participation_gated。暂停、休眠、未配置 Agent 与移除 Chat 仍阻止运行，不强制模型回答。
+`platform/telegram-markdown/cues.ts` 的 `botCommandToken` 与控制命令共享分词，识别正文 offset 0 bot_command、忽略大小写并校验目标用户名。`/ask` 不进入 BotCommandService，正文含前缀原样存储；允许 sender_chat 的占位 Bot，不允许真正 Bot。ignored_user_ids 仅对新 ask 例外，编辑仍丢弃。普通模式 ask 优先于 mention/reply/keyword，按正常节拍入桶、刷新时段外注意力、触发 mention typing 并绕过 proactive 抽样。追赶也存 ask；ask-only 每 Conversation 只收 ask，无 ask 记录 participation_gated。暂停、休眠、未配置 Agent 与移除 Chat 仍阻止运行，不强制模型回答。
 
-ask-only 追赶会独立选取本轮最新的 `agent.history_messages` 条原始非编辑 ask（分批扫描，普通流量不占 ask 名额）；排队桶仅包含 ask，并开启 history 快照以带入普通消息。跳过的追赶桶仍保留选中的 backlog 供审计与运行时去重。`isOriginalAsk` 由追赶与 proactive 共用：revision 1 必须没有 edit_date；原始 ask 后续编辑不撤销 direct 资格，其他触发仍判断当前 revision。
+ask-only 追赶会独立选取本轮最新的 `agent.history_messages` 条原始非编辑 ask（分批扫描，普通流量不占 ask 名额）；排队桶仅包含 ask，并开启 history 快照以带入普通消息。跳过的追赶桶仍保留选中的 backlog 供审计与运行时去重。原始 ask 判定（`MessageCues.asksBot`，由追赶与 proactive 经 `rawFragmentReader` 共用）要求 revision 1 没有 edit_date；原始 ask 后续编辑不撤销 direct 资格，其他触发仍判断当前 revision。

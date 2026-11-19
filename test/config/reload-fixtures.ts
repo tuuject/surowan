@@ -280,7 +280,7 @@ export async function setup(
     jarDigests,
     // The pipeline tests build a runtime; without one there is no tool registry
     // to fit into a context window, so the check has nothing to reject.
-    validateAgentModel: (_config, model) => runtime?.validateAdditionalTools(previewContext(), [], model),
+    validateAgentModel: (_config, model) => runtime?.validateAdditionalTools(previewContext('telegram'), [], model),
     onPublished: options.onPublished ?? (() => undefined),
     ...(options.telegramConfig === undefined ? {} : { telegramConfig: options.telegramConfig }),
   });

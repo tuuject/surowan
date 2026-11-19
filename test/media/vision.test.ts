@@ -5,11 +5,16 @@ import { join } from 'node:path';
 import { createModels, fauxAssistantMessage, fauxProvider } from '@earendil-works/pi-ai';
 import type { Update } from 'grammy/types';
 import sharp from 'sharp';
-import { KeyedSemaphore } from '../../src/platform/concurrency.ts';
+import { AsyncSemaphore, KeyedSemaphore } from '../../src/platform/concurrency.ts';
 import { loadConfig } from '../../src/adapters/local-monolith/config/index.ts';
 import { SqliteStore } from '../../src/adapters/local-monolith/database.ts';
 import type { MediaDownloader } from '../../src/capabilities/media/download.ts';
 import { MediaService } from '../../src/capabilities/media/index.ts';
+import {
+  analyzeDeduplicated,
+  type MediaVisionDeps,
+  type VisionRun,
+} from '../../src/capabilities/media/vision-analysis.ts';
 import { SecretStore } from '../../src/platform/secrets.ts';
 import { BucketScheduler } from '../../src/orchestration/scheduler/index.ts';
 import { TelegramIngestion } from '../../src/ingress/telegram-ingestion/index.ts';
@@ -21,6 +26,7 @@ import {
   trackTempDirectory,
   writeTestConfig,
 } from '../helpers.ts';
+import { seedInvocation, seedPlaygroundConversation } from '../im/fixtures.ts';
 import { directories } from './fixtures.ts';
 
 test('read_image normalizes once and reuses the 30-day description cache', async () => {
@@ -100,7 +106,7 @@ test('read_image normalizes once and reuses the 30-day description cache', async
     store,
     configStore,
     secrets: new SecretStore(),
-    mediaClient: downloader,
+    downloaders: { telegram: downloader },
     modelGate: new KeyedSemaphore(),
   });
   const tool = media.createReadImageTool(context, capabilities, Date.now() + 60_000);
@@ -116,8 +122,92 @@ test('read_image normalizes once and reuses the 30-day description cache', async
       .prepare<[], { count: bigint }>("SELECT COUNT(*) AS count FROM media_analyses WHERE state = 'success'")
       .get()?.count,
   ).toBe(1n);
+  // Usage is accounted under scope `chat` with the NATIVE id (123456789), not
+  // the internal chat row id (1): a swapped read would land on resource '1'.
+  expect(
+    store.db
+      .prepare<[], { scope: string; resource: string }>(
+        "SELECT scope, resource FROM daily_usage WHERE metric = 'model_tokens'",
+      )
+      .all(),
+  ).toEqual([{ scope: 'chat', resource: '123456789' }]);
   expect(await readdir(loaded.config.paths.media_cache)).toEqual([]);
   store.close();
+});
+
+test('a Playground read_image accounts usage under the playground scope with the internal room id', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'surowan-media-'));
+  trackTempDirectory(directories, directory);
+  const configPath = join(directory, 'config.jsonc');
+  await writeTestConfig(directory, configPath);
+  const loaded = await loadConfig(configPath);
+  const faux = fauxProvider({
+    provider: 'vision',
+    models: [
+      { id: 'vision-model', reasoning: true, input: ['text', 'image'], contextWindow: 128_000, maxTokens: 8_192 },
+    ],
+  });
+  const configStore = await testConfigStore(loaded, fauxRegistry(faux));
+  const store = await SqliteStore.open(loaded.config);
+  try {
+    // Room 9's stored identity is the internal id only; its usage must never
+    // borrow a host-native id it does not have.
+    const room = seedPlaygroundConversation(store, { chatId: 9n, conversationId: 40n });
+    seedInvocation(store, 8n, room.conversationId);
+    const fixturePath = join(directory, 'room.png');
+    await sharp({ create: { width: 8, height: 8, channels: 3, background: { r: 0, g: 0, b: 255 } } })
+      .png()
+      .toFile(fixturePath);
+    const models = createModels();
+    models.setProvider(faux.provider);
+    faux.setResponses([() => fauxAssistantMessage('A blue square.')]);
+    const run: VisionRun = {
+      models,
+      model: faux.getModel(),
+      analysisVersion: 'test-run',
+      maxOutputTokens: 8_192,
+      toolSchemaKeywords: undefined,
+      thinkingLevel: undefined,
+    };
+    const deps: MediaVisionDeps = {
+      store,
+      configStore,
+      downloaders: {},
+      localAssets: undefined,
+      secrets: new SecretStore(),
+      modelGate: new KeyedSemaphore(),
+      visionSemaphore: new AsyncSemaphore(4),
+      visionPromptVersion: 1,
+      inflight: new Map(),
+      visionRun: () => run,
+    };
+    await analyzeDeduplicated(
+      deps,
+      {
+        id: 1n,
+        kind: 'image',
+        fileId: 'room-file',
+        fileUniqueId: 'room-image',
+        mimeType: null,
+        fileSize: null,
+        telegramJson: '{}',
+        localFile: fixturePath,
+        hostKind: 'playground',
+      },
+      run,
+      { kind: 'chat', hostKind: 'playground', scopeChatId: room.chatId, invocationId: 8n },
+      new AbortController().signal,
+    );
+    expect(
+      store.db
+        .prepare<[], { scope: string; resource: string }>(
+          "SELECT scope, resource FROM daily_usage WHERE metric = 'model_tokens'",
+        )
+        .all(),
+    ).toEqual([{ scope: 'playground', resource: '9' }]);
+  } finally {
+    store.close();
+  }
 });
 
 test('vision analyses run at vision.thinking_level, or at the model default when it is unset', async () => {
@@ -186,7 +276,7 @@ test('vision analyses run at vision.thinking_level, or at the model default when
     store,
     configStore,
     secrets: new SecretStore(),
-    mediaClient: downloader,
+    downloaders: { telegram: downloader },
     modelGate: new KeyedSemaphore(),
   });
   const tool = media.createReadImageTool(context, capabilities, Date.now() + 60_000);

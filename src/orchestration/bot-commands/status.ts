@@ -1,7 +1,7 @@
 import { and, eq, sql } from 'drizzle-orm';
 import type { ConversationContextStore } from '../../context/store/index.ts';
 import { listConversationContexts } from '../../context/store/queries.ts';
-import type { RawConfig } from '../../platform/config/index.ts';
+import type { ChatConfigEntry, ChatConfigRef } from '../../platform/config/index.ts';
 import { resolveAgentSettings } from '../../platform/config/resolve.ts';
 import { modelDisplayLabel } from '../../platform/models/label.ts';
 import { isWithinActiveWindows } from '../../platform/participation.ts';
@@ -16,17 +16,17 @@ export interface BotCommandStatusDeps {
   readonly configStore: RuntimeConfigurationStore;
   readonly contexts: ConversationContextStore;
   readonly participation: ParticipationRegistry;
-  internalChatId(telegramChatId: bigint): bigint | null;
-  chatConfig(telegramChatId: bigint): RawConfig['telegram']['chats'][number] | undefined;
+  internalChatId(chat: ChatConfigRef): bigint | null;
+  chatConfig(chat: ChatConfigRef): ChatConfigEntry | undefined;
 }
 
-export function chatStatus(deps: BotCommandStatusDeps, telegramChatId: bigint, now: Date): string {
-  const chat = deps.chatConfig(telegramChatId);
+export function chatStatus(deps: BotCommandStatusDeps, ref: ChatConfigRef, now: Date): string {
+  const chat = deps.chatConfig(ref);
   if (chat === undefined) {
-    throw new Error(`Chat ${telegramChatId} is not configured`);
+    throw new Error(`Chat ${ref.hostChatId} is not configured`);
   }
   const date = now.toISOString().slice(0, 10);
-  const chatId = deps.internalChatId(telegramChatId);
+  const chatId = deps.internalChatId(ref);
   const tokens =
     deps.store.orm
       .select({ amount: dailyUsage.amount })
@@ -35,7 +35,7 @@ export function chatStatus(deps: BotCommandStatusDeps, telegramChatId: bigint, n
         and(
           eq(dailyUsage.utcDate, date),
           eq(dailyUsage.scope, 'chat'),
-          eq(dailyUsage.resource, telegramChatId.toString()),
+          eq(dailyUsage.resource, (ref.hostChatId ?? 0n).toString()),
           eq(dailyUsage.metric, 'model_tokens'),
         ),
       )
@@ -90,14 +90,14 @@ export function chatStatus(deps: BotCommandStatusDeps, telegramChatId: bigint, n
   ];
   if (paused) {
     lines.push('互动: 已暂停');
-    lines.push(...contextLines(deps, telegramChatId));
+    lines.push(...contextLines(deps, ref));
     return lines.join('\n');
   }
-  const participation = participationLine(deps, telegramChatId, chatId, now);
+  const participation = participationLine(deps, ref, chatId, now);
   if (participation !== null) {
     lines.push(participation);
   }
-  lines.push(...contextLines(deps, telegramChatId));
+  lines.push(...contextLines(deps, ref));
   return lines.join('\n');
 }
 
@@ -105,8 +105,8 @@ export function chatStatus(deps: BotCommandStatusDeps, telegramChatId: bigint, n
  * Conversation Context visibility: how much retained history the agent sees,
  * how many sends are inside the GC window, and when the last collection ran.
  */
-function contextLines(deps: BotCommandStatusDeps, telegramChatId: bigint): string[] {
-  const rows = listConversationContexts(deps.store, { telegramChatId });
+function contextLines(deps: BotCommandStatusDeps, ref: ChatConfigRef): string[] {
+  const rows = ref.hostChatId === null ? [] : listConversationContexts(deps.store, { hostChatId: ref.hostChatId });
   if (rows.length === 0) {
     return ['Context: 尚未建立'];
   }
@@ -123,19 +123,22 @@ function contextLines(deps: BotCommandStatusDeps, telegramChatId: bigint): strin
 // that always participate keep the previous `/status` layout.
 function participationLine(
   deps: BotCommandStatusDeps,
-  telegramChatId: bigint,
+  ref: ChatConfigRef,
   chatId: bigint | null,
   now: Date,
 ): string | null {
+  if (ref.hostChatId === null) {
+    return null;
+  }
   const chat = deps.store.orm
     .select({ type: chats.type })
     .from(chats)
-    .where(eq(chats.telegramChatId, telegramChatId))
+    .where(and(eq(chats.hostKind, ref.hostKind), eq(chats.hostChatId, ref.hostChatId)))
     .get();
   if (chat === undefined) {
     return null;
   }
-  const rule = deps.participation.ruleFor(deps.store.orm, telegramChatId, chat.type);
+  const rule = deps.participation.ruleFor(deps.store.orm, ref, chat.type);
   if (rule?.askOnly) {
     return '参与模式：仅 /ask 唤起';
   }

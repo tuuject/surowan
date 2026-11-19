@@ -12,7 +12,8 @@ import type {
   ConfigErrorCode,
   PersistedConfig,
 } from '../../platform/config/write.ts';
-import { asRunResult, type Orm, resolveChatConfig } from '../../store/store.ts';
+import { configuredTelegramChat } from './chat-ref.ts';
+import { asRunResult, type Orm } from '../../store/store.ts';
 import {
   getPromptVersion,
   hashPromptContent,
@@ -249,7 +250,7 @@ export async function savePromptVersion(
     if (input.chatId === undefined) {
       throw new AdminQueryError('invalid_body', 'chat is required for the group scope', 400);
     }
-    const chat = resolveChatConfig(loaded.config, orm, input.chatId);
+    const chat = configuredTelegramChat(loaded.config, orm, input.chatId);
     if (chat === undefined) {
       throw new AdminQueryError('chat_unconfigured', 'The requested chat is not configured', 404);
     }
@@ -259,7 +260,7 @@ export async function savePromptVersion(
     const fileChats = loaded.fileConfig.telegram?.chats ?? [];
     chatIndex = fileChats.findIndex((entry) => entry.id === chat.id);
     if (chatIndex < 0) {
-      // resolveChatConfig found this chat in the same loaded configuration.
+      // configuredTelegramChat found this chat in the same loaded configuration.
       throw new AdminQueryError('chat_unconfigured', 'The requested chat is not configured', 404);
     }
     const fileChat = fileChats[chatIndex];
@@ -401,7 +402,7 @@ export function affectedRunningInvocations(
     WHERE i.state = 'running' AND i.config_hash <> ${activeHash}${
       telegramIds === undefined
         ? sql``
-        : sql` AND v.chat_id IN (SELECT c.id FROM chats c WHERE c.telegram_chat_id IN (${sql.join(
+        : sql` AND v.chat_id IN (SELECT c.id FROM chats c WHERE c.host_kind = 'telegram' AND c.host_chat_id IN (${sql.join(
             telegramIds.map((id) => sql`${id}`),
             sql`, `,
           )}))`

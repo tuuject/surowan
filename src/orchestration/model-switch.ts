@@ -1,9 +1,10 @@
 import { sql } from 'drizzle-orm';
-import type { RawConfig } from '../platform/config/index.ts';
-import type { HostKind } from '../platform/im-host/identity.ts';
+import { mapConfiguredChats, type RawConfig, resolveChatConfig } from '../platform/config/index.ts';
+import { hostExecutionProfile } from '../platform/host-profile.ts';
+import { isHostKind } from '../platform/im-host/identity.ts';
 import { type InvocationAgentSettings, resolveInvocationPolicy } from '../platform/invocation-policy.ts';
 import type { RuntimeConfigurationStore } from '../platform/runtime-config.ts';
-import { type Orm, resolveChatConfig } from '../store/store.ts';
+import type { Orm } from '../store/store.ts';
 import type { BucketScheduler } from './scheduler/index.ts';
 
 /**
@@ -40,12 +41,18 @@ interface RunningInvocationRow {
  * no longer configured — nothing there is running on a model a switch replaces.
  */
 function agentModelKey(orm: Orm, config: RawConfig, row: RunningInvocationRow): string | null {
-  const hostKind = row.host_kind as HostKind;
+  // A host kind this build does not know is not this switch's accounting: it
+  // can neither name nor stop what runs there, so the row affects only itself.
+  if (!isHostKind(row.host_kind)) {
+    return null;
+  }
+  const hostKind = row.host_kind;
   let agent: InvocationAgentSettings;
   try {
     agent = resolveInvocationPolicy(config, orm, {
       hostKind,
-      chatId: hostKind === 'telegram' ? (row.telegram_chat_id ?? 0n) : row.chat_id,
+      chatId: row.chat_id,
+      hostChatId: row.telegram_chat_id,
       chatType: row.chat_type,
     }).agent;
   } catch {
@@ -61,9 +68,10 @@ function inScope(orm: Orm, config: RawConfig, row: RunningInvocationRow, scope: 
     return true;
   }
   return (
-    row.host_kind === 'telegram' &&
-    row.telegram_chat_id !== null &&
-    resolveChatConfig(config, orm, row.telegram_chat_id)?.id === scope.configuredChatId
+    isHostKind(row.host_kind) &&
+    hostExecutionProfile(row.host_kind).chatSource === 'config' &&
+    resolveChatConfig(config, orm, { hostKind: row.host_kind, hostChatId: row.telegram_chat_id })?.id ===
+      scope.configuredChatId
   );
 }
 
@@ -87,7 +95,7 @@ export function invocationsLeavingModel(
   options: ModelSwitchScope = {},
 ): bigint[] {
   const rows = orm.all<RunningInvocationRow>(sql`SELECT i.id AS id,
-      c.host_kind AS host_kind, c.telegram_chat_id AS telegram_chat_id, c.id AS chat_id, c.type AS chat_type
+      c.host_kind AS host_kind, c.host_chat_id AS telegram_chat_id, c.id AS chat_id, c.type AS chat_type
     FROM invocations i
     JOIN conversations v ON v.id = i.conversation_id
     JOIN chats c ON c.id = v.chat_id
@@ -147,12 +155,11 @@ export function withChatModel(
   provider: string | null,
   model: string | null,
 ): RawConfig {
-  const chats = config.telegram.chats.map((chat) => {
+  return mapConfiguredChats(config, (chat) => {
     if (chat.id !== configuredChatId) {
       return chat;
     }
     const { provider: _provider, model: _model, ...rest } = chat;
     return provider === null || model === null ? rest : { ...rest, provider, model };
   });
-  return { ...config, telegram: { ...config.telegram, chats } };
 }

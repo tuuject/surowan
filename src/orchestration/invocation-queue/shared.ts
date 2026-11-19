@@ -1,6 +1,7 @@
 import { eq, type SQL, sql } from 'drizzle-orm';
 import { AGENT_PROMPT_VERSION } from '../../platform/agent-protocol.ts';
-import type { RawConfig } from '../../platform/config/index.ts';
+import type { ChatConfigEntry } from '../../platform/config/index.ts';
+import type { BotIdentity } from '../../platform/im-host/cues.ts';
 import type { HostKind } from '../../platform/im-host/identity.ts';
 import type { RuntimeConfigurationStore } from '../../platform/runtime-config.ts';
 import { deliveryBlockReason } from '../../store/delivery-target.ts';
@@ -21,7 +22,7 @@ import type { ProactiveReplyGate } from '../proactive-reply.ts';
  * one canonical in-memory state through these references and never hold a copy.
  */
 export interface InvocationQueueDeps {
-  readonly bot: { readonly username: string | null } | undefined;
+  readonly bot: BotIdentity | undefined;
   readonly store: BusinessStore;
   readonly configStore: RuntimeConfigurationStore;
   readonly participation: ParticipationRegistry;
@@ -36,8 +37,8 @@ export interface InvocationQueueDeps {
   readonly hosts: readonly HostKind[] | undefined;
   /** Whether one host may execute work at this moment. */
   readonly isHostReady: HostReadiness;
-  /** The global sleep state is Telegram's; a process without it never reads or clears it. */
-  readonly servesTelegram: boolean;
+  /** The global sleep state belongs to hosts whose `sleep` trait is on; a process without one never reads or clears it. */
+  readonly servesSleep: boolean;
   /** `RECOVERY_MAX_AGE_MS`, owned by the service module. */
   readonly recoveryMaxAgeMs: number;
   /** `STARTUP_CATCH_UP_STATE_KEY`, owned by the service module. */
@@ -54,6 +55,7 @@ export interface InvocationQueueDeps {
     invocationId: bigint,
     bucketId: bigint,
     conversationId: bigint,
+    host: HostKind,
     now: Date,
   ): void;
 }
@@ -85,9 +87,9 @@ export function processConversations(deps: InvocationQueueDeps, column: SQL): SQ
   return conversationsOfHosts(activeHosts(deps.hosts, everyHostReady), column);
 }
 
-/** `activeSleepUntil` for a process that serves Telegram; null otherwise, without touching the row. */
+/** `activeSleepUntil` for a process that serves a sleep-capable host; null otherwise, without touching the row. */
 export function sleepUntilFor(deps: InvocationQueueDeps, now: Date): string | null {
-  return deps.servesTelegram ? activeSleepUntil(deps.store.orm, now) : null;
+  return deps.servesSleep ? activeSleepUntil(deps.store.orm, now) : null;
 }
 
 export function runningInvocationId(deps: InvocationQueueDeps, conversationId: bigint): bigint | undefined {
@@ -102,6 +104,7 @@ export function enqueueBucketInvocation(
   deps: InvocationQueueDeps,
   bucketId: bigint,
   conversationId: bigint,
+  host: HostKind,
   now: Date,
   includeHistory: boolean,
 ): bigint {
@@ -119,6 +122,7 @@ export function enqueueBucketInvocation(
     invocationId,
     bucketId,
     conversationId,
+    host,
     includeHistory,
   );
   return invocationId;
@@ -134,21 +138,23 @@ export function proactiveAllows(
   deps: InvocationQueueDeps,
   bucketId: bigint,
   chatId: bigint,
-  telegramChatId: bigint,
+  hostKind: HostKind,
+  hostChatId: bigint,
   chatType: string,
   conversationId: bigint,
-  chat: Pick<RawConfig['telegram']['chats'][number], 'proactive_reply'>,
+  chat: Pick<ChatConfigEntry, 'proactive_reply'>,
   now: Date,
 ): boolean {
   const proactive = deps.proactive;
   if (proactive === undefined) {
     return true;
   }
-  const rule = deps.participation.ruleFor(deps.store.orm, telegramChatId, chatType);
+  const rule = deps.participation.ruleFor(deps.store.orm, { hostKind, hostChatId }, chatType);
   return proactive.decide({
     bucketId,
     chatId,
-    telegramChatId,
+    hostKind,
+    hostChatId,
     chatType,
     conversationId,
     chat,
@@ -189,7 +195,7 @@ export function receiptCancelReason(deps: InvocationQueueDeps, receipt: ReceiptR
     conversationId: receipt.conversation_id,
     chatId: receipt.chat_id,
     hostKind: receipt.host_kind,
-    telegramChatId: receipt.telegram_chat_id,
+    hostChatId: receipt.telegram_chat_id,
     messageThreadId: receipt.message_thread_id,
   });
 }

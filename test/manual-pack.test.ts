@@ -115,7 +115,7 @@ test('the packed manual is readable through the document spaces contract', async
   const outDir = await tempRoot();
   const result = await packManual({ outDir });
   const spaces = await FileSystemDocSpaces.load([bundledManualSpace(outDir)]);
-  const access = { conversationId: 1n, chatId: 2n };
+  const access = { conversationId: 1n, internalChatId: 2n };
   expect(spaces.missing).toEqual([]);
 
   const [manual] = await spaces.spaces(access);
@@ -152,7 +152,7 @@ test('baked product routes resolve to readable manual pages', async () => {
   const outDir = await tempRoot();
   const packed = await packManual({ outDir });
   const spaces = await FileSystemDocSpaces.load([bundledManualSpace(outDir)]);
-  const access = { conversationId: 1n, chatId: 2n };
+  const access = { conversationId: 1n, internalChatId: 2n };
   const paths = new Set([...PRODUCT_KNOWLEDGE_INDEX.matchAll(/\]\(([^)\s]+)\)/g)].map((match) => match[1] ?? ''));
   expect(paths.size).toBeGreaterThan(0);
   for (const path of paths) {

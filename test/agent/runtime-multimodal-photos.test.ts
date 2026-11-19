@@ -116,7 +116,7 @@ test('passes Telegram photos directly to the multimodal agent and keeps stickers
     store,
     configStore,
     secrets: new SecretStore(),
-    mediaClient: downloader,
+    downloaders: { telegram: downloader },
     modelGate: new KeyedSemaphore(),
   });
   const api: TelegramTransport = {

@@ -10,19 +10,18 @@ import type { ImageBridge } from '../../../image/bridge.ts';
 import type { ImageService } from '../../../image/service.ts';
 import type { AdminServer } from '../../../ingress/admin/index.ts';
 import type { SleepingService } from '../../../context/group-memory/sleeping.ts';
-import {
-  commandSender,
-  type BotCommandService,
-  type ParsedCommand,
-} from '../../../orchestration/bot-commands/index.ts';
+import { commandSender } from '../../../ingress/telegram-ingestion/commands.ts';
+import type { BotCommandService, ParsedCommand } from '../../../orchestration/bot-commands/index.ts';
 import type { BucketScheduler } from '../../../orchestration/scheduler/index.ts';
 import {
+  parseHostKind,
   toChatId,
   toConversationId,
   type HostKind,
   type ImConversationRef,
 } from '../../../platform/im-host/identity.ts';
 import type { ImHost } from '../../../platform/im-host/index.ts';
+import { hostExecutionProfile, policyScopeChatId } from '../../../platform/host-profile.ts';
 import type { SecretStore } from '../../../platform/secrets.ts';
 import { chats, conversations } from '../../../store/schema/index.ts';
 import type { BusinessStore } from '../../../store/store.ts';
@@ -93,7 +92,13 @@ export function logEvent(event: string, fields: Readonly<Record<string, string |
  */
 export function resolveConversation(
   store: BusinessStore,
-  target: { readonly chatId: bigint; readonly threadId: bigint; readonly conversationId?: bigint },
+  target: {
+    readonly hostKind: HostKind;
+    readonly hostChatId: bigint | null;
+    readonly internalChatId: bigint;
+    readonly threadId: bigint;
+    readonly conversationId?: bigint;
+  },
 ): ImConversationRef {
   const orm = store.orm;
   // The conversation row decides the host when the caller has one: the same
@@ -108,28 +113,36 @@ export function resolveConversation(
         threadId: conversations.messageThreadId,
         hostKind: chats.hostKind,
         type: chats.type,
-        telegramChatId: chats.telegramChatId,
+        telegramChatId: chats.hostChatId,
       })
       .from(conversations)
       .innerJoin(chats, eq(chats.id, conversations.chatId))
       .where(eq(conversations.id, target.conversationId))
       .get();
     if (row !== undefined) {
-      const hostKind: HostKind = row.hostKind === 'playground' ? 'playground' : 'telegram';
+      const hostKind = parseHostKind(row.hostKind);
       return {
         host: hostKind,
         id: toConversationId(row.id),
-        chatId: toChatId((hostKind === 'telegram' ? row.telegramChatId : row.chatId)?.toString() ?? '0'),
-        topicId: row.threadId === 0n ? null : Number(row.threadId),
+        // A stored row is a real chat: a config host without its native id is
+        // a data bug, so policyScopeChatId throws rather than substituting the
+        // internal row id.
+        chatId: toChatId(
+          policyScopeChatId(hostKind, { hostChatId: row.telegramChatId, chatId: row.chatId }).toString(),
+        ),
+        topicId: row.threadId === 0n ? null : row.threadId,
         scope: row.type === 'private' ? 'private' : 'group',
       };
     }
   }
-  const chat = orm
-    .select({ id: chats.id, type: chats.type })
-    .from(chats)
-    .where(and(eq(chats.hostKind, 'telegram'), eq(chats.telegramChatId, target.chatId)))
-    .get();
+  const chat =
+    target.hostChatId === null
+      ? undefined
+      : orm
+          .select({ id: chats.id, type: chats.type })
+          .from(chats)
+          .where(and(eq(chats.hostKind, target.hostKind), eq(chats.hostChatId, target.hostChatId)))
+          .get();
   const conversation =
     chat === undefined
       ? undefined
@@ -138,11 +151,17 @@ export function resolveConversation(
           .from(conversations)
           .where(and(eq(conversations.chatId, chat.id), eq(conversations.messageThreadId, target.threadId)))
           .get();
+  // No stored row: a room is addressed by its internal id; a config host by
+  // its native id. The one target that reaches here without a native id is a
+  // synthetic preview (doctor, scene), which never touches a transport — its
+  // ref gets the explicit non-delivery id '0', never the internal row id.
+  const wireId =
+    hostExecutionProfile(target.hostKind).chatSource === 'room' ? target.internalChatId : (target.hostChatId ?? 0n);
   return {
-    host: 'telegram',
+    host: target.hostKind,
     id: toConversationId(conversation?.id ?? 0n),
-    chatId: toChatId(target.chatId.toString()),
-    topicId: target.threadId === 0n ? null : Number(target.threadId),
+    chatId: toChatId(wireId.toString()),
+    topicId: target.threadId === 0n ? null : target.threadId,
     scope: chat?.type === 'private' ? 'private' : 'group',
   };
 }
@@ -160,7 +179,7 @@ export async function replyToCommand(
   const sender = commandSender(message);
   let text: string;
   try {
-    text = await commands.run(command, BigInt(chatId), sender);
+    text = await commands.run(command, { hostKind: 'telegram', hostChatId: BigInt(chatId) }, sender);
   } catch (error) {
     logEvent('command_failed', {
       command: command.name,

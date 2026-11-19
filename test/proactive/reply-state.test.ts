@@ -203,7 +203,7 @@ describe('proactive reply probability', () => {
     expect(harness.random).not.toHaveBeenCalled();
 
     const chatId = harness.store.db
-      .prepare<[bigint], { id: bigint }>('SELECT id FROM chats WHERE telegram_chat_id = ?')
+      .prepare<[bigint], { id: bigint }>("SELECT id FROM chats WHERE host_kind = 'telegram' AND host_chat_id = ?")
       .get(BigInt(GROUP_A))?.id;
     if (chatId === undefined) {
       throw new Error('Group chat row missing');

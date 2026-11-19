@@ -1,8 +1,10 @@
 import { eq, sql } from 'drizzle-orm';
-import type { Message } from 'grammy/types';
+import { allConfiguredChats, hostIntakeSettings, resolveChatConfig } from '../platform/config/index.ts';
 import type { RawConfig } from '../platform/config/index.ts';
+import type { ChatConfigRef } from '../platform/config/index.ts';
+import type { MessageCues } from '../platform/im-host/cues.ts';
+import type { HostKind } from '../platform/im-host/identity.ts';
 import {
-  type BotIdentity,
   compileParticipation,
   isWithinActiveWindows,
   matchTriggerKind,
@@ -10,7 +12,7 @@ import {
   type TriggerKind,
 } from '../platform/participation.ts';
 import type { RuntimeConfigurationStore } from '../platform/runtime-config.ts';
-import { isChatPaused, type Orm, resolveChatConfig } from './store.ts';
+import { isChatPaused, type Orm } from './store.ts';
 import { conversationAttention } from './schema/index.ts';
 
 export interface ParticipationDecision {
@@ -44,10 +46,10 @@ export class ParticipationRegistry {
   /**
    * `undefined` means the chat participates unrestricted. Private chats never
    * gate, so a global schedule cannot silence direct messages. Rules are keyed
-   * by the configured chat ID, so migrated supergroups resolve like
-   * `resolveChatConfig`.
+   * by the host and the configured chat ID, so migrated supergroups resolve
+   * like `resolveChatConfig` and two hosts can never share a rule.
    */
-  ruleFor(orm: Orm, telegramChatId: bigint, chatType: string): ParticipationRule | undefined {
+  ruleFor(orm: Orm, chat: ChatConfigRef, chatType: string): ParticipationRule | undefined {
     if (chatType === 'private') {
       return undefined;
     }
@@ -57,13 +59,17 @@ export class ParticipationRegistry {
       // Chat additions are hot-applied configuration changes: recompile the
       // rules whenever the published generation moved on.
       const rules = new Map<string, ParticipationRule | undefined>();
-      for (const chat of snapshot.config.telegram.chats) {
+      const globalForHost = new Map<HostKind, ReturnType<typeof hostIntakeSettings>['participation']>();
+      for (const { host, chat: configured } of allConfiguredChats(snapshot.config)) {
+        if (!globalForHost.has(host)) {
+          globalForHost.set(host, hostIntakeSettings(snapshot.config, host).participation);
+        }
         rules.set(
-          String(chat.id),
+          `${host}:${configured.id}`,
           compileParticipation({
-            global: snapshot.config.telegram.participation,
-            chat: chat.participation,
-            timezone: chat.timezone ?? snapshot.config.timezone,
+            global: globalForHost.get(host),
+            chat: configured.participation,
+            timezone: configured.timezone ?? snapshot.config.timezone,
           }),
         );
       }
@@ -71,8 +77,8 @@ export class ParticipationRegistry {
       this.#config = config = snapshot.config;
       this.#rules = rules;
     }
-    const chatConfig = resolveChatConfig(config, orm, telegramChatId);
-    return chatConfig === undefined ? undefined : this.#rules.get(String(chatConfig.id));
+    const chatConfig = resolveChatConfig(config, orm, chat);
+    return chatConfig === undefined ? undefined : this.#rules.get(`${chat.hostKind}:${chatConfig.id}`);
   }
 }
 
@@ -114,10 +120,13 @@ export function evaluateParticipation(options: {
   readonly rule: ParticipationRule | undefined;
   /** Internal `chats.id`. */
   readonly chatId: bigint;
-  readonly telegramChatId: bigint;
+  /** Host-native Chat id, logged as the wire identity. */
+  readonly hostChatId: bigint;
   readonly conversationId: bigint;
-  readonly message: Message;
-  readonly bot: BotIdentity;
+  /** The cues the ingestion edge extracted from the transport message. */
+  readonly cues: MessageCues;
+  /** Host-native message number, recorded as the trigger and logged. */
+  readonly messageNo: bigint;
   readonly receivedAt: Date;
   readonly eligibleHuman: boolean;
 }): ParticipationDecision {
@@ -131,7 +140,7 @@ export function evaluateParticipation(options: {
     return { bucketCreationAllowed: true, triggerKind: null, expiresAt: null };
   }
   if (rule.askOnly) {
-    const triggerKind = options.eligibleHuman ? matchTriggerKind(options.message, options.bot, []) : null;
+    const triggerKind = options.eligibleHuman ? matchTriggerKind(options.cues, []) : null;
     return { bucketCreationAllowed: triggerKind === 'ask', triggerKind, expiresAt: null };
   }
   // Windows are only maintained outside active periods, so the schedule ends
@@ -139,14 +148,13 @@ export function evaluateParticipation(options: {
   if (isWithinActiveWindows(rule, receivedAt)) {
     return { bucketCreationAllowed: true, triggerKind: null, expiresAt: null };
   }
-  const triggerKind = options.eligibleHuman ? matchTriggerKind(options.message, options.bot, rule.keywords) : null;
+  const triggerKind = options.eligibleHuman ? matchTriggerKind(options.cues, rule.keywords) : null;
   if (triggerKind === null) {
     const expiresAt = attentionWindowUntil(orm, options.conversationId, receivedAt);
     return { bucketCreationAllowed: expiresAt !== null, triggerKind: null, expiresAt };
   }
   const expiresAt = new Date(receivedAt.getTime() + rule.windowSeconds * 1_000).toISOString();
   const timestamp = receivedAt.toISOString();
-  const telegramMessageId = options.message.message_id;
   orm
     .insert(conversationAttention)
     .values({
@@ -154,7 +162,7 @@ export function evaluateParticipation(options: {
       expiresAt,
       triggeredAt: timestamp,
       triggerKind,
-      triggerTelegramMessageId: BigInt(telegramMessageId),
+      triggerMessageNo: options.messageNo,
       updatedAt: timestamp,
     })
     .onConflictDoUpdate({
@@ -163,7 +171,7 @@ export function evaluateParticipation(options: {
         expiresAt,
         triggeredAt: timestamp,
         triggerKind,
-        triggerTelegramMessageId: BigInt(telegramMessageId),
+        triggerMessageNo: options.messageNo,
         updatedAt: timestamp,
       },
     })
@@ -171,10 +179,10 @@ export function evaluateParticipation(options: {
   console.log(
     JSON.stringify({
       event: 'agent_attention_triggered',
-      chat_id: options.telegramChatId.toString(),
+      chat_id: options.hostChatId.toString(),
       conversation_id: options.conversationId.toString(),
       trigger_kind: triggerKind,
-      telegram_message_id: String(telegramMessageId),
+      telegram_message_id: String(options.messageNo),
       expires_at: expiresAt,
       at: timestamp,
     }),

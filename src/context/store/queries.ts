@@ -1,10 +1,11 @@
 import { type SQL, sql } from 'drizzle-orm';
+import { telegramHostSql } from '../../store/host-scope.ts';
 import type { BusinessStore } from '../../store/store.ts';
 import type { ConversationContextSummary } from './types.ts';
 
 interface ConversationContextSummaryRow {
   readonly conversation_id: bigint;
-  readonly telegram_chat_id: bigint;
+  readonly host_chat_id: bigint | null;
   readonly message_thread_id: bigint;
   readonly head_seq: bigint;
   readonly next_seq: bigint;
@@ -18,19 +19,21 @@ interface ConversationContextSummaryRow {
 /** Read-only projection used by `/status` and the Admin Panel. */
 export function listConversationContexts(
   store: BusinessStore,
-  filter: { readonly conversationId?: bigint; readonly telegramChatId?: bigint; readonly limit?: number } = {},
+  filter: { readonly conversationId?: bigint; readonly hostChatId?: bigint; readonly limit?: number } = {},
 ): ConversationContextSummary[] {
   const conditions: SQL[] = [];
   if (filter.conversationId !== undefined) {
     conditions.push(sql`cc.conversation_id = ${filter.conversationId}`);
   }
-  if (filter.telegramChatId !== undefined) {
-    conditions.push(sql`c.telegram_chat_id = ${filter.telegramChatId}`);
+  if (filter.hostChatId !== undefined) {
+    // The filter holds a Telegram chat id: the same native id may exist once
+    // per host, so scoping to Telegram rows is part of the lookup.
+    conditions.push(telegramHostSql('c.host_kind'), sql`c.host_chat_id = ${filter.hostChatId}`);
   }
   const where = conditions.length === 0 ? sql`1 = 1` : sql.join(conditions, sql` AND `);
   return store.orm
     .all<ConversationContextSummaryRow>(
-      sql`SELECT cc.conversation_id, c.telegram_chat_id, v.message_thread_id, cc.head_seq, cc.next_seq,
+      sql`SELECT cc.conversation_id, c.host_chat_id, v.message_thread_id, cc.head_seq, cc.next_seq,
                  cc.send_count_total, cc.last_active_at, cc.last_gc_at, cc.active_invocation_id,
                  (SELECT COUNT(*) FROM context_messages cm
                    WHERE cm.context_id = cc.id AND cm.seq >= cc.head_seq) AS message_count
@@ -43,7 +46,7 @@ export function listConversationContexts(
     )
     .map((row) => ({
       conversationId: row.conversation_id,
-      telegramChatId: row.telegram_chat_id,
+      hostChatId: row.host_chat_id,
       messageThreadId: row.message_thread_id,
       headSeq: row.head_seq,
       nextSeq: row.next_seq,

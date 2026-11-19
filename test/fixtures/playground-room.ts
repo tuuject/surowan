@@ -20,7 +20,7 @@ import {
   rooms,
   senders,
 } from '../../src/store/schema/index.ts';
-import { ROOM_SNAPSHOT_FORMAT } from '../../src/context/builder/schema.ts';
+import { ROOM_SNAPSHOT_FORMAT } from '../../src/platform/host-profile.ts';
 
 export interface SeededRoomMessage {
   readonly seq: number;
@@ -54,7 +54,7 @@ export function seedPlaygroundRoom(
       hostKind: 'playground',
       type: 'group',
       title: 'Playground Room',
-      telegramChatId: null,
+      hostChatId: null,
       canonicalChatId: null,
       updatedAt: STAMP,
     })
@@ -88,8 +88,8 @@ export function seedPlaygroundRoom(
       .insert(senders)
       .values({
         hostKind: 'playground',
-        telegramId: null,
-        telegramType: null,
+        hostSenderId: null,
+        hostSenderType: null,
         displayName: name,
         username: null,
         isBot: false,
@@ -159,10 +159,9 @@ export function seedPlaygroundRoom(
         chatId: chat.id,
         conversationId: conversation.id,
         hostKind: 'playground',
-        telegramMessageId: null,
-        telegramDate: STAMP,
+        messageNo: BigInt(entry.seq),
+        sentAt: STAMP,
         receivedAt: STAMP,
-        localSequenceNo: BigInt(entry.seq),
       })
       .returning({ id: messages.id })
       .get();

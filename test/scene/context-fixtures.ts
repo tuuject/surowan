@@ -174,7 +174,7 @@ export function conversationIdOf(store: SqliteStore, chatId: bigint, threadId: b
   const row = store.orm
     .all<{ id: bigint }>(
       sql`SELECT v.id FROM conversations v JOIN chats c ON c.id = v.chat_id
-          WHERE c.telegram_chat_id = ${chatId} AND v.message_thread_id = ${threadId}`,
+          WHERE c.host_kind = 'telegram' AND c.host_chat_id = ${chatId} AND v.message_thread_id = ${threadId}`,
     )
     .at(0);
   if (row === undefined) {
@@ -224,7 +224,9 @@ export function invocationBucket(store: SqliteStore, invocationId: bigint): bigi
 
 /** The chat's internal row ID, as `messages` references it. */
 export function chatRowId(store: SqliteStore, chatId: bigint): bigint {
-  const row = store.orm.all<{ id: bigint }>(sql`SELECT id FROM chats WHERE telegram_chat_id = ${chatId}`).at(0);
+  const row = store.orm
+    .all<{ id: bigint }>(sql`SELECT id FROM chats WHERE host_kind = 'telegram' AND host_chat_id = ${chatId}`)
+    .at(0);
   if (row === undefined) {
     throw new Error(`fixture: chat ${chatId} was never stored`);
   }
@@ -251,12 +253,13 @@ export function insertRawMessage(
   const created = store.orm
     .insert(messages)
     .values({
+      hostKind: 'telegram',
       conversationId: input.conversationId,
       chatId: input.chatId,
-      telegramMessageId: input.telegramMessageId,
+      messageNo: input.telegramMessageId,
       visible: true,
       sentByBot: input.sentByBot ?? false,
-      telegramDate: receivedAt,
+      sentAt: receivedAt,
       receivedAt,
     })
     .returning({ id: messages.id })
@@ -294,8 +297,9 @@ function botSenderId(fixture: Fixture): bigint {
   store.orm
     .insert(senders)
     .values({
-      telegramType: 'user',
-      telegramId: BOT_ID,
+      hostKind: 'telegram',
+      hostSenderType: 'user',
+      hostSenderId: BOT_ID,
       displayName: 'Surowan',
       username: BOT_USERNAME,
       isBot: true,
@@ -306,7 +310,7 @@ function botSenderId(fixture: Fixture): bigint {
   const row = store.orm
     .select({ id: senders.id })
     .from(senders)
-    .where(and(eq(senders.telegramType, 'user'), eq(senders.telegramId, BOT_ID)))
+    .where(and(eq(senders.hostKind, 'telegram'), eq(senders.hostSenderType, 'user'), eq(senders.hostSenderId, BOT_ID)))
     .get();
   if (row === undefined) {
     throw new Error('fixture: bot sender row is missing');

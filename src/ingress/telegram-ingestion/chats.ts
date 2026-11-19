@@ -1,9 +1,10 @@
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import type { Message } from 'grammy/types';
 import { GroupMemoryStore } from '../../context/group-memory/store.ts';
 import type { RuntimeConfigurationStore } from '../../platform/runtime-config.ts';
 import { chatMigrations, chats } from '../../store/schema/index.ts';
-import { type BusinessStore, resolveChatConfig } from '../../store/store.ts';
+import { resolveChatConfig } from '../../platform/config/index.ts';
+import type { BusinessStore } from '../../store/store.ts';
 
 /**
  * The allowlist cache `TelegramIngestion` owns and this module rebuilds and
@@ -87,13 +88,18 @@ export function recordMigration(deps: TelegramChatDeps, message: Message | undef
 }
 
 export function upsertChat(deps: TelegramChatDeps, chat: Message['chat'], chatId: bigint, receivedAt: Date): bigint {
-  const existing = deps.store.orm.select({ id: chats.id }).from(chats).where(eq(chats.telegramChatId, chatId)).get();
+  const existing = deps.store.orm
+    .select({ id: chats.id })
+    .from(chats)
+    .where(and(eq(chats.hostKind, 'telegram'), eq(chats.hostChatId, chatId)))
+    .get();
   const title = 'title' in chat ? (chat.title ?? null) : null;
   const username = 'username' in chat ? (chat.username ?? null) : null;
   const row = deps.store.orm
     .insert(chats)
     .values({
-      telegramChatId: chatId,
+      hostKind: 'telegram',
+      hostChatId: chatId,
       canonicalChatId: chatId,
       type: chat.type,
       title,
@@ -101,7 +107,7 @@ export function upsertChat(deps: TelegramChatDeps, chat: Message['chat'], chatId
       updatedAt: receivedAt.toISOString(),
     })
     .onConflictDoUpdate({
-      target: chats.telegramChatId,
+      target: [chats.hostKind, chats.hostChatId],
       set: { type: chat.type, title, username, updatedAt: receivedAt.toISOString() },
     })
     .returning({ id: chats.id })
@@ -111,7 +117,10 @@ export function upsertChat(deps: TelegramChatDeps, chat: Message['chat'], chatId
   }
   if (
     existing === undefined &&
-    resolveChatConfig(deps.configStore.current().config, deps.store.orm, chatId)?.group_memory?.enabled === true
+    resolveChatConfig(deps.configStore.current().config, deps.store.orm, {
+      hostKind: 'telegram',
+      hostChatId: chatId,
+    })?.group_memory?.enabled === true
   ) {
     // Ingestion owns the first stored message, so establish its lane before it arrives.
     new GroupMemoryStore(deps.store.orm).activate(row.id, 0n, receivedAt);

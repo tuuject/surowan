@@ -101,7 +101,7 @@ export const hostSends = sqliteTable(
     kind: text('kind').notNull(),
     requestJson: text('request_json').notNull(),
     state: text('state').notNull(),
-    telegramMessageId: sqliteBigInt('telegram_message_id'),
+    messageNo: sqliteBigInt('message_no'),
     // The message a virtual host published for this send, if it publishes one.
     messageId: sqliteBigInt('message_id').references(() => messages.id, {
       onDelete: 'set null',

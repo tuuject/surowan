@@ -312,7 +312,7 @@ test('edits the global proactive reply defaults under telegram and hot-applies t
   // The section did not exist yet, so the diff reports it as one hot change.
   expect(body.apply.applied).toEqual(['telegram.proactive_reply']);
   expect(body.active).toEqual(body.saved);
-  expect(resolveProactiveReply(f.configStore.current().config)).toEqual({
+  expect(resolveProactiveReply({ proactive_reply: f.configStore.current().config.telegram?.proactive_reply })).toEqual({
     enabled: true,
     base_probability: 0.35,
     increment: PROACTIVE_REPLY_DEFAULTS.increment,

@@ -21,8 +21,8 @@ import { defaultVisionThinkingLevel } from '../../platform/thinking-levels.ts';
 import { applyToolSchemaKeywords } from '../../platform/tool-schema.ts';
 import { dailyUsage, mediaAnalyses, modelCalls } from '../../store/schema/index.ts';
 import { isDailyTokenBudgetReached, meteredTokens, readDailyTokenBudget } from '../../store/sleep.ts';
-import { MAX_DOWNLOAD_BYTES, type MediaRow } from './image.ts';
-import { createWorkDirectory, type MediaImageInputDeps, prepareRowImage } from './image-input.ts';
+import { MAX_DOWNLOAD_BYTES } from './image.ts';
+import { createWorkDirectory, type MediaImageInputDeps, prepareRowImage, type RowImageSource } from './image-input.ts';
 
 const StickerAnalysisSchema = Type.Object(
   {
@@ -42,7 +42,7 @@ const IMAGE_CACHE_DAYS = 30;
 export type AnalysisScope =
   | {
       readonly kind: 'chat';
-      readonly chatId: bigint;
+      readonly scopeChatId: bigint;
       readonly invocationId: bigint;
       readonly hostKind: HostKind;
     }
@@ -86,7 +86,7 @@ export interface MediaVisionDeps extends MediaImageInputDeps {
  */
 export async function analyzeDeduplicated(
   deps: MediaVisionDeps,
-  media: MediaRow,
+  media: RowImageSource,
   run: VisionRun,
   scope: AnalysisScope,
   signal: AbortSignal,
@@ -103,7 +103,7 @@ export async function analyzeDeduplicated(
 
 async function analyze(
   deps: MediaVisionDeps,
-  media: MediaRow,
+  media: RowImageSource,
   run: VisionRun,
   scope: AnalysisScope,
   signal: AbortSignal,
@@ -159,7 +159,7 @@ async function analyze(
     const releaseVision = await deps.visionSemaphore.acquire(signal, scope.kind === 'sticker_index' ? 1 : 0);
     const releaseChat =
       scope.kind === 'chat'
-        ? await deps.modelGate.acquire(invocationGateKey(scope.hostKind, scope.chatId), signal)
+        ? await deps.modelGate.acquire(invocationGateKey(scope.hostKind, scope.scopeChatId), signal)
         : undefined;
     try {
       const callId = startVisionCall(deps, scope, analysisId, run);
@@ -337,7 +337,7 @@ function finishVisionCall(
         .values({
           utcDate: now.slice(0, 10),
           scope: hostExecutionProfile(scope.hostKind).budgetScope,
-          resource: scope.chatId.toString(),
+          resource: scope.scopeChatId.toString(),
           metric: 'model_tokens',
           amount: meteredTokens(usage),
           updatedAt: now,

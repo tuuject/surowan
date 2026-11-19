@@ -1,11 +1,13 @@
 import { and, eq, gt, inArray, sql } from 'drizzle-orm';
 import { AGENT_PROMPT_VERSION } from '../../platform/agent-protocol.ts';
+import { hostExecutionProfile } from '../../platform/host-profile.ts';
+import { isHostKind, parseHostKind } from '../../platform/im-host/identity.ts';
 import type { RawConfig } from '../../platform/config/index.ts';
 import type { RuntimeConfigurationStore } from '../../platform/runtime-config.ts';
 import { type DeliveryBlockReason, deliveryBlockReason, deliveryTarget } from '../../store/delivery-target.ts';
 import { enqueueInvocation } from '../../store/invocation-enqueue.ts';
 import { snapshotInvocation } from '../../store/invocation-snapshot.ts';
-import { buckets, invocationBuckets, invocations } from '../../store/schema/index.ts';
+import { buckets, chats, conversations, invocationBuckets, invocations } from '../../store/schema/index.ts';
 import { storedSleepUntil } from '../../store/sleep.ts';
 import type { BusinessStore, Orm } from '../../store/store.ts';
 import type { HostReadiness } from '../host-scope.ts';
@@ -85,12 +87,13 @@ export function resumeBlockReason(
   }
   // A Playground room retries through its own Release ledger; a run without a
   // Release would sit outside it.
-  if (target.hostKind !== 'telegram') {
+  const targetHostKind = isHostKind(target.hostKind) ? target.hostKind : undefined;
+  if (targetHostKind === undefined || hostExecutionProfile(targetHostKind).intake !== 'bucket') {
     return 'unsupported_host';
   }
   // The scheduler never launches work of a host that is disabled or not
   // connected; the run would sit queued and block every later resume.
-  if (!isHostReady('telegram')) {
+  if (!isHostReady(targetHostKind)) {
     return 'host_unavailable';
   }
   const blocked = deliveryBlockReason(orm, config, target);
@@ -98,10 +101,13 @@ export function resumeBlockReason(
     return blocked;
   }
   // The scheduler would skip the queued run as `sleeping`; refusing here tells
-  // the operator instead of failing out of sight.
-  const sleepUntil = storedSleepUntil(orm);
-  if (sleepUntil !== null && sleepUntil > now.toISOString()) {
-    return 'sleeping';
+  // the operator instead of failing out of sight. Only a host whose profile
+  // carries the global sleep is held by it.
+  if (hostExecutionProfile(targetHostKind).sleep) {
+    const sleepUntil = storedSleepUntil(orm);
+    if (sleepUntil !== null && sleepUntil > now.toISOString()) {
+      return 'sleeping';
+    }
   }
   return undefined;
 }
@@ -154,19 +160,19 @@ export function consumedBatchHistoryLimit(orm: Orm, invocationId: bigint, config
         WITH conversation AS (
           SELECT conversation_id FROM invocations WHERE id = ${invocationId}
         ), first_consumed AS (
-          SELECT m.telegram_date AS telegram_date, m.telegram_message_id AS telegram_message_id
+          SELECT m.sent_at AS telegram_date, m.message_no AS telegram_message_id
           FROM invocation_buckets ib
           JOIN bucket_messages bm ON bm.bucket_id = ib.bucket_id
           JOIN messages m ON m.id = bm.message_id
           WHERE ib.invocation_id = ${invocationId}
-          ORDER BY m.telegram_date ASC, m.telegram_message_id ASC
+          ORDER BY m.sent_at ASC, m.message_no ASC
           LIMIT 1
         )
         SELECT COUNT(*) AS consumed FROM messages m, first_consumed f
         WHERE m.conversation_id = (SELECT conversation_id FROM conversation)
           AND m.visible = 1
-          AND (m.telegram_date > f.telegram_date
-            OR (m.telegram_date = f.telegram_date AND m.telegram_message_id >= f.telegram_message_id))`)
+          AND (m.sent_at > f.telegram_date
+            OR (m.sent_at = f.telegram_date AND m.message_no >= f.telegram_message_id))`)
       .at(0)?.consumed ?? 0n,
   );
   return Math.min(Math.max(configured, consumed), HISTORY_MESSAGES_CAP);
@@ -187,8 +193,14 @@ export function resumeInvocation(
       return { ok: false, reason };
     }
     const source = store.orm
-      .select({ conversationId: invocations.conversationId, bucketId: invocations.bucketId })
+      .select({
+        conversationId: invocations.conversationId,
+        bucketId: invocations.bucketId,
+        hostKind: chats.hostKind,
+      })
       .from(invocations)
+      .innerJoin(conversations, eq(conversations.id, invocations.conversationId))
+      .innerJoin(chats, eq(chats.id, conversations.chatId))
       .where(eq(invocations.id, invocationId))
       .get();
     if (source === undefined) {
@@ -255,7 +267,15 @@ export function resumeInvocation(
       // window that still reaches the requests its run was answering; the
       // configured value remains the floor.
       const historyMessages = Math.max(current.config.agent.history_messages, options.historyMessages ?? 0);
-      snapshotInvocation(store, historyMessages, resumed, bucketId, source.conversationId, true);
+      snapshotInvocation(
+        store,
+        historyMessages,
+        resumed,
+        bucketId,
+        source.conversationId,
+        parseHostKind(source.hostKind),
+        true,
+      );
     }
     return { ok: true, invocationId: resumed, bucketId };
   });

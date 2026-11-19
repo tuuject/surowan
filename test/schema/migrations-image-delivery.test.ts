@@ -168,8 +168,9 @@ test('migration 027 infers image delivery asset ids only when the count proves t
     store.orm
       .insert(chats)
       .values({
+        hostKind: 'telegram',
         id: 1n,
-        telegramChatId: 123456789n,
+        hostChatId: 123456789n,
         canonicalChatId: 123456789n,
         type: 'private',
         updatedAt: createdAt,
@@ -227,7 +228,7 @@ test('migration 027 infers image delivery asset ids only when the count proves t
           kind: 'image',
           requestJson: item.requestJson,
           state: item.scenario.state,
-          telegramMessageId: item.scenario.telegramMessageId,
+          messageNo: item.scenario.telegramMessageId,
           createdAt: sendAt,
           finishedAt: item.scenario.state === 'pending' ? null : sendAt,
         })
@@ -278,7 +279,7 @@ test('migration 027 infers image delivery asset ids only when the count proves t
         kind: 'text',
         requestJson: textRequestJson,
         state: 'success',
-        telegramMessageId: 999n,
+        messageNo: 999n,
         createdAt: textSendAt,
         finishedAt: textSendAt,
       })

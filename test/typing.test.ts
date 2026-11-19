@@ -12,7 +12,7 @@ import { afterEach, expect, test, vi } from 'vitest';
 import { createTyping } from '../src/capabilities/typing-tool.ts';
 import { identityConversation } from '../src/platform/im-host/identity.ts';
 import type { ImDeliveryTarget } from '../src/platform/im-host/policy.ts';
-import { grammyTelegramTransport } from '../src/adapters/local-monolith/telegram/host.ts';
+import { grammyTelegramTransport } from '../src/adapters/local-monolith/telegram/grammy-transport.ts';
 import { testTelegramHost, type TelegramHost, type TelegramTransport } from './helpers.ts';
 
 afterEach(() => {
@@ -40,7 +40,7 @@ function transportFixture() {
 
 function targetOf(host: TelegramHost, chatId: string, threadId: bigint): ImDeliveryTarget {
   const conversation = identityConversation(
-    { chatId: BigInt(chatId), threadId, conversationId: 1n },
+    { hostChatId: BigInt(chatId), internalChatId: BigInt(chatId), threadId, conversationId: 1n },
     'telegram',
     'group',
   );

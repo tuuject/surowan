@@ -25,7 +25,7 @@ import { createToolAudit } from '../../src/store/tool-audit.ts';
 import { renderInvocationContext, testConfigJsonc, testConfigStore, writeTestConfig } from '../helpers.ts';
 
 const directories: string[] = [];
-const access: DocAccessContext = { conversationId: 1n, chatId: 2n };
+const access: DocAccessContext = { conversationId: 1n, internalChatId: 2n };
 
 afterAll(async () => {
   await Promise.all(

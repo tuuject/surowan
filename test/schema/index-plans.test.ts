@@ -1,13 +1,22 @@
 import { afterAll, expect, test } from 'vitest';
+import { join } from 'node:path';
 import { sql } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 
+import { loadConfig } from '../../src/adapters/local-monolith/config/index.ts';
 import { SqliteStore } from '../../src/adapters/local-monolith/database.ts';
 import { listInvocations } from '../../src/ingress/admin/audit/invocations.ts';
 import { adminPasskeys, adminSessions, adminUsers, hostSends, toolCalls } from '../../src/store/schema/index.ts';
 import * as schema from '../../src/store/schema/index.ts';
 import { seedAdminFixture } from '../fixtures/admin-seed.ts';
-import { cleanupSchemaDirectories, openStore, rollbackHostSendsRename } from './fixtures.ts';
+import { writeTestConfig } from '../helpers.ts';
+import {
+  buildDatabaseBelow,
+  cleanupSchemaDirectories,
+  makeSchemaDirectory,
+  openStore,
+  rollbackHostSendsRename,
+} from './fixtures.ts';
 
 afterAll(cleanupSchemaDirectories);
 
@@ -217,23 +226,69 @@ test.each(['fresh', 'upgraded'])(
 );
 
 test.each(['fresh', 'upgraded'])('per-conversation message reads use their indexes in %s databases', async (mode) => {
-  const fixture = await openStore();
-  let store = fixture.store;
+  // 'upgraded' replays 062 for real: the file still names the pre-064 columns,
+  // so it runs on a database built at 063, seeded under the old names, with
+  // the version row removed so the runner applies it before 064 renames the
+  // columns it indexed.
+  const upgraded =
+    mode === 'upgraded'
+      ? await (async () => {
+          const directory = await makeSchemaDirectory();
+          const configPath = join(directory, 'config.jsonc');
+          await writeTestConfig(directory, configPath);
+          const loaded = await loadConfig(configPath);
+          const legacy = await buildDatabaseBelow(loaded, 64);
+          legacy.exec(`
+            INSERT INTO chats (id, host_kind, telegram_chat_id, canonical_chat_id, type, updated_at)
+              VALUES (1, 'telegram', 123456789, 123456789, 'private', '2026-01-01T00:00:00.000Z');
+            INSERT INTO senders (id, host_kind, telegram_type, telegram_id, display_name, is_bot, updated_at)
+              VALUES (10, 'telegram', 'user', 42, 'Alice', 0, '2026-01-01T00:00:00.000Z'),
+                     (11, 'telegram', 'user', 999, 'Surowan', 1, '2026-01-01T00:00:00.000Z');
+            INSERT INTO conversations (id, chat_id, message_thread_id, created_at, updated_at)
+              VALUES (100, 1, 0, '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z');
+            INSERT INTO buckets (id, conversation_id, state, first_received_at, deadline_at, created_at, updated_at)
+              VALUES (3000, 100, 'completed', '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:15.000Z', '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:15.000Z'),
+                     (3001, 100, 'collecting', '2026-01-01T00:01:00.000Z', '2026-01-01T00:01:15.000Z', '2026-01-01T00:01:00.000Z', '2026-01-01T00:01:00.000Z');
+            INSERT INTO messages (id, conversation_id, chat_id, host_kind, telegram_message_id, visible, sent_by_bot, telegram_date, received_at)
+              VALUES (1000, 100, 1, 'telegram', 5000, 1, 0, '2026-01-01T00:00:01.000Z', '2026-01-01T00:00:01.000Z'),
+                     (1001, 100, 1, 'telegram', 5001, 1, 0, '2026-01-01T00:00:02.000Z', '2026-01-01T00:00:02.000Z'),
+                     (1002, 100, 1, 'telegram', 5002, 1, 1, '2026-01-01T00:00:03.000Z', '2026-01-01T00:00:03.000Z'),
+                     (1003, 100, 1, 'telegram', 5003, 0, 0, '2026-01-01T00:00:04.000Z', '2026-01-01T00:00:04.000Z'),
+                     (1004, 100, 1, 'telegram', 5004, 1, 0, '2026-01-01T00:01:01.000Z', '2026-01-01T00:01:01.000Z'),
+                     (1005, 100, 1, 'telegram', 5005, 1, 0, '2026-01-01T00:01:02.000Z', '2026-01-01T00:01:02.000Z');
+            INSERT INTO message_revisions (id, message_id, revision_no, sender_id, kind, text, created_at, raw_fragment_json)
+              VALUES (2000, 1000, 1, 10, 'text', 'one', '2026-01-01T00:00:01.000Z', '{}'),
+                     (2001, 1001, 1, 10, 'text', 'two', '2026-01-01T00:00:02.000Z', '{}'),
+                     (2002, 1002, 1, 11, 'text', 'three', '2026-01-01T00:00:03.000Z', '{}'),
+                     (2003, 1003, 1, 10, 'text', 'four', '2026-01-01T00:00:04.000Z', '{}'),
+                     (2004, 1004, 1, 10, 'text', 'five', '2026-01-01T00:01:01.000Z', '{}'),
+                     (2005, 1005, 1, 10, 'text', 'six', '2026-01-01T00:01:02.000Z', '{}');
+            UPDATE messages SET current_revision_id = CASE id
+              WHEN 1000 THEN 2000 WHEN 1001 THEN 2001 WHEN 1002 THEN 2002
+              WHEN 1003 THEN 2003 WHEN 1004 THEN 2004 WHEN 1005 THEN 2005 END;
+            INSERT INTO bucket_messages (bucket_id, message_id, sequence_no)
+              VALUES (3000, 1000, 1), (3000, 1001, 2), (3000, 1002, 3), (3001, 1004, 1);
+          `);
+          // Undo 062's effects and its record so the runner replays it.
+          legacy.exec(`
+            DROP INDEX messages_conversation_history_idx;
+            DROP INDEX bucket_messages_message_idx;
+            DELETE FROM schema_migrations WHERE version = 62;
+          `);
+          legacy.close();
+          return { store: await SqliteStore.open(loaded.config), conversationId: 100n, bucketA: 3000n, bucketB: 3001n };
+        })()
+      : null;
+  const fixture = upgraded === null ? await openStore() : null;
+  const store = upgraded?.store ?? fixture?.store;
+  if (store === undefined || store === null) {
+    throw new Error('no store');
+  }
   try {
-    const seed = seedAdminFixture(store);
-    if (mode === 'upgraded') {
-      // Rolling back only the two 062 index records must re-apply the
-      // migration on a live database without touching anything else.
-      store.db.exec(`
-          DROP INDEX IF EXISTS messages_conversation_history_idx;
-          DROP INDEX IF EXISTS bucket_messages_message_idx;
-          DELETE FROM schema_migrations WHERE version = 62;
-        `);
-      store.close();
-      store = await SqliteStore.open(fixture.loaded.config);
-      store.close();
-      store = await SqliteStore.open(fixture.loaded.config);
-    }
+    const seed =
+      upgraded === null
+        ? seedAdminFixture(store)
+        : { conversationId: upgraded.conversationId, bucketA: upgraded.bucketA, bucketB: upgraded.bucketB };
     const explain = (query: string, ...params: (bigint | number | string)[]) =>
       store.db
         .prepare<unknown[], { detail: string }>(`EXPLAIN QUERY PLAN ${query}`)
@@ -241,8 +296,8 @@ test.each(['fresh', 'upgraded'])('per-conversation message reads use their index
         .map((row) => row.detail);
 
     // The snapshot's history window reads one conversation newest-first on
-    // every invocation; it must ride (conversation_id, telegram_date,
-    // telegram_message_id) instead of scanning and re-sorting messages.
+    // every invocation; it must ride (conversation_id, sent_at,
+    // message_no) instead of scanning and re-sorting messages.
     const history = explain(
       `SELECT m.id
          FROM messages m
@@ -250,14 +305,14 @@ test.each(['fresh', 'upgraded'])('per-conversation message reads use their index
          JOIN message_revisions r ON r.id = m.current_revision_id
          LEFT JOIN senders s ON s.id = r.sender_id
          WHERE m.conversation_id = ? AND m.visible = 1
-           AND m.telegram_message_id > COALESCE(
-             (SELECT telegram_message_id FROM conversation_context_cutoffs WHERE conversation_id = m.conversation_id), -1)
+           AND m.message_no > COALESCE(
+             (SELECT message_no FROM conversation_context_cutoffs WHERE conversation_id = m.conversation_id), -1)
            AND NOT EXISTS (SELECT 1 FROM bucket_messages bm WHERE bm.bucket_id = ? AND bm.message_id = m.id)
            AND m.id NOT IN (
              SELECT pending.message_id FROM bucket_messages pending
              JOIN buckets pb ON pb.id = pending.bucket_id
              WHERE pb.conversation_id = ? AND pb.state = 'collecting')
-         ORDER BY m.telegram_date DESC, m.telegram_message_id DESC
+         ORDER BY m.sent_at DESC, m.message_no DESC
          LIMIT ?`,
       seed.conversationId,
       seed.bucketA,
@@ -281,9 +336,9 @@ test.each(['fresh', 'upgraded'])('per-conversation message reads use their index
            AND NOT EXISTS (SELECT 1 FROM bucket_messages bm WHERE bm.message_id = m.id)
            AND m.received_at >= COALESCE(
              (SELECT MAX(first_received_at) FROM buckets WHERE conversation_id = ? AND id <> ?), '')
-           AND m.telegram_message_id > COALESCE(
-             (SELECT telegram_message_id FROM conversation_context_cutoffs WHERE conversation_id = m.conversation_id), -1)
-         ORDER BY m.telegram_date DESC, m.telegram_message_id DESC
+           AND m.message_no > COALESCE(
+             (SELECT message_no FROM conversation_context_cutoffs WHERE conversation_id = m.conversation_id), -1)
+         ORDER BY m.sent_at DESC, m.message_no DESC
          LIMIT ?`,
       seed.conversationId,
       seed.conversationId,

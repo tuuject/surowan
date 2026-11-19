@@ -52,8 +52,8 @@ function dayCondition(input: SearchGroupMemory) {
   if (input.window === undefined) {
     return sql` AND g.day = ${input.day}`;
   }
-  return sql` AND ((g.day = ${input.day} AND (m.telegram_date IS NULL OR m.telegram_date >= ${input.window.start}))
-               OR (g.day = ${nextDay(input.day)} AND m.telegram_date < ${input.window.end}))`;
+  return sql` AND ((g.day = ${input.day} AND (m.sent_at IS NULL OR m.sent_at >= ${input.window.start}))
+               OR (g.day = ${nextDay(input.day)} AND m.sent_at < ${input.window.end}))`;
 }
 
 function toEntry(row: EntryRow): GroupMemoryEntry {
@@ -112,7 +112,7 @@ export class GroupMemoryStore {
             FROM group_memories g${
               input.window === undefined
                 ? sql``
-                : sql` LEFT JOIN messages m ON m.chat_id = g.chat_id AND m.telegram_message_id = g.first_message_id`
+                : sql` LEFT JOIN messages m ON m.chat_id = g.chat_id AND m.message_no = g.first_message_id`
             }
             WHERE g.chat_id = ${chatId}${dayCondition(input)}${
               after === undefined

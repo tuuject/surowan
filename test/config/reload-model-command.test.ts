@@ -30,7 +30,11 @@ test('/model writes the file, keeps its comments and applies from the next run',
     const options = fixture.modelSwitcher.list();
     const index = options.findIndex((option) => option.provider === 'faux' && option.model === SECOND_MODEL) + 1;
     expect(index).toBeGreaterThan(0);
-    const reply = await fixture.commands.run({ name: 'model', argument: String(index) }, BigInt(CHAT_ID), ADMIN);
+    const reply = await fixture.commands.run(
+      { name: 'model', argument: String(index) },
+      { hostKind: 'telegram', hostChatId: BigInt(CHAT_ID) },
+      ADMIN,
+    );
     expect(reply).toContain(`faux / ${SECOND_MODEL}`);
     expect(reply).toContain('本群');
     // Thinking level reset is handled internally by setChatModel; visible via /status.
@@ -79,7 +83,11 @@ test('/model reports a write failure without touching the file or the active con
       config.telegram.bucket_window_seconds = 301;
     });
     const broken = await fixture.readText();
-    const reply = await fixture.commands.run({ name: 'model', argument: '1' }, BigInt(CHAT_ID), ADMIN);
+    const reply = await fixture.commands.run(
+      { name: 'model', argument: '1' },
+      { hostKind: 'telegram', hostChatId: BigInt(CHAT_ID) },
+      ADMIN,
+    );
     expect(reply.startsWith('切换失败: ')).toBe(true);
     expect(await fixture.readText()).toBe(broken);
     expect(fixture.configStore.current()).toBe(before);
@@ -128,7 +136,11 @@ test('/model reports a read-only configuration directory', async () => {
   const original = await fixture.readText();
   try {
     await chmod(fixture.directory, 0o500);
-    const reply = await fixture.commands.run({ name: 'model', argument: '1' }, BigInt(CHAT_ID), ADMIN);
+    const reply = await fixture.commands.run(
+      { name: 'model', argument: '1' },
+      { hostKind: 'telegram', hostChatId: BigInt(CHAT_ID) },
+      ADMIN,
+    );
     expect(reply.startsWith('切换失败: ')).toBe(true);
     await chmod(fixture.directory, 0o700);
     expect(await fixture.readText()).toBe(original);
@@ -146,7 +158,11 @@ test('/model reports a written file that could not be applied', async () => {
     await fixture.patch((config) => {
       customProvider(config.providers, 'vision').api_key = { jar: 'missing-entry' };
     });
-    const reply = await fixture.commands.run({ name: 'model', argument: '1' }, BigInt(CHAT_ID), ADMIN);
+    const reply = await fixture.commands.run(
+      { name: 'model', argument: '1' },
+      { hostKind: 'telegram', hostChatId: BigInt(CHAT_ID) },
+      ADMIN,
+    );
     expect(reply.startsWith('已写入 config.jsonc，但应用失败: ')).toBe(true);
     // The write happened, the application did not.
     const written = await loadConfig(fixture.configPath);

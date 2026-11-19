@@ -46,16 +46,16 @@ describe('startup catch-up commands', () => {
     expect(
       store.db
         .prepare<[], { chat_id: bigint }>(
-          'SELECT c.telegram_chat_id AS chat_id FROM chat_pause p JOIN chats c ON c.id = p.chat_id',
+          'SELECT c.host_chat_id AS chat_id FROM chat_pause p JOIN chats c ON c.id = p.chat_id',
         )
         .all(),
     ).toEqual([{ chat_id: BigInt(SECOND_CHAT_ID) }]);
     expect(
       store.db
         .prepare<[], { chat_id: bigint; state: string; error_code: string | null }>(
-          `SELECT c.telegram_chat_id AS chat_id, b.state, b.error_code
+          `SELECT c.host_chat_id AS chat_id, b.state, b.error_code
            FROM buckets b JOIN conversations v ON v.id = b.conversation_id JOIN chats c ON c.id = v.chat_id
-           ORDER BY c.telegram_chat_id`,
+           ORDER BY c.host_chat_id`,
         )
         .all(),
     ).toEqual([
@@ -264,7 +264,9 @@ describe('startup catch-up commands', () => {
 
     // The admin resumes live, then the process dies before acknowledging and the
     // same backlog is fetched again: the duplicate /pause must not re-apply.
-    expect(await commands.run({ name: 'resume' }, BigInt(FIRST_CHAT_ID), ADMIN)).toBe('已恢复本群互动。');
+    expect(
+      await commands.run({ name: 'resume' }, { hostKind: 'telegram', hostChatId: BigInt(FIRST_CHAT_ID) }, ADMIN),
+    ).toBe('已恢复本群互动。');
     const retry = await runStartupCatchUp({
       api,
       store,
@@ -341,7 +343,9 @@ describe('startup catch-up commands', () => {
     if (command === undefined) {
       throw new Error('Expected a live command');
     }
-    expect(await commands.run(command, BigInt(FIRST_CHAT_ID), ADMIN)).toBe('已暂停本群互动，发送 /resume 可恢复。');
+    expect(await commands.run(command, { hostKind: 'telegram', hostChatId: BigInt(FIRST_CHAT_ID) }, ADMIN)).toBe(
+      '已暂停本群互动，发送 /resume 可恢复。',
+    );
     expect(store.db.prepare<[], { count: bigint }>('SELECT COUNT(*) AS count FROM chat_pause').get()?.count).toBe(1n);
     expect(store.db.prepare<[], { count: bigint }>('SELECT COUNT(*) AS count FROM messages').get()?.count).toBe(1n);
     store.close();

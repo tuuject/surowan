@@ -6,6 +6,7 @@ import type { CapabilityRefResolver, DirectImage, InvocationContext } from '../.
 import type { RuntimeConfigurationStore } from '../../platform/runtime-config.ts';
 import type { SecretStore } from '../../platform/secrets.ts';
 import type { BusinessStore } from '../../store/store.ts';
+import type { HostKind } from '../../platform/im-host/identity.ts';
 import type { MediaDownloader } from './download.ts';
 import { loadDirectImages, prepareImageBytes } from './image-input.ts';
 import { readOriginalFile } from './original-file.ts';
@@ -28,7 +29,8 @@ export interface MediaServiceOptions {
   readonly store: BusinessStore;
   readonly configStore: RuntimeConfigurationStore;
   readonly secrets: SecretStore;
-  readonly mediaClient: MediaDownloader;
+  /** One downloader per host whose `mediaSource` is `download`. */
+  readonly downloaders: Readonly<Partial<Record<HostKind, MediaDownloader>>>;
   readonly modelGate: KeyedSemaphore;
   /** Local room assets; a Playground media row may only be read through this. */
   readonly localAssets?: LocalAssetResolver;
@@ -38,7 +40,7 @@ export class MediaService {
   readonly #store: BusinessStore;
   readonly #configStore: RuntimeConfigurationStore;
   readonly #secrets: SecretStore;
-  readonly #mediaClient: MediaDownloader;
+  readonly #downloaders: Readonly<Partial<Record<HostKind, MediaDownloader>>>;
   readonly #modelGate: KeyedSemaphore;
   readonly #localAssets: LocalAssetResolver | undefined;
   readonly #visionSemaphore: AsyncSemaphore;
@@ -50,7 +52,7 @@ export class MediaService {
     this.#store = options.store;
     this.#secrets = options.secrets;
     this.#configStore = options.configStore;
-    this.#mediaClient = options.mediaClient;
+    this.#downloaders = options.downloaders;
     this.#modelGate = options.modelGate;
     this.#localAssets = options.localAssets;
     const vision = options.configStore.current().config.vision;
@@ -91,7 +93,7 @@ export class MediaService {
       store: this.#store,
       configStore: this.#configStore,
       secrets: this.#secrets,
-      mediaClient: this.#mediaClient,
+      downloaders: this.#downloaders,
       localAssets: this.#localAssets,
       modelGate: this.#modelGate,
       visionSemaphore: this.#visionSemaphore,

@@ -96,7 +96,7 @@ test('prepareSceneImage reads photos, image documents and stickers read-only, wh
     store,
     configStore,
     secrets: new SecretStore(),
-    mediaClient: downloader,
+    downloaders: { telegram: downloader },
     modelGate: new KeyedSemaphore(),
   });
   const productionCounts = (): Record<string, bigint> => {

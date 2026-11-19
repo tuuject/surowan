@@ -94,9 +94,9 @@ test('migration 037 upgrades a live Telegram database without disturbing it', as
     expect(store.db.pragma('foreign_key_check')).toEqual([]);
 
     // Every row kept its id, its Telegram identity and its place in the tree.
-    expect(orm.all(sql`SELECT id, telegram_message_id, current_revision_id FROM messages ORDER BY id`)).toEqual(
-      before.messages,
-    );
+    expect(
+      orm.all(sql`SELECT id, message_no AS telegram_message_id, current_revision_id FROM messages ORDER BY id`),
+    ).toEqual(before.messages);
     expect(orm.all(sql`SELECT id, message_id, sender_id, text FROM message_revisions ORDER BY id`)).toEqual(
       before.revisions,
     );
@@ -160,12 +160,12 @@ test('migration 037 upgrades a live Telegram database without disturbing it', as
         conversationId: 150n,
         chatId: 50n,
         hostKind: 'playground',
+        messageNo: 1n,
         visible: true,
         sentByBot: false,
-        telegramDate: '2026-01-02T00:00:00.000Z',
+        sentAt: '2026-01-02T00:00:00.000Z',
         receivedAt: '2026-01-02T00:00:00.000Z',
         localReplyToMessageId: 1002n,
-        localSequenceNo: 1n,
       })
       .run();
     orm
@@ -226,46 +226,50 @@ test('migration 037 upgrades a live Telegram database without disturbing it', as
     expect(listMemoryChats(orm)).toHaveLength(2);
     expect(listDictionaryChatOptions(orm)).toHaveLength(2);
 
-    // The conditional identity constraints still bite in both directions.
+    // The identity CHECKs are gone: host validity is an application-layer
+    // contract, while the table still refuses a missing host kind, a duplicate
+    // identity inside one host and a message with no number.
     expect(() =>
-      orm
-        .insert(chats)
-        .values({ id: 51n, hostKind: 'telegram', canonicalChatId: -1n, type: 'group', updatedAt: 'x' })
+      store.db
+        .prepare(
+          `INSERT INTO chats (id, host_chat_id, canonical_chat_id, type, updated_at) VALUES (51, -1, -1, 'group', 'x')`,
+        )
         .run(),
-    ).toThrow(/CHECK constraint failed|chats_host_identity_check/);
+    ).toThrow(/NOT NULL constraint failed/);
     expect(() =>
       orm
         .insert(chats)
         .values({
           id: 52n,
           hostKind: 'playground',
-          telegramChatId: -1n,
+          hostChatId: -1n,
           canonicalChatId: -1n,
           type: 'virtual',
           updatedAt: 'x',
         })
         .run(),
-    ).toThrow();
+    ).not.toThrow();
     expect(() =>
       orm
         .insert(chats)
-        .values({ id: 53n, telegramChatId: -100123n, canonicalChatId: -100123n, type: 'group', updatedAt: 'x' })
+        .values({
+          id: 53n,
+          hostKind: 'telegram',
+          hostChatId: -100123n,
+          canonicalChatId: -100123n,
+          type: 'group',
+          updatedAt: 'x',
+        })
         .run(),
     ).toThrow(/UNIQUE constraint failed/);
     expect(() =>
-      orm
-        .insert(messages)
-        .values({
-          id: 7001n,
-          conversationId: 100n,
-          chatId: 1n,
-          visible: true,
-          sentByBot: false,
-          telegramDate: 'x',
-          receivedAt: 'x',
-        })
+      store.db
+        .prepare(
+          `INSERT INTO messages (id, conversation_id, chat_id, host_kind, visible, sent_by_bot, sent_at, received_at)
+           VALUES (7001, 100, 1, 'telegram', 1, 0, 'x', 'x')`,
+        )
         .run(),
-    ).toThrow();
+    ).toThrow(/NOT NULL constraint failed/);
   } finally {
     store.close();
   }

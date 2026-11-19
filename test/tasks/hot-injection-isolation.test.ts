@@ -46,9 +46,13 @@ test.each(['pause', 'admin_cancel'] as const)(
     expect(checkpoints(f.store)).toHaveLength(1);
     try {
       if (action === 'pause') {
-        expect(await commands.run({ name: 'pause' }, 123456789n, { id: 42n, name: 'Alice', username: null })).toContain(
-          '/resume',
-        );
+        expect(
+          await commands.run(
+            { name: 'pause' },
+            { hostKind: 'telegram', hostChatId: 123456789n },
+            { id: 42n, name: 'Alice', username: null },
+          ),
+        ).toContain('/resume');
       } else {
         cancelOngoingSessions(f.store.orm);
         expect(f.scheduler.abortAll()).toBe(1);
@@ -70,7 +74,11 @@ test.each(['pause', 'admin_cancel'] as const)(
       state: 'expired',
     });
     if (action === 'pause') {
-      await commands.run({ name: 'resume' }, 123456789n, { id: 42n, name: 'Alice', username: null });
+      await commands.run(
+        { name: 'resume' },
+        { hostKind: 'telegram', hostChatId: 123456789n },
+        { id: 42n, name: 'Alice', username: null },
+      );
     }
     expect(f.scheduler.processTasksDue()).toEqual([]);
     expect(f.store.db.prepare('SELECT COUNT(*) AS count FROM invocations').get()).toEqual({ count: 1n });
@@ -95,7 +103,7 @@ test.each(['ordinary', 'receipt'] as const)(
           description: 'Inspect the current task caller in this test.',
           parameters: Type.Object({}, { additionalProperties: false }),
           execute: async () => {
-            const scope = taskService.invocationScope('exporter', context);
+            const scope = taskService.invocationScope('exporter', context, ['telegram']);
             ownedTask ??= scope.create({ payload: { private: 'Alice' } }).taskId;
             observations.push({
               caller: context.callerUserId,

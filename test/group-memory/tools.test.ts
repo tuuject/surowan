@@ -11,7 +11,7 @@ function context(f: Awaited<ReturnType<typeof groupMemoryFixture>>, invocationId
     invocationId,
     conversationId: f.conversationId,
     hostKind: 'telegram',
-    chatId: f.telegramChatId,
+    hostChatId: f.telegramChatId,
     internalChatId: f.chatId,
     threadId: 0n,
     completion: null,
@@ -43,7 +43,7 @@ test('search_group_memory returns summaries with ranges, then read_group_message
       senderTelegramId: 12,
     });
     f.store.orm.run(
-      sql`INSERT INTO chats (id, host_kind, telegram_chat_id, canonical_chat_id, type, updated_at)
+      sql`INSERT INTO chats (id, host_kind, host_chat_id, canonical_chat_id, type, updated_at)
           VALUES (2, 'telegram', 987654321, 987654321, 'supergroup', '2026-01-01T00:00:00.000Z')`,
     );
     seedMessage(
@@ -209,7 +209,7 @@ test('search_group_memory widens a dated search to a 30-hour day when the Chat o
     seed(400, '2026-11-18T20:59:00.000Z'); // 11-19 05:59
     seed(500, '2026-11-18T21:00:00.000Z'); // 11-19 06:00
     f.store.orm.run(
-      sql`INSERT INTO chats (id, host_kind, telegram_chat_id, canonical_chat_id, type, updated_at)
+      sql`INSERT INTO chats (id, host_kind, host_chat_id, canonical_chat_id, type, updated_at)
           VALUES (2, 'telegram', 987654321, 987654321, 'supergroup', '2026-01-01T00:00:00.000Z')`,
     );
     // Another Chat's message 100 was sent at 11-18 10:00; it must not make the

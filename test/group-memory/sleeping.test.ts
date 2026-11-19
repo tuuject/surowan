@@ -428,6 +428,41 @@ test('disabled Chats and a global budget sleep start no model call', async () =>
   }
 });
 
+test('an unready host lane is skipped while a ready candidate still consolidates', async () => {
+  const f = await groupMemoryFixture({ faux: true, extraChatIds: [-1001] });
+  try {
+    for (const chat of [f, ...f.extraChats]) {
+      seedMessage(f.store, chat, {
+        telegramMessageId: 4005,
+        date: new Date('2026-10-01T10:00:00.000Z'),
+        text: 'hello',
+      });
+    }
+    respond(f, [summarizeAll(), summarizeAll()]);
+    // Candidates pop in configuration order; readiness answers differ per
+    // candidate, like two chats whose hosts report different states.
+    let readinessChecks = 0;
+    const worker = new SleepingService({
+      store: f.store,
+      configStore: f.configStore,
+      secrets: f.secrets,
+      isHostReady: () => {
+        readinessChecks += 1;
+        return readinessChecks > 1;
+      },
+    });
+    expect(await worker.tick(new Date('2026-10-02T12:00:00.000Z'))).toBe(1);
+    const [ready] = f.extraChats;
+    // The first candidate's readiness said no: its lane was skipped untouched,
+    // while the second Chat's lane still claimed and consolidated.
+    expect(f.groupMemory.lane(f.chatId, 'live')?.lastAttemptAt).toBeNull();
+    expect(f.groupMemory.lane(ready!.chatId, 'live')?.throughMessageId).toBe(4005n);
+    expect(f.store.orm.select().from(modelCalls).all()).toHaveLength(1);
+  } finally {
+    await f.close();
+  }
+});
+
 test('the per-tick budget counts failed batches and their repair calls', async () => {
   const extraChatIds = [-1001, -1002, -1003, -1004, -1005, -1006, -1007, -1008];
   const f = await groupMemoryFixture({ faux: true, extraChatIds });

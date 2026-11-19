@@ -1,5 +1,15 @@
 import { and, eq, isNull, ne, sql } from 'drizzle-orm';
-import { buckets, invocationBuckets, invocations, taskReceipts } from '../../store/schema/index.ts';
+import { hostsWhere } from '../../platform/host-profile.ts';
+import { parseHostKind } from '../../platform/im-host/identity.ts';
+import {
+  buckets,
+  chats,
+  conversations,
+  invocationBuckets,
+  invocations,
+  taskReceipts,
+} from '../../store/schema/index.ts';
+import { hostKindsSql } from '../../store/host-scope.ts';
 import { asRunResult } from '../../store/store.ts';
 import {
   enqueueBucketInvocation,
@@ -30,10 +40,13 @@ export function releaseUninjectedBuckets(deps: InvocationQueueDeps, invocationId
       bucketId: invocationBuckets.bucketId,
       conversationId: buckets.conversationId,
       errorCode: buckets.errorCode,
+      hostKind: chats.hostKind,
     })
     .from(invocationBuckets)
     .innerJoin(buckets, eq(buckets.id, invocationBuckets.bucketId))
     .innerJoin(invocations, eq(invocations.id, invocationBuckets.invocationId))
+    .innerJoin(conversations, eq(conversations.id, buckets.conversationId))
+    .innerJoin(chats, eq(chats.id, conversations.chatId))
     .where(
       and(
         eq(invocationBuckets.invocationId, invocationId),
@@ -71,7 +84,14 @@ export function releaseUninjectedBuckets(deps: InvocationQueueDeps, invocationId
         .run();
       continue;
     }
-    const nextInvocationId = enqueueBucketInvocation(deps, row.bucketId, row.conversationId, now, false);
+    const nextInvocationId = enqueueBucketInvocation(
+      deps,
+      row.bucketId,
+      row.conversationId,
+      parseHostKind(row.hostKind),
+      now,
+      false,
+    );
     store.orm
       .update(taskReceipts)
       .set({ invocationId: nextInvocationId, updatedAt: timestamp })
@@ -100,7 +120,7 @@ export function suppressInvalidQueuedReceipts(deps: InvocationQueueDeps, now = n
   const store = deps.store;
   store.transaction(() => {
     const rows = store.orm.all<ReceiptRow & { invocation_id: bigint }>(
-      sql`SELECT r.task_id, r.invocation_id, t.conversation_id, v.chat_id, c.telegram_chat_id,
+      sql`SELECT r.task_id, r.invocation_id, t.conversation_id, v.chat_id, c.host_chat_id AS telegram_chat_id,
                  v.message_thread_id, c.host_kind AS host_kind,
                  json_extract(t.delivery_json, '$.bypassDailyBudget') AS bypass_daily_budget
           FROM task_receipts r JOIN long_tasks t ON t.id = r.task_id
@@ -147,17 +167,24 @@ export function skipQueuedInvocations(deps: InvocationQueueDeps, sleepUntil: str
   const store = deps.store;
   const queued = store.transaction(() => {
     const rows = store.orm.all<SleepingInvocationRow>(
-      sql`SELECT i.id, i.bucket_id, i.conversation_id, c.telegram_chat_id
+      sql`SELECT i.id, i.bucket_id, i.conversation_id, c.host_chat_id AS telegram_chat_id
        FROM invocations i
        JOIN conversations v ON v.id = i.conversation_id
        JOIN chats c ON c.id = v.chat_id
        WHERE i.state = 'queued'
-         AND c.host_kind = 'telegram'
+         AND ${hostKindsSql(
+           'c.host_kind',
+           hostsWhere((profile) => profile.sleep),
+         )}
          AND ${servedConversations(deps, sql`i.conversation_id`)}
          AND NOT EXISTS (
            SELECT 1 FROM task_receipts r JOIN long_tasks t ON t.id = r.task_id
            WHERE r.invocation_id = i.id AND r.state = 'claimed'
              AND json_extract(t.delivery_json, '$.bypassDailyBudget') = 1
+             AND ${hostKindsSql(
+               'c.host_kind',
+               hostsWhere((profile) => profile.budgetBypass),
+             )}
          )
        ORDER BY i.id`,
     );

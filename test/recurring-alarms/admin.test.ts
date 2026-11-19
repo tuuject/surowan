@@ -69,8 +69,8 @@ async function adminFixture(options: { wired?: boolean } = {}) {
   const at = new Date().toISOString();
   store.db
     .prepare(
-      `INSERT INTO chats(id, telegram_chat_id, canonical_chat_id, type, title, updated_at) VALUES
-       (1, 123456789, 123456789, 'private', 'Owner', ?), (2, -100500, -100500, 'supergroup', 'Forum', ?)`,
+      `INSERT INTO chats(id, host_chat_id, canonical_chat_id, type, title, updated_at, host_kind) VALUES
+       (1, 123456789, 123456789, 'private', 'Owner', ?, 'telegram'), (2, -100500, -100500, 'supergroup', 'Forum', ?, 'telegram')`,
     )
     .run(at, at);
   store.db

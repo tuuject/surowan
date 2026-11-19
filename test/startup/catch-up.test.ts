@@ -47,15 +47,15 @@ describe('startup catch-up', () => {
     expect(buckets).toEqual([{ kind: 'startup_catch_up', state: 'queued', count: 2n }]);
     const snapshots = store.db
       .prepare<[], { chat_id: bigint; section: string; count: bigint; first_message: bigint; last_message: bigint }>(
-        `SELECT c.telegram_chat_id AS chat_id, im.section, COUNT(*) AS count,
-                MIN(m.telegram_message_id) AS first_message, MAX(m.telegram_message_id) AS last_message
+        `SELECT c.host_chat_id AS chat_id, im.section, COUNT(*) AS count,
+                MIN(m.message_no) AS first_message, MAX(m.message_no) AS last_message
          FROM invocation_messages im
          JOIN invocations i ON i.id = im.invocation_id
          JOIN conversations v ON v.id = i.conversation_id
          JOIN chats c ON c.id = v.chat_id
          JOIN messages m ON m.id = im.message_id
-         GROUP BY c.telegram_chat_id, im.section
-         ORDER BY c.telegram_chat_id`,
+         GROUP BY c.host_chat_id, im.section
+         ORDER BY c.host_chat_id`,
       )
       .all();
     expect(snapshots).toEqual([

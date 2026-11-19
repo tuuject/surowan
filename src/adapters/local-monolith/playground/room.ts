@@ -201,7 +201,7 @@ export function createRoomReaders(deps: PlaygroundRoomDeps): RoomReaders {
       return undefined;
     }
     const published = orm
-      .select({ receivedAt: messages.receivedAt, seq: messages.localSequenceNo })
+      .select({ receivedAt: messages.receivedAt, seq: messages.messageNo })
       .from(messages)
       .where(eq(messages.id, messageId))
       .limit(1)
@@ -255,7 +255,7 @@ export function createRoomReaders(deps: PlaygroundRoomDeps): RoomReaders {
                 eq(messages.conversationId, request.target.conversation.id),
                 eq(messages.chatId, room.chatId),
                 eq(messages.hostKind, 'playground'),
-                eq(messages.localSequenceNo, replySeq),
+                eq(messages.messageNo, replySeq),
               ),
             )
             .limit(1)

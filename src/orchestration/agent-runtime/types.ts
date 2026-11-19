@@ -76,7 +76,9 @@ export interface AgentRuntimeOptions {
    * never builds a chat route itself.
    */
   readonly conversation: (target: {
-    readonly chatId: bigint;
+    readonly hostKind: HostKind;
+    readonly hostChatId: bigint | null;
+    readonly internalChatId: bigint;
     readonly threadId: bigint;
     readonly conversationId: bigint;
   }) => ImConversationRef;

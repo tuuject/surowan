@@ -1,4 +1,5 @@
 import { and, eq } from 'drizzle-orm';
+import { hostExecutionProfile } from '../../platform/host-profile.ts';
 import type { HostKind } from '../../platform/im-host/identity.ts';
 import type { RuntimeConfigurationStore } from '../../platform/runtime-config.ts';
 import { snapshotInvocation } from '../../store/invocation-snapshot.ts';
@@ -49,6 +50,7 @@ export function attachBucketToInvocation(
   invocationId: bigint,
   bucketId: bigint,
   conversationId: bigint,
+  host: HostKind,
   now: Date,
 ): void {
   const timestamp = now.toISOString();
@@ -58,7 +60,7 @@ export function attachBucketToInvocation(
     .set({ state: 'running', startedAt: timestamp, updatedAt: timestamp })
     .where(and(eq(buckets.id, bucketId), eq(buckets.state, 'collecting')))
     .run();
-  snapshotInvocation(store, historyMessages, invocationId, bucketId, conversationId, false, { append: true });
+  snapshotInvocation(store, historyMessages, invocationId, bucketId, conversationId, host, false, { append: true });
 }
 
 /**
@@ -99,7 +101,7 @@ export class InvocationQueueService {
       hosts: hosts === undefined || hosts.length === 0 ? undefined : hosts,
       isHostReady,
       // The global sleep state is Telegram's; a process without it never reads or clears it.
-      servesTelegram: hosts === undefined || hosts.length === 0 || hosts.includes('telegram'),
+      servesSleep: hosts === undefined || hosts.length === 0 || hosts.some((host) => hostExecutionProfile(host).sleep),
       proactive: proactive === undefined ? undefined : new ProactiveReplyGate(store.orm, configStore, proactive),
       recoveryMaxAgeMs: RECOVERY_MAX_AGE_MS,
       startupCatchUpStateKey: STARTUP_CATCH_UP_STATE_KEY,

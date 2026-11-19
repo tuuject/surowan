@@ -1,12 +1,14 @@
 import { runStartupCatchUp } from '../../src/startup-catch-up.ts';
 import { ProactiveReplyGate } from '../../src/orchestration/proactive-reply.ts';
 import { afterEach, expect, test } from 'vitest';
-import { parseBotCommand, BOT_COMMANDS } from '../../src/orchestration/bot-commands/index.ts';
+import { BOT_COMMANDS, parseBotCommand } from '../../src/ingress/telegram-ingestion/commands.ts';
+import { telegramMessageCues } from '../../src/ingress/telegram-ingestion/cues.ts';
 import { matchTriggerKind } from '../../src/platform/participation.ts';
 import {
   BOT_IDENTITY,
   BOT_ID,
   BOT_USERNAME,
+  GROUP_CHAT_ID,
   cleanupDirectories,
   PRIVATE_CHAT_ID,
   privateMessage,
@@ -27,30 +29,22 @@ const ask = (token = '/ask') => ({
   text: `${token} question`,
   entities: [{ type: 'bot_command', offset: 0, length: token.length }],
 });
+const triggerOf = (...args: Parameters<typeof groupMessage>) =>
+  matchTriggerKind(telegramMessageCues(groupMessage(...args).message!, BOT_IDENTITY), []);
 test('ask recognition shares command scoping without becoming a control command', () => {
   for (const token of ['/ask', '/ASK', `/ask@${BOT_USERNAME}`]) {
     const message = groupMessage(1, 1, ask(token)).message!;
-    expect(matchTriggerKind(message, BOT_IDENTITY, [])).toBe('ask');
+    expect(triggerOf(1, 1, ask(token))).toBe('ask');
     expect(parseBotCommand(message, BOT_USERNAME)).toBeNull();
   }
-  expect(matchTriggerKind(groupMessage(1, 1, ask('/ask@OtherBot')).message!, BOT_IDENTITY, [])).toBeNull();
+  expect(triggerOf(1, 1, ask('/ask@OtherBot'))).toBeNull();
+  expect(triggerOf(1, 1, { ...ask(), from: { id: 88, is_bot: true, first_name: 'Bot' } })).toBeNull();
   expect(
-    matchTriggerKind(
-      groupMessage(1, 1, { ...ask(), from: { id: 88, is_bot: true, first_name: 'Bot' } }).message!,
-      BOT_IDENTITY,
-      [],
-    ),
-  ).toBeNull();
-  expect(
-    matchTriggerKind(
-      groupMessage(1, 1, {
-        ...ask(),
-        sender_chat: { id: -123, type: 'supergroup', title: 'Group' },
-        from: { id: 88, is_bot: true, first_name: 'GroupAnonymousBot' },
-      }).message!,
-      BOT_IDENTITY,
-      [],
-    ),
+    triggerOf(1, 1, {
+      ...ask(),
+      sender_chat: { id: -123, type: 'supergroup', title: 'Group' },
+      from: { id: 88, is_bot: true, first_name: 'GroupAnonymousBot' },
+    }),
   ).toBe('ask');
   expect(BOT_COMMANDS.some((entry) => entry.command === 'ask')).toBe(true);
 });
@@ -66,6 +60,19 @@ test('normal ask stores text, opens configured bucket, records ask attention and
       window_seconds: BigInt(config.telegram.bucket_window_seconds),
     });
     expect(store.db.prepare('SELECT text FROM message_revisions').get()).toMatchObject({ text: '/ask question' });
+  } finally {
+    store.close();
+  }
+});
+test('a message update whose payload carries edit_date still counts as a live ask', async () => {
+  const { store, ingestion } = await setup({ global: { active_windows: [] } });
+  try {
+    // The update kind, not an edit_date inside the payload, decides the edit
+    // path: this is the live read, so the base opens the window and types.
+    const result = ingestion.ingest(groupMessage(1, 10, { ...ask(), edit_date: 1_700_000_010 }), OUTSIDE_PERIOD);
+    expect(result.bucketId).toBeDefined();
+    expect(result.mention).toBeDefined();
+    expect(attention(store)?.triggerKind).toBe('ask');
   } finally {
     store.close();
   }
@@ -139,7 +146,8 @@ for (const askOnly of [true, false]) {
           bucketId: result.bucketId!,
           conversationId: row.conversation_id,
           chatId: row.chat_id,
-          telegramChatId: -1001234567890n,
+          hostKind: 'telegram',
+          hostChatId: -1001234567890n,
           chatType: 'supergroup',
           chat: { proactive_reply: { enabled: true, base_probability: 0, increment: 0, hard_pity: 100 } },
           keywords: [],
@@ -184,6 +192,48 @@ for (const hasAsk of [true, false]) {
     }
   });
 }
+
+test('one malformed stored fragment cannot abort an ask-only catch-up batch', async () => {
+  const { store, ingestion, scheduler, commands } = await setup({ global: { ask_only: true }, ignored: [42] });
+  try {
+    const updates = [
+      // A stored fragment whose ids are malformed numbers: only the edited
+      // path lands one in the backlog, since live reads never see it first.
+      // The catch-up scan must skip the row, not die inside its transaction.
+      editedGroupMessage(1, 10, 1_700_000_020, {
+        // id 42 is ignored in this chat and would drop the row before storage;
+        // the fragment must reach the backlog scan to count as a regression.
+        from: { id: 43, is_bot: false, first_name: 'Bob' },
+        text: 'ping',
+        entities: [{ type: 'text_mention', offset: 0, length: 4, user: { id: 999.5, is_bot: true } }],
+        reply_to_message: {
+          message_id: 9,
+          date: 1_700_000_000,
+          chat: { id: GROUP_CHAT_ID, type: 'supergroup', title: 'Group' },
+          from: { id: 999, is_bot: true, first_name: 'Ghost' },
+          text: 'earlier',
+        },
+      }),
+      groupMessage(2, 11, ask(`/ask@${BOT_USERNAME}`)),
+    ];
+    const result = await runStartupCatchUp({
+      api: {
+        getUpdates: async (options) =>
+          updates.filter((u) => options.offset === undefined || u.update_id >= options.offset).slice(0, options.limit),
+      },
+      store,
+      ingestion,
+      scheduler,
+      commands,
+      allowedUpdates: ['message', 'edited_message'],
+      now: () => OUTSIDE_PERIOD,
+    });
+    expect(result.invocationIds).toHaveLength(1);
+    expect(bucketMessages(store)).toBe(1n);
+  } finally {
+    store.close();
+  }
+});
 
 test('global ask-only never gates private messages; edits store revisions without triggering', async () => {
   const privateHarness = await setup({ global: { ask_only: true }, chatId: PRIVATE_CHAT_ID });

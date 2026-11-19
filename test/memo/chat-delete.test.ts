@@ -43,10 +43,11 @@ test('deleteTelegramChatData removes the Chat row, conversations, Memo entries, 
   const message = f.store.orm
     .insert(messages)
     .values({
+      hostKind: 'telegram',
       conversationId: chat.conversationId,
       chatId: chat.chatId,
-      telegramMessageId: 1n,
-      telegramDate: now,
+      messageNo: 1n,
+      sentAt: now,
       receivedAt: now,
     })
     .returning({ id: messages.id })

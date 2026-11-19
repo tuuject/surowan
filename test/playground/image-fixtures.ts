@@ -208,7 +208,7 @@ export async function playgroundImageFixture(options: FixtureOptions = {}) {
     store,
     configStore,
     secrets: new SecretStore(),
-    mediaClient: { download: () => Promise.reject(new Error('this process has no media wire')) },
+    downloaders: { telegram: { download: () => Promise.reject(new Error('this process has no media wire')) } },
     modelGate: new KeyedSemaphore(),
     localAssets: assets,
   });
@@ -309,7 +309,7 @@ function roomToolContext(f: Fixture, invocationId: bigint): InvocationContext {
     invocationId,
     conversationId: f.room.conversationId,
     hostKind: 'playground',
-    chatId: f.room.chatId,
+    hostChatId: null,
     internalChatId: f.room.chatId,
     threadId: 0n,
     systemPrompt: '',

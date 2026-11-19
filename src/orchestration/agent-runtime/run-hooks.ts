@@ -9,6 +9,7 @@ import {
   finishModelCall,
   recordModelCallRequest,
   recordModelCallResponse,
+  scopeChatId,
   startModelCall,
 } from './observability.ts';
 import { errorStream, recordAgentMessage } from './support.ts';
@@ -90,7 +91,7 @@ export function bindRequestHooks(scope: RunScope, run: AgentRun): void {
             // that crossed `hard_token_ratio` on turn count alone, so GC threw
             // away live history and the run then ended as `context_limit`.
             state.estimatedInputTokens = Math.max(state.estimatedInputTokens, message.usage.input);
-            finishModelCall(services, callId, identity.chatId, message, profile.budgetScope);
+            finishModelCall(services, callId, scopeChatId(identity), message, profile.budgetScope);
           },
           (error) => failModelCall(services, callId, 'stream_rejected', error),
         )

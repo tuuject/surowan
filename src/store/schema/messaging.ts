@@ -8,22 +8,15 @@ export const senders = sqliteTable(
   'senders',
   {
     id: sqliteBigIntId('id').primaryKey(),
-    hostKind: text('host_kind').$type<HostKind>().notNull().default('telegram'),
-    telegramType: text('telegram_type'),
-    telegramId: sqliteBigInt('telegram_id'),
+    hostKind: text('host_kind').$type<HostKind>().notNull(),
+    hostSenderType: text('host_sender_type'),
+    hostSenderId: sqliteBigInt('host_sender_id'),
     displayName: text('display_name').notNull(),
     username: text('username'),
     isBot: integer('is_bot', { mode: 'boolean' }).notNull().default(false),
     updatedAt: text('updated_at').notNull(),
   },
-  (t) => [
-    check('senders_telegram_type_check', sql`telegram_type IN ('user', 'sender_chat')`),
-    check(
-      'senders_host_identity_check',
-      sql`(host_kind = 'telegram' AND telegram_type IS NOT NULL AND telegram_id IS NOT NULL) OR (host_kind = 'playground' AND telegram_type IS NULL AND telegram_id IS NULL)`,
-    ),
-    uniqueIndex('senders_telegram_identity_key').on(t.telegramType, t.telegramId),
-  ],
+  (t) => [uniqueIndex('senders_host_identity_key').on(t.hostKind, t.hostSenderType, t.hostSenderId)],
 );
 
 export const messages = sqliteTable(
@@ -36,32 +29,27 @@ export const messages = sqliteTable(
     chatId: sqliteBigInt('chat_id')
       .notNull()
       .references(() => chats.id, { onDelete: 'cascade' }),
-    hostKind: text('host_kind').$type<HostKind>().notNull().default('telegram'),
-    telegramMessageId: sqliteBigInt('telegram_message_id'),
+    hostKind: text('host_kind').$type<HostKind>().notNull(),
+    // The single chat-scoped number the model sees: the Telegram wire id on
+    // Telegram rows, the room sequence on local hosts.
+    messageNo: sqliteBigInt('message_no').notNull(),
     currentRevisionId: sqliteBigInt('current_revision_id').references((): AnySQLiteColumn => messageRevisions.id),
     visible: integer('visible', { mode: 'boolean' }).notNull().default(true),
     sentByBot: integer('sent_by_bot', { mode: 'boolean' }).notNull().default(false),
-    telegramDate: text('telegram_date').notNull(),
+    sentAt: text('sent_at').notNull(),
     receivedAt: text('received_at').notNull(),
     /**
-     * Local (non-Telegram) reply target and arrival order. Telegram traffic
-     * leaves both NULL and keeps using telegram_message_id / telegram_date.
+     * Local (non-Telegram) reply target. Retention deletes old messages, so a
+     * local reply target is released with SET NULL rather than blocking the
+     * delete.
      */
     localReplyToMessageId: sqliteBigInt('local_reply_to_message_id').references((): AnySQLiteColumn => messages.id, {
       onDelete: 'set null',
     }),
-    localSequenceNo: sqliteBigInt('local_sequence_no'),
   },
   (t) => [
-    check(
-      'messages_host_identity_check',
-      sql`(host_kind = 'telegram' AND telegram_message_id IS NOT NULL) OR (host_kind = 'playground' AND telegram_message_id IS NULL)`,
-    ),
-    uniqueIndex('messages_chat_telegram_message_id_key').on(t.chatId, t.telegramMessageId),
-    index('messages_local_sequence_key')
-      .on(t.conversationId, t.localSequenceNo)
-      .where(sql`local_sequence_no IS NOT NULL`),
-    index('messages_conversation_history_idx').on(t.conversationId, t.telegramDate, t.telegramMessageId),
+    uniqueIndex('messages_chat_message_no_key').on(t.chatId, t.messageNo),
+    index('messages_conversation_history_idx').on(t.conversationId, t.sentAt, t.messageNo),
   ],
 );
 
@@ -103,7 +91,7 @@ export const media = sqliteTable(
     width: sqliteBigInt('width'),
     height: sqliteBigInt('height'),
     telegramJson: text('telegram_json').notNull(),
-    hostKind: text('host_kind').notNull().default('telegram'),
+    hostKind: text('host_kind').$type<HostKind>().notNull(),
     localAssetId: text('local_asset_id'),
   },
   (t) => [

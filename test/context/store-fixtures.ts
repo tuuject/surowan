@@ -24,7 +24,7 @@ export async function fixture(): Promise<{ store: SqliteStore; loaded: Awaited<R
   const store = await SqliteStore.open(loaded.config);
   store.db
     .prepare(
-      "INSERT INTO chats(telegram_chat_id, canonical_chat_id, type, updated_at) VALUES (1, 1, 'private', '2026-08-15T00:00:00.000Z')",
+      "INSERT INTO chats(host_chat_id, canonical_chat_id, type, updated_at, host_kind) VALUES (1, 1, 'private', '2026-08-15T00:00:00.000Z', 'telegram')",
     )
     .run();
   store.db
@@ -34,8 +34,8 @@ export async function fixture(): Promise<{ store: SqliteStore; loaded: Awaited<R
     .run();
   store.db
     .prepare(
-      `INSERT INTO messages(conversation_id, chat_id, telegram_message_id, visible, sent_by_bot, telegram_date, received_at)
-       VALUES ((SELECT id FROM conversations LIMIT 1), (SELECT id FROM chats LIMIT 1), 1, 1, 0, '2026-08-15T00:00:00.000Z', '2026-08-15T00:00:00.000Z')`,
+      `INSERT INTO messages(conversation_id, chat_id, message_no, visible, sent_by_bot, sent_at, received_at, host_kind)
+       VALUES ((SELECT id FROM conversations LIMIT 1), (SELECT id FROM chats LIMIT 1), 1, 1, 0, '2026-08-15T00:00:00.000Z', '2026-08-15T00:00:00.000Z', 'telegram')`,
     )
     .run();
   store.db
@@ -50,8 +50,8 @@ export async function fixture(): Promise<{ store: SqliteStore; loaded: Awaited<R
   ] as const) {
     store.db
       .prepare(
-        `INSERT INTO media(revision_id, kind, file_id, file_unique_id, mime_type, telegram_json)
-         VALUES ((SELECT id FROM message_revisions LIMIT 1), 'photo', ?, ?, 'image/jpeg', '{}')`,
+        `INSERT INTO media(revision_id, kind, file_id, file_unique_id, mime_type, telegram_json, host_kind)
+         VALUES ((SELECT id FROM message_revisions LIMIT 1), 'photo', ?, ?, 'image/jpeg', '{}', 'telegram')`,
       )
       .run(fileId, fileUniqueId);
   }

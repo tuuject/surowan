@@ -44,7 +44,7 @@ describe('send tool', () => {
     ]);
     const audits = store.db
       .prepare<[], { tool_state: string; send_state: string; sent_by_bot: bigint; text: string }>(
-        'SELECT tc.state AS tool_state, ts.state AS send_state, m.sent_by_bot, r.text FROM tool_calls tc JOIN host_sends ts ON ts.tool_call_id = tc.id JOIN messages m ON m.telegram_message_id = ts.telegram_message_id JOIN message_revisions r ON r.id = m.current_revision_id ORDER BY tc.id',
+        'SELECT tc.state AS tool_state, ts.state AS send_state, m.sent_by_bot, r.text FROM tool_calls tc JOIN host_sends ts ON ts.tool_call_id = tc.id JOIN messages m ON m.message_no = ts.message_no JOIN message_revisions r ON r.id = m.current_revision_id ORDER BY tc.id',
       )
       .all();
     expect(audits).toEqual([

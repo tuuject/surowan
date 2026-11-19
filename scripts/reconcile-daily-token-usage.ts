@@ -8,7 +8,7 @@ import { ServeLock } from '../src/adapters/local-monolith/database.ts';
 // re-derived from `model_calls` (the source of truth) with the current
 // definition, `meteredTokens` in src/store/sleep.ts: input + output + cache read
 // + cache write. Keys and day boundaries mirror the runtime writers: UTC date of
-// `finished_at`, chat rows keyed by `telegram_chat_id`.
+// `finished_at`, chat rows keyed by `host_chat_id`.
 //
 // Each daily_usage row is only rewritten when it equals the cache-excluded sum
 // of its audit rows, which proves the audit still covers that day completely.
@@ -56,7 +56,7 @@ interface DailyUsageRow {
 const AUDIT_TOTALS_SQL = `
   SELECT substr(COALESCE(mc.finished_at, mc.created_at), 1, 10) AS utc_date,
          'chat' AS scope,
-         CAST(ch.telegram_chat_id AS TEXT) AS resource,
+         CAST(ch.host_chat_id AS TEXT) AS resource,
          'model_tokens' AS metric,
          SUM(COALESCE(mc.input_tokens, 0) + COALESCE(mc.output_tokens, 0)) AS input_output,
          SUM(COALESCE(mc.cache_read_tokens, 0)) AS cache_read,
@@ -66,7 +66,7 @@ const AUDIT_TOTALS_SQL = `
     JOIN invocations i ON i.id = mc.invocation_id
     JOIN conversations c ON c.id = i.conversation_id
     JOIN chats ch ON ch.id = c.chat_id
-   WHERE mc.role IN ('agent', 'vision_chat')
+   WHERE mc.role IN ('agent', 'vision_chat') AND ch.host_kind = 'telegram'
    GROUP BY 1, 3
   UNION ALL
   SELECT substr(COALESCE(finished_at, created_at), 1, 10),

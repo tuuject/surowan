@@ -127,7 +127,7 @@ function profileTool(
     mediaCache: () => join(f.loaded.config.paths.media_cache),
   });
   const conversation = identityConversation(
-    { chatId: BigInt(f.wireChatId), threadId: 0n, conversationId: 1n },
+    { hostChatId: BigInt(f.wireChatId), internalChatId: BigInt(f.wireChatId), threadId: 0n, conversationId: 1n },
     'telegram',
     f.scope,
   );
@@ -382,7 +382,7 @@ test('a room reports its own member fields and never invents an avatar', async (
       internalChatId: room.chatId,
     },
     conversation: identityConversation(
-      { chatId: room.chatId, threadId: 0n, conversationId: 1n },
+      { hostChatId: room.chatId, internalChatId: room.chatId, threadId: 0n, conversationId: 1n },
       'playground',
       'group',
     ),

@@ -125,7 +125,7 @@ export function seedMatchingInvocations(context: SeedContext): void {
     '2025-01-01T00:07:00.000Z',
   );
   run(
-    'INSERT INTO host_sends(id, tool_call_id, conversation_id, kind, request_json, state, telegram_message_id, response_json, created_at, finished_at) VALUES (801, 901, 201, \'text\', \'{"kind":"text","reply_to_message_id":null}\', \'success\', 2001, \'{"message_id":2001}\', ?, ?)',
+    'INSERT INTO host_sends(id, tool_call_id, conversation_id, kind, request_json, state, message_no, response_json, created_at, finished_at) VALUES (801, 901, 201, \'text\', \'{"kind":"text","reply_to_message_id":null}\', \'success\', 2001, \'{"message_id":2001}\', ?, ?)',
     '2025-01-01T00:06:29.000Z',
     '2025-01-01T00:07:00.000Z',
   );
@@ -135,7 +135,7 @@ export function seedMatchingInvocations(context: SeedContext): void {
     '2025-01-01T00:08:00.000Z',
   );
   run(
-    'INSERT INTO host_sends(id, tool_call_id, conversation_id, kind, request_json, state, telegram_message_id, created_at, finished_at) VALUES (802, 905, 201, \'text\', \'{"kind":"text","reply_to_message_id":null}\', \'outcome_unknown\', NULL, ?, ?)',
+    'INSERT INTO host_sends(id, tool_call_id, conversation_id, kind, request_json, state, message_no, created_at, finished_at) VALUES (802, 905, 201, \'text\', \'{"kind":"text","reply_to_message_id":null}\', \'outcome_unknown\', NULL, ?, ?)',
     '2025-01-01T00:07:59.000Z',
     '2025-01-01T00:08:00.000Z',
   );
@@ -221,7 +221,7 @@ export function seedMatchingInvocations(context: SeedContext): void {
     '2025-01-01T03:00:00.000Z',
   );
   run(
-    'INSERT INTO host_sends(id, tool_call_id, conversation_id, kind, request_json, state, telegram_message_id, response_json, created_at, finished_at) VALUES (803, 903, 201, \'text\', \'{"kind":"text","reply_to_message_id":null}\', \'success\', 3003, \'{"message_id":3003}\', ?, ?)',
+    'INSERT INTO host_sends(id, tool_call_id, conversation_id, kind, request_json, state, message_no, response_json, created_at, finished_at) VALUES (803, 903, 201, \'text\', \'{"kind":"text","reply_to_message_id":null}\', \'success\', 3003, \'{"message_id":3003}\', ?, ?)',
     '2025-01-01T02:59:59.000Z',
     '2025-01-01T03:00:00.000Z',
   );
@@ -231,7 +231,7 @@ export function seedMatchingInvocations(context: SeedContext): void {
     '2025-01-01T03:30:00.000Z',
   );
   run(
-    'INSERT INTO host_sends(id, tool_call_id, conversation_id, kind, request_json, state, telegram_message_id, created_at, finished_at) VALUES (804, 904, 201, \'text\', \'{"kind":"text","reply_to_message_id":null}\', \'error\', NULL, ?, ?)',
+    'INSERT INTO host_sends(id, tool_call_id, conversation_id, kind, request_json, state, message_no, created_at, finished_at) VALUES (804, 904, 201, \'text\', \'{"kind":"text","reply_to_message_id":null}\', \'error\', NULL, ?, ?)',
     '2025-01-01T03:29:59.000Z',
     '2025-01-01T03:30:00.000Z',
   );

@@ -1,5 +1,4 @@
 import { afterEach, describe, expect, test, vi } from 'vitest';
-import type { RawConfig } from '../../src/platform/config/index.ts';
 import { resolveProactiveReply } from '../../src/platform/proactive-reply.ts';
 import {
   PRIVATE,
@@ -22,10 +21,8 @@ afterEach(async () => {
 describe('proactive reply probability', () => {
   test('resolves global values and Chat overrides field by field', () => {
     const config = {
-      telegram: {
-        proactive_reply: { enabled: true, base_probability: 0.4 },
-      },
-    } as unknown as Pick<RawConfig, 'telegram'>;
+      proactive_reply: { enabled: true, base_probability: 0.4 },
+    };
     expect(resolveProactiveReply(config)).toEqual({
       enabled: true,
       base_probability: 0.4,
@@ -38,7 +35,7 @@ describe('proactive reply probability', () => {
       increment: 0.1,
       hard_pity: 3,
     });
-    expect(resolveProactiveReply({ telegram: {} } as unknown as Pick<RawConfig, 'telegram'>)).toEqual({
+    expect(resolveProactiveReply({})).toEqual({
       enabled: false,
       base_probability: 0.2,
       increment: 0.1,

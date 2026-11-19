@@ -63,12 +63,12 @@ export async function imageFixture(payloadMaxBytes = 1_048_576) {
   const contexts = new ConversationContextStore(f.store);
   const { header } = contexts.open(seed.conversationId, 'mcp-test');
   const context = {
-    ...previewContext(),
+    ...previewContext('telegram'),
     invocationId: seed.invocationA,
     conversationId: seed.conversationId,
     // The MCP binding is resolved from the published configuration, which lists
     // this Telegram chat; the seeded admin rows keep their own internal ids.
-    chatId: BigInt(f.loaded.config.telegram.chats[0]?.id ?? 0),
+    hostChatId: BigInt(f.loaded.config.telegram.chats[0]?.id ?? 0),
     internalChatId: seed.chatId,
     header,
   };

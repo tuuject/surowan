@@ -18,7 +18,7 @@ import { McpManager } from '../../src/capabilities/mcp/index.ts';
 import { loadToolImages, projectCompletionsToolImages } from '../../src/capabilities/media/tool-images.ts';
 import { encodeContextMessage } from '../../src/context/codec.ts';
 import { ConversationContextStore } from '../../src/context/store/index.ts';
-import { previewContext } from '../../src/platform/invocation-context.ts';
+import { type InvocationContext, previewContext } from '../../src/platform/invocation-context.ts';
 import { keychainPath } from '../../src/platform/keychain.ts';
 import { scrubModelRequestAuditJson } from '../../src/platform/models/request-audit.ts';
 import { buildModelRegistry } from '../../src/platform/providers.ts';
@@ -232,11 +232,11 @@ async function main(): Promise<void> {
       const { header } = contexts.open(seed.conversationId, 'live-image-verification');
       await manager.start();
       await awaitServerAttempts(manager);
-      const context = {
-        ...previewContext(),
+      const context: InvocationContext = {
+        ...previewContext('telegram'),
         invocationId: seed.invocationA,
         conversationId: seed.conversationId,
-        chatId: BigInt(loaded.config.telegram.chats[0]?.id ?? 0),
+        hostChatId: BigInt(loaded.config.telegram.chats[0]?.id ?? 0),
         internalChatId: seed.chatId,
       };
       const result = await manager

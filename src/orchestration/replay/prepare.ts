@@ -83,7 +83,7 @@ export function prepareReplay(deps: ReplayPrepareDeps, id: bigint, selection: Re
         : {
             skillFilter: (skill: SystemSkill) =>
               deps.skillVisibility?.(skill, {
-                hostKind: 'telegram',
+                hostKind: check.source.hostKind,
                 conversationId: check.source.conversationId,
               }) ?? true,
           }),
@@ -91,9 +91,7 @@ export function prepareReplay(deps: ReplayPrepareDeps, id: bigint, selection: Re
   );
   const context: InvocationContext = {
     invocationId: id,
-    hostKind: 'telegram',
     ...check.source,
-    internalChatId: 0n,
     systemPrompt: stable.systemPrompt,
     userPrompt: '',
     directImages: [],
@@ -129,10 +127,19 @@ function defaultRegistry(deps: ReplayPrepareDeps, context: InvocationContext, co
   const { send, sendReply } = createSendTools({
     store: deps.store,
     context,
-    host: unwiredImHost('telegram', 'No production executor is wired'),
+    host: unwiredImHost(context.hostKind, 'No production executor is wired'),
     // Unused: the host above refuses every delivery, so this only has to be
     // well-formed enough to validate tool arguments.
-    conversation: identityConversation(context, 'telegram', 'private'),
+    conversation: identityConversation(
+      {
+        hostChatId: context.hostChatId,
+        internalChatId: context.internalChatId,
+        threadId: context.threadId,
+        conversationId: context.conversationId,
+      },
+      context.hostKind,
+      'private',
+    ),
     capabilities: unavailableCapabilities(),
     sendRateLimit: { sendsPerWindow: 1, windowSeconds: 1 },
     maxTextLength: config.agent.send_max_text_length,

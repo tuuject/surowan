@@ -15,6 +15,7 @@ import {
   validateToolRegistry,
 } from './support.ts';
 import type { AgentRun, RunScope } from './types.ts';
+import { scopeChatId } from './observability.ts';
 import { createCachedAgent, estimateInputTokens, lastStickerCatalog } from './transcript.ts';
 import type { CachedConversationAgent } from '../conversation-runtime.ts';
 import { attachBucketToInvocation } from '../invocation-queue/index.ts';
@@ -85,6 +86,7 @@ export function createAgentRun(scope: RunScope, zzzExposed: boolean): AgentRun {
         invocationId,
         collecting.id,
         conversationId,
+        identity.hostKind,
         now,
       );
       return collecting.id;
@@ -100,17 +102,13 @@ export function createAgentRun(scope: RunScope, zzzExposed: boolean): AgentRun {
         invocation_id: invocationId.toString(),
         bucket_id: bucketId.toString(),
         conversation_id: conversationId.toString(),
-        chat_id: identity.chatId.toString(),
+        chat_id: scopeChatId(identity).toString(),
         at: now.toISOString(),
       }),
     );
     return true;
   };
-  const typingConversation = services.conversation({
-    chatId: identity.chatId,
-    threadId: identity.threadId,
-    conversationId: identity.conversationId,
-  });
+  const typingConversation = services.conversation(identity);
   const typing = createTyping(
     hostFor(services, identity.hostKind).activity,
     { conversation: typingConversation, policy: hostFor(services, identity.hostKind).policy(typingConversation) },

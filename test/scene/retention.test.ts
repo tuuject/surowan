@@ -53,12 +53,12 @@ test('migration 030 drops only legacy replay payloads; retention prunes audit ro
       snapshots: store!.db.prepare('SELECT * FROM invocation_messages ORDER BY invocation_id, sequence_no').all(),
     });
     const before = preserved();
-    expect(store.db.prepare('SELECT MAX(version) AS version FROM schema_migrations').get()).toEqual({ version: 63n });
+    expect(store.db.prepare('SELECT MAX(version) AS version FROM schema_migrations').get()).toEqual({ version: 64n });
     store.close();
     store = undefined;
     for (let attempt = 0; attempt < 2; attempt += 1) {
       store = await SqliteStore.open(config);
-      expect(store.db.prepare('SELECT MAX(version) AS version FROM schema_migrations').get()).toEqual({ version: 63n });
+      expect(store.db.prepare('SELECT MAX(version) AS version FROM schema_migrations').get()).toEqual({ version: 64n });
       expect(store.db.prepare('PRAGMA table_info(model_calls)').all()).not.toEqual(
         expect.arrayContaining([expect.objectContaining({ name: 'replay_input_json' })]),
       );
@@ -71,7 +71,7 @@ test('migration 030 drops only legacy replay payloads; retention prunes audit ro
         try {
           backup.defaultSafeIntegers(true);
           expect(backup.prepare('SELECT MAX(version) AS version FROM schema_migrations').get()).toEqual({
-            version: 63n,
+            version: 64n,
           });
           expect(backup.prepare('SELECT replay_input_json FROM model_calls LIMIT 1').get()).toEqual({
             replay_input_json: '{"version":2,"obsolete":true}',
@@ -140,7 +140,7 @@ test('retention keeps a sender that is still a room participant, and releases lo
         VALUES (50, '2025-01-01T00:00:00.000Z', '2025-01-01T00:00:00.000Z');
       INSERT INTO conversations (id, chat_id, message_thread_id, created_at, updated_at)
         VALUES (150, 50, 0, '2025-01-01T00:00:00.000Z', '2025-01-01T00:00:00.000Z');
-      INSERT INTO messages (id, conversation_id, chat_id, host_kind, visible, sent_by_bot, telegram_date, received_at, local_sequence_no)
+      INSERT INTO messages (id, conversation_id, chat_id, host_kind, visible, sent_by_bot, sent_at, received_at, message_no)
         VALUES (7000, 150, 50, 'playground', 1, 0, '2025-01-01T00:00:00.000Z', '2025-01-01T00:00:00.000Z', 1),
                (7001, 150, 50, 'playground', 1, 0, '2026-12-31T00:00:00.000Z', '2026-12-31T00:00:00.000Z', 2);
       INSERT INTO message_revisions (id, message_id, revision_no, sender_id, kind, text, created_at, raw_fragment_json)
