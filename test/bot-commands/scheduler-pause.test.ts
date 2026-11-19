@@ -39,7 +39,7 @@ describe('scheduler pause enforcement', () => {
       .run(STARTUP_CATCH_UP_STATE_KEY, start.toISOString(), start.toISOString());
     ingestion.ingestCatchUp(textUpdate(1, 10, 'pending'), start);
     await commands.run({ name: 'pause' }, { hostKind: 'telegram', hostChatId: 123456789n }, ALICE, FIXED_NOW);
-    expect(scheduler.finishStartupCatchUp(start)).toEqual([]);
+    expect(scheduler.finishStartupCatchUp('telegram', start)).toEqual([]);
     const bucket = store.db
       .prepare<[], { state: string; error_code: string | null }>('SELECT state, error_code FROM buckets')
       .get();

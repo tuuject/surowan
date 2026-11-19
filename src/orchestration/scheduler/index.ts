@@ -274,12 +274,12 @@ export class BucketScheduler {
     this.#queue.recover(now);
   }
 
-  finishStartupCatchUp(startedAt: Date, now = new Date()): bigint[] {
-    return this.#queue.finishStartupCatchUp(startedAt, now);
+  finishStartupCatchUp(host: HostKind, startedAt: Date, now = new Date()): bigint[] {
+    return this.#queue.finishStartupCatchUp(host, startedAt, now);
   }
 
-  finishRuntimeCatchUp(startedAt: Date, now = new Date()): bigint[] {
-    return this.#queue.finishRuntimeCatchUp(startedAt, now);
+  finishRuntimeCatchUp(host: HostKind, startedAt: Date, now = new Date()): bigint[] {
+    return this.#queue.finishRuntimeCatchUp(host, startedAt, now);
   }
 
   processDue(now = new Date()): bigint[] {

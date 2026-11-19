@@ -8,7 +8,7 @@ import { BucketScheduler } from '../../src/orchestration/scheduler/index.ts';
 import type { ProactiveReplyGateOptions } from '../../src/orchestration/proactive-reply.ts';
 
 import { loadConfig } from '../../src/adapters/local-monolith/config/index.ts';
-import type { StartupCatchUpApi } from '../../src/startup-catch-up.ts';
+import type { StartupCatchUpApi } from '../../src/ingress/telegram-ingestion/catch-up/startup.ts';
 import { SqliteStore } from '../../src/adapters/local-monolith/database.ts';
 import {
   type FixtureConfig,

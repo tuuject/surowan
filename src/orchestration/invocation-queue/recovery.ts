@@ -1,6 +1,6 @@
 import { and, eq, inArray, lt, sql } from 'drizzle-orm';
 import { hostExecutionProfile } from '../../platform/host-profile.ts';
-import { isHostKind } from '../../platform/im-host/identity.ts';
+import { type HostKind, isHostKind } from '../../platform/im-host/identity.ts';
 import { appState, buckets, chats, conversations, invocations, taskReceipts } from '../../store/schema/index.ts';
 import { asRunResult } from '../../store/store.ts';
 import { materializeCatchUpBuckets, selectCatchUpMessages } from './catch-up.ts';
@@ -102,7 +102,17 @@ export function recoverQueue(deps: InvocationQueueDeps, now = new Date()): void 
  * crash mid-drain resumes against the same boundary; only this cold path owns
  * that marker.
  */
-export function finishStartupCatchUpQueue(deps: InvocationQueueDeps, startedAt: Date, now = new Date()): bigint[] {
+export function finishStartupCatchUpQueue(
+  deps: InvocationQueueDeps,
+  host: HostKind,
+  startedAt: Date,
+  now = new Date(),
+): bigint[] {
+  // The marker guards one bucket-intake host's resume boundary; a release
+  // host has no drain to finish and must never select-then-clear it.
+  if (hostExecutionProfile(host).intake !== 'bucket') {
+    throw new Error(`startup catch-up finish requires a bucket-intake host, got '${host}'`);
+  }
   const store = deps.store;
   return store.transaction(() => {
     const state = store.orm
@@ -115,7 +125,7 @@ export function finishStartupCatchUpQueue(deps: InvocationQueueDeps, startedAt: 
     }
     const invocationIds = materializeCatchUpBuckets(
       deps,
-      selectCatchUpMessages(deps, startedAt, false),
+      selectCatchUpMessages(deps, host, startedAt, false),
       startedAt,
       now,
     );

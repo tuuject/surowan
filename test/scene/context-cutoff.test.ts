@@ -130,7 +130,7 @@ describe('scene context', () => {
       .values({ key: 'telegram_startup_catch_up', value: at(30).toISOString(), updatedAt: at(30).toISOString() })
       .run();
     ingestion.ingestCatchUp(groupUpdate(2, 20, 'catch-up trigger', 35), at(40));
-    const [invocationId] = scheduler.finishStartupCatchUp(at(30), at(50));
+    const [invocationId] = scheduler.finishStartupCatchUp('telegram', at(30), at(50));
     expect(invocationId).toBeDefined();
     const conversationId = conversationIdOf(store, GROUP_CHAT, 0n);
     const chatId = chatRowId(store, GROUP_CHAT);

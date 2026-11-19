@@ -60,7 +60,7 @@ for (const catchUp of [false, true]) {
         ingestion.ingest(editUpdate, START);
       }
       if (catchUp) {
-        scheduler.finishRuntimeCatchUp(START, START);
+        scheduler.finishRuntimeCatchUp('telegram', START, START);
       } else {
         scheduler.processDue(new Date(START.getTime() + 20_000));
       }

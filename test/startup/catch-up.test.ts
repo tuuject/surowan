@@ -3,7 +3,7 @@ import type { Update } from 'grammy/types';
 import { createSendTool } from '../../src/capabilities/send/index.ts';
 import { STARTUP_CATCH_UP_STATE_KEY } from '../../src/orchestration/scheduler/index.ts';
 import type { TelegramTransport } from '../../src/adapters/local-monolith/telegram/host.ts';
-import { runStartupCatchUp, type StartupCatchUpApi } from '../../src/startup-catch-up.ts';
+import { runStartupCatchUp, type StartupCatchUpApi } from '../../src/ingress/telegram-ingestion/catch-up/startup.ts';
 import { invocationCapabilities, sleep, testSendToolEnv } from '../helpers.ts';
 import {
   FIRST_CHAT_ID,

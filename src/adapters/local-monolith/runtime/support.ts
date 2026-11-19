@@ -1,17 +1,13 @@
 /**
  * Pieces the composition root shares with its startup phases: the event log,
- * the constants every phase reports against, conversation lookup and the
- * command reply path.
+ * the constants every phase reports against and conversation lookup.
  */
 import { and, eq } from 'drizzle-orm';
-import type { Context } from 'grammy';
 import type { McpManager } from '../../../capabilities/mcp/index.ts';
 import type { ImageBridge } from '../../../image/bridge.ts';
 import type { ImageService } from '../../../image/service.ts';
 import type { AdminServer } from '../../../ingress/admin/index.ts';
 import type { SleepingService } from '../../../context/group-memory/sleeping.ts';
-import { commandSender } from '../../../ingress/telegram-ingestion/commands.ts';
-import type { BotCommandService, ParsedCommand } from '../../../orchestration/bot-commands/index.ts';
 import type { BucketScheduler } from '../../../orchestration/scheduler/index.ts';
 import {
   parseHostKind,
@@ -164,41 +160,4 @@ export function resolveConversation(
     topicId: target.threadId === 0n ? null : target.threadId,
     scope: chat?.type === 'private' ? 'private' : 'group',
   };
-}
-
-export async function replyToCommand(
-  context: Context,
-  commands: BotCommandService,
-  command: ParsedCommand,
-): Promise<void> {
-  const message = context.update.message;
-  if (message === undefined) {
-    return;
-  }
-  const chatId = message.chat.id;
-  const sender = commandSender(message);
-  let text: string;
-  try {
-    text = await commands.run(command, { hostKind: 'telegram', hostChatId: BigInt(chatId) }, sender);
-  } catch (error) {
-    logEvent('command_failed', {
-      command: command.name,
-      chat_id: String(chatId),
-      error: error instanceof Error ? error.message : String(error),
-    });
-    return;
-  }
-  try {
-    await context.api.sendMessage(String(chatId), text, {
-      ...(message.message_thread_id === undefined ? {} : { message_thread_id: message.message_thread_id }),
-      reply_parameters: { message_id: message.message_id },
-    });
-    logEvent('command_reply_sent', { command: command.name, chat_id: String(chatId) });
-  } catch (error) {
-    logEvent('command_reply_failed', {
-      command: command.name,
-      chat_id: String(chatId),
-      error: error instanceof Error ? error.message : String(error),
-    });
-  }
 }

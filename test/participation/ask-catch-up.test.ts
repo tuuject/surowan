@@ -10,7 +10,7 @@ test('ask-only catch-up snapshots ordinary backlog as history and asks as new', 
   try {
     ingestion.ingestCatchUp(groupMessage(1, 1, { text: 'details' }), OUTSIDE_PERIOD);
     ingestion.ingestCatchUp(groupMessage(2, 2, ask), OUTSIDE_PERIOD);
-    scheduler.finishRuntimeCatchUp(OUTSIDE_PERIOD, OUTSIDE_PERIOD);
+    scheduler.finishRuntimeCatchUp('telegram', OUTSIDE_PERIOD, OUTSIDE_PERIOD);
     expect(store.db.prepare('SELECT section, message_id FROM invocation_messages ORDER BY sequence_no').all()).toEqual([
       { section: 'history', message_id: 1n },
       { section: 'new', message_id: 2n },
@@ -29,7 +29,7 @@ test('ordinary backlog cannot evict an ask beyond the history rank limit', async
     for (let id = 2; id <= config.agent.history_messages + 2; id++) {
       ingestion.ingestCatchUp(groupMessage(id, id, { text: 'ordinary' }), OUTSIDE_PERIOD);
     }
-    scheduler.finishRuntimeCatchUp(OUTSIDE_PERIOD, OUTSIDE_PERIOD);
+    scheduler.finishRuntimeCatchUp('telegram', OUTSIDE_PERIOD, OUTSIDE_PERIOD);
     expect(store.db.prepare('SELECT state, error_code FROM buckets').get()).toEqual({
       state: 'queued',
       error_code: null,
@@ -47,7 +47,7 @@ test('a revision-one edit containing ask never queues catch-up', async () => {
   const { store, ingestion, scheduler } = await setup({ global: { ask_only: true } });
   try {
     ingestion.ingestCatchUp(editedGroupMessage(1, 1, 1700000010, ask), OUTSIDE_PERIOD);
-    scheduler.finishRuntimeCatchUp(OUTSIDE_PERIOD, OUTSIDE_PERIOD);
+    scheduler.finishRuntimeCatchUp('telegram', OUTSIDE_PERIOD, OUTSIDE_PERIOD);
     expect(store.db.prepare('SELECT state, error_code FROM buckets').get()).toEqual({
       state: 'skipped_budget',
       error_code: 'participation_gated',
@@ -63,10 +63,10 @@ test('participation-gated catch-up retains its backlog and runtime does not sele
   const { store, ingestion, scheduler } = await setup({ global: { ask_only: true } });
   try {
     ingestion.ingestCatchUp(groupMessage(1, 1, { text: 'quiet' }), OUTSIDE_PERIOD);
-    scheduler.finishRuntimeCatchUp(OUTSIDE_PERIOD, OUTSIDE_PERIOD);
+    scheduler.finishRuntimeCatchUp('telegram', OUTSIDE_PERIOD, OUTSIDE_PERIOD);
     expect(store.db.prepare('SELECT error_code FROM buckets').get()).toEqual({ error_code: 'participation_gated' });
     expect(store.db.prepare('SELECT message_id FROM bucket_messages').all()).toEqual([{ message_id: 1n }]);
-    scheduler.finishRuntimeCatchUp(OUTSIDE_PERIOD, OUTSIDE_PERIOD);
+    scheduler.finishRuntimeCatchUp('telegram', OUTSIDE_PERIOD, OUTSIDE_PERIOD);
     expect(store.db.prepare('SELECT COUNT(*) AS n FROM buckets').get()).toEqual({ n: 1n });
     expect(store.db.prepare('SELECT COUNT(*) AS n FROM invocations').get()).toEqual({ n: 0n });
   } finally {

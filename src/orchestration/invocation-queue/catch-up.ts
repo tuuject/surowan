@@ -2,12 +2,12 @@ import { type SQL, sql } from 'drizzle-orm';
 import { completeAgentSettings, resolveAgentSettings } from '../../platform/config/resolve.ts';
 import { hostIntakeSettings, resolveChatConfig } from '../../platform/config/index.ts';
 import type { BotIdentity } from '../../platform/im-host/cues.ts';
-import { parseHostKind } from '../../platform/im-host/identity.ts';
-import { hostsWhere } from '../../platform/host-profile.ts';
+import { type HostKind, parseHostKind } from '../../platform/im-host/identity.ts';
+import { hostExecutionProfile, hostsWhere } from '../../platform/host-profile.ts';
 import { rawFragmentReader } from '../../platform/raw-fragments.ts';
 import { isConversationActive } from '../../store/participation.ts';
 import { bucketMessages, buckets } from '../../store/schema/index.ts';
-import { telegramHostSql } from '../../store/host-scope.ts';
+import { hostKindsSql } from '../../store/host-scope.ts';
 import { isChatPaused } from '../../store/store.ts';
 import {
   enqueueBucketInvocation,
@@ -39,32 +39,40 @@ interface CatchUpMessageRow {
  * drift: the cold path selects messages by the drain marker, the runtime path
  * by the window of one live backlog pass.
  */
-export function finishRuntimeCatchUpQueue(deps: InvocationQueueDeps, startedAt: Date, now = new Date()): bigint[] {
+export function finishRuntimeCatchUpQueue(
+  deps: InvocationQueueDeps,
+  host: HostKind,
+  startedAt: Date,
+  now = new Date(),
+): bigint[] {
+  // A release host has no backlog to materialize — returning before the pass
+  // also keeps the shared sleep state, which lives outside any host scope,
+  // untouched by the materialisation below.
+  if (hostExecutionProfile(host).intake !== 'bucket') {
+    return [];
+  }
   return deps.store.transaction(() =>
-    materializeCatchUpBuckets(deps, selectCatchUpMessages(deps, startedAt, true), startedAt, now),
+    materializeCatchUpBuckets(deps, selectCatchUpMessages(deps, host, startedAt, true), startedAt, now),
   );
 }
 
 /**
- * Messages stored in Telegram conversations after `startedAt`, newest first
- * per Conversation and bounded by the configured history size. `unbucketedOnly`
- * keeps a runtime pass from re-materialising messages a later redelivery (or an
- * earlier pass) already put in a bucket.
+ * Messages stored in the caller host's conversations after `startedAt`, newest
+ * first per Conversation and bounded by the configured history size. The host
+ * is selected by its `intake: 'bucket'` trait, so a `release` host has no
+ * backlog for this pass to sweep. `unbucketedOnly` keeps a runtime pass from
+ * re-materialising messages a later redelivery (or an earlier pass) already
+ * put in a bucket.
  */
 export function selectCatchUpMessages(
   deps: InvocationQueueDeps,
+  host: HostKind,
   startedAt: Date,
   unbucketedOnly: boolean,
 ): CatchUpMessageRow[] {
   const config = deps.configStore.current().config;
-  // The query is Telegram-scoped, so the sticker-trigger flag is the config
-  // bucket host's; asking every such host keeps this file free of a host
-  // literal.
-  const stickerTrigger = hostsWhere((profile) => profile.chatSource === 'config' && profile.intake === 'bucket').some(
-    (host) => hostIntakeSettings(config, host).sticker_trigger_enabled === true,
-  )
-    ? 1n
-    : 0n;
+  const scope = hostsWhere((profile) => profile.kind === host && profile.intake === 'bucket');
+  const stickerTrigger = hostIntakeSettings(config, host).sticker_trigger_enabled === true ? 1n : 0n;
   const unbucketed = unbucketedOnly
     ? sql`AND NOT EXISTS (SELECT 1 FROM bucket_messages bm WHERE bm.message_id = m.id)`
     : sql``;
@@ -84,9 +92,9 @@ export function selectCatchUpMessages(
        LEFT JOIN senders s ON s.id = r.sender_id
        JOIN chats c ON c.id = m.chat_id
        WHERE m.received_at >= ${startedAt.toISOString()} AND m.visible = 1 AND m.sent_by_bot = 0
-         -- Only Telegram catch-up: a room's inputs are released explicitly,
-         -- never swept up by a startup or runtime pass.
-         AND ${telegramHostSql('c.host_kind')}
+         -- Only bucket-intake hosts have a backlog: a room's inputs are
+         -- released explicitly, never swept up by a startup or runtime pass.
+         AND ${hostKindsSql('c.host_kind', scope)}
          ${unbucketed}
      `;
   const selected = deps.store.orm.all<CatchUpMessageRow>(
