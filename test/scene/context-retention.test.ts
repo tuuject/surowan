@@ -41,6 +41,7 @@ describe('scene context', () => {
       invocationId,
       attached,
       conversationId,
+      'telegram',
       at(52),
     );
     // Rewrite the clock so only the opening-batch filter can keep it out.
@@ -92,6 +93,7 @@ describe('scene context', () => {
       invocationId,
       attached,
       conversationId,
+      'telegram',
       at(32),
     );
 

@@ -1,6 +1,6 @@
 import { and, eq, sql } from 'drizzle-orm';
 import { hostExecutionProfile } from '../../platform/host-profile.ts';
-import { isHostKind } from '../../platform/im-host/identity.ts';
+import { isHostKind, parseHostKind } from '../../platform/im-host/identity.ts';
 import { buckets, invocationBuckets, taskReceipts } from '../../store/schema/index.ts';
 import {
   enqueueBucketInvocation,
@@ -117,7 +117,9 @@ function insertReceiptInvocation(deps: InvocationQueueDeps, receipt: ReceiptRow,
     throw new Error('buckets insert returned no row');
   }
   const bucketId = created.id;
-  const invocationId = running ?? enqueueBucketInvocation(deps, bucketId, receipt.conversation_id, now, true);
+  const invocationId =
+    running ??
+    enqueueBucketInvocation(deps, bucketId, receipt.conversation_id, parseHostKind(receipt.host_kind), now, true);
   if (running !== undefined) {
     store.orm.insert(invocationBuckets).values({ invocationId, bucketId, attachedAt: timestamp }).run();
   }

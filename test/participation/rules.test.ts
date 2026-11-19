@@ -1,12 +1,14 @@
 import { describe, expect, test } from 'vitest';
 import type { Message } from 'grammy/types';
+import { telegramMessageCues } from '../../src/ingress/telegram-ingestion/cues.ts';
+import type { BotIdentity } from '../../src/platform/im-host/cues.ts';
 import {
   type ParticipationRule,
   compileParticipation,
   isWithinActiveWindows,
   matchTriggerKind,
-  mentionsBot,
 } from '../../src/platform/participation.ts';
+import { mentionsBot } from '../../src/platform/telegram-markdown/cues.ts';
 import {
   BOT_ID,
   BOT_IDENTITY,
@@ -18,6 +20,9 @@ import {
   mentionText,
   replyFields,
 } from './fixtures.ts';
+
+const triggerOf = (message: Message, bot: BotIdentity, keywords: readonly string[]) =>
+  matchTriggerKind(telegramMessageCues(message, bot), keywords);
 
 function ruleOf(options: {
   readonly windows?: readonly { start: string; end: string; days?: number[] }[];
@@ -114,9 +119,9 @@ describe('participation rules', () => {
   test('matches mentions, bot replies, and keywords in priority order', () => {
     const keywords = ['塑料碗'];
     const bot = BOT_IDENTITY;
-    expect(matchTriggerKind(groupMessage(1, 10, mentionText()).message as Message, bot, keywords)).toBe('mention');
+    expect(triggerOf(groupMessage(1, 10, mentionText()).message as Message, bot, keywords)).toBe('mention');
     expect(
-      matchTriggerKind(
+      triggerOf(
         groupMessage(2, 11, {
           text: 'hi',
           entities: [
@@ -127,17 +132,13 @@ describe('participation rules', () => {
         keywords,
       ),
     ).toBe('mention');
-    expect(matchTriggerKind(groupMessage(3, 12, replyFields(BOT_ID, true)).message as Message, bot, keywords)).toBe(
+    expect(triggerOf(groupMessage(3, 12, replyFields(BOT_ID, true)).message as Message, bot, keywords)).toBe(
       'reply_to_bot',
     );
-    expect(matchTriggerKind(groupMessage(4, 13, { text: 'hey 塑料碗' }).message as Message, bot, keywords)).toBe(
-      'keyword',
-    );
+    expect(triggerOf(groupMessage(4, 13, { text: 'hey 塑料碗' }).message as Message, bot, keywords)).toBe('keyword');
     // A reply to a human is not a trigger, and neither is a keyword-free message.
-    expect(matchTriggerKind(groupMessage(5, 14, replyFields(43, false)).message as Message, bot, keywords)).toBeNull();
-    expect(
-      matchTriggerKind(groupMessage(6, 15, { text: 'just chatting' }).message as Message, bot, keywords),
-    ).toBeNull();
+    expect(triggerOf(groupMessage(5, 14, replyFields(43, false)).message as Message, bot, keywords)).toBeNull();
+    expect(triggerOf(groupMessage(6, 15, { text: 'just chatting' }).message as Message, bot, keywords)).toBeNull();
   });
 
   test('matches keywords against captions and ignores case', () => {
@@ -145,10 +146,8 @@ describe('participation rules', () => {
       caption: 'look at this WAN',
       photo: [{ file_id: 'f', file_unique_id: 'u', width: 10, height: 10, file_size: 100 }],
     });
-    expect(matchTriggerKind(caption.message as Message, BOT_IDENTITY, ['wan'])).toBe('keyword');
-    expect(
-      matchTriggerKind(groupMessage(2, 11, { text: 'hi @surowanbot' }).message as Message, BOT_IDENTITY, []),
-    ).toBeNull();
+    expect(triggerOf(caption.message as Message, BOT_IDENTITY, ['wan'])).toBe('keyword');
+    expect(triggerOf(groupMessage(2, 11, { text: 'hi @surowanbot' }).message as Message, BOT_IDENTITY, [])).toBeNull();
   });
 
   test('reads mentions anywhere in a rich message', () => {
@@ -178,7 +177,7 @@ describe('participation rules', () => {
       ],
     };
     expect(mentionsBot(rich([textMention]), BOT_IDENTITY)).toBe(true);
-    expect(matchTriggerKind(rich([textMention]), BOT_IDENTITY, [])).toBe('mention');
+    expect(triggerOf(rich([textMention]), BOT_IDENTITY, [])).toBe('mention');
     expect(mentionsBot(rich(inList({ type: 'mention', text: '@Another', username: 'Another' })), BOT_IDENTITY)).toBe(
       false,
     );
@@ -187,8 +186,7 @@ describe('participation rules', () => {
 
   test('matches keywords against the visible text of a rich message only', () => {
     const rich = (blocks: unknown[]) => groupMessage(1, 10, { rich_message: { blocks } }).message as Message;
-    const keyword = (blocks: unknown[], keywords: readonly string[]) =>
-      matchTriggerKind(rich(blocks), BOT_IDENTITY, keywords);
+    const keyword = (blocks: unknown[], keywords: readonly string[]) => triggerOf(rich(blocks), BOT_IDENTITY, keywords);
     // Formatting runs join in place, so a keyword split across them still matches.
     expect(keyword([{ type: 'paragraph', text: ['问问', { type: 'bold', text: '塑料' }, '碗'] }], ['塑料碗'])).toBe(
       'keyword',
@@ -222,7 +220,7 @@ describe('participation rules', () => {
 
   test('keeps visible rich fields separate while joining formatted runs', () => {
     const trigger = (blocks: unknown[], keywords: readonly string[]) =>
-      matchTriggerKind(groupMessage(1, 10, { rich_message: { blocks } }).message as Message, BOT_IDENTITY, keywords);
+      triggerOf(groupMessage(1, 10, { rich_message: { blocks } }).message as Message, BOT_IDENTITY, keywords);
     const table = {
       type: 'table',
       caption: { type: 'bold', text: ['wake-', { type: 'italic', text: 'bot' }] },

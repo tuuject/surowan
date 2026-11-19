@@ -1,6 +1,7 @@
 import { eq, type SQL, sql } from 'drizzle-orm';
 import { AGENT_PROMPT_VERSION } from '../../platform/agent-protocol.ts';
 import type { ChatConfigEntry } from '../../platform/config/index.ts';
+import type { BotIdentity } from '../../platform/im-host/cues.ts';
 import type { HostKind } from '../../platform/im-host/identity.ts';
 import type { RuntimeConfigurationStore } from '../../platform/runtime-config.ts';
 import { deliveryBlockReason } from '../../store/delivery-target.ts';
@@ -21,7 +22,7 @@ import type { ProactiveReplyGate } from '../proactive-reply.ts';
  * one canonical in-memory state through these references and never hold a copy.
  */
 export interface InvocationQueueDeps {
-  readonly bot: { readonly username: string | null } | undefined;
+  readonly bot: BotIdentity | undefined;
   readonly store: BusinessStore;
   readonly configStore: RuntimeConfigurationStore;
   readonly participation: ParticipationRegistry;
@@ -54,6 +55,7 @@ export interface InvocationQueueDeps {
     invocationId: bigint,
     bucketId: bigint,
     conversationId: bigint,
+    host: HostKind,
     now: Date,
   ): void;
 }
@@ -102,6 +104,7 @@ export function enqueueBucketInvocation(
   deps: InvocationQueueDeps,
   bucketId: bigint,
   conversationId: bigint,
+  host: HostKind,
   now: Date,
   includeHistory: boolean,
 ): bigint {
@@ -119,6 +122,7 @@ export function enqueueBucketInvocation(
     invocationId,
     bucketId,
     conversationId,
+    host,
     includeHistory,
   );
   return invocationId;

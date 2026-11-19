@@ -10,11 +10,8 @@ import type { ImageBridge } from '../../../image/bridge.ts';
 import type { ImageService } from '../../../image/service.ts';
 import type { AdminServer } from '../../../ingress/admin/index.ts';
 import type { SleepingService } from '../../../context/group-memory/sleeping.ts';
-import {
-  commandSender,
-  type BotCommandService,
-  type ParsedCommand,
-} from '../../../orchestration/bot-commands/index.ts';
+import { commandSender } from '../../../ingress/telegram-ingestion/commands.ts';
+import type { BotCommandService, ParsedCommand } from '../../../orchestration/bot-commands/index.ts';
 import type { BucketScheduler } from '../../../orchestration/scheduler/index.ts';
 import {
   parseHostKind,

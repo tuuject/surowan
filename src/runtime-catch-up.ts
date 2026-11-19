@@ -14,7 +14,8 @@
 
 import type { Message, Update } from 'grammy/types';
 import type { TelegramIngestion } from './ingress/telegram-ingestion/index.ts';
-import { type BotCommandService, commandSender, parseBotCommand } from './orchestration/bot-commands/index.ts';
+import { commandSender, parseBotCommand } from './ingress/telegram-ingestion/commands.ts';
+import type { BotCommandService } from './orchestration/bot-commands/index.ts';
 import type { StartupCatchUpApi } from './startup-catch-up.ts';
 
 /** How many messages of one chat a runtime pass keeps; older ones are dropped. */

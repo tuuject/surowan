@@ -10,7 +10,7 @@ import { and, eq, inArray, sql } from 'drizzle-orm';
 import type { Static } from 'typebox';
 import Compile from 'typebox/compile';
 import type { RawConfig } from '../../platform/config/index.ts';
-import { bodyFromFragment } from '../../platform/telegram-markdown/index.ts';
+import { rawFragmentReader } from '../../platform/raw-fragments.ts';
 import { media } from '../../store/schema/index.ts';
 import type { BusinessStore } from '../../store/store.ts';
 
@@ -152,7 +152,7 @@ export function renderHistoryRows(
     }
     const mediaRows = mediaByRevision.get(row.revision_id) ?? [];
     const replySnapshot = parseStoredJson(row.reply_snapshot_json);
-    const body = bodyFromFragment(row.raw_fragment_json, {
+    const body = rawFragmentReader(source.hostKind).body(row.raw_fragment_json, {
       text: row.text,
       caption: row.caption,
       reply_snapshot: replySnapshot,

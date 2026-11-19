@@ -1,7 +1,8 @@
 import { eq } from 'drizzle-orm';
 import type { Update } from 'grammy/types';
 import type { TelegramIngestion } from './ingress/telegram-ingestion/index.ts';
-import { type BotCommandService, commandSender } from './orchestration/bot-commands/index.ts';
+import { commandSender } from './ingress/telegram-ingestion/commands.ts';
+import type { BotCommandService } from './orchestration/bot-commands/index.ts';
 import { type BucketScheduler, STARTUP_CATCH_UP_STATE_KEY } from './orchestration/scheduler/index.ts';
 import type { BusinessStore } from './store/store.ts';
 import { appState } from './store/schema/index.ts';

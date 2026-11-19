@@ -1,10 +1,10 @@
-import type { Message } from 'grammy/types';
-import { isOriginalAsk } from '../../platform/bot-command.ts';
 import { type SQL, sql } from 'drizzle-orm';
 import { completeAgentSettings, resolveAgentSettings } from '../../platform/config/resolve.ts';
 import { hostIntakeSettings, resolveChatConfig } from '../../platform/config/index.ts';
+import type { BotIdentity } from '../../platform/im-host/cues.ts';
 import { parseHostKind } from '../../platform/im-host/identity.ts';
 import { hostsWhere } from '../../platform/host-profile.ts';
+import { rawFragmentReader } from '../../platform/raw-fragments.ts';
 import { isConversationActive } from '../../store/participation.ts';
 import { bucketMessages, buckets } from '../../store/schema/index.ts';
 import { telegramHostSql } from '../../store/host-scope.ts';
@@ -156,7 +156,7 @@ function selectCatchUpAsks(
       SELECT * FROM session_messages WHERE conversation_id = ${conversationId} AND eligible_human = 1
       ${cursor} ORDER BY telegram_date DESC, telegram_message_id DESC LIMIT ${BigInt(pageSize)}`);
     for (const message of page) {
-      if (isOriginalAsk(JSON.parse(message.raw_fragment_json) as Message, deps.bot?.username ?? null)) {
+      if (isOriginalAskCue(deps.bot, message)) {
         asks.push(message);
       }
       if (asks.length === limit) {
@@ -169,6 +169,18 @@ function selectCatchUpAsks(
     before = page.at(-1);
   }
   return asks;
+}
+
+/**
+ * Whether the row's original revision was an `/ask` to this bot, read through
+ * the host's narrow ask cue: the backlog scan never extracts the other cues.
+ * Without a bot identity nothing can ask.
+ */
+function isOriginalAskCue(bot: BotIdentity | undefined, message: CatchUpMessageRow): boolean {
+  return rawFragmentReader(parseHostKind(message.host_kind)).asks(
+    message.raw_fragment_json,
+    bot ?? { id: 0n, username: null },
+  );
 }
 
 /** Turns selected messages into one catch-up bucket per Conversation. */
@@ -207,11 +219,7 @@ export function materializeCatchUpBuckets(
       latest.chat_type,
     );
     const batchMessages = rule?.askOnly
-      ? messages.filter(
-          (message) =>
-            message.eligible_human === 1n &&
-            isOriginalAsk(JSON.parse(message.raw_fragment_json) as Message, deps.bot?.username ?? null),
-        )
+      ? messages.filter((message) => message.eligible_human === 1n && isOriginalAskCue(deps.bot, message))
       : messages;
     const catchUpChat = resolveChatConfig(configStore.current().config, store.orm, {
       hostKind: parseHostKind(latest.host_kind),
@@ -292,7 +300,14 @@ export function materializeCatchUpBuckets(
         )
       ) {
         invocationIds.push(
-          enqueueBucketInvocation(deps, bucketId, latest.conversation_id, now, rule?.askOnly === true),
+          enqueueBucketInvocation(
+            deps,
+            bucketId,
+            latest.conversation_id,
+            parseHostKind(latest.host_kind),
+            now,
+            rule?.askOnly === true,
+          ),
         );
       } else {
         skipReason = 'proactive_reply_skipped';

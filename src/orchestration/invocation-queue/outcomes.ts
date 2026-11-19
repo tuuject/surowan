@@ -1,6 +1,14 @@
 import { and, eq, isNull, ne, sql } from 'drizzle-orm';
 import { hostsWhere } from '../../platform/host-profile.ts';
-import { buckets, invocationBuckets, invocations, taskReceipts } from '../../store/schema/index.ts';
+import { parseHostKind } from '../../platform/im-host/identity.ts';
+import {
+  buckets,
+  chats,
+  conversations,
+  invocationBuckets,
+  invocations,
+  taskReceipts,
+} from '../../store/schema/index.ts';
 import { hostKindsSql } from '../../store/host-scope.ts';
 import { asRunResult } from '../../store/store.ts';
 import {
@@ -32,10 +40,13 @@ export function releaseUninjectedBuckets(deps: InvocationQueueDeps, invocationId
       bucketId: invocationBuckets.bucketId,
       conversationId: buckets.conversationId,
       errorCode: buckets.errorCode,
+      hostKind: chats.hostKind,
     })
     .from(invocationBuckets)
     .innerJoin(buckets, eq(buckets.id, invocationBuckets.bucketId))
     .innerJoin(invocations, eq(invocations.id, invocationBuckets.invocationId))
+    .innerJoin(conversations, eq(conversations.id, buckets.conversationId))
+    .innerJoin(chats, eq(chats.id, conversations.chatId))
     .where(
       and(
         eq(invocationBuckets.invocationId, invocationId),
@@ -73,7 +84,14 @@ export function releaseUninjectedBuckets(deps: InvocationQueueDeps, invocationId
         .run();
       continue;
     }
-    const nextInvocationId = enqueueBucketInvocation(deps, row.bucketId, row.conversationId, now, false);
+    const nextInvocationId = enqueueBucketInvocation(
+      deps,
+      row.bucketId,
+      row.conversationId,
+      parseHostKind(row.hostKind),
+      now,
+      false,
+    );
     store.orm
       .update(taskReceipts)
       .set({ invocationId: nextInvocationId, updatedAt: timestamp })

@@ -1,11 +1,10 @@
 import { eq, sql } from 'drizzle-orm';
-import type { Message } from 'grammy/types';
 import { allConfiguredChats, hostIntakeSettings, resolveChatConfig } from '../platform/config/index.ts';
 import type { RawConfig } from '../platform/config/index.ts';
 import type { ChatConfigRef } from '../platform/config/index.ts';
+import type { MessageCues } from '../platform/im-host/cues.ts';
 import type { HostKind } from '../platform/im-host/identity.ts';
 import {
-  type BotIdentity,
   compileParticipation,
   isWithinActiveWindows,
   matchTriggerKind,
@@ -121,10 +120,13 @@ export function evaluateParticipation(options: {
   readonly rule: ParticipationRule | undefined;
   /** Internal `chats.id`. */
   readonly chatId: bigint;
-  readonly telegramChatId: bigint;
+  /** Host-native Chat id, logged as the wire identity. */
+  readonly hostChatId: bigint;
   readonly conversationId: bigint;
-  readonly message: Message;
-  readonly bot: BotIdentity;
+  /** The cues the ingestion edge extracted from the transport message. */
+  readonly cues: MessageCues;
+  /** Host-native message number, recorded as the trigger and logged. */
+  readonly messageNo: bigint;
   readonly receivedAt: Date;
   readonly eligibleHuman: boolean;
 }): ParticipationDecision {
@@ -138,7 +140,7 @@ export function evaluateParticipation(options: {
     return { bucketCreationAllowed: true, triggerKind: null, expiresAt: null };
   }
   if (rule.askOnly) {
-    const triggerKind = options.eligibleHuman ? matchTriggerKind(options.message, options.bot, []) : null;
+    const triggerKind = options.eligibleHuman ? matchTriggerKind(options.cues, []) : null;
     return { bucketCreationAllowed: triggerKind === 'ask', triggerKind, expiresAt: null };
   }
   // Windows are only maintained outside active periods, so the schedule ends
@@ -146,14 +148,13 @@ export function evaluateParticipation(options: {
   if (isWithinActiveWindows(rule, receivedAt)) {
     return { bucketCreationAllowed: true, triggerKind: null, expiresAt: null };
   }
-  const triggerKind = options.eligibleHuman ? matchTriggerKind(options.message, options.bot, rule.keywords) : null;
+  const triggerKind = options.eligibleHuman ? matchTriggerKind(options.cues, rule.keywords) : null;
   if (triggerKind === null) {
     const expiresAt = attentionWindowUntil(orm, options.conversationId, receivedAt);
     return { bucketCreationAllowed: expiresAt !== null, triggerKind: null, expiresAt };
   }
   const expiresAt = new Date(receivedAt.getTime() + rule.windowSeconds * 1_000).toISOString();
   const timestamp = receivedAt.toISOString();
-  const telegramMessageId = options.message.message_id;
   orm
     .insert(conversationAttention)
     .values({
@@ -161,7 +162,7 @@ export function evaluateParticipation(options: {
       expiresAt,
       triggeredAt: timestamp,
       triggerKind,
-      triggerMessageNo: BigInt(telegramMessageId),
+      triggerMessageNo: options.messageNo,
       updatedAt: timestamp,
     })
     .onConflictDoUpdate({
@@ -170,7 +171,7 @@ export function evaluateParticipation(options: {
         expiresAt,
         triggeredAt: timestamp,
         triggerKind,
-        triggerMessageNo: BigInt(telegramMessageId),
+        triggerMessageNo: options.messageNo,
         updatedAt: timestamp,
       },
     })
@@ -178,10 +179,10 @@ export function evaluateParticipation(options: {
   console.log(
     JSON.stringify({
       event: 'agent_attention_triggered',
-      chat_id: options.telegramChatId.toString(),
+      chat_id: options.hostChatId.toString(),
       conversation_id: options.conversationId.toString(),
       trigger_kind: triggerKind,
-      telegram_message_id: String(telegramMessageId),
+      telegram_message_id: String(options.messageNo),
       expires_at: expiresAt,
       at: timestamp,
     }),

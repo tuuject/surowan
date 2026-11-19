@@ -81,7 +81,7 @@ test('saving a prompt reports affected runs and the scoped cancel stops only tho
     const attached = store.db
       .prepare<[], { id: bigint }>("SELECT id FROM buckets WHERE state = 'collecting'")
       .get()!.id;
-    attachBucketToInvocation(store, 20, chatA.id, attached, chatA.conversation_id, new Date());
+    attachBucketToInvocation(store, 20, chatA.id, attached, chatA.conversation_id, 'telegram', new Date());
 
     const cookie = await login(store, baseServer);
     const view = await readJson(

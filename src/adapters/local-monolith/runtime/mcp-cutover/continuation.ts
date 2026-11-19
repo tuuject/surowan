@@ -9,6 +9,7 @@
 import { and, eq, inArray, isNull } from 'drizzle-orm';
 import { ConversationContextStore } from '../../../../context/store/index.ts';
 import type { RawConfig } from '../../../../platform/config/index.ts';
+import { parseHostKind } from '../../../../platform/im-host/identity.ts';
 import {
   consumedBatchHistoryLimit,
   resumeBlockReason,
@@ -155,9 +156,18 @@ function adoptReleasedRun(
       .where(eq(invocations.id, released.id))
       .run();
     // `append` keeps the released batch's own rows and adds history after them.
-    snapshotInvocation(store, history, released.id, released.bucketId, stopped.conversationId, true, {
-      append: true,
-    });
+    snapshotInvocation(
+      store,
+      history,
+      released.id,
+      released.bucketId,
+      stopped.conversationId,
+      parseHostKind(stopped.hostKind),
+      true,
+      {
+        append: true,
+      },
+    );
     carryReceipts(store.orm, stopped.id, released.id, now);
   });
   return released.id;

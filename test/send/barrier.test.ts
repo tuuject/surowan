@@ -41,6 +41,7 @@ describe('reply deduplication', () => {
               context.invocationId,
               collecting.id,
               context.conversationId,
+              'telegram',
               now,
             ),
           );

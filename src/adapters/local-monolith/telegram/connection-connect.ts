@@ -12,7 +12,7 @@ import { eq } from 'drizzle-orm';
 import type { Api, Bot } from 'grammy';
 import type { StickerService } from '../../../capabilities/stickers/index.ts';
 import type { TelegramIngestion } from '../../../ingress/telegram-ingestion/index.ts';
-import { BOT_COMMANDS, registerBotCommands } from '../../../orchestration/bot-commands/index.ts';
+import { BOT_COMMANDS, registerBotCommands } from '../../../ingress/telegram-ingestion/commands.ts';
 import { STARTUP_CATCH_UP_STATE_KEY } from '../../../orchestration/invocation-queue/index.ts';
 import type { ImConnectionState } from '../../../platform/im-connection.ts';
 import type { SecretStore } from '../../../platform/secrets.ts';
