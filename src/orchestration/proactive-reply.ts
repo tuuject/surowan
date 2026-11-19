@@ -1,10 +1,9 @@
-import { isOriginalAsk } from '../platform/bot-command.ts';
 import { eq, sql } from 'drizzle-orm';
-import type { Message } from 'grammy/types';
 import { hostIntakeSettings } from '../platform/config/index.ts';
 import type { FileChat } from '../platform/config/index.ts';
 import type { HostKind } from '../platform/im-host/identity.ts';
 import { matchTriggerKind, type TriggerKind } from '../platform/participation.ts';
+import { rawFragmentReader } from '../platform/raw-fragments.ts';
 import { proactiveReplyFingerprint, resolveProactiveReply, sampleProactiveReply } from '../platform/proactive-reply.ts';
 import type { RuntimeConfigurationStore } from '../platform/runtime-config.ts';
 import { proactiveReplyState } from '../store/schema/index.ts';
@@ -146,27 +145,18 @@ export class ProactiveReplyGate {
       // allowed to trigger.
       sqlDirectMessages(bucketId, stickerTrigger),
     );
+    const reader = rawFragmentReader(hostKind);
     for (const row of rows) {
-      try {
-        if (isOriginalAsk(JSON.parse(row.original_fragment_json) as Message, this.#bot.username)) {
-          return 'ask';
-        }
-      } catch {
-        // Keep inspecting current cues when a stored original fragment is malformed.
+      // An original-revision ask stays a direct cue even after the message was
+      // edited; a malformed fragment simply carries no cue. The ask-only read
+      // never walks mention entities or rich text.
+      if (reader.asks(row.original_fragment_json, this.#bot)) {
+        return 'ask';
       }
       if (row.current_eligible !== 1n) {
         continue;
       }
-      if (row.raw_fragment_json === null) {
-        continue;
-      }
-      let message: Message;
-      try {
-        message = JSON.parse(row.raw_fragment_json) as Message;
-      } catch {
-        continue;
-      }
-      const kind = matchTriggerKind(message, this.#bot, keywords, false);
+      const kind = matchTriggerKind(reader.cues(row.raw_fragment_json, this.#bot), keywords, false);
       if (kind !== null) {
         return kind;
       }

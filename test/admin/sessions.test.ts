@@ -94,7 +94,7 @@ test('cancel ongoing aborts a running invocation without re-queuing its attached
     const attached = store.db
       .prepare<[], { id: bigint }>("SELECT id FROM buckets WHERE state = 'collecting'")
       .get()!.id;
-    attachBucketToInvocation(store, 20, running.id, attached, running.conversation_id, new Date());
+    attachBucketToInvocation(store, 20, running.id, attached, running.conversation_id, 'telegram', new Date());
 
     await createAdminAccount(store.orm, { username: 'owner', password: PASSWORD });
     const cookie = sessionCookie(

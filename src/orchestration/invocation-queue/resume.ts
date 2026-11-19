@@ -1,13 +1,13 @@
 import { and, eq, gt, inArray, sql } from 'drizzle-orm';
 import { AGENT_PROMPT_VERSION } from '../../platform/agent-protocol.ts';
 import { hostExecutionProfile } from '../../platform/host-profile.ts';
-import { isHostKind } from '../../platform/im-host/identity.ts';
+import { isHostKind, parseHostKind } from '../../platform/im-host/identity.ts';
 import type { RawConfig } from '../../platform/config/index.ts';
 import type { RuntimeConfigurationStore } from '../../platform/runtime-config.ts';
 import { type DeliveryBlockReason, deliveryBlockReason, deliveryTarget } from '../../store/delivery-target.ts';
 import { enqueueInvocation } from '../../store/invocation-enqueue.ts';
 import { snapshotInvocation } from '../../store/invocation-snapshot.ts';
-import { buckets, invocationBuckets, invocations } from '../../store/schema/index.ts';
+import { buckets, chats, conversations, invocationBuckets, invocations } from '../../store/schema/index.ts';
 import { storedSleepUntil } from '../../store/sleep.ts';
 import type { BusinessStore, Orm } from '../../store/store.ts';
 import type { HostReadiness } from '../host-scope.ts';
@@ -193,8 +193,14 @@ export function resumeInvocation(
       return { ok: false, reason };
     }
     const source = store.orm
-      .select({ conversationId: invocations.conversationId, bucketId: invocations.bucketId })
+      .select({
+        conversationId: invocations.conversationId,
+        bucketId: invocations.bucketId,
+        hostKind: chats.hostKind,
+      })
       .from(invocations)
+      .innerJoin(conversations, eq(conversations.id, invocations.conversationId))
+      .innerJoin(chats, eq(chats.id, conversations.chatId))
       .where(eq(invocations.id, invocationId))
       .get();
     if (source === undefined) {
@@ -261,7 +267,15 @@ export function resumeInvocation(
       // window that still reaches the requests its run was answering; the
       // configured value remains the floor.
       const historyMessages = Math.max(current.config.agent.history_messages, options.historyMessages ?? 0);
-      snapshotInvocation(store, historyMessages, resumed, bucketId, source.conversationId, true);
+      snapshotInvocation(
+        store,
+        historyMessages,
+        resumed,
+        bucketId,
+        source.conversationId,
+        parseHostKind(source.hostKind),
+        true,
+      );
     }
     return { ok: true, invocationId: resumed, bucketId };
   });

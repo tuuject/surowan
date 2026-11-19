@@ -1,6 +1,6 @@
 import type { Message, Update } from 'grammy/types';
 import { describe, expect, test } from 'vitest';
-import { parseBotCommand } from '../../src/orchestration/bot-commands/index.ts';
+import { conversationThreadId, parseBotCommand } from '../../src/ingress/telegram-ingestion/commands.ts';
 import { BOT_USERNAME, commandUpdate, message } from './fixtures.ts';
 
 describe('parseBotCommand', () => {
@@ -141,5 +141,40 @@ describe('parseBotCommand', () => {
       from: { id: 42, is_bot: false, first_name: 'Alice' },
     };
     expect(parseBotCommand(noText, BOT_USERNAME)).toBeNull();
+  });
+
+  test('a forum-topic command lands on the same thread ingestion files the topic under', () => {
+    const forumMessage = (text: string): Message => ({
+      message_id: 5,
+      message_thread_id: 100,
+      is_topic_message: true,
+      date: 1_700_000_001,
+      chat: { id: -1001, type: 'supergroup', title: 'Forum', is_forum: true },
+      from: { id: 42, is_bot: false, first_name: 'Alice' },
+      text,
+      entities: [{ offset: 0, length: text.length, type: 'bot_command' }],
+    });
+    const message = forumMessage('/cut_topic');
+    expect(parseBotCommand(message, BOT_USERNAME)).toEqual({
+      name: 'cut_topic',
+      messageId: 5n,
+      threadId: 100n,
+    });
+    expect(conversationThreadId(message)).toBe(100n);
+    // Private-message threads and ordinary supergroup reply threads stay on 0.
+    const privateThread: Message = {
+      message_id: 1,
+      message_thread_id: 42,
+      date: 1_700_000_001,
+      chat: { id: 7, type: 'private', first_name: 'Owner' },
+      from: { id: 42, is_bot: false, first_name: 'Alice' },
+      text: '/pause',
+      entities: [{ offset: 0, length: 6, type: 'bot_command' }],
+    };
+    expect(conversationThreadId(privateThread)).toBe(0n);
+    expect(parseBotCommand(privateThread, BOT_USERNAME)).toEqual({ name: 'pause', messageId: 1n });
+    const plain = forumMessage('plain');
+    const { is_forum: _forum, ...plainChat } = plain.chat;
+    expect(conversationThreadId({ ...plain, chat: plainChat })).toBe(0n);
   });
 });

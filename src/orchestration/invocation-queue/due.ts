@@ -168,6 +168,7 @@ export function attachDueBucket(
     invocationId,
     bucket.id,
     bucket.conversation_id,
+    hostKind,
     now,
   );
   attachment.queueInjection(bucket.conversation_id, bucket.id);
@@ -261,5 +262,5 @@ export function queueCollectingBucket(
     .set({ state: 'queued', queuedAt: now.toISOString(), updatedAt: now.toISOString() })
     .where(and(eq(buckets.id, bucket.id), eq(buckets.state, 'collecting')))
     .run();
-  return enqueueBucketInvocation(deps, bucket.id, bucket.conversation_id, now, true);
+  return enqueueBucketInvocation(deps, bucket.id, bucket.conversation_id, hostKind, now, true);
 }

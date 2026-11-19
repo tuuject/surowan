@@ -50,6 +50,7 @@ export function attachBucketToInvocation(
   invocationId: bigint,
   bucketId: bigint,
   conversationId: bigint,
+  host: HostKind,
   now: Date,
 ): void {
   const timestamp = now.toISOString();
@@ -59,7 +60,7 @@ export function attachBucketToInvocation(
     .set({ state: 'running', startedAt: timestamp, updatedAt: timestamp })
     .where(and(eq(buckets.id, bucketId), eq(buckets.state, 'collecting')))
     .run();
-  snapshotInvocation(store, historyMessages, invocationId, bucketId, conversationId, false, { append: true });
+  snapshotInvocation(store, historyMessages, invocationId, bucketId, conversationId, host, false, { append: true });
 }
 
 /**

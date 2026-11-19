@@ -86,6 +86,7 @@ export function createAgentRun(scope: RunScope, zzzExposed: boolean): AgentRun {
         invocationId,
         collecting.id,
         conversationId,
+        identity.hostKind,
         now,
       );
       return collecting.id;

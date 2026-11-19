@@ -745,4 +745,4 @@ Developer 页使用可选的 `developer.record_model_payloads` 与 `developer.re
 
 `participation.ask_only` 可选，默认 false，全局与 Chat 均支持；Chat 显式 false 覆盖全局 true，热应用，私聊不受影响。为 true 时覆盖时段、关键词与注意力窗口：普通消息照常入库与整理记忆，但不创建或加入 Bucket；只有 eligibleHuman 的新 `/ask` 入桶，不记录注意力。新桶存 0/0/0 且不 adopt Bot 消息；已有 collecting 桶可合入多条 ask，attach/defer 不变。
 
-`platform/bot-command.ts` 与控制命令共享分词，识别正文 offset 0 bot_command、忽略大小写并校验目标用户名。`/ask` 不进入 BotCommandService，正文含前缀原样存储；允许 sender_chat 的占位 Bot，不允许真正 Bot。ignored_user_ids 仅对新 ask 例外，编辑仍丢弃。普通模式 ask 优先于 mention/reply/keyword，按正常节拍入桶、刷新时段外注意力、触发 mention typing 并绕过 proactive 抽样。追赶也存 ask；ask-only 每 Conversation 只收 ask，无 ask 记录 participation_gated。暂停、休眠、未配置 Agent 与移除 Chat 仍阻止运行，不强制模型回答。
+`platform/telegram-markdown/cues.ts` 的 `botCommandToken` 与控制命令共享分词，识别正文 offset 0 bot_command、忽略大小写并校验目标用户名。`/ask` 不进入 BotCommandService，正文含前缀原样存储；允许 sender_chat 的占位 Bot，不允许真正 Bot。ignored_user_ids 仅对新 ask 例外，编辑仍丢弃。普通模式 ask 优先于 mention/reply/keyword，按正常节拍入桶、刷新时段外注意力、触发 mention typing 并绕过 proactive 抽样。追赶也存 ask；ask-only 每 Conversation 只收 ask，无 ask 记录 participation_gated。暂停、休眠、未配置 Agent 与移除 Chat 仍阻止运行，不强制模型回答。

@@ -150,7 +150,7 @@ export async function fixture() {
     .set({ createdAt: '2026-09-10T07:59:40.000Z' })
     .where(eq(messageRevisions.id, revision.id))
     .run();
-  snapshotInvocation(store, 0, seed.invocationA, seed.bucketA, seed.conversationId, false);
+  snapshotInvocation(store, 0, seed.invocationA, seed.bucketA, seed.conversationId, 'telegram', false);
   const builder = new ContextBuilder(
     store,
     new ContextRefStore(store, { ttlHours: () => loaded.config.agent!.context!.ref_ttl_hours }),

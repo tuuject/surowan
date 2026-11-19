@@ -1,7 +1,8 @@
-import { isAsk } from '../../platform/bot-command.ts';
 import type { Update } from 'grammy/types';
-import { conversationThreadId, type ParsedCommand, parseBotCommand } from '../../orchestration/bot-commands/index.ts';
-import { mentionsBot } from '../../platform/participation.ts';
+import type { ParsedCommand } from '../../orchestration/bot-commands/index.ts';
+import { isAsk } from '../../platform/telegram-markdown/cues.ts';
+import { conversationThreadId, parseBotCommand } from './commands.ts';
+import { telegramMessageCues } from './cues.ts';
 import type { RuntimeConfigurationStore } from '../../platform/runtime-config.ts';
 import { resolveChatConfig } from '../../platform/config/index.ts';
 import { evaluateParticipation, ParticipationRegistry } from '../../store/participation.ts';
@@ -184,7 +185,11 @@ export class TelegramIngestion {
       return {};
     }
     let bucketId: bigint | undefined;
+    let mentioned = false;
     if (!edited) {
+      // Cues are only extracted once the update proves new: edits stay
+      // storage-only, exactly as before the cue read existed.
+      const cues = telegramMessageCues(message, { id: this.#botId, username: this.#botUsername });
       // The window is refreshed even during startup catch-up, so a mention that
       // arrived while the process was down still leaves the chat awake.
       const rule = this.#participation.ruleFor(
@@ -196,10 +201,10 @@ export class TelegramIngestion {
         orm: this.#store.orm,
         rule,
         chatId: internalChatId,
-        telegramChatId: chatId,
+        hostChatId: chatId,
         conversationId: stored.conversationId,
-        message,
-        bot: { id: this.#botId, username: this.#botUsername },
+        cues,
+        messageNo: BigInt(message.message_id),
         receivedAt,
         eligibleHuman: stored.eligibleHuman,
       });
@@ -214,12 +219,12 @@ export class TelegramIngestion {
           rule?.askOnly === true,
         );
       }
+      mentioned =
+        bucketId !== undefined &&
+        stored.eligibleHuman &&
+        this.#configStore.current().config.telegram.mention_typing_enabled !== false &&
+        (cues.asksBot || cues.mentionsBot);
     }
-    const mentioned =
-      bucketId !== undefined &&
-      stored.eligibleHuman &&
-      this.#configStore.current().config.telegram.mention_typing_enabled !== false &&
-      (isAsk(message, this.#botUsername) || mentionsBot(message, { id: this.#botId, username: this.#botUsername }));
     return {
       messageId: stored.id,
       ...(bucketId === undefined ? {} : { bucketId }),

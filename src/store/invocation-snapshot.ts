@@ -1,6 +1,7 @@
 import { eq, sql } from 'drizzle-orm';
 import { TELEGRAM_SNAPSHOT_FORMAT, hostsWhere } from '../platform/host-profile.ts';
-import { bodyFromFragment } from '../platform/telegram-markdown/index.ts';
+import type { HostKind } from '../platform/im-host/identity.ts';
+import { rawFragmentReader } from '../platform/raw-fragments.ts';
 import type { BusinessStore } from './store.ts';
 import { invocationMessages, media } from './schema/index.ts';
 import { hostKindsSql } from './host-scope.ts';
@@ -43,6 +44,8 @@ export function snapshotInvocation(
   invocationId: bigint,
   bucketId: bigint,
   conversationId: bigint,
+  /** The conversation's host; raw fragments are read through its table entry. */
+  host: HostKind,
   includeHistory: boolean,
   options: { readonly append?: boolean } = {},
 ): void {
@@ -96,11 +99,11 @@ export function snapshotInvocation(
   );
   let sequence = options.append === true ? nextSequence(store, invocationId) : 1n;
   for (const message of history) {
-    insertSnapshot(store, invocationId, message, 'history', sequence);
+    insertSnapshot(store, invocationId, message, 'history', sequence, host);
     sequence += 1n;
   }
   for (const message of current) {
-    insertSnapshot(store, invocationId, message, 'new', sequence);
+    insertSnapshot(store, invocationId, message, 'new', sequence, host);
     sequence += 1n;
   }
 }
@@ -121,6 +124,7 @@ function insertSnapshot(
   message: MessageSnapshotRow,
   section: 'history' | 'new',
   sequence: bigint,
+  host: HostKind,
 ): void {
   const mediaRows = store.orm
     .select({
@@ -148,7 +152,7 @@ function insertSnapshot(
   // Markdown, and spoiler spans and media slots ride along only when present,
   // so an unformatted message keeps producing the same snapshot as before.
   const replySnapshot: unknown = message.reply_snapshot_json === null ? null : JSON.parse(message.reply_snapshot_json);
-  const body = bodyFromFragment(message.raw_fragment_json, {
+  const body = rawFragmentReader(host).body(message.raw_fragment_json, {
     text: message.text,
     caption: message.caption,
     reply_snapshot: replySnapshot,
