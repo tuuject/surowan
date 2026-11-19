@@ -31,7 +31,7 @@ pnpm test test/telegram/ingestion.test.ts test/telegram/spoiler.test.ts test/tel
 pnpm test test/scheduler/scheduler.test.ts test/sleep.test.ts
 pnpm test test/context/store.test.ts test/context/gc.test.ts test/context/hot-inject.test.ts
 pnpm test test/context/send.test.ts test/send/reply.test.ts test/send/dedup.test.ts test/duplicate-send-guard.test.ts test/send/guard.test.ts test/cut/topic.test.ts
-pnpm test test/image/agent.test.ts test/image/delivery.test.ts test/image/delivery-runtime.test.ts test/image/delivery-file.test.ts test/media/original-file.test.ts
+pnpm test test/image/agent.test.ts test/image/agent-assets.test.ts test/image/delivery.test.ts test/image/delivery-runtime.test.ts test/image/delivery-file.test.ts test/media/original-file.test.ts
 pnpm test test/image/config-reload.test.ts test/image/config-degrade.test.ts
 pnpm test test/agent/runtime.test.ts test/models/request-audit.test.ts test/runtime/config-snapshot.test.ts
 pnpm test test/providers.test.ts test/models/metadata.test.ts test/tool-schema.test.ts test/token-usage.test.ts test/reconcile-daily-token-usage.test.ts
@@ -48,8 +48,8 @@ pnpm test test/skills.test.ts test/system-resources.test.ts test/plugins.test.ts
 pnpm test test/media/media.test.ts test/stickers.test.ts
 pnpm test test/mcp.test.ts test/web-fetch test/web-search
 pnpm test test/plugins.test.ts   # 插件依赖、扩展点与贡献冲突
-pnpm test test/operations.test.ts test/foundation/foundation.test.ts test/schema/schema.test.ts test/load-env.test.ts
-pnpm test packages/image-service/test test/image/service-store.test.ts test/image/models.test.ts test/image/admin.test.ts test/image/admin-server.test.ts
+pnpm test test/operations.test.ts test/foundation/foundation.test.ts test/schema/schema.test.ts test/schema/migrations-image-asset-visibility.test.ts test/load-env.test.ts
+pnpm test packages/image-service/test test/image/service-store.test.ts test/image/models.test.ts test/image/admin.test.ts test/image/admin-server.test.ts test/image/asset-extract.test.ts
 pnpm test test/admin/admin.test.ts test/admin/passkeys.test.ts test/admin/recovery.test.ts test/admin/providers.test.ts test/admin/chats.test.ts test/prompts/admin.test.ts test/models/switch.test.ts
 pnpm test test/bot-commands/commands.test.ts
 pnpm test test/config/diff.test.ts test/config/reload.test.ts test/chat/model-runtime.test.ts
@@ -72,13 +72,16 @@ pnpm test test/im test/intake test/schema/migrations-host-neutral-ids.test.ts te
 | --- | --- |
 | `typing.test.ts` | 模型显式开始、4 秒节流、Chat/Topic 隔离、请求不重叠、重复调用不延长上限、取消在途和排队刷新、平台失败不阻塞 |
 | `foundation/foundation.test.ts` | 严格配置（含 `agent.context` 与 `agent.rate_limits`）、`allow_reply_message_multiple_times` 可选且仅接受 boolean、Secret 脱敏（含前缀与重叠值）、迁移与备份 |
-| `packages/image-service/test/*.test.ts` | 图片域核心（包内测试自带连接）：意图档位/能力校验、引用展开与去重、幂等重放/冲突、retry 全轮、透明像素校验由 adapter 决定、部分成功与未知上游结果不自动重试、崩溃恢复、关停缺项、并发上限、单 Worker 串行化 |
+| `packages/image-service/test/*.test.ts` | 图片域核心（包内测试自带连接）：意图档位/能力校验、引用展开与去重、行内图片引用原位替换为 `图 N` 序号标签（首次出现定序、重复引用同号、显式输入列表排后且不进文字、紧邻 ASCII 数字加空格隔开、Prompt 引用仍原位展开、非法/悬空/归档引用仍拒绝）、幂等重放/冲突、retry 全轮、透明像素校验由 adapter 决定、部分成功与未知上游结果不自动重试、崩溃恢复、关停缺项、并发上限、单 Worker 串行化；素材关键词搜索（`_`、`%`、`\` 按普通字符匹配、Agent 投影同谓词）、Agent 可见开关（创建默认私有、更新路径改写、归档后退出 Agent 库） |
 | `test/image/models.test.ts` / `test/image/admin-server.test.ts` | 图片模型目录鉴权、禁用时发现、真实路由标签、能力映射、非法/超大/错误响应、自动配置到 adapter 的参数契约、配置回显与凭据保留、模型备注的文件往返及非法备注拒绝不落盘、复用 OpenRouter SecretRef 修复旧空凭据、重复模型/未知凭据/错误来源在写入前拒绝、修订冲突拒绝及 Origin 边界 |
 | `test/image/admin.test.ts` | 图片管理处理器：写入段前状态为禁用、禁用时移除配置段（条目不自动回收）、资产 CRUD 与二进制往返、Admin 提交以 admin actor 运行并进入审计列表 |
 | `test/image/config-reload.test.ts` / `test/image/config-degrade.test.ts` | 图片配置热更新与同名密钥轮换、在途轮次固定快照、候选校验与并发应用；仅改备注发布新版本且不调用上游；空/1000 字符边界通过、结构非法的图片段被剥离、修复后恢复 |
 | `test/image/service-store.test.ts` | 宿主借入连接下的图片域：safe-integer 列返回 number 且 JSON 无 BigInt、迁移 024 在有数据的既有库重放、宿主事务回滚核心写入、启动对账（claimed→interrupted、queued→恢复）、优雅关停中断落盘、备份图片快照成对轮换与恢复字节一致 |
 | `test/image/startup.test.ts` | 真实 `serve` 本地启动流程在首次 Telegram 调用前发布已保存图片配置，第二次启动自动恢复；缺失/结构错误/无法解析凭据仅禁用图片能力，启动日志与实际快照一致且不泄露凭据。Telegram 边界使用 mock，无外部连接 |
 | `test/image/agent.test.ts` | 图片插件桥：生成落定推进 long task 与回执、`send kind:image` 交付本 Conversation 已落定输出并审计 bot 消息与 `media`、跨 Conversation 拒绝、失败生成仍回执、重启后 `reconcile` 对账、能力开关、输入引用授权；模型目录只读、无凭据、热更新/禁用与取消审计、转义备注的完整字节预算分页、超大单项拒绝；显式模型选择钉住路由/提示词/回执、无效选择零生成；声明输出文件缺失时发送以 `image_generation_unavailable` 拒绝且不新增发送行 |
+| `test/image/agent-assets.test.ts` | Agent 素材库与提交闸门：`search_image_assets` 只返回已提升且未归档素材（文本查询四字段、`next_offset` 分页且接受自己广播的任何 offset、成功审计）、禁用会话拒绝审计、非法输入被 execute 网关拦下；`image_generate` 经 `library_image_refs` 或行内 `{{image:…}}` 引用私有/已归档/未知素材时在创建任何生成行、长任务或上游调用前以 `image_asset_unauthorized` 拒绝并审计、提升素材经新参数提交后进入有序输入列表（行内定序、显式排后）、管理员在搜索后或输入图转换等待期间降权的竞态都由 bridge 复查拒绝；`agentAssetLibrary` 全量收集所有分页（超过单页 30 条仍完整） |
+| `test/image/asset-extract.test.ts` | 元数据提取预览端点：图像可读工具模型成功并写 `model_calls`（role `tool`）且不落盘、纯文本工具模型不发起调用返回 409 `tool_model_no_image_input` 并附可读图模型清单、一次性覆盖模型经注册表校验（未知/无图输入/级别不支持分别 400/422）且不落盘、非法模型输出按 error 审计、超宽建议（关键词上限推导前）直接拒绝而不是返回存不进去的建议、最大尺寸建议经面板同样的 `, ` 拼接后走真实更新端点保存成功、未知/已归档素材 404/409、无工具模型可继承 502、未登录 401、API key 仅 `all`（write+paid）放行、跨源写入 403 |
+| `test/schema/migrations-image-asset-visibility.test.ts` | 迁移 `065`：存量 `image_assets` 行升级后保持私有且无关键词、Drizzle 读写新列、迁移后新建行默认私有 |
 | `test/recurring-alarms/*.test.ts` | 循环闹钟：cron 方言白名单与拒绝项、IANA 时区、夏令时切换日、并集与日/星期「或」语义、`croner` 只被 local-monolith 引擎引用；定义校验与上限、revision 冲突与 `next_fire_at` 重算；同一周期只物化一次、错过合并与 30 分钟丢弃、`previous_pending`、目标暂停/移除/Topic 不在白名单只跳过、停用与删除抑制未领取投递、单宿主进程不触发他宿主、物化失败整体回滚并停泊、retention 保留未投递的触发记录；真实 Scheduler + AgentRuntime 下立即执行与定时触发注入同一个转义后的 `<admin_scheduled_task>`、payload 校验失败退回不可信回执、Telegram 绕过睡眠与预算而房间不绕过；Admin API 的 targets/preview/增改删/立即执行、API key 的 write+paid 门槛、跨源写入被拒 |
 | `load-env.test.ts` | CLI `.env.local`/`.env` 加载语义：内置 `.env` 解析（含 BOM）、真实环境变量 > `.env.local` > `.env` 优先级 |
 | `schema/schema.test.ts` | Drizzle 层 bigint 主键返回、STRICT 与 CHECK 约束、better-sqlite3 IMMEDIATE 事务回滚、`sql` 模板绑定与 FTS5 查询；Invocation 审计索引的新建/升级、分页统计与查询计划；图片交付台账旧库升级、已知/未知资产回填与查询索引；Reply 查重索引新建/升级及既有重复审计保留 |
@@ -580,7 +583,9 @@ pnpm test
 
 生图审计详情浏览器回归：`pnpm run admin:build` 后执行 `pnpm run admin:test:e2e 12-image-generations`，使用固定生成记录验证详情深链接、刷新、列表进入与返回；断言生成状态、Attempt 错误、上游请求编号、用量、最终 Prompt、参考图快照顺序与原图链接、无参考图及原图加载失败状态，并保证浏览过程不发起写请求或真实生图。
 
-生图素材页浏览器回归：`pnpm run admin:build` 后执行 `pnpm run admin:test:e2e 12-image-assets`，用有状态假服务验证两个标签页的种子数据、Prompt 素材的新建/改名/归档与参考图的上传/改名/归档（断言真实写方法与路径），以及 `enabled: false` 时的设置门控。
+生图素材页浏览器回归：`pnpm run admin:build` 后执行 `pnpm run admin:test:e2e 12-image-assets 12-image-assets-editing`（两个 spec 共享 `e2e/image-assets-fake.ts` 的有状态假服务），验证两个标签页的种子数据、Prompt 素材的新建/改名/归档与参考图的上传/编辑/归档（断言真实写方法与路径，编辑只提交相对打开时变化的字段：无改动不发请求、降权保存只发 `agentVisible`）、AI 提取预览（默认只带 `{}` 的提取请求、提议填充弹窗后保存走正常更新、纯文本工具模型时的提示与一次性模型选择会按所选 provider/model/thinking_level 重发且不产生任何写）、重新打开同一行是全新编辑会话（无上一素材的提示泄漏、取消的草稿不复活），以及 `enabled: false` 时的设置门控。
+
+图片工作台浏览器回归：`pnpm run admin:build` 后执行 `pnpm run admin:test:e2e 12-image-generate`，用有状态假服务验证「更多」弹窗的搜索与翻页（每次翻页先等目标页渲染）、点选素材把 `{{image:<id>}}` 插到光标处（无光标时追加）、引用参考图一排随文本解析增删（同一素材引用两次仍只有一条）、Prompt 素材勾选/移除标签并随提交改变 `prompt_refs`、提交不再发送 `input_image_refs`、解析预览显示带 `图 N` 标签的最终文本、新上传即插入引用，以及任何宽度下「本次输出」卡片的顶部低于表单底部（真正的垂直堆叠）且窄屏无横向溢出；同时产出这些流程的截图工件。
 
 ## /ask 验证契约
 

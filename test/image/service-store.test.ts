@@ -222,7 +222,9 @@ test('migration 024 replays cleanly on an existing host database that already ho
   store.db.exec('DROP TABLE image_generations');
   store.db.exec('DROP TABLE image_assets');
   store.db.exec('DROP TABLE image_prompts');
-  store.db.prepare('DELETE FROM schema_migrations WHERE version = 24').run();
+  // 065's record goes with it: the replayed 024 rebuilds the tables without
+  // the later columns, so 065 must run again too.
+  store.db.prepare('DELETE FROM schema_migrations WHERE version IN (24, 65)').run();
   store.close();
 
   // Reopening re-applies 024 (after a pre-migration backup) without touching

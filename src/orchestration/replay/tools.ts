@@ -1,6 +1,6 @@
 import type { AgentTool } from '@earendil-works/pi-agent-core';
 import type { ImageContent } from '@earendil-works/pi-ai';
-import type { PublicModel } from '@surowan/image-service';
+import type { AgentAssetSummary, PublicModel } from '@surowan/image-service';
 import { createExecuteTool } from '../../capabilities/execute-tool.ts';
 import type { EmptyTextSendStrategy } from '../../capabilities/send/support.ts';
 import { isMemoActive, searchMemoEntries } from '../../context/memo-pad/search.ts';
@@ -28,9 +28,11 @@ import {
  * image bytes (`live_read`), or refused (`blocked`). Production executors for
  * web fetching, sticker search, Vision, unknown capabilities, unknown
  * top-level tools, and MCP tools are all deny-by-default. `list_image_models`
- * is synthetic: it pages the runner-provided current model directory
- * (`imageModels`, already stripped of credentials) in memory, exactly like
- * `list_alarm` pages its in-memory overlay; it never touches the image bridge.
+ * and `search_image_assets` are synthetic: they page the runner-provided
+ * current model directory (`imageModels`, already stripped of credentials) and
+ * the current agent-visible asset list (`imageAssets`, already projected to
+ * text) in memory, exactly like `list_alarm` pages its in-memory overlay; they
+ * never touch the image bridge.
  */
 
 export type ReplayDispatchMode = 'synthetic' | 'live_read' | 'blocked';
@@ -49,6 +51,8 @@ export interface ReplayToolOptions {
   readonly readImage?: (ref: string, signal: AbortSignal) => Promise<ImageContent>;
   /** The current image model directory, credential-free; absent means an empty catalog. */
   readonly imageModels?: readonly PublicModel[];
+  /** The current agent-visible asset library (text projection); absent means empty. */
+  readonly imageAssets?: readonly AgentAssetSummary[];
   readonly maxTextLength?: number;
   readonly disallowBlankLines?: boolean;
   readonly allowReplyMessageMultipleTimes?: boolean;

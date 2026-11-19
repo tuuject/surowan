@@ -3,7 +3,7 @@ import { Alert } from '@tuuject/koi-react/alert';
 import { Button } from '@tuuject/koi-react/button';
 import { Card } from '@tuuject/koi-react/card';
 import { Field } from '@tuuject/koi-react/field';
-import { PlusIcon, UploadIcon } from '@tuuject/koi-react/icons';
+import { PlusIcon } from '@tuuject/koi-react/icons';
 import { Input } from '@tuuject/koi-react/input';
 import { Select } from '@tuuject/koi-react/select';
 import { css } from '@tuuject/koi-react/styled-system/css';
@@ -11,17 +11,18 @@ import { Tag } from '@tuuject/koi-react/tag';
 import { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ListPageHeader } from '@/components/business';
-import { MarkdownInput } from '@/components/prompts/markdown-input';
+import { ReferencePicker } from '@/components/image-generate/reference-picker.tsx';
+import { imageRefToken, removeImageRefTokens } from '@/components/image-generate/prompt-refs.ts';
+import { ReferencedStrip } from '@/components/image-generate/referenced-strip.tsx';
+import { MarkdownInput, type MarkdownInsertHandle } from '@/components/prompts/markdown-input';
 import { AppLink } from '@/components/router-links';
 import type { ImageGenerationRecord } from '@/lib/api/images.ts';
 import {
   getImageStatus,
   imageUrl,
-  listImageAssets,
   listImagePrompts,
   resolveImageGeneration,
   submitImageGeneration,
-  uploadImageAsset as uploadAsset,
 } from '@/lib/api/images.ts';
 import { errorMessage } from '@/lib/errors';
 import { toast } from '@/lib/toast.ts';
@@ -29,7 +30,10 @@ import { toast } from '@/lib/toast.ts';
 /**
  * The image workspace: compose a generation from prompt and reference
  * assets, preview the resolved snapshot without paying, submit, and watch the
- * outputs land. Output pictures link into the generation audit trail.
+ * outputs land. The prompt text is the single source of truth for referenced
+ * images — picking an asset inserts its token at the caret, and the strip
+ * under the field mirrors what the text references. Output pictures link into
+ * the generation audit trail.
  */
 
 const ASPECT_RATIOS = ['auto', '1:1', '2:3', '3:2', '4:3', '3:4', '16:9', '9:16'];
@@ -41,32 +45,6 @@ const QUALITY_LABEL_KEYS = {
   high: 'image.settings.enumHigh',
 } as const;
 
-function SelectedRefs({
-  title,
-  refs,
-  onRemove,
-}: {
-  title: string;
-  refs: readonly { readonly id: string; readonly label: string }[];
-  onRemove: (id: string) => void;
-}) {
-  if (refs.length === 0) {
-    return null;
-  }
-  return (
-    <div className={css({ display: 'flex', flexDirection: 'column', gap: '2' })}>
-      <h3 className={css({ margin: '0', textStyle: 'label' })}>{title}</h3>
-      <div className={css({ display: 'flex', flexWrap: 'wrap', gap: '2' })}>
-        {refs.map((reference) => (
-          <Tag key={reference.id} onRemove={() => onRemove(reference.id)}>
-            {reference.label}
-          </Tag>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 function OutputGrid({ generation }: { readonly generation: ImageGenerationRecord }) {
   if (generation.outputs.length === 0) {
     return null;
@@ -75,8 +53,8 @@ function OutputGrid({ generation }: { readonly generation: ImageGenerationRecord
     <div
       className={css({
         display: 'grid',
-        gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
         gap: '2',
+        gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
         md: { gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' },
       })}
     >
@@ -111,14 +89,13 @@ function OutputGrid({ generation }: { readonly generation: ImageGenerationRecord
 export default function ImageGeneratePage() {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
-  const fileInput = useRef<HTMLInputElement>(null);
+  const insertRef = useRef<MarkdownInsertHandle | null>(null);
   const [prompt, setPrompt] = useState('');
   const [modelId, setModelId] = useState('');
   const [aspectRatio, setAspectRatio] = useState('auto');
   const [resolution, setResolution] = useState('auto');
   const [outputCount, setOutputCount] = useState(1);
   const [promptRefs, setPromptRefs] = useState<{ id: string; label: string }[]>([]);
-  const [imageRefs, setImageRefs] = useState<{ id: string; label: string }[]>([]);
   const [resolved, setResolved] = useState<string | null>(null);
   const [pending, setPending] = useState<ImageGenerationRecord | null>(null);
 
@@ -127,7 +104,6 @@ export default function ImageGeneratePage() {
     queryKey: ['image-prompts-picker'],
     queryFn: () => listImagePrompts({ limit: 50 }),
   });
-  const assets = useQuery({ queryKey: ['image-assets-picker'], queryFn: () => listImageAssets({ limit: 50 }) });
 
   const resolvePreview = useMutation({
     mutationFn: () =>
@@ -138,7 +114,6 @@ export default function ImageGeneratePage() {
         resolution,
         output_count: outputCount,
         prompt_refs: promptRefs.map((reference) => reference.id),
-        input_image_refs: imageRefs.map((reference) => reference.id),
       }),
     onSuccess: (snapshot) => {
       const record = snapshot as { resolvedPrompt?: string; finalPrompt?: string };
@@ -158,29 +133,12 @@ export default function ImageGeneratePage() {
         resolution,
         output_count: outputCount,
         prompt_refs: promptRefs.map((reference) => reference.id),
-        input_image_refs: imageRefs.map((reference) => reference.id),
         idempotency_key: `admin-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       }),
     onSuccess: ({ generation, replayed }) => {
       toast.success(replayed ? t('image.generate.replayedToast') : t('image.generate.submittedToast'));
       setPending(generation);
       queryClient.invalidateQueries({ queryKey: ['image-generations'] });
-    },
-    onError: (error) => {
-      toast.error(errorMessage(error));
-    },
-  });
-
-  const upload = useMutation({
-    mutationFn: async (file: File) => {
-      const buffer = await file.arrayBuffer();
-      const base64 = btoa(String.fromCharCode(...new Uint8Array(buffer)));
-      const mime = file.type === 'image/jpeg' ? 'image/jpeg' : file.type === 'image/webp' ? 'image/webp' : 'image/png';
-      return uploadAsset({ name: file.name, base64, mime });
-    },
-    onSuccess: (asset) => {
-      toast.success(t('image.generate.uploadedToast', { name: asset.name }));
-      queryClient.invalidateQueries({ queryKey: ['image-assets-picker'] });
     },
     onError: (error) => {
       toast.error(errorMessage(error));
@@ -199,14 +157,13 @@ export default function ImageGeneratePage() {
     );
   }
 
+  /** Picks land at the caret; without one they append at the end. */
+  const insertAsset = (asset: { readonly id: string }) => {
+    insertRef.current?.insertAtCursor(imageRefToken(asset.id));
+  };
+
   const addPromptRef = (entry: { readonly id: string; readonly name: string }) =>
     setPromptRefs((current) =>
-      current.some((reference) => reference.id === entry.id)
-        ? current
-        : [...current, { id: entry.id, label: entry.name }],
-    );
-  const addImageRef = (entry: { readonly id: string; readonly name: string }) =>
-    setImageRefs((current) =>
       current.some((reference) => reference.id === entry.id)
         ? current
         : [...current, { id: entry.id, label: entry.name }],
@@ -215,26 +172,61 @@ export default function ImageGeneratePage() {
   return (
     <div>
       <ListPageHeader title={t('image.generate.title')} />
-      <div
-        className={css({
-          display: 'grid',
-          gap: '6',
-          alignItems: 'start',
-          '@media (min-width: 1024px)': { gridTemplateColumns: 'minmax(0, 1fr) 360px' },
-        })}
-      >
+      {/* The form and this run's outputs stack vertically at every width. */}
+      <div className={css({ display: 'grid', gap: '6' })}>
         <Card>
           <div className={css({ display: 'flex', flexDirection: 'column', gap: '4' })}>
             <Field label={t('image.generate.promptLabel')}>
               <MarkdownInput
                 value={prompt}
                 onChange={setPrompt}
+                insertRef={insertRef}
                 placeholder={t('image.generate.promptPlaceholder', {
                   promptRef: '{{prompt:…}}',
                   imageRef: '{{image:…}}',
                 })}
               />
             </Field>
+            <ReferencedStrip
+              prompt={prompt}
+              onRemove={(id) => setPrompt((current) => removeImageRefTokens(current, id))}
+            />
+            <ReferencePicker onPick={insertAsset} />
+            <div className={css({ display: 'flex', flexDirection: 'column', gap: '2' })}>
+              <h3 className={css({ margin: '0', textStyle: 'label' })}>{t('image.generate.promptAssets')}</h3>
+              <div
+                className={css({
+                  display: 'flex',
+                  maxHeight: '112px',
+                  flexWrap: 'wrap',
+                  gap: '2',
+                  overflowY: 'auto',
+                })}
+              >
+                {prompts.data?.items.map((entry) => (
+                  <Tag key={entry.id} icon={<PlusIcon />} onSelectedChange={() => addPromptRef(entry)}>
+                    {entry.name}
+                  </Tag>
+                ))}
+              </div>
+              {promptRefs.length > 0 ? (
+                <div className={css({ display: 'flex', flexDirection: 'column', gap: '2' })}>
+                  <h4 className={css({ margin: '0', textStyle: 'label' })}>{t('image.generate.selectedPromptRefs')}</h4>
+                  <div className={css({ display: 'flex', flexWrap: 'wrap', gap: '2' })}>
+                    {promptRefs.map((reference) => (
+                      <Tag
+                        key={reference.id}
+                        onRemove={() =>
+                          setPromptRefs((current) => current.filter((entry) => entry.id !== reference.id))
+                        }
+                      >
+                        {reference.label}
+                      </Tag>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+            </div>
             {/* A container query measures an ancestor, never the element that declares it, so the grid needs a wrapper. */}
             <div className={css({ containerType: 'inline-size' })}>
               <div
@@ -282,102 +274,6 @@ export default function ImageGeneratePage() {
                     dir="ltr"
                   />
                 </Field>
-              </div>
-            </div>
-            <SelectedRefs
-              title={t('image.generate.selectedPromptRefs')}
-              refs={promptRefs}
-              onRemove={(id) => setPromptRefs((current) => current.filter((entry) => entry.id !== id))}
-            />
-            <SelectedRefs
-              title={t('image.generate.selectedImageRefs')}
-              refs={imageRefs}
-              onRemove={(id) => setImageRefs((current) => current.filter((entry) => entry.id !== id))}
-            />
-            <div
-              className={css({ display: 'grid', gap: '4', md: { gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' } })}
-            >
-              <div className={css({ display: 'flex', flexDirection: 'column', gap: '2' })}>
-                <h3 className={css({ margin: '0', textStyle: 'label' })}>{t('image.generate.promptAssets')}</h3>
-                <div
-                  className={css({
-                    display: 'flex',
-                    maxHeight: '112px',
-                    flexWrap: 'wrap',
-                    gap: '2',
-                    overflowY: 'auto',
-                  })}
-                >
-                  {prompts.data?.items.map((entry) => (
-                    <Tag key={entry.id} icon={<PlusIcon />} onSelectedChange={() => addPromptRef(entry)}>
-                      {entry.name}
-                    </Tag>
-                  ))}
-                </div>
-              </div>
-              <div className={css({ display: 'flex', flexDirection: 'column', gap: '2' })}>
-                <h3 className={css({ margin: '0', textStyle: 'label' })}>{t('image.generate.referenceImages')}</h3>
-                <div className={css({ display: 'flex', flexWrap: 'wrap', gap: '2' })}>
-                  {assets.data?.items.slice(0, 8).map((entry) => (
-                    <button
-                      key={entry.id}
-                      type="button"
-                      title={t('image.generate.addAssetRef', { name: entry.name })}
-                      aria-label={t('image.generate.addAssetRef', { name: entry.name })}
-                      className={css({
-                        padding: '0',
-                        border: 'none',
-                        bg: 'transparent',
-                        borderRadius: 'lg',
-                        cursor: 'pointer',
-                        transitionProperty: 'outline-color',
-                        transitionDuration: 'fast',
-                        outline: '2px solid transparent',
-                        outlineOffset: '2px',
-                        _hover: { outlineColor: 'action' },
-                        _focusVisible: { outlineColor: 'focus-ring' },
-                      })}
-                      onClick={() => addImageRef(entry)}
-                    >
-                      <img
-                        src={imageUrl(entry.id)}
-                        alt={entry.name}
-                        className={css({
-                          display: 'block',
-                          bg: 'surface-muted',
-                          height: 'control-lg',
-                          width: 'control-lg',
-                          borderRadius: 'lg',
-                          objectFit: 'cover',
-                        })}
-                      />
-                    </button>
-                  ))}
-                </div>
-                <input
-                  ref={fileInput}
-                  type="file"
-                  accept="image/png,image/jpeg,image/webp"
-                  hidden
-                  onChange={(event) => {
-                    const file = event.target.files?.[0];
-                    if (file !== undefined) {
-                      upload.mutate(file);
-                      event.target.value = '';
-                    }
-                  }}
-                />
-                <Button
-                  variant="outline"
-                  color="secondary"
-                  iconStart={<UploadIcon />}
-                  className={css({ alignSelf: 'flex-start' })}
-                  loading={upload.isPending}
-                  loadingLabel={t('common.uploading')}
-                  onClick={() => fileInput.current?.click()}
-                >
-                  {t('image.generate.uploadReference')}
-                </Button>
               </div>
             </div>
             {resolved !== null && (

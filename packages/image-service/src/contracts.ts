@@ -11,6 +11,13 @@ export const idSchema = z.uuid();
 export const nameSchema = z.string().trim().min(1).max(160);
 const descriptionSchema = z.string().max(2000);
 const categorySchema = z.string().trim().max(80);
+/**
+ * Free-form searchable tags, stored as one editable text line and matched by
+ * substring. The bound is exported because the metadata-extraction bounds
+ * derive from it: the worst-case joined suggestion must fit this line.
+ */
+export const KEYWORDS_LINE_MAX = 500;
+const keywordsSchema = z.string().max(KEYWORDS_LINE_MAX);
 export const promptBodySchema = z
   .string()
   .min(1)
@@ -51,6 +58,8 @@ export const imageUpdateSchema = z
     name: nameSchema.optional(),
     description: descriptionSchema.optional(),
     category: categorySchema.optional(),
+    keywords: keywordsSchema.optional(),
+    agentVisible: z.boolean().optional(),
   })
   .strict()
   .refine((value) => Object.keys(value).length > 0, '至少修改一个字段');
@@ -82,12 +91,24 @@ export type ImageAsset = {
   bytes: number;
   description: string;
   category: string;
+  keywords: string;
+  /** Whether the agent may discover and use this asset; promotion is an admin action. */
+  agentVisible: boolean;
   source: 'upload' | 'generation';
   generationId: string | null;
   outputIndex: number | null;
   createdAt: string;
   updatedAt: string;
   deletedAt: string | null;
+};
+
+/** What the agent sees of one library asset: text metadata only, never bytes. */
+export type AgentAssetSummary = {
+  id: string;
+  name: string;
+  description: string;
+  category: string;
+  keywords: string;
 };
 
 /**
@@ -231,6 +252,16 @@ export type ResolvedInput = { snapshot: GenerationSnapshot };
 export type ErrorResponse = { error: SafeError };
 
 export type Reference = { kind: 'prompt' | 'image'; id: string; token: string; start: number; end: number };
+/**
+ * The in-place label an inline `{{image:UUID}}` reference becomes in the final
+ * prompt; `N` is the image's 1-based position in the ordered input list, so the
+ * image model can read which sentence a reference image belongs to. Repeated
+ * references to the same image share one label.
+ */
+export const IMAGE_REFERENCE_LABEL = '图';
+export function imageReferenceLabel(ordinal: number): string {
+  return `${IMAGE_REFERENCE_LABEL} ${ordinal}`;
+}
 export function referenceToken(kind: Reference['kind'], id: string): string {
   return `{{${kind}:${id}}}`;
 }

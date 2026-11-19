@@ -18,7 +18,11 @@ import {
   UpdateMemoInputSchema,
 } from '../../context/memo-pad/index.ts';
 import { AlarmInputSchema, DeleteAlarmInputSchema, ListAlarmInputSchema } from '../../plugins/alarm/alarm.ts';
-import { ImageGenerateInputSchema, ListImageModelsInputSchema } from '../../plugins/image/image.ts';
+import {
+  ImageGenerateInputSchema,
+  ListImageModelsInputSchema,
+  SearchImageAssetsInputSchema,
+} from '../../plugins/image/image.ts';
 import type { ReplayToolDefinition } from './tools.ts';
 
 /** Current-schema guards: model-facing schemas come from the active tool registry. */
@@ -35,6 +39,7 @@ export const ListAlarmInputValidator = Compile(ListAlarmInputSchema);
 export const DeleteAlarmInputValidator = Compile(DeleteAlarmInputSchema);
 export const ImageGenerateInputValidator = Compile(ImageGenerateInputSchema);
 export const ListImageModelsInputValidator = Compile(ListImageModelsInputSchema);
+export const SearchImageAssetsInputValidator = Compile(SearchImageAssetsInputSchema);
 export const ZzzInputValidator = Compile(Type.Object({}, { additionalProperties: false }));
 /**
  * Mirrors the current ReadInputSchema, which is module-private in
@@ -65,6 +70,7 @@ export const SYNTHETIC_CAPABILITIES: ReadonlySet<string> = new Set([
   'delete_alarm',
   'image_generate',
   'list_image_models',
+  'search_image_assets',
   'typing',
 ]);
 

@@ -1,4 +1,4 @@
-import { customType, index, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core';
+import { customType, index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core';
 import type { GenerationSnapshot, SafeError } from './contracts.ts';
 
 /**
@@ -52,6 +52,8 @@ export const images = sqliteTable(
     fileName: text('file_name').notNull(),
     description: text('description').notNull().default(''),
     category: text('category').notNull().default(''),
+    keywords: text('keywords').notNull().default(''),
+    agentVisible: integer('agent_visible', { mode: 'boolean' }).notNull().default(false),
     source: text('source').$type<'upload' | 'generation'>().notNull(),
     generationId: text('generation_id'),
     outputIndex: safeInteger('output_index'),

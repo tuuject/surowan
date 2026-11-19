@@ -56,19 +56,22 @@ export function toolModelReasoningOption(
 /**
  * Resolves the registered model behind a selection, refusing an unusable one.
  * The refusal messages are the shared contract; `error` decides which class a
- * caller reports them as.
+ * caller reports them as. `input` is the modality the feature needs: text for
+ * every tool-model consumer so far, image for the ones that must look at a
+ * picture.
  */
 export function requireToolModel(
   models: Models,
   selection: ToolModelSelection,
   error: ToolModelErrorFactory,
+  input: 'text' | 'image' = 'text',
 ): Model<Api> {
   const model = models.getModel(selection.provider, selection.model);
   if (model === undefined) {
     throw error(`The tool model ${selection.provider}/${selection.model} is not registered in the running process`);
   }
-  if (!model.input.includes('text')) {
-    throw error(`The tool model ${selection.provider}/${selection.model} does not accept text`);
+  if (!model.input.includes(input)) {
+    throw error(`The tool model ${selection.provider}/${selection.model} does not accept ${input} input`);
   }
   if (!getSupportedThinkingLevels(model).includes(selection.thinkingLevel)) {
     throw error(

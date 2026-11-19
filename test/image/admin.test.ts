@@ -10,7 +10,7 @@ import { readConfigRevision, writeConfigEdits } from '../../src/adapters/local-m
 import { loadConfig } from '../../src/adapters/local-monolith/config/index.ts';
 import { ConfigReloader } from '../../src/adapters/local-monolith/config/reload.ts';
 import { SqliteStore } from '../../src/adapters/local-monolith/database.ts';
-import { createImageBridge } from '../../src/image/bridge.ts';
+import { createImageBridge } from '../../src/image/bridge/index.ts';
 import { createImageService } from '../../src/image/service.ts';
 import { createImageAdminHandler, type ImageAdminResponse } from '../../src/ingress/admin/image.ts';
 import { keychainPath } from '../../src/platform/keychain.ts';

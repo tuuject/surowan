@@ -1,3 +1,4 @@
+import type { AgentAssetSummary } from '@surowan/image-service';
 import type { ImageContent, ModelThinkingLevel } from '@earendil-works/pi-ai';
 import type { KeyedSemaphore } from '../../platform/concurrency.ts';
 import type { RawConfig } from '../../platform/config/index.ts';
@@ -32,6 +33,12 @@ interface ReplayOptions {
   readonly toolDefinitions?: (context: InvocationContext, config: RawConfig) => ReplayToolRegistry;
   readonly skillVisibility?: (skill: SystemSkill, target: SkillVisibilityTarget) => boolean;
   readonly imageLoader?: (mediaId: bigint, signal: AbortSignal) => Promise<ImageContent>;
+  /**
+   * The agent-visible asset library (text projection) a scene pages; absent
+   * means the scene runs against an empty library. The snapshot is taken when
+   * the run starts, like every other replay input.
+   */
+  readonly agentImageAssets?: () => readonly AgentAssetSummary[];
 }
 
 /** Prompt and model overrides for one scene test; absent means the current layer or Chat settings are kept. */

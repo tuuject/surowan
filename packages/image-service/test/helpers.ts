@@ -47,6 +47,8 @@ CREATE TABLE IF NOT EXISTS image_assets (
   file_name     TEXT NOT NULL,
   description   TEXT NOT NULL DEFAULT '',
   category      TEXT NOT NULL DEFAULT '',
+  keywords      TEXT NOT NULL DEFAULT '',
+  agent_visible INTEGER NOT NULL DEFAULT 0,
   source        TEXT NOT NULL,
   generation_id TEXT,
   output_index  INTEGER,

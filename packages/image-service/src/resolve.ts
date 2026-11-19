@@ -4,6 +4,7 @@ import {
   type GenerationInput,
   type GenerationSnapshot,
   type ImageAsset,
+  imageReferenceLabel,
   type ModelDefinition,
   type PromptAsset,
   type Reference,
@@ -19,10 +20,13 @@ export type ResolveDeps = {
 };
 
 /**
- * The single input truth: `{{prompt:UUID}}` expands in place, `{{image:UUID}}` is
- * removed from the text and its first appearance fixes reference order. Names are
- * display only. Malformed or dangling references fail loudly instead of being sent
- * upstream as plain text.
+ * The single input truth: `{{prompt:UUID}}` expands in place and `{{image:UUID}}`
+ * becomes its ordered `图 N` label in place, so the image model can read which
+ * sentence a reference image belongs to. Inline references fix the image order by
+ * first appearance; explicit inputs join the ordered list after them, keeping
+ * their position but not appearing in the text. Names are display only. Malformed
+ * or dangling references fail loudly instead of being sent upstream as plain
+ * text.
  */
 export function resolveSnapshot(deps: ResolveDeps, input: GenerationInput, model: ModelDefinition): GenerationSnapshot {
   let references: Reference[];
@@ -96,7 +100,16 @@ export function resolveSnapshot(deps: ResolveDeps, input: GenerationInput, model
     throw inputError('too_many_input_images', `输入图片数量超过模型上限（${model.capabilities.maxInputImages}）`);
   }
 
-  const resolvedPrompt = expandText(input.authoredPrompt, references, promptAssets);
+  // The ordered input list defines each image's 1-based ordinal: inline
+  // references by first appearance, explicit inputs appended after them.
+  const imageOrdinals = new Map<string, number>();
+  let ordinal = 0;
+  for (const id of imageAssets.keys()) {
+    ordinal += 1;
+    imageOrdinals.set(id, ordinal);
+  }
+
+  const resolvedPrompt = expandText(input.authoredPrompt, references, promptAssets, imageOrdinals);
   if (resolvedPrompt.trim().length === 0) {
     throw inputError('empty_prompt', '解析后的 Prompt 不能为空');
   }
@@ -119,7 +132,17 @@ export function resolveSnapshot(deps: ResolveDeps, input: GenerationInput, model
   };
 }
 
-function expandText(text: string, references: Reference[], promptAssets: Map<string, PromptAsset>): string {
+/** The label's own digits are ASCII; only those can fuse with a slot number. */
+function isAsciiDigit(code: number): boolean {
+  return code >= 0x30 && code <= 0x39;
+}
+
+function expandText(
+  text: string,
+  references: Reference[],
+  promptAssets: Map<string, PromptAsset>,
+  imageOrdinals: Map<string, number>,
+): string {
   let result = '';
   let cursor = 0;
   for (const reference of references) {
@@ -128,6 +151,16 @@ function expandText(text: string, references: Reference[], promptAssets: Map<str
       const asset = promptAssets.get(reference.id);
       if (asset !== undefined) {
         result += asset.body;
+      }
+    } else {
+      const label = imageOrdinals.get(reference.id);
+      if (label !== undefined) {
+        // The label ends in a digit, so it must stay delimited from digits the
+        // author placed around the reference: `{{image:…}}2` is slot 1
+        // followed by the digit 2, never "图 12".
+        const leading = reference.start > 0 && isAsciiDigit(text.charCodeAt(reference.start - 1)) ? ' ' : '';
+        const trailing = reference.end < text.length && isAsciiDigit(text.charCodeAt(reference.end)) ? ' ' : '';
+        result += leading + imageReferenceLabel(label) + trailing;
       }
     }
     cursor = reference.end;

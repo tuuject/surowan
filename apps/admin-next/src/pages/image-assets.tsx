@@ -1,11 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Alert } from '@tuuject/koi-react/alert';
+import { Badge } from '@tuuject/koi-react/badge';
 import { Button } from '@tuuject/koi-react/button';
-import { Dialog } from '@tuuject/koi-react/dialog';
-import { Input } from '@tuuject/koi-react/input';
 import { css } from '@tuuject/koi-react/styled-system/css';
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { AssetEditDialog } from '@/components/image-assets/asset-edit-dialog.tsx';
+import { PromptCreateDialog, PromptRenameDialog } from '@/components/image-assets/prompt-dialogs.tsx';
 import {
   type ColumnSpec,
   ConfirmDialog,
@@ -17,19 +18,15 @@ import {
   TimeText,
   useOffsetPagination,
 } from '@/components/business';
-import { MarkdownInput } from '@/components/prompts/markdown-input';
 import { AppLink } from '@/components/router-links';
 import type { ImageAssetInfo, ImagePromptAsset } from '@/lib/api/images.ts';
 import {
   archiveImageAsset,
   archiveImagePrompt,
-  createImagePrompt,
   getImageStatus,
   imageUrl,
   listImageAssets,
   listImagePrompts,
-  updateImageAsset,
-  updateImagePrompt,
   uploadImageAsset as uploadAsset,
 } from '@/lib/api/images.ts';
 import { errorMessage } from '@/lib/errors';
@@ -37,141 +34,15 @@ import { toast } from '@/lib/toast.ts';
 
 /** Asset management: prompt templates and reference images, with upload and archive. */
 
-/**
- * Stays mounted and is driven by `open`, so Base UI can play both transitions.
- * The draft is replaced on the open edge, never on close: what was typed stays
- * on screen through the exit fade.
- */
-function PromptEditor({ open, onDone }: { readonly open: boolean; readonly onDone: () => void }) {
-  const { t } = useTranslation();
-  const [name, setName] = useState('');
-  const [body, setBody] = useState('');
-  const [wasOpen, setWasOpen] = useState(open);
-  if (wasOpen !== open) {
-    setWasOpen(open);
-    if (open) {
-      setName('');
-      setBody('');
-    }
-  }
-  const create = useMutation({
-    mutationFn: () => createImagePrompt({ name, body }),
-    onSuccess: () => {
-      toast.success(t('image.assets.createdToast'));
-      onDone();
-    },
-    onError: (error) => {
-      toast.error(errorMessage(error));
-    },
-  });
-  return (
-    <Dialog
-      open={open}
-      onOpenChange={(next) => !next && !create.isPending && onDone()}
-      title={t('image.assets.newAsset')}
-      description={t('image.assets.bodyPlaceholder')}
-      footer={
-        <>
-          <Button variant="ghost" color="secondary" onClick={onDone} disabled={create.isPending}>
-            {t('common.cancel')}
-          </Button>
-          <Button
-            onClick={() => create.mutate()}
-            disabled={create.isPending || name.trim() === '' || body.trim() === ''}
-          >
-            {create.isPending ? t('common.submitting') : t('common.create')}
-          </Button>
-        </>
-      }
-    >
-      <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '3' } })}>
-        <Input
-          value={name}
-          onChange={(event) => setName(event.target.value)}
-          placeholder={t('image.assets.namePlaceholder')}
-          aria-label={t('image.assets.namePlaceholder')}
-          dir="auto"
-        />
-        <MarkdownInput
-          value={body}
-          onChange={setBody}
-          minHeight="112px"
-          placeholder={t('image.assets.bodyPlaceholder')}
-          aria-label={t('image.assets.bodyPlaceholder')}
-        />
-      </div>
-    </Dialog>
-  );
-}
-
 type AssetTarget = { readonly kind: 'prompt' | 'image'; readonly id: string; readonly name: string };
-
-/**
- * Same mount-and-drive-by-open pattern as PromptEditor: the name field is
- * seeded from the target on the open edge only, and the last opened target is
- * kept after `target` returns to null, so neither the typed text nor the title
- * blanks out during the exit transition.
- */
-function RenameDialog({ target, onDone }: { readonly target: AssetTarget | null; readonly onDone: () => void }) {
-  const { t } = useTranslation();
-  const [name, setName] = useState('');
-  const [lastTarget, setLastTarget] = useState(target);
-  if (target !== null && lastTarget !== target) {
-    setLastTarget(target);
-    setName(target.name);
-  }
-  const rename = useMutation({
-    mutationFn: async (nextName: string) => {
-      if (lastTarget === null) {
-        return;
-      }
-      if (lastTarget.kind === 'prompt') {
-        await updateImagePrompt(lastTarget.id, { name: nextName });
-      } else {
-        await updateImageAsset(lastTarget.id, { name: nextName });
-      }
-    },
-    onSuccess: () => {
-      toast.success(t('image.assets.renamedToast'));
-      onDone();
-    },
-    onError: (error) => {
-      toast.error(errorMessage(error));
-    },
-  });
-  return (
-    <Dialog
-      open={target !== null}
-      onOpenChange={(next) => !next && !rename.isPending && onDone()}
-      title={lastTarget === null ? '' : t('image.assets.renameTitle', { name: lastTarget.name })}
-      footer={
-        <>
-          <Button variant="ghost" color="secondary" onClick={onDone} disabled={rename.isPending}>
-            {t('common.cancel')}
-          </Button>
-          <Button onClick={() => rename.mutate(name)} disabled={rename.isPending || name.trim() === ''}>
-            {rename.isPending ? t('common.submitting') : t('image.assets.rename')}
-          </Button>
-        </>
-      }
-    >
-      <Input
-        value={name}
-        onChange={(event) => setName(event.target.value)}
-        placeholder={t('image.assets.namePlaceholder')}
-        aria-label={t('image.assets.namePlaceholder')}
-        dir="auto"
-      />
-    </Dialog>
-  );
-}
 
 export default function ImageAssetsPage() {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [tab, setTab] = useState<'prompts' | 'images'>('prompts');
   const [creating, setCreating] = useState(false);
-  const [renaming, setRenaming] = useState<AssetTarget | null>(null);
+  const [renaming, setRenaming] = useState<{ readonly id: string; readonly name: string } | null>(null);
+  const [editing, setEditing] = useState<ImageAssetInfo | null>(null);
   const [archiving, setArchiving] = useState<AssetTarget | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
 
@@ -212,7 +83,7 @@ export default function ImageAssetsPage() {
       toast.success(t('image.assets.archivedToast'));
       setArchiving(null);
       queryClient.invalidateQueries({ queryKey: ['image-assets'] });
-      queryClient.invalidateQueries({ queryKey: ['image-assets-picker'] });
+      queryClient.invalidateQueries({ queryKey: ['image-asset'] });
       queryClient.invalidateQueries({ queryKey: ['image-prompts-picker'] });
     },
     onError: (error) => {
@@ -235,7 +106,6 @@ export default function ImageAssetsPage() {
     onSuccess: () => {
       toast.success(t('image.assets.uploadedToast'));
       queryClient.invalidateQueries({ queryKey: ['image-assets'] });
-      queryClient.invalidateQueries({ queryKey: ['image-assets-picker'] });
     },
     onError: (error) => {
       toast.error(errorMessage(error));
@@ -261,7 +131,7 @@ export default function ImageAssetsPage() {
             size="sm"
             variant="ghost"
             color="secondary"
-            onClick={() => setRenaming({ kind: 'prompt', id: row.id, name: row.name })}
+            onClick={() => setRenaming({ id: row.id, name: row.name })}
           >
             {t('image.assets.rename')}
           </Button>
@@ -300,6 +170,25 @@ export default function ImageAssetsPage() {
       title: t('image.assets.columnName'),
       render: (row) => <span className={css({ textStyle: 'label' })}>{row.name}</span>,
     },
+    {
+      key: 'keywords',
+      title: t('image.assets.columnKeywords'),
+      render: (row) => (
+        <span className={css({ color: row.keywords.length === 0 ? 'text-muted' : 'text', truncate: true })}>
+          {row.keywords.length === 0 ? t('image.assets.keywordsEmpty') : row.keywords}
+        </span>
+      ),
+    },
+    {
+      key: 'agentVisible',
+      title: t('image.assets.columnAgentVisible'),
+      render: (row) =>
+        row.agentVisible ? (
+          <Badge tone="primary">{t('image.assets.visibilityUsable')}</Badge>
+        ) : (
+          <Badge>{t('image.assets.visibilityPrivate')}</Badge>
+        ),
+    },
     { key: 'source', title: t('image.assets.columnSource'), render: (row) => row.source },
     { key: 'created', title: t('image.assets.columnCreated'), render: (row) => <TimeText value={row.createdAt} /> },
     {
@@ -309,13 +198,8 @@ export default function ImageAssetsPage() {
       paddingBlock: 'none',
       render: (row) => (
         <RowActions>
-          <Button
-            size="sm"
-            variant="ghost"
-            color="secondary"
-            onClick={() => setRenaming({ kind: 'image', id: row.id, name: row.name })}
-          >
-            {t('image.assets.rename')}
+          <Button size="sm" variant="ghost" color="secondary" onClick={() => setEditing(row)}>
+            {t('image.assets.edit')}
           </Button>
           <Button
             size="sm"
@@ -400,22 +284,33 @@ export default function ImageAssetsPage() {
         )}
       </ListToolbar>
 
-      <PromptEditor
+      <PromptCreateDialog
         open={creating && tab === 'prompts'}
         onDone={() => {
           setCreating(false);
+          // The page's own prompt table lives under the shared assets root;
+          // the generate page's picker has its own key.
           queryClient.invalidateQueries({ queryKey: ['image-assets'] });
           queryClient.invalidateQueries({ queryKey: ['image-prompts-picker'] });
         }}
       />
 
-      <RenameDialog
+      <PromptRenameDialog
         target={renaming}
         onDone={() => {
           setRenaming(null);
           queryClient.invalidateQueries({ queryKey: ['image-assets'] });
-          queryClient.invalidateQueries({ queryKey: ['image-assets-picker'] });
           queryClient.invalidateQueries({ queryKey: ['image-prompts-picker'] });
+        }}
+      />
+
+      <AssetEditDialog
+        target={editing}
+        onClose={() => setEditing(null)}
+        onSaved={() => {
+          setEditing(null);
+          queryClient.invalidateQueries({ queryKey: ['image-assets'] });
+          queryClient.invalidateQueries({ queryKey: ['image-asset'] });
         }}
       />
 

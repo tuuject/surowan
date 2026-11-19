@@ -14,7 +14,7 @@ import { StickerService } from '../../../capabilities/stickers/index.ts';
 import { SleepingService } from '../../../context/group-memory/sleeping.ts';
 import { MemoBlobStore } from '../../../context/memo-pad/blobs.ts';
 import { MemoPadStore } from '../../../context/memo-pad/store.ts';
-import { createImageBridge, type ImageBridge } from '../../../image/bridge.ts';
+import { createImageBridge, type ImageBridge } from '../../../image/bridge/index.ts';
 import { generationEligibilityForHosts } from '../../../image/host-eligibility.ts';
 import { createImageService, type ImageService } from '../../../image/service.ts';
 import { PlaygroundIngress } from '../../../ingress/playground.ts';

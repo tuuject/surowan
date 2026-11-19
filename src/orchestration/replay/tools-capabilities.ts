@@ -9,7 +9,7 @@ import type { AgentTool } from '@earendil-works/pi-agent-core';
 import { capability, type ExecutableCapability } from '../../capabilities/execute-tool.ts';
 import { MEMO_WRITE_INPUT_MAX_BYTES, newMemoBlobId, newMemoId } from '../../context/memo-pad/index.ts';
 import { isMemoActive } from '../../context/memo-pad/search.ts';
-import { imageModelPage } from '../../plugins/image/image.ts';
+import { agentAssetPage, imageModelPage } from '../../plugins/image/image.ts';
 import type { ReplayDispatch, ReplayState, ReplayToolDefinition } from './tools.ts';
 import {
   AddMemoInputValidator,
@@ -20,6 +20,7 @@ import {
   ListAlarmInputValidator,
   ListImageModelsInputValidator,
   REPLAY_IMAGE_DEFAULT_OUTPUT_COUNT,
+  SearchImageAssetsInputValidator,
   REPLAY_IMAGE_MODEL_ID,
   REPLAY_MINIMUM_SLEEP_MS,
   SaveMemoImageInputValidator,
@@ -155,6 +156,9 @@ export function replayCapability(definition: ReplayToolDefinition, state: Replay
   }
   if (definition.name === 'list_image_models') {
     return capability(replayListImageModelsTool(definition, state), false);
+  }
+  if (definition.name === 'search_image_assets') {
+    return capability(replaySearchImageAssetsTool(definition, state), false);
   }
   return replayBlockedCapability(definition);
 }
@@ -357,6 +361,40 @@ function replayImageGenerateTool(definition: ReplayToolDefinition): AgentTool {
         ],
         details: { generation_id: generationId, model_id: modelId, output_count: outputCount, replayed: false },
       };
+    },
+  };
+}
+
+/**
+ * Pages the runner-provided agent-visible asset list in memory: no bridge, no
+ * library query, no bytes — the projection is made before the list reaches
+ * replay. An absent list is an explicit empty library, mirroring the
+ * production store when nothing is promoted.
+ */
+function replaySearchImageAssetsTool(definition: ReplayToolDefinition, state: ReplayState): AgentTool {
+  return {
+    ...replayToolBase(definition),
+    execute: async (_toolCallId, params, signal) => {
+      signal?.throwIfAborted();
+      const input = checkedInput(SearchImageAssetsInputValidator, params, 'search_image_assets');
+      const query = (input.q ?? '').trim().toLowerCase();
+      const all = state.options.imageAssets ?? [];
+      // The production store matches name, description, category and keywords
+      // case-insensitively; the synthetic scene mirrors that over the
+      // runner-provided text projection.
+      const filtered =
+        query.length === 0
+          ? all
+          : all.filter((entry) =>
+              [entry.name, entry.description, entry.category, entry.keywords].some((field) =>
+                field.toLowerCase().includes(query),
+              ),
+            );
+      const page = agentAssetPage((offset) => {
+        return { items: filtered.slice(offset, offset + 4), total: filtered.length };
+      }, input.offset ?? 0);
+      const text = JSON.stringify(page);
+      return { content: [{ type: 'text' as const, text }], details: page };
     },
   };
 }

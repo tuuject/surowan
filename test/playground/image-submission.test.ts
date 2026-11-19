@@ -114,6 +114,7 @@ describe('playground image generation', () => {
         resolution: undefined,
         outputCount: undefined,
         inputMediaIds: [1n],
+        libraryAssetIds: [],
         extendedData: undefined,
       }),
     ).rejects.toThrow('image generation is disabled');

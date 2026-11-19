@@ -1,6 +1,6 @@
 import { join } from 'node:path';
 import { MemoBlobStore } from '../../../context/memo-pad/blobs.ts';
-import type { ImageBridge } from '../../../image/bridge.ts';
+import type { ImageBridge } from '../../../image/bridge/index.ts';
 import type { ImageService } from '../../../image/service.ts';
 import type { HostReadiness } from '../../../orchestration/host-scope.ts';
 import type { BucketScheduler } from '../../../orchestration/scheduler/index.ts';
@@ -160,7 +160,15 @@ export function createAdminRoutes(deps: AdminRoutesDeps) {
       scheduler,
     }),
     playground: createPlaygroundAdminRoutes({ playground, scheduler }),
-    image: createImageAdminRoutes({ image, bridge: imageBridge, configReloader: reloader, secrets }),
+    image: createImageAdminRoutes({
+      image,
+      bridge: imageBridge,
+      service: imageService,
+      configStore: options.configStore,
+      store: options.store,
+      configReloader: reloader,
+      secrets,
+    }),
     telegram: createTelegramAdminHandler({
       connections,
       configStore: options.configStore,
