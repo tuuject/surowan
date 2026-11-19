@@ -103,7 +103,8 @@ test('group memory toggle is hot and preserves unrelated Chat fields', async () 
 
 // Ways the 30-hour setting can fail through the panel: a toggle that omits it
 // silently drops it; `off` stays in the file as noise instead of restoring the
-// default; an unknown mode is written; or the change needs a restart.
+// default; an unknown mode is written; or the reload reports the change as
+// restart_required instead of applying it hot.
 test('group memory 30-hour clock is kept unless named and off removes it', async () => {
   const f = await fixture();
   const groupMemory = async () => (await f.view()).items.find((item) => item.id === '-100100')?.saved?.group_memory;
