@@ -1,7 +1,7 @@
 import { and, eq, inArray, notInArray, sql } from 'drizzle-orm';
 import { asRunResult, type Orm } from '../../store/store.ts';
 import { groupMemories, groupMemoryLanes, groupMemoryRuns } from '../../store/schema/index.ts';
-import { nextDay } from './day.ts';
+import { nextDay, previousDay } from './day.ts';
 import {
   GROUP_MEMORY_CLAIM_STALE_MS,
   GROUP_MEMORY_RETRY_DELAY_MS,
@@ -21,10 +21,10 @@ export interface SearchGroupMemory {
   /** Chat-local date. Alone it matches the entries filed under that date. */
   readonly day?: string | undefined;
   /**
-   * With `day`, a 30-hour day (`searchDayWindow`): entries filed under `day` or
-   * the next date whose first message was sent in `[start, end)`. An entry
-   * whose first message is no longer stored stays with the date it was filed
-   * under, so it is neither lost nor listed twice.
+   * With `day`, a 30-hour day (`searchDayWindow`): the entries whose first
+   * message was sent in `[start, end)`, whatever date they were filed under. An
+   * entry whose first message is no longer stored stays with the date it was
+   * filed under, so it is neither lost nor listed twice.
    */
   readonly window?: { readonly start: string; readonly end: string } | undefined;
   readonly keywords?: readonly string[] | undefined;
@@ -44,6 +44,12 @@ interface EntryRow {
 /**
  * The date filter of `list`. An event belongs to the window its first message
  * was sent in; one whose first message is gone keeps its filed date.
+ *
+ * Only the time decides, not the filed date: a Chat whose timezone changed
+ * filed its older events by the old zone's dates. The `g.day` range just keeps
+ * the read on the index. An event is filed under the Chat-local date of its
+ * first message and the window lies within `day` 00:00 to `day + 1` 06:00, so
+ * with every zone offset inside ±14h that date is at most two days either side.
  */
 function dayCondition(input: SearchGroupMemory) {
   if (input.day === undefined) {
@@ -52,8 +58,9 @@ function dayCondition(input: SearchGroupMemory) {
   if (input.window === undefined) {
     return sql` AND g.day = ${input.day}`;
   }
-  return sql` AND ((g.day = ${input.day} AND (m.sent_at IS NULL OR m.sent_at >= ${input.window.start}))
-               OR (g.day = ${nextDay(input.day)} AND m.sent_at < ${input.window.end}))`;
+  return sql` AND g.day BETWEEN ${previousDay(previousDay(input.day))} AND ${nextDay(nextDay(input.day))}
+              AND ((m.sent_at >= ${input.window.start} AND m.sent_at < ${input.window.end})
+                OR (m.sent_at IS NULL AND g.day = ${input.day}))`;
 }
 
 function toEntry(row: EntryRow): GroupMemoryEntry {
@@ -87,7 +94,7 @@ export class GroupMemoryStore {
   }
 
   /**
-   * Newest dates first; a dated search, which spans at most two dates, reads
+   * Newest dates first; a dated search, which spans a few dates at most, reads
    * in order instead. Keywords match the summary case-insensitively; with
    * several keywords at least half must match, the same rule Memo Pad uses.
    *

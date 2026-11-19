@@ -287,18 +287,31 @@ export async function deleteTelegramChatData(
 export function updateChatGroupMemory(file: FileConfig, id: number, body: GroupMemoryBody): ConfigEdit[] {
   const index = chatIndex(file, id);
   const current = fileChats(file)[index]?.group_memory;
-  const idleMinutes = body.idle_minutes === null ? undefined : (body.idle_minutes ?? current?.idle_minutes);
-  const thirtyHourClock =
-    body.thirty_hour_clock === 'off' ? undefined : (body.thirty_hour_clock ?? current?.thirty_hour_clock);
-  const value = {
+  const next = {
     enabled: body.enabled,
-    ...(idleMinutes === undefined ? {} : { idle_minutes: idleMinutes }),
-    ...(thirtyHourClock === undefined ? {} : { thirty_hour_clock: thirtyHourClock }),
+    idle_minutes: body.idle_minutes === null ? undefined : (body.idle_minutes ?? current?.idle_minutes),
+    thirty_hour_clock:
+      body.thirty_hour_clock === 'off' ? undefined : (body.thirty_hour_clock ?? current?.thirty_hour_clock),
   };
-  if (JSON.stringify(current) === JSON.stringify(value)) {
-    return [];
+  const path = ['telegram', 'chats', index, 'group_memory'];
+  if (current === undefined) {
+    return [
+      {
+        path,
+        value: {
+          enabled: next.enabled,
+          ...(next.idle_minutes === undefined ? {} : { idle_minutes: next.idle_minutes }),
+          ...(next.thirty_hour_clock === undefined ? {} : { thirty_hour_clock: next.thirty_hour_clock }),
+        },
+      },
+    ];
   }
-  return [{ path: ['telegram', 'chats', index, 'group_memory'], value }];
+  // Field by field, so comments on the fields this write leaves alone survive.
+  // An `undefined` value deletes the field; it is only sent for a field the
+  // file has, since an edit that changes nothing is a write error.
+  return (['enabled', 'idle_minutes', 'thirty_hour_clock'] as const)
+    .filter((key) => current[key] !== next[key])
+    .map((key) => ({ path: [...path, key], value: next[key] }));
 }
 
 /** Edits only the Chat's `proactive_reply` override, preserving every other field. */

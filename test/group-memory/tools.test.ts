@@ -307,6 +307,55 @@ test('search_group_memory widens a dated search to a 30-hour day when the Chat o
   }
 });
 
+// Ways a 30-hour search can fail once the Chat's timezone changed after its
+// events were filed: trusting the filed date over the first message's time, so
+// an event filed under the old zone's date is listed under the wrong date;
+// looking only at the date and the next one, so an event the new zone moves
+// onto an earlier filed date is never found; listing an event under two
+// non-overlapping dates; and losing an event whose first message is gone.
+test('search_group_memory places events by their first message after the Chat timezone changed', async () => {
+  const f = await groupMemoryFixture();
+  try {
+    // Filed while the Chat ran on UTC; the search now runs on Asia/Tokyo (UTC+9),
+    // where the 2026-11-18 30-hour day is 2026-11-17T21:00Z to 2026-11-18T21:00Z.
+    const seed = (telegramMessageId: number, iso: string) =>
+      seedMessage(f.store, f, { telegramMessageId, date: new Date(iso), text: `message ${telegramMessageId}` });
+    seed(100, '2026-11-17T22:00:00.000Z'); // UTC 11-17, Tokyo 11-18 07:00
+    seed(200, '2026-11-18T12:00:00.000Z'); // UTC 11-18, Tokyo 11-18 21:00
+    seed(300, '2026-11-18T23:00:00.000Z'); // UTC 11-18, Tokyo 11-19 08:00
+    f.groupMemory.record(f.chatId, '2026-11-17', [
+      { summary: 'Tokyo morning filed under the UTC date', firstMessageId: 100n, lastMessageId: 150n },
+    ]);
+    f.groupMemory.record(f.chatId, '2026-11-18', [
+      { summary: 'Tokyo evening', firstMessageId: 200n, lastMessageId: 250n },
+      { summary: 'Next Tokyo morning filed under the UTC date', firstMessageId: 300n, lastMessageId: 350n },
+      { summary: 'Orphaned summary', firstMessageId: 600n, lastMessageId: 610n },
+    ]);
+    publishThirtyHourClock(f, 'non_overlapping');
+    const search = toolNamed(
+      createGroupMemoryReadTools({
+        store: f.store,
+        configStore: f.configStore,
+        context: context(f, seedInvocation(f.store, f.conversationId)),
+      }),
+      'search_group_memory',
+    );
+
+    const day = await runTool(search, 'call-day', { date: '2026-11-18' });
+    expect(listedSummaries(day.text)).toEqual([
+      'Tokyo morning filed under the UTC date',
+      'Tokyo evening',
+      'Orphaned summary',
+    ]);
+    const before = await runTool(search, 'call-before', { date: '2026-11-17' });
+    expect(listedSummaries(before.text)).toEqual([]);
+    const after = await runTool(search, 'call-after', { date: '2026-11-19' });
+    expect(listedSummaries(after.text)).toEqual(['Next Tokyo morning filed under the UTC date']);
+  } finally {
+    await f.close();
+  }
+});
+
 test('read_group_messages rejects backwards and oversized ranges with an audit error', async () => {
   const f = await groupMemoryFixture();
   try {

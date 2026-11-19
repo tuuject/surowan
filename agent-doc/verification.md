@@ -163,7 +163,7 @@ pnpm test test/prompts/template.test.ts test/prompts/markdown.test.ts test/tui-c
 | `doctor-telegram.test.ts` | Doctor 的 Telegram 三态：无 `telegram` 段、段内无 token、token 解析为空串都是 `disabled`；可解析 token 交给 `getMe` 探针；SecretRef 缺失是 `Telegram token cannot be read` 配置错误，不静默当成停用 |
 | `telegram/connection-races.test.ts` | 连接尝试重叠与补拉中断：被取代的网络重试晚醒时不清掉新实例的 holder 与 Sticker worker；重试中的意外异常只记日志、不成为 unhandled rejection；被新 token 取消或中途失败的冷启动补拉由下一次连接按冷路径续跑，marker 未清前实例不进入 long polling |
 | `admin/providers.test.ts` | Provider/模型管理、SecretRef 只写不读、修订冲突、全局模型端点保留 Chat 覆盖、阻止删除 Chat 引用（含待重启移除的运行中 Chat）的 Provider/模型且不落盘；模型健康检查的固定最小请求、真实本地 SSE、TTFB 与总耗时分离、无 hook 返回 null、响应分类与脱敏、权限/Origin/未应用配置拒绝、零重试、超时/取消/并发上限和诊断审计、不切换当前模型 |
-| `admin/chats.test.ts` | Chat 管理鉴权与 Origin、字符串 ID 与安全整数边界、Topic/模型严格校验、模型覆盖必须显式带 thinking、revision 先于 body 解析与并发写入保护、JSONC 注释及未管理字段保留、新增 Chat 热应用而删除/Topic 待重启与历史保留、模型热应用/恢复继承、迁移 ID、保存后应用失败的状态与脱敏审计；群聊记忆 `thirty_hour_clock` 省略保留、`off` 删除字段、非法值拒绝且热应用 |
+| `admin/chats.test.ts` | Chat 管理鉴权与 Origin、字符串 ID 与安全整数边界、Topic/模型严格校验、模型覆盖必须显式带 thinking、revision 先于 body 解析与并发写入保护、JSONC 注释及未管理字段保留、新增 Chat 热应用而删除/Topic 待重启与历史保留、模型热应用/恢复继承、迁移 ID、保存后应用失败的状态与脱敏审计；群聊记忆 `thirty_hour_clock` 省略保留、`off` 删除字段、非法值拒绝且热应用，`group_memory` 逐字段写入并保留节内注释、删除不存在的字段不报错 |
 | `prompts/admin.test.ts` | Prompt 版本按内容去重并裁剪到保留数、保存后下一次 Invocation 生效、diff 与恢复、手改文件在下次应用时成为新版本而只改注释不算、群 Prompt 的作用域校验与新建文件不覆盖已有文件 |
 | `models/switch.test.ts` | 可切换模型仅列 text 能力、`option()` 只校验不应用（未知 provider/model 与 image-only 拒绝）、`current()` 跟随 `store.publish` 变化 |
 | `bot-commands/commands.test.ts` | 命令解析与 mention 匹配、`/pause` 中止与阻断、`/resume` 恢复、`/status` 用量与 Context 行口径、`/model` 分页与切换（写配置文件并 reload）、管理员鉴权与匿名拒绝、`/whoami` 回显发送者 ID 且不限管理员、`/allowlist` 仅管理员且在未允许 Chat 由 ingestion 放行并热应用、`/ignoreme` 与 `/unignoreme` 解析/身份校验且不越过 Chat/Topic 白名单、命令只审计不入库 |
@@ -187,7 +187,7 @@ pnpm test test/prompts/template.test.ts test/prompts/markdown.test.ts test/tui-c
 | `group-memory/recovery.test.ts` | 子进程在首次或修复请求中退出，重开数据库后批次审计保留实际调用数与消息范围 |
 | `group-memory/persistence-failures.test.ts` | 提交与成功/失败审计异常不重置调用数；摘要、游标与成功批次审计原子提交，失败不留下已提交却标错的摘要 |
 | `admin/group-memory.test.ts` | 群聊记忆列表鉴权、Chat/Day/摘要/keyset 过滤、summary 修改、删除、原文区间读取与非法 id/摘要拒绝；整理进度的 lane 游标、待整理计数、backfill 终点、24 小时批次统计与最近失败原因，批次列表过滤与非法 state 拒绝，关闭后从进度中消失 |
-| `group-memory/tools.test.ts` | `search_group_memory` 日期/范围展示、关键词零命中的放宽检索提示（有/无日期、命中与无关键词时不出现）、30 小时制三种取值的带日期搜索（06:00 两侧边界、Chat 时区、首条原文缺失时按归档日期、他 Chat 同 id 消息不影响归属、按时间顺序、热应用、不带日期不受影响、结果说明覆盖时段）、`read_group_messages` 回放与越界/过宽拒绝、审计行、未启用时工具缺失 |
+| `group-memory/tools.test.ts` | `search_group_memory` 日期/范围展示、关键词零命中的放宽检索提示（有/无日期、命中与无关键词时不出现）、30 小时制三种取值的带日期搜索（06:00 两侧边界、Chat 时区、首条原文缺失时按归档日期、他 Chat 同 id 消息不影响归属、Chat 换时区后按首条消息时间而非归档日期归属、按时间顺序、热应用、不带日期不受影响、结果说明覆盖时段）、`read_group_messages` 回放与越界/过宽拒绝、审计行、未启用时工具缺失 |
 | `group-memory/retention.test.ts` | 在线保留完全不删除 Message/Revision/Media，含未被任何记忆覆盖的旧消息 |
 | `memo/store.test.ts` | Chat 隔离、短期 TTL 与永久条目、搜索（关键词与半数阈值、大小写、日期范围、排序与 limit）、更新（`ttl_seconds` 与 `null` 提升为永久）、删除幂等、过期清理 |
 | `memo/injection.test.ts` | 只列短期未过期条目、10% 预算隐藏最早条目并给出隐藏数、增量新增/更新/删除与空增量、`null`/落后 `head_seq`/`pending` 触发完整刷新、列表仍在保留窗口时不刷新 |
