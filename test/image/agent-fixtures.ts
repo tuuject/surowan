@@ -6,7 +6,7 @@ import { createImageConfigSnapshot, createOpenRouterAdapter, type ModelDefinitio
 import sharp from 'sharp';
 import { afterEach, beforeEach, expect } from 'vitest';
 import { createExecuteTool } from '../../src/capabilities/execute-tool.ts';
-import { createImageBridge } from '../../src/image/bridge.ts';
+import { createImageBridge } from '../../src/image/bridge/index.ts';
 import { createImageService } from '../../src/image/service.ts';
 import { loadConfig } from '../../src/adapters/local-monolith/config/index.ts';
 import { ConfigReloader } from '../../src/adapters/local-monolith/config/reload.ts';
@@ -204,6 +204,8 @@ export async function fixture(plan: readonly boolean[] = []): Promise<ImageAgent
     enabledFor: (conversationId) => bridge.enabledFor(conversationId),
     submit: (params, signal) => bridge.submit(params, signal),
     modelList: () => bridge.modelList(),
+    agentAssets: (query) => bridge.agentAssets(query),
+    agentAsset: (id) => bridge.agentAsset(id),
   };
   return { store, service, bridge, pluginBridge, tasks, calls };
 }
@@ -246,6 +248,7 @@ export async function submitFixtureWork(
     resolution: undefined,
     outputCount: options.outputCount,
     inputMediaIds: [],
+    libraryAssetIds: [],
     extendedData: undefined,
   });
   return result.generationId;

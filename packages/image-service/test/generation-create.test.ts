@@ -45,7 +45,7 @@ test('create persists a frozen snapshot, calls the image API once per item and s
       created.generation.snapshot.authored.authoredPrompt,
       `{{prompt:${style.id}}} 一只猫 {{image:${reference.id}}}`,
     );
-    assert.equal(created.generation.snapshot.resolvedPrompt, '水彩画风 一只猫 ');
+    assert.equal(created.generation.snapshot.resolvedPrompt, '水彩画风 一只猫 图 1');
     assert.equal(created.generation.snapshot.configVersion, run.core.config.current().version);
     assert.equal(created.generation.snapshot.model.credentialRef, 'openrouter');
 
@@ -62,7 +62,7 @@ test('create persists a frozen snapshot, calls the image API once per item and s
       assert.equal(call.body.model, 'openai/gpt-image-1');
       assert.equal(call.body.n, 1);
       assert.deepEqual(call.body.provider, { only: ['openai'], allow_fallbacks: false });
-      assert.equal(call.body.prompt, '水彩画风 一只猫 ');
+      assert.equal(call.body.prompt, '水彩画风 一只猫 图 1');
       assert.equal(call.body.quality, 'high');
       assert.equal(call.body.size, undefined); // authored aspectRatio 'auto' maps to no size
       const references = call.body.input_references as { type: string; image_url: { url: string } }[];
@@ -132,9 +132,9 @@ test('editing or archiving an asset never rewrites accepted snapshots', async ()
 
     const generation = run.core.generations.get(id, adminActor);
     assert.equal(generation.snapshot.promptAssets[0]?.body, '旧正文');
-    assert.equal(generation.snapshot.resolvedPrompt, '旧正文 ');
+    assert.equal(generation.snapshot.resolvedPrompt, '旧正文 图 1');
     assert.equal(generation.snapshot.imageAssets[0]?.id, image.id);
-    assert.equal(provider.calls[0]?.body.prompt, '旧正文 ');
+    assert.equal(provider.calls[0]?.body.prompt, '旧正文 图 1');
 
     // New submissions referencing the archived image fail loudly.
     assert.throws(
@@ -155,7 +155,7 @@ test('editing or archiving an asset never rewrites accepted snapshots', async ()
     assert.equal(retried.attempts.length, 2, '重试追加尝试而不是覆盖');
     assert.deepEqual([...new Set(retried.attempts.map((attempt) => attempt.round))].sort(), [1, 2]);
     assert.equal(provider.calls.length, 2, '重试会新增一次上游调用');
-    assert.equal(provider.calls[1]?.body.prompt, '旧正文 ');
+    assert.equal(provider.calls[1]?.body.prompt, '旧正文 图 1');
     assert.ok(!retried.attempts.some((attempt) => attempt.round === 1 && attempt.status !== 'succeeded'));
     assert.equal(firstRound.status, 'succeeded');
   } finally {

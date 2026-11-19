@@ -4,7 +4,7 @@
  */
 import { and, eq } from 'drizzle-orm';
 import type { McpManager } from '../../../capabilities/mcp/index.ts';
-import type { ImageBridge } from '../../../image/bridge.ts';
+import type { ImageBridge } from '../../../image/bridge/index.ts';
 import type { ImageService } from '../../../image/service.ts';
 import type { AdminServer } from '../../../ingress/admin/index.ts';
 import type { SleepingService } from '../../../context/group-memory/sleeping.ts';

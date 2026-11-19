@@ -1,5 +1,9 @@
 import { Compile } from 'typebox/compile';
-import type { ImageBridge } from '../../../image/bridge.ts';
+import type { ImageBridge } from '../../../image/bridge/index.ts';
+import type { ImageService } from '../../../image/service.ts';
+import type { BusinessStore } from '../../../store/store.ts';
+import type { RuntimeConfigurationStore } from '../../../platform/runtime-config.ts';
+import { createImageExtractHandler } from './image-extract.ts';
 import type { SecretRef } from '../../../platform/config/index.ts';
 import type { ConfigController, ConfigEdit, KeychainReplacement, SecretWrite } from '../../../platform/config/write.ts';
 import {
@@ -26,13 +30,19 @@ export interface ImageAdminRoutesDeps {
   /** The generation surface; absent when the host runs without image services. */
   readonly image: ImageAdminHandler | undefined;
   readonly bridge: ImageBridge | undefined;
+  /** The image core owner; the extraction preview reads the asset bytes from it. */
+  readonly service: ImageService | undefined;
+  /** The live model registry and configuration; the extraction resolves its model here. */
+  readonly configStore: RuntimeConfigurationStore | undefined;
+  /** Host store; the extraction audits its model call through `model_calls`. */
+  readonly store: BusinessStore | undefined;
   readonly configReloader: ConfigController | undefined;
   readonly secrets: SecretStore | undefined;
 }
 
 /** `/api/image*` — generation, discovery and the image section of the config file. */
 export function createImageAdminRoutes(deps: ImageAdminRoutesDeps) {
-  const { image, bridge, configReloader, secrets } = deps;
+  const { image, bridge, service, configStore, store, configReloader, secrets } = deps;
 
   const imageConfigView = async (withSources: boolean): Promise<Response> => {
     const reloader = configReloader;
@@ -276,6 +286,19 @@ export function createImageAdminRoutes(deps: ImageAdminRoutesDeps) {
       }
       if (route === 'image/config' && request.method === 'PUT' && requiredRevision(request) === null) {
         return revisionRequired();
+      }
+      // The two-step metadata extraction preview: paid, read-only, never persisted.
+      if (
+        request.method === 'POST' &&
+        segments[1] === 'images' &&
+        segments[3] === 'extract' &&
+        segments[2] !== undefined
+      ) {
+        if (service === undefined || configStore === undefined || store === undefined || secrets === undefined) {
+          return json({ error: 'image_unavailable', message: 'Image generation is not wired' }, 503);
+        }
+        const extract = createImageExtractHandler({ service, configStore, orm: store.orm, secrets });
+        return await extract(request, segments[2]);
       }
       if (image === undefined) {
         return json({ error: 'image_unavailable', message: 'Image generation is not wired' }, 503);

@@ -2,7 +2,7 @@ import { imageSchema } from '@surowan/image-service';
 import { eq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 import { expect, test } from 'vitest';
-import { createImageBridge } from '../../src/image/bridge.ts';
+import { createImageBridge } from '../../src/image/bridge/index.ts';
 import imagePlugin from '../../src/plugins/image/index.ts';
 import type { ImagePluginBridge } from '../../src/plugins/plugin.ts';
 import { taskReceipts } from '../../src/store/schema/index.ts';
@@ -101,6 +101,8 @@ test('the plugin contributes image_generate only when the bridge is enabled', ()
     enabledFor: () => false,
     submit: () => Promise.reject(new Error('no')),
     modelList: () => [],
+    agentAssets: () => ({ items: [], total: 0, limit: 4, offset: 0 }),
+    agentAsset: () => null,
   });
   expect(imagePlugin.capabilities?.(disabledScope) ?? []).toHaveLength(0);
 
@@ -109,10 +111,16 @@ test('the plugin contributes image_generate only when the bridge is enabled', ()
     enabledFor: () => true,
     submit: () => Promise.reject(new Error('no')),
     modelList: () => [],
+    agentAssets: () => ({ items: [], total: 0, limit: 4, offset: 0 }),
+    agentAsset: () => null,
   });
   const enabled = imagePlugin.capabilities?.(enabledScope) ?? [];
-  expect(enabled.map((entry) => entry.tool.name)).toEqual(['image_generate', 'list_image_models']);
-  expect(enabled.map((entry) => entry.sideEffect)).toEqual([true, false]);
+  expect(enabled.map((entry) => entry.tool.name)).toEqual([
+    'image_generate',
+    'list_image_models',
+    'search_image_assets',
+  ]);
+  expect(enabled.map((entry) => entry.sideEffect)).toEqual([true, false, false]);
 });
 
 test('unauthorized input media references are rejected before any submission', async () => {

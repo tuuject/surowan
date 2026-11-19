@@ -43,6 +43,7 @@ describe('playground image generation', () => {
         resolution: undefined,
         outputCount: undefined,
         inputMediaIds: [],
+        libraryAssetIds: [],
         extendedData: undefined,
       }),
     ).rejects.toThrow(/Idempotency-Key/);

@@ -7,7 +7,7 @@ import {
   promptCreateSchema,
   promptUpdateSchema,
 } from '@surowan/image-service';
-import type { ImageBridge } from '../../image/bridge.ts';
+import type { ImageBridge } from '../../image/bridge/index.ts';
 import type { ImageService } from '../../image/service.ts';
 
 /**

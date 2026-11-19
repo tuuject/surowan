@@ -34,7 +34,7 @@ import { ContextBuilder } from '../../src/context/builder/index.ts';
 import { ContextRefStore } from '../../src/context/refs.ts';
 import { MemoBlobStore } from '../../src/context/memo-pad/blobs.ts';
 import { MemoPadStore } from '../../src/context/memo-pad/store.ts';
-import { createImageBridge } from '../../src/image/bridge.ts';
+import { createImageBridge } from '../../src/image/bridge/index.ts';
 import { createImageService } from '../../src/image/service.ts';
 import { PlaygroundIngress } from '../../src/ingress/playground.ts';
 import { createCoreRuntime } from '../../src/orchestration/runtime.ts';
@@ -401,6 +401,7 @@ export function submitGeneration(f: Fixture, invocationId: bigint | null, toolCa
     resolution: undefined,
     outputCount: undefined,
     inputMediaIds: [],
+    libraryAssetIds: [],
     extendedData: undefined,
   });
 }

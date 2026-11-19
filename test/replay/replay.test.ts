@@ -3,7 +3,7 @@ import Type from 'typebox';
 import { expect, test } from 'vitest';
 import { SendInputSchema } from '../../src/capabilities/send/index.ts';
 import type { InvocationContext } from '../../src/platform/invocation-context.ts';
-import { ListImageModelsInputSchema } from '../../src/plugins/image/image.ts';
+import { ListImageModelsInputSchema, SearchImageAssetsInputSchema } from '../../src/plugins/image/image.ts';
 import {
   CUTOFF_AT,
   HISTORY_CAPTION,
@@ -174,6 +174,75 @@ test.each([undefined, false, true])(
     expect(f.rows()).toEqual(before);
   },
 );
+
+test('search_image_assets replays the promoted library as text without touching the image core', async () => {
+  const f = await fixture({
+    agentImageAssets: () => [
+      {
+        id: 'aaaaaaaa-1111-4111-8111-111111111111',
+        name: '自设 小雨',
+        description: '三视图',
+        category: '角色',
+        keywords: '自设',
+      },
+      {
+        id: 'aaaaaaaa-2222-4222-8222-222222222222',
+        name: '水彩背景',
+        description: '',
+        category: '风格',
+        keywords: '水彩',
+      },
+    ],
+    definitions: () => ({
+      tools: [
+        definition('read', Type.Object({ uri: Type.String(), base: Type.Optional(Type.String()) })),
+        definition('send', SendInputSchema),
+        definition('execute'),
+        definition('zzz'),
+      ],
+      capabilities: [definition('search_image_assets', SearchImageAssetsInputSchema)],
+    }),
+  });
+  f.faux.setResponses([
+    fauxAssistantMessage(
+      [fauxToolCall('execute', { action: 'call', tool: 'search_image_assets', input: { q: '自设' } })],
+      { stopReason: 'toolUse' },
+    ),
+    fauxAssistantMessage('done'),
+  ]);
+  const before = f.rows();
+  const result = await f.run();
+  const call = result.tool_calls.find((entry) => JSON.stringify(entry.arguments).includes('"search_image_assets"'));
+  expect(call?.is_error).toBe(false);
+  const body = call?.result as { content?: Array<{ type?: string; text?: string }> } | undefined;
+  const envelopeText = (body?.content ?? [])
+    .flatMap((entry) => (entry.type === 'text' && typeof entry.text === 'string' ? [entry.text] : []))
+    .join('\n');
+  const page = JSON.parse((JSON.parse(envelopeText) as { text: string }).text) as {
+    assets: Array<{ id: string; name: string }>;
+    total: number;
+    next_offset: number | null;
+  };
+  // The scene pages the runner-provided library projection: text metadata only.
+  expect(page).toEqual({
+    assets: [
+      {
+        id: 'aaaaaaaa-1111-4111-8111-111111111111',
+        name: '自设 小雨',
+        description: '三视图',
+        category: '角色',
+        keywords: '自设',
+      },
+    ],
+    total: 1,
+    next_offset: null,
+  });
+  expect(result.fidelity.dispatches).toContainEqual(
+    expect.objectContaining({ tool_name: 'execute', mode: 'synthetic', capability: 'search_image_assets' }),
+  );
+  // The whole database, production tables included, is untouched.
+  expect(f.rows()).toEqual(before);
+});
 
 test.each([false, true])(
   'list_image_models replays validated config without credentials (invalid=%s)',

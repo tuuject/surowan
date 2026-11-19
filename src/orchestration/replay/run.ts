@@ -5,7 +5,7 @@
 
 import { randomUUID } from 'node:crypto';
 import { Agent } from '@earendil-works/pi-agent-core';
-import { modelDefinitionSchema, type PublicModel } from '@surowan/image-service';
+import { type AgentAssetSummary, modelDefinitionSchema, type PublicModel } from '@surowan/image-service';
 
 import { estimateMessageTokens } from '../../context/codec.ts';
 import { composeAgentPrompt, PromptOverrideError, preparePromptOverride } from '../../platform/agent-prompt.ts';
@@ -56,6 +56,13 @@ export interface ReplayRunDeps extends ReplayPrepareDeps {
   readonly modelGate: KeyedSemaphore;
   readonly shutdownSignal: AbortSignal;
   readonly busy: ReplayBusy;
+  /**
+   * The agent-visible asset library (text projection) at replay start; absent
+   * means the replay runs against an empty library. Promotion changes between
+   * runs are picked up the same way model-directory changes are: on the next
+   * run, never mid-run.
+   */
+  readonly agentImageAssets?: () => readonly AgentAssetSummary[];
 }
 
 /** Validate the core contract without resolving secrets or calling a provider. */
@@ -114,6 +121,7 @@ export async function runReplay(
   let consecutiveSilentSends = 0;
   const capture = createReplayTools(registry, systemResources, {
     imageModels: publicImageModels(config),
+    imageAssets: deps.agentImageAssets?.() ?? [],
     ...(config.agent.send_max_text_length === undefined ? {} : { maxTextLength: config.agent.send_max_text_length }),
     disallowBlankLines: config.agent.send_disallow_blank_lines === true,
     allowReplyMessageMultipleTimes: config.agent.allow_reply_message_multiple_times === true,

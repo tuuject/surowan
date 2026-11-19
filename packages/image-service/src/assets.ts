@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
-import { and, count, desc, eq, isNull, like, or, type SQL } from 'drizzle-orm';
-import type { ImageAsset, ListQuery, Page, PromptAsset } from './contracts.ts';
+import { and, count, desc, eq, isNull, or, sql, type SQL } from 'drizzle-orm';
+import type { AgentAssetSummary, ImageAsset, ListQuery, Page, PromptAsset } from './contracts.ts';
+import type { AnySQLiteColumn } from 'drizzle-orm/sqlite-core';
 import type { ImageDatabase } from './db.ts';
 import { conflict, inputError, notFound, storageFailure } from './errors.ts';
 import { type AllowedMime, decodeBase64Image, type ImageStore, MAX_IMAGE_BYTES } from './image-store.ts';
@@ -10,8 +11,35 @@ function escapeLike(value: string): string {
   return value.replace(/[\\%_]/g, (match) => `\\${match}`);
 }
 
-function searchPattern(q: string): string {
-  return `%${escapeLike(q)}%`;
+/**
+ * One literal-substring predicate for every list search. The pattern is a
+ * bound value and the LIKE wildcards `_` and `%` are escaped with an explicit
+ * `ESCAPE` clause, so a stored `IMG_1234.png` or `100%` matches itself and a
+ * query never turns into a wildcard match. Without the ESCAPE clause SQLite
+ * treats the backslash literally, which is why this is raw SQL and not
+ * drizzle's `like()`.
+ */
+function likeLiteral(column: AnySQLiteColumn, q: string): SQL {
+  return sql`${column} LIKE ${`%${escapeLike(q)}%`} ESCAPE '\\'`;
+}
+
+/** Search over the image asset's four text fields; empty queries match all. */
+function imageAssetSearch(q: string): SQL | undefined {
+  return q.length === 0
+    ? undefined
+    : or(
+        likeLiteral(images.name, q),
+        likeLiteral(images.description, q),
+        likeLiteral(images.category, q),
+        likeLiteral(images.keywords, q),
+      );
+}
+
+/** Search over the prompt asset's three text fields; empty queries match all. */
+function promptAssetSearch(q: string): SQL | undefined {
+  return q.length === 0
+    ? undefined
+    : or(likeLiteral(prompts.name, q), likeLiteral(prompts.description, q), likeLiteral(prompts.category, q));
 }
 
 type PromptRow = typeof prompts.$inferSelect;
@@ -40,12 +68,25 @@ export function toImageAsset(row: ImageRow): ImageAsset {
     bytes: row.bytes,
     description: row.description,
     category: row.category,
+    keywords: row.keywords,
+    agentVisible: row.agentVisible,
     source: row.source,
     generationId: row.generationId,
     outputIndex: row.outputIndex,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
     deletedAt: row.deletedAt,
+  };
+}
+
+/** The agent-facing projection: text metadata only, never bytes or file names. */
+export function toAgentAssetSummary(row: ImageRow): AgentAssetSummary {
+  return {
+    id: row.id,
+    name: row.name,
+    description: row.description,
+    category: row.category,
+    keywords: row.keywords,
   };
 }
 
@@ -63,14 +104,7 @@ export function createPromptService(deps: { db: ImageDatabase }) {
 
   function list(query: ListQuery): Page<PromptAsset> {
     const status = isNull(prompts.deletedAt);
-    const search: SQL | undefined =
-      query.q.length > 0
-        ? or(
-            like(prompts.name, searchPattern(query.q)),
-            like(prompts.description, searchPattern(query.q)),
-            like(prompts.category, searchPattern(query.q)),
-          )
-        : undefined;
+    const search: SQL | undefined = promptAssetSearch(query.q);
     const where = search === undefined ? status : and(status, search);
     const total = db.select({ value: count() }).from(prompts).where(where).get()?.value ?? 0;
     const rows = db
@@ -220,6 +254,8 @@ export function createImageService(deps: { db: ImageDatabase; store: ImageStore 
       fileName: stored.fileName,
       description: input.description,
       category: input.category,
+      keywords: '',
+      agentVisible: false,
       source: input.source,
       generationId: input.generationId ?? null,
       outputIndex: input.outputIndex ?? null,
@@ -233,14 +269,7 @@ export function createImageService(deps: { db: ImageDatabase; store: ImageStore 
 
   function list(query: ListQuery): Page<ImageAsset> {
     const status = isNull(images.deletedAt);
-    const search: SQL | undefined =
-      query.q.length > 0
-        ? or(
-            like(images.name, searchPattern(query.q)),
-            like(images.description, searchPattern(query.q)),
-            like(images.category, searchPattern(query.q)),
-          )
-        : undefined;
+    const search: SQL | undefined = imageAssetSearch(query.q);
     const where = search === undefined ? status : and(status, search);
     const total = db.select({ value: count() }).from(images).where(where).get()?.value ?? 0;
     const rows = db
@@ -265,6 +294,8 @@ export function createImageService(deps: { db: ImageDatabase; store: ImageStore 
       name?: string | undefined;
       description?: string | undefined;
       category?: string | undefined;
+      keywords?: string | undefined;
+      agentVisible?: boolean | undefined;
     },
   ): ImageAsset {
     const row = db.select().from(images).where(eq(images.id, id)).get();
@@ -280,6 +311,8 @@ export function createImageService(deps: { db: ImageDatabase; store: ImageStore 
       name: patch.name ?? row.name,
       description: patch.description ?? row.description,
       category: patch.category ?? row.category,
+      keywords: patch.keywords ?? row.keywords,
+      agentVisible: patch.agentVisible ?? row.agentVisible,
       updatedAt: now,
     };
     db.update(images).set(next).where(eq(images.id, id)).run();
@@ -330,5 +363,44 @@ export function createImageService(deps: { db: ImageDatabase; store: ImageStore 
       .map(toImageAsset);
   }
 
-  return { create, persist, list, get, update, remove, readContent, toBase64, listByGeneration };
+  /** The agent-visible library: promoted, non-archived assets, text metadata only. */
+  function listAgentVisible(query: ListQuery): Page<AgentAssetSummary> {
+    const status = and(isNull(images.deletedAt), eq(images.agentVisible, true));
+    const search: SQL | undefined = imageAssetSearch(query.q);
+    const where = search === undefined ? status : and(status, search);
+    const total = db.select({ value: count() }).from(images).where(where).get()?.value ?? 0;
+    const rows = db
+      .select()
+      .from(images)
+      .where(where)
+      .orderBy(desc(images.createdAt), desc(images.id))
+      .limit(query.limit)
+      .offset(query.offset)
+      .all();
+    return { items: rows.map(toAgentAssetSummary), total, limit: query.limit, offset: query.offset };
+  }
+
+  /** One agent-usable asset, or null when it is private, archived or unknown. */
+  function getAgentVisible(id: string): AgentAssetSummary | null {
+    const row = db
+      .select()
+      .from(images)
+      .where(and(eq(images.id, id), isNull(images.deletedAt), eq(images.agentVisible, true)))
+      .get();
+    return row === undefined ? null : toAgentAssetSummary(row);
+  }
+
+  return {
+    create,
+    persist,
+    list,
+    get,
+    update,
+    remove,
+    readContent,
+    toBase64,
+    listByGeneration,
+    listAgentVisible,
+    getAgentVisible,
+  };
 }

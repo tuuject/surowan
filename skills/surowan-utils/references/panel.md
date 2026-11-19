@@ -104,6 +104,7 @@ printf '%s' "$NEW_PROMPT" | surowan-utils prompt save global --file - --json
 | `provider health-check` | 每次一项、一条真实 prompt，最多 3 项并发；失败仍可能计费 |
 | `dictionary merge preview` | 用 tool model 生成融合建议（不写库） |
 | `image generation create` / `image generation retry` | 真实生图；同 `idempotency_key` 同内容重放不重复计费 |
+| `image asset extract <id>` | 让模型看一张参考图素材并提议名称与关键词（只返回建议，不写库）；工具模型不能看图时返回 409 `tool_model_no_image_input` 并附可用模型清单，用户同意后可 `--set-json model='{...}'` 为本次临时选模型 |
 | `room release` / `room release retry` | 封住房间输入并运行真实 Agent |
 | `invocation resume <id>` | 续跑所在 Conversation 最新一次失败的 Telegram Invocation：用当前配置真实运行，Bot 可能重复发送已发过的消息；同时需要写与计费权限，非最新、仍有排队/运行、Telegram 未连接或 Bot 睡眠时返回 409 `resume_*` |
 

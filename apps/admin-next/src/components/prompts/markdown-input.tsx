@@ -6,6 +6,15 @@ import CodeMirror from '@uiw/react-codemirror';
 import { type ComponentProps, type Ref, useEffect, useImperativeHandle, useMemo, useState } from 'react';
 import { useTheme } from '@/components/themes/theme-provider';
 
+/** Imperative insertion into the editor; reached through `insertRef`. */
+export interface MarkdownInsertHandle {
+  /**
+   * Inserts text at the caret, replacing the selection. When the editor was
+   * never focused (it has no caret yet), the text lands at the end instead.
+   */
+  insertAtCursor(text: string): void;
+}
+
 type MarkdownInputProps = Pick<
   ComponentProps<typeof BaseField.Control>,
   'id' | 'disabled' | 'aria-label' | 'aria-labelledby' | 'aria-describedby' | 'aria-invalid'
@@ -14,6 +23,8 @@ type MarkdownInputProps = Pick<
   readonly onChange: (value: string) => void;
   readonly placeholder?: string;
   readonly minHeight?: string;
+  /** Receives the insertion handle; picking a reference inserts at the caret. */
+  readonly insertRef?: Ref<MarkdownInsertHandle | null> | undefined;
 };
 
 // `perLineTextDirection`: each line's first strong character decides its direction, so an Arabic
@@ -33,6 +44,7 @@ function MarkdownControl({
   placeholder,
   minHeight = '160px',
   disabled,
+  insertRef,
   'aria-label': label,
   'aria-labelledby': labelledBy,
   'aria-describedby': describedBy,
@@ -40,8 +52,30 @@ function MarkdownControl({
 }: MarkdownInputProps & { readonly ref?: Ref<HTMLElement | null> | undefined }) {
   const { resolved } = useTheme();
   const [view, setView] = useState<EditorView | null>(null);
+  // Whether the editor ever held a caret: before the first focus the doc has no
+  // meaningful selection, so an insert belongs at the end, not at position 0.
+  const [touched, setTouched] = useState(false);
   // Field labels and descriptions must target the editable DOM, not its wrapper.
   useImperativeHandle<HTMLElement | null, HTMLElement | null>(ref, () => view?.contentDOM ?? null, [view]);
+  useImperativeHandle<MarkdownInsertHandle | null, MarkdownInsertHandle | null>(
+    insertRef,
+    () => ({
+      insertAtCursor: (text: string) => {
+        if (view === null) {
+          return;
+        }
+        if (touched || view.hasFocus) {
+          view.dispatch(view.state.replaceSelection(text));
+        } else {
+          const end = view.state.doc.length;
+          view.dispatch({ changes: { from: end, insert: text }, selection: { anchor: end + text.length } });
+        }
+        view.focus();
+        setTouched(true);
+      },
+    }),
+    [view, touched],
+  );
   useEffect(() => {
     if (view === null || labelledBy === undefined) {
       return;
@@ -78,6 +112,7 @@ function MarkdownControl({
       value={value}
       onChange={onChange}
       onCreateEditor={setView}
+      onFocus={() => setTouched(true)}
       theme={resolved}
       extensions={extensions}
       basicSetup={basicSetup}
@@ -114,7 +149,7 @@ function MarkdownControl({
   );
 }
 
-export function MarkdownInput({ value, onChange, placeholder, minHeight, ...props }: MarkdownInputProps) {
+export function MarkdownInput({ value, onChange, placeholder, minHeight, insertRef, ...props }: MarkdownInputProps) {
   return (
     <BaseField.Control
       {...props}
@@ -126,6 +161,7 @@ export function MarkdownInput({ value, onChange, placeholder, minHeight, ...prop
           onChange={onChange}
           {...(placeholder === undefined ? {} : { placeholder })}
           {...(minHeight === undefined ? {} : { minHeight })}
+          {...(insertRef === undefined ? {} : { insertRef })}
         />
       )}
     />

@@ -3,10 +3,11 @@
  * import from here; the core has no knowledge of hosts, HTTP or Telegram.
  */
 
-export { createImageService, createPromptService, toImageAsset, toPromptAsset } from './assets.ts';
+export { createImageService, createPromptService, toAgentAssetSummary, toImageAsset, toPromptAsset } from './assets.ts';
 export type { ImageConfigHandle, ImageConfigSnapshot } from './config.ts';
 export { createImageConfigSnapshot, ImageConfigStore } from './config.ts';
 export type {
+  AgentAssetSummary,
   AspectRatio,
   AttemptStatus,
   ErrorResponse,
@@ -38,7 +39,10 @@ export {
   generationScopes,
   generationSourceSchema,
   idempotencyKeySchema,
+  IMAGE_REFERENCE_LABEL,
+  KEYWORDS_LINE_MAX,
   imageCreateSchema,
+  imageReferenceLabel,
   imageUpdateSchema,
   listSchema,
   maxImageBytes,

@@ -257,6 +257,7 @@ Admin 侧的 `admin_users`/`admin_sessions` 语义见 [admin-panel.md](admin-pan
 - 图片域主键是应用生成的 text UUID，不是 `sqliteBigInt` 行 ID；计数与尺寸列使用包内 `safeInteger` 列（`fromDriver` 强制 `number`），保证宿主 `defaultSafeIntegers(true)` 连接下这些值可安全 JSON 序列化。
 - 素材删除是软删除（`deleted_at`），原始图片文件按内容寻址存放于 `<data_dir>/images`，删除素材不删文件；文件不在 SQLite 内，`backup` 以旁路 `.images/` 快照携带（见[备份](#备份)）。
 - `image_assets.source = 'generation'` 的行通过 `generation_id + output_index` 关联产出它的生成轮次；输出项级审计在 `image_generation_attempts`（唯一键 `generation_id + round + item_index`）。
+- 迁移 `065` 给 `image_assets` 加两列：`keywords`（≤500 字符的搜索标签行，管理员可编辑；列表与 Agent 搜索按子串匹配，`_`、`%`、`\` 是普通字符——共享的 LIKE 谓词带显式 `ESCAPE`）与 `agent_visible`（0/1，Agent 可见开关）。存量行与所有创建路径（面板上传、生成输出、Agent 输入图转换）默认 `0` 与空关键词——把素材提升为 Agent 可调用只能走管理员的更新端点（Admin/CLI/MCP），Agent 侧没有改可见性或元数据的工具；归档的素材即时退出 Agent 的素材搜索。提取接口的关键词条数/长度上限（12 条、每条按行宽推导）从这个 500 字符上限导出，模型的建议拼成一行后必然可存。
 
 ## 保留清理
 

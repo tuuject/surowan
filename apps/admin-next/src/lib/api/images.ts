@@ -1,4 +1,4 @@
-import { call, writeHeaders } from './core.ts';
+import { ApiError, call, writeHeaders } from './core.ts';
 import type { SecretInput, SecretSource } from './keychain.ts';
 import type { ModelApplySummary } from './models.ts';
 
@@ -34,6 +34,10 @@ export interface ImageAssetInfo {
   readonly bytes: number;
   readonly description: string;
   readonly category: string;
+  /** Searchable tags, one editable text line. */
+  readonly keywords: string;
+  /** Whether the agent may discover and use this asset; promotion is an admin action. */
+  readonly agentVisible: boolean;
   readonly source: 'upload' | 'generation';
   readonly generationId: string | null;
   readonly outputIndex: number | null;
@@ -223,9 +227,70 @@ export function uploadImageAsset(body: {
 
 export function updateImageAsset(
   id: string,
-  body: { name?: string; description?: string; category?: string },
+  body: { name?: string; description?: string; category?: string; keywords?: string; agentVisible?: boolean },
 ): Promise<ImageAssetInfo> {
   return call(`/image/images/${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify(body) });
+}
+
+export function getImageAsset(id: string): Promise<ImageAssetInfo> {
+  return call(`/image/images/${encodeURIComponent(id)}`);
+}
+
+/** One image-capable configured model the one-off extraction picker lists. */
+export interface ExtractionModelOption {
+  readonly provider: string;
+  readonly model: string;
+  readonly name: string;
+  readonly thinking_levels: readonly string[];
+}
+
+/** `tool_model_no_image_input`: the response carries the models the picker may use instead. */
+export class ToolModelNoImageInputError extends Error {
+  readonly models: readonly ExtractionModelOption[];
+
+  constructor(models: readonly ExtractionModelOption[], message: string) {
+    super(message);
+    this.models = models;
+    this.name = 'ToolModelNoImageInputError';
+  }
+}
+
+export interface ExtractedAssetMetadata {
+  readonly name: string;
+  readonly keywords: readonly string[];
+}
+
+/**
+ * The two-step extraction preview: a model looks at one asset and proposes a
+ * name and keywords. Nothing is saved; the caller fills its edit dialog. The
+ * optional one-off model is validated server-side and never persisted.
+ */
+export async function extractImageAsset(
+  id: string,
+  model?: { readonly provider: string; readonly model: string; readonly thinking_level: string },
+): Promise<ExtractedAssetMetadata> {
+  try {
+    return await call<ExtractedAssetMetadata>(`/image/images/${encodeURIComponent(id)}/extract`, {
+      method: 'POST',
+      ...(model === undefined ? { body: JSON.stringify({}) } : { body: JSON.stringify({ model }) }),
+    });
+  } catch (error) {
+    if (error instanceof ApiError && error.code === 'tool_model_no_image_input') {
+      const body = error.payload as { message?: unknown; models?: unknown } | null;
+      const listed = body?.models;
+      const models = Array.isArray(listed)
+        ? (listed as ExtractionModelOption[]).filter(
+            (option) =>
+              typeof option?.provider === 'string' &&
+              typeof option?.model === 'string' &&
+              typeof option?.name === 'string' &&
+              Array.isArray(option.thinking_levels),
+          )
+        : [];
+      throw new ToolModelNoImageInputError(models, error.message);
+    }
+    throw error;
+  }
 }
 
 export function archiveImageAsset(id: string): Promise<{ status: string }> {

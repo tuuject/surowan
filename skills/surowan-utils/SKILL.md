@@ -41,7 +41,7 @@ surowan-utils doctor --json
 - **只读**（`… show`、`… list`、`config status`、`provider list` 等）：可在用户提出排查需求后直接执行。
 - **写入**（改配置字段、增删 Chat、编 Prompt、改模型、写 Memo/辞典/群聊记忆）：必须在执行前向用户说明**目标、命令、将要改的字段与值、影响范围**（是否热应用、是否需要重启、是否影响运行中的 Invocation），取得明确同意后再执行。用户只描述需求而未确认具体字段与值时，先读取当前值、给出 diff 方案并等待确认。
 - **破坏性**（删除 Chat/模型/Prompt 版本来源/辞典词条/Memo/群聊记忆/告警、`session cancel`、`restart`、`telegram token` 清空、`prompt cancel-running`、清空报文或告警历史）：必须逐项确认对象与后果（例如删除 Chat 会一并删除其 Memo、Blob 与 Invocation 审计且不可恢复），并说明不可撤销。
-- **计费**（`invocation replay`、切片重放、`provider health-check`、`dictionary merge preview`、`image generation`、`room release`/`retry`）：必须明确授权目标、次数与覆盖，不得自动重试或批量尝试。
+- **计费**（`invocation replay`、切片重放、`provider health-check`、`dictionary merge preview`、`image generation`、`image asset extract`、`room release`/`retry`）：必须明确授权目标、次数与覆盖，不得自动重试或批量尝试。
 
 `--yes` 是这些操作的机械闸门：缺少时 CLI 在发请求前以 `confirmation_required`（退出码 2）拒绝。**不要把补 `--yes` 当成确认**——`--yes` 只在用户已经同意该具体操作后才加。需要先看清楚会发送什么时用 `--dry-run`（它不需要 `--yes`，且不发请求）。写入命令默认自动读取当前 revision；若返回 `config_conflict`/`prompt_conflict`，说明文件在读取与写入之间被改过，应重新读取并重新确认，不要用 `--if-match` 强行覆盖别人的修改。
 

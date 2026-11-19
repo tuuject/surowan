@@ -3,7 +3,7 @@ import type { ModelThinkingLevel } from '@earendil-works/pi-ai';
 import { type ServerType, serve } from '@hono/node-server';
 import type { MediaDownloader } from '../../capabilities/media/download.ts';
 import type { MemoBlobStore } from '../../context/memo-pad/blobs.ts';
-import type { ImageBridge } from '../../image/bridge.ts';
+import type { ImageBridge } from '../../image/bridge/index.ts';
 import type { ImageService } from '../../image/service.ts';
 import type { BucketScheduler } from '../../orchestration/scheduler/index.ts';
 import type { RawConfig } from '../../platform/config/index.ts';

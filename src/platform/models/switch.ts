@@ -68,6 +68,17 @@ export function listActiveTextModels(configStore: RuntimeConfigurationStore): re
 }
 
 /**
+ * The image-capable models of the current generation: every text-capable model
+ * that also accepts image input, one entry per configured provider alias. A
+ * pure registry read like `listActiveTextModels`; the one-off model picker for
+ * a paid feature that must look at a picture (asset metadata extraction) lists
+ * exactly these.
+ */
+export function listActiveImageModels(configStore: RuntimeConfigurationStore): readonly AgentModelCatalogEntry[] {
+  return listActiveTextModels(configStore).filter((entry) => entry.input.includes('image'));
+}
+
+/**
  * Reads and validates agent model references against the live configuration and
  * the model registry published with it.
  *

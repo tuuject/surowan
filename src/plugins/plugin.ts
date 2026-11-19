@@ -1,4 +1,4 @@
-import type { PublicModel } from '@surowan/image-service';
+import type { AgentAssetSummary, Page, PublicModel } from '@surowan/image-service';
 import { basename } from 'node:path';
 import type { ExecutableCapability } from '../capabilities/execute-tool.ts';
 import type { ContextInjector } from '../context/injector.ts';
@@ -98,6 +98,8 @@ export interface ImagePluginBridge {
       resolution: string | undefined;
       outputCount: number | undefined;
       inputMediaIds: readonly bigint[];
+      /** Library asset ids from `search_image_assets`; re-checked on every use. */
+      libraryAssetIds: readonly string[];
       extendedData: Record<string, unknown> | undefined;
     },
     signal?: AbortSignal,
@@ -108,6 +110,14 @@ export interface ImagePluginBridge {
     outputCount: number;
   }>;
   modelList(): readonly PublicModel[];
+  /**
+   * The agent-facing asset library: only assets an administrator promoted
+   * (`agent_visible`) and did not archive, projected to text metadata. The
+   * library is global, so every use re-checks promotion through `agentAsset`.
+   */
+  agentAssets(query: { q: string; limit: number; offset: number }): Page<AgentAssetSummary>;
+  /** One agent-usable asset, or null when private, archived or unknown. */
+  agentAsset(id: string): AgentAssetSummary | null;
 }
 
 export interface InvocationScope {

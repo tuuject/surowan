@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readdirSync } from 'node:fs';
 import sharp from 'sharp';
 import { test } from 'vitest';
-import { listSchema, promptCreateSchema } from '../src/contracts.ts';
+import { imageCreateSchema, imageUpdateSchema, listSchema, promptCreateSchema } from '../src/contracts.ts';
 import { conflict } from '../src/errors.ts';
 import { createTestCore, pngBytes, publishDefaultConfig } from './helpers.ts';
 
@@ -98,6 +98,166 @@ test('image assets are verified, immutable and archived instead of deleted', asy
 
     const names = readdirSync(run.storeDir);
     assert.equal(names.length, 1, '归档不删除图片文件');
+  } finally {
+    await run.cleanup();
+  }
+});
+
+test('image assets carry keywords and an agent-visibility flag, defaulting private', async () => {
+  const run = await createTestCore({ providerFetch: async () => new Response('{}', { status: 500 }) });
+  try {
+    const bytes = await pngBytes({ width: 5, height: 5 });
+    const uploaded = await run.core.images.create({
+      name: '角色 三视图',
+      base64: bytes.toString('base64'),
+      mime: 'image/png',
+      description: '',
+      category: '',
+      source: 'upload',
+    });
+
+    // Every creation path (upload, generation output, agent input conversion)
+    // starts private with no keywords; promotion is an admin-only update.
+    assert.equal(uploaded.keywords, '');
+    assert.equal(uploaded.agentVisible, false);
+    const generationOutput = run.core.images.persist(
+      {
+        id: 'aaaaaaaa-1111-4111-8111-111111111111',
+        fileName: 'out.png',
+        mime: 'image/png',
+        width: 4,
+        height: 4,
+        bytes: 12,
+        sha256: 'x',
+      },
+      { name: '输出图', description: '', category: '', source: 'generation' },
+    );
+    assert.equal(generationOutput.keywords, '');
+    assert.equal(generationOutput.agentVisible, false);
+
+    // The boundary schema accepts the new fields and keeps rejecting unknowns.
+    assert.equal(imageUpdateSchema.safeParse({ keywords: 'tag' }).success, true);
+    assert.equal(imageUpdateSchema.safeParse({ agentVisible: true }).success, true);
+    assert.equal(imageUpdateSchema.safeParse({ agentVisible: 'yes' }).success, false);
+    assert.equal(imageCreateSchema.safeParse({ nope: 1 }).success, false);
+
+    // The update path changes keywords and visibility without touching the file.
+    const promoted = run.core.images.update(uploaded.id, {
+      keywords: '角色, 三视图, 自设',
+      agentVisible: true,
+      description: '用户自设的三视图',
+      category: '角色',
+    });
+    assert.equal(promoted.keywords, '角色, 三视图, 自设');
+    assert.equal(promoted.agentVisible, true);
+    assert.equal(promoted.description, '用户自设的三视图');
+    assert.deepEqual(run.core.images.readContent(uploaded.id).bytes, bytes);
+
+    // Archival still refuses edits.
+    run.core.images.remove(uploaded.id);
+    assert.throws(
+      () => run.core.images.update(uploaded.id, { agentVisible: false }),
+      (error: { code?: string }) => error.code === conflict('asset_archived', '').code,
+    );
+  } finally {
+    await run.cleanup();
+  }
+});
+
+test('list search matches keywords; the agent library only returns promoted assets', async () => {
+  const run = await createTestCore({ providerFetch: async () => new Response('{}', { status: 500 }) });
+  try {
+    const seed = [
+      { name: '花园', keywords: '场景, 植物', visible: true },
+      { name: '角色', keywords: '', visible: true },
+      { name: '私下草图', keywords: '秘密', visible: false },
+    ];
+    for (const entry of seed) {
+      const created = await run.core.images.create({
+        name: entry.name,
+        base64: (await pngBytes()).toString('base64'),
+        mime: 'image/png',
+        description: '',
+        category: '',
+        source: 'upload',
+      });
+      run.core.images.update(created.id, { keywords: entry.keywords, agentVisible: entry.visible });
+    }
+
+    // The panel list searches all four text fields, keywords included.
+    assert.equal(run.core.images.list(listSchema.parse({ q: '植物' })).total, 1);
+    assert.equal(run.core.images.list(listSchema.parse({ q: '秘密' })).total, 1);
+
+    // The agent-facing projection: visible and non-archived only, text fields only.
+    const library = run.core.images.listAgentVisible(listSchema.parse({}));
+    assert.equal(library.total, 2);
+    assert.deepEqual(
+      library.items.map((item) => Object.keys(item).sort()),
+      [
+        ['category', 'description', 'id', 'keywords', 'name'],
+        ['category', 'description', 'id', 'keywords', 'name'],
+      ],
+    );
+    assert.equal(run.core.images.listAgentVisible(listSchema.parse({ q: '植物' })).total, 1);
+
+    const visible = library.items.find((item) => item.name === '花园');
+    assert.ok(visible !== undefined);
+    assert.equal(run.core.images.getAgentVisible(visible.id)?.name, '花园');
+    const secret = run.core.images.list(listSchema.parse({ q: '秘密' })).items[0];
+    assert.ok(secret !== undefined);
+    assert.equal(run.core.images.getAgentVisible(secret.id), null);
+    assert.equal(run.core.images.getAgentVisible('00000000-0000-4000-8000-000000000000'), null);
+
+    // Archiving a promoted asset removes it from the agent library at once.
+    run.core.images.remove(visible.id);
+    assert.equal(run.core.images.getAgentVisible(visible.id), null);
+    assert.equal(run.core.images.listAgentVisible(listSchema.parse({})).total, 1);
+  } finally {
+    await run.cleanup();
+  }
+});
+
+test('search treats underscore, percent and backslash as literals in every field', async () => {
+  const run = await createTestCore({ providerFetch: async () => new Response('{}', { status: 500 }) });
+  try {
+    // Every special character lands in a different field, all seeded through
+    // the metadata update path (keywords are not a creation field).
+    const needle = await run.core.images.create({
+      name: 'IMG_1234.png',
+      base64: (await pngBytes()).toString('base64'),
+      mime: 'image/png',
+      description: '',
+      category: '',
+      source: 'upload',
+    });
+    run.core.images.update(needle.id, {
+      description: '100% watercolor',
+      category: 'back\\slash',
+      keywords: 'hero_v2',
+      agentVisible: true,
+    });
+    const decoy = await run.core.images.create({
+      name: 'decoy',
+      base64: (await pngBytes()).toString('base64'),
+      mime: 'image/png',
+      description: '',
+      category: '',
+      source: 'upload',
+    });
+    run.core.images.update(decoy.id, { keywords: 'heroXv2' });
+
+    // Each special character must match itself, not act as a LIKE wildcard.
+    for (const q of ['IMG_1234.png', 'hero_v2', '100% watercolor', 'back\\slash']) {
+      assert.equal(run.core.images.list(listSchema.parse({ q })).total, 1, q);
+    }
+    // The escaped `_` does not match an arbitrary character.
+    assert.equal(run.core.images.list(listSchema.parse({ q: 'IMGX1234Xpng' })).total, 0);
+    assert.equal(run.core.images.list(listSchema.parse({ q: 'hero_v2' })).items[0]?.id, needle.id);
+    void decoy;
+
+    // The agent-facing projection shares the same literal predicate.
+    assert.equal(run.core.images.listAgentVisible(listSchema.parse({ q: 'hero_v2' })).total, 1);
+    assert.equal(run.core.images.listAgentVisible(listSchema.parse({ q: '100%' })).total, 1);
   } finally {
     await run.cleanup();
   }

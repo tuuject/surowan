@@ -2,6 +2,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { AgentTool } from '@earendil-works/pi-agent-core';
+import type { AgentAssetSummary } from '@surowan/image-service';
 import { type FauxProviderHandle, fauxProvider, type ImageContent } from '@earendil-works/pi-ai';
 import { and, eq } from 'drizzle-orm';
 import Type, { type TSchema } from 'typebox';
@@ -229,6 +230,8 @@ export interface FixtureOptions {
   readonly contextWindow?: number;
   readonly images?: boolean;
   readonly imageLoader?: (mediaId: bigint, signal: AbortSignal) => Promise<ImageContent>;
+  /** The agent-visible asset library a scene pages; absent means empty. */
+  readonly agentImageAssets?: () => readonly AgentAssetSummary[];
   readonly resources?: SystemResources;
   /** Same hook production wires through `AgentRuntime.sceneToolDefinitions`. */
   readonly defaultRegistry?: boolean;
@@ -296,6 +299,7 @@ export async function fixture(options: FixtureOptions = {}) {
     modelGate: gate,
     shutdownSignal: shutdown.signal,
     ...(options.imageLoader === undefined ? {} : { imageLoader: options.imageLoader }),
+    ...(options.agentImageAssets === undefined ? {} : { agentImageAssets: options.agentImageAssets }),
     ...(options.defaultRegistry === true ? {} : { toolDefinitions: options.definitions ?? (() => sceneRegistry()) }),
   });
   const run = (override: ReplayPromptOverrides = {}, signal: AbortSignal = new AbortController().signal) =>

@@ -45,6 +45,10 @@ export async function startAdminServer(session: ServeContext, assembly: ServeAss
         const image = await media.prepareSceneImage(mediaId, signal);
         return { type: 'image', data: image.base64, mimeType: image.mime };
       },
+      // The replay scene filters the whole library snapshot the run started
+      // with, so the projection collects every page; a promotion shows up on
+      // the next run, like any other configuration change.
+      agentImageAssets: () => imageBridge.agentAssetLibrary(),
     });
     const adminServer = new AdminServer({
       store,

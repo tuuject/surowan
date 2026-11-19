@@ -111,7 +111,18 @@ export const IMAGE_SPECS: readonly EndpointSpec[] = [
     path: 'image/images/:id',
     positional: [{ name: 'id', kind: 'text' }],
     body: true,
-    summary: 'Update an image asset name, description or category',
+    summary: 'Update an image asset name, description, category, keywords or agent visibility',
+  },
+  {
+    command: 'image asset extract',
+    method: 'POST',
+    path: 'image/images/:id/extract',
+    positional: [{ name: 'id', kind: 'text' }],
+    body: 'optional',
+    access: 'write+paid',
+    confirm: 'paid',
+    summary:
+      'Ask a model to look at one image asset and propose a name and keywords (preview only, nothing is saved, billed)',
   },
   {
     command: 'image asset archive',
