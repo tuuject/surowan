@@ -48,6 +48,8 @@ export const EXECUTE_PRIMITIVES: ReadonlySet<string> = new Set([
   'zzz',
   'search_memory',
   'read_memory',
+  'search_group_memory',
+  'read_group_messages',
   'read_member_profile',
   'mcp',
 ]);
