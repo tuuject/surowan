@@ -196,12 +196,19 @@ function validateHealthRequest(body: Record<string, unknown>): string | null {
 
 /**
  * The Tool Model serves two admin features: the dictionary merge and the MCP
- * server description draft, whose prompt carries a `Server data:` block.
+ * server description draft. The draft is recognised by the opening of its own
+ * prompt, which the first user message starts with; matching text anywhere
+ * would let a dictionary entry that mentions it be answered as a draft.
  */
+const MCP_DESCRIPTION_PROMPT_OPENING = 'You write the description a chat agent reads';
+
 function toolModelReply(body: Record<string, unknown>): string {
-  return JSON.stringify(body.messages ?? []).includes('Server data:')
-    ? JSON.stringify({ description: E2E_MCP_DESCRIPTION_DRAFT })
-    : JSON.stringify(E2E_MERGE_SUGGESTION);
+  const first = Array.isArray(body.messages) ? (body.messages[0] as { content?: unknown } | undefined) : undefined;
+  const content = typeof first?.content === 'string' ? first.content : JSON.stringify(first?.content ?? '');
+  const isDraft =
+    content.startsWith(MCP_DESCRIPTION_PROMPT_OPENING) ||
+    content.startsWith(`[{"type":"text","text":"${MCP_DESCRIPTION_PROMPT_OPENING}`);
+  return isDraft ? JSON.stringify({ description: E2E_MCP_DESCRIPTION_DRAFT }) : JSON.stringify(E2E_MERGE_SUGGESTION);
 }
 
 /** One OpenAI-style SSE stream with the canned reply, then `data: [DONE]`. */

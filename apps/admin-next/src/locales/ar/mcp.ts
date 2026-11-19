@@ -84,6 +84,7 @@ export const mcp: CompleteCatalog<typeof mcpEn> = {
   drafting: 'جارٍ الصياغة…',
   draftHint: 'استدعاء واحد مدفوع لنموذج الأدوات على الأدوات المعلنة. المسودة تملأ الحقل فقط؛ راجعها ثم احفظ.',
   draftNeedsServer: 'احفظ الخادم أولًا؛ تحتاج المسودة إلى أدواته المعلنة.',
+  draftNeedsSave: 'تصف المسودة الخادم المحفوظ: احفظ تغييرات الاتصال والأدوات أولًا.',
   descriptionMissingHint: 'من دون وصف لا يرى النموذج سوى بضعة أسماء أدوات لهذا الخادم.',
   noDescription: 'لا يوجد',
   errors: {

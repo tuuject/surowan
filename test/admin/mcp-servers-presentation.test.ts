@@ -11,6 +11,7 @@
  * progressive server that has no description.
  */
 import { createModels, fauxAssistantMessage, fauxProvider } from '@earendil-works/pi-ai';
+import { writeFile } from 'node:fs/promises';
 import { expect, test } from 'vitest';
 import { bearerKey, httpServer, mcpAdminFixture, write } from './mcp-servers-fixtures.ts';
 
@@ -78,6 +79,18 @@ test('exposure and description travel alone, keep every other field, and drive t
     expect(serverIn(fixture.file(), 'stdio-fixture')).toEqual(before);
     expect(await warnings()).toEqual([]);
 
+    // An empty string is one more spelling of "no description".
+    expect((await write(fixture, '/mcp-servers/stdio-fixture', 'PUT', { description: 'set' })).status).toBe(200);
+    expect((await write(fixture, '/mcp-servers/stdio-fixture', 'PUT', { description: '' })).status).toBe(200);
+    expect(serverIn(fixture.file(), 'stdio-fixture')).toEqual(before);
+
+    // A presentation-only edit of an HTTP server keeps its URL and headers as stored.
+    const httpBefore = serverIn(fixture.file(), 'http-remote');
+    expect((await write(fixture, '/mcp-servers/http-remote', 'PUT', { description: 'Remote tools.' })).status).toBe(
+      200,
+    );
+    expect(serverIn(fixture.file(), 'http-remote')).toEqual({ ...httpBefore, description: 'Remote tools.' });
+
     const tooLong = await write(fixture, '/mcp-servers/stdio-fixture', 'PUT', { description: 'x'.repeat(1_001) });
     expect(tooLong.status).toBe(400);
     expect(tooLong.body.error).toBe('invalid_body');
@@ -144,11 +157,20 @@ test('the description draft reads only exposed tools, writes nothing, and needs 
         .all(),
     ).toEqual([{ role: 'tool', state: 'success' }]);
 
-    // An unusable reply is an error, audited as such.
+    // A known secret never travels back, even when the model repeats one (the
+    // HTTP fixture's header value is known once its connection resolved it).
+    faux.setResponses([fauxAssistantMessage('{"description":"Calls with mcp-header-secret attached."}')]);
+    const leaked = (await (await draft('stdio-fixture')).json()) as { description: string };
+    expect(leaked.description).not.toContain('mcp-header-secret');
+
+    // An unusable reply is an error, audited as such; the caller gets a
+    // message, never a stack with local paths.
     faux.setResponses([fauxAssistantMessage('no json here')]);
     const invalid = await draft('stdio-fixture');
     expect(invalid.status).toBe(502);
-    expect(((await invalid.json()) as { error: string }).error).toBe('tool_model_unavailable');
+    const invalidBody = (await invalid.json()) as { error: string; message: string };
+    expect(invalidBody.error).toBe('tool_model_unavailable');
+    expect(invalidBody.message).not.toMatch(/\n\s+at /);
     expect(
       fixture.store.db
         .prepare<[], { error_code: string | null }>('SELECT error_code FROM model_calls ORDER BY id DESC LIMIT 1')
@@ -161,12 +183,27 @@ test('the description draft reads only exposed tools, writes nothing, and needs 
     expect(((await notReady.json()) as { error: string }).error).toBe('mcp_server_not_ready');
     expect((await draft('missing')).status).toBe(404);
 
+    // Saved but not running yet: the live tools belong to the server it replaces.
+    const file = fixture.file();
+    const edited = {
+      ...file,
+      mcp: {
+        servers: (file.mcp?.servers ?? []).map((entry) =>
+          (entry as ServerFile).alias === 'stdio-fixture' ? { ...entry, payload_max_bytes: 4_096 } : entry,
+        ),
+      },
+    };
+    await writeFile(fixture.configPath, JSON.stringify(edited, null, 2));
+    const notApplied = await draft('stdio-fixture');
+    expect(notApplied.status).toBe(409);
+    expect(((await notApplied.json()) as { error: string }).error).toBe('mcp_server_not_applied');
+
     // A key without the paid permission cannot spend tool-model tokens.
     const writeOnly = await draft('stdio-fixture', await bearerKey(fixture, 'read_write'));
     expect(writeOnly.status).toBe(403);
     expect(
       fixture.store.db.prepare<[], { count: bigint }>('SELECT COUNT(*) AS count FROM model_calls').get()?.count,
-    ).toBe(2n);
+    ).toBe(3n);
   } finally {
     await fixture.manager?.stop();
     fixture.store.close();

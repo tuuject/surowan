@@ -23,7 +23,7 @@ export const warnings: Catalog<typeof warningsEn> = {
   missingFields: 'Fehlt: {{fields}}',
   invalidApiKeys: 'Ungültige Schlüssel: {{keys}}',
   mcpDeprecatedAliases: 'Noch gesetzt bei: {{aliases}}',
-  mcpUndescribedAliases: 'Server: {{aliases}}',
+  mcpUndescribedAliases: 'Server: <aliases>{{aliases}}</aliases>',
   deprecatedConfigFields: 'Noch gesetzt: {{fields}}',
   mcpNextReconnect: 'nächster Versuch <time>{{time}}</time>',
   lastFailedAt: 'Letzter Fehlschlag: <time>{{time}}</time>',

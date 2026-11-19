@@ -82,6 +82,7 @@ export const mcp: typeof mcpEn = {
   drafting: '起草中…',
   draftHint: '根据服务器公布的工具调用一次工具模型（计费）。草稿只会填进输入框，确认后再保存。',
   draftNeedsServer: '请先保存服务器；起草需要它公布的工具。',
+  draftNeedsSave: '草稿描述的是已保存的服务器：请先保存连接和工具的改动。',
   descriptionMissingHint: '没有描述时，模型只能看到这个服务器的几个工具名。',
   noDescription: '无',
   errors: {

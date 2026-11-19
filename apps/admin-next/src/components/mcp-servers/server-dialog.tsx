@@ -34,7 +34,7 @@ import { isConfigConflict } from '@/lib/model-manager';
 import { keychainQuery } from '@/lib/queries';
 import { toast } from '@/lib/toast.ts';
 import { useProviderWrite } from '@/lib/use-provider-write';
-import { draftOf, serverPayload, type ServerDraft, type ServerDraftError } from './draft.ts';
+import { connectionChanged, draftOf, serverPayload, type ServerDraft, type ServerDraftError } from './draft.ts';
 import { ToolPolicyRows } from './tool-policy-rows.tsx';
 
 const ALIAS_PATTERN = /^[A-Za-z][A-Za-z0-9_-]{0,63}$/;
@@ -174,8 +174,28 @@ function ServerForm({
   // edits the text, and nothing reaches the model until the form is saved.
   const describe = useMutation({
     mutationFn: (alias: string) => draftMcpServerDescription(alias),
+    // A paid call: offline it fails now instead of pausing and firing later,
+    // after the operator may have closed the dialog.
+    networkMode: 'always',
     onSuccess: (result) => setDraft((current) => ({ ...current, description: result.description })),
   });
+
+  // The draft endpoint describes the saved, running server; while the form
+  // holds other connection or tool settings it would describe the wrong one.
+  const unsavedConnection = ((): boolean => {
+    if (server === null) {
+      return true;
+    }
+    const payload = serverPayload(draft);
+    if (payload.body === null || connectionChanged(server, payload.body)) {
+      return true;
+    }
+    if (isStdio) {
+      return false;
+    }
+    const headers = headerPayload(rows, removedHeaderNames(headerNamesOf(server), rows), nameBase);
+    return headers.error !== null || headers.headers !== undefined;
+  })();
 
   const draftErrorText = (error: ServerDraftError): string => {
     switch (error.kind) {
@@ -228,6 +248,9 @@ function ServerForm({
       }
     }
     setValidation(null);
+    // Only the presentation changed: send only it, so the server keeps every
+    // connection field byte for byte and nothing reconnects.
+    const presentationOnly = server !== null && updateHeaders === undefined && !connectionChanged(server, payload.body);
     save.mutate({
       create: {
         alias,
@@ -235,7 +258,12 @@ function ServerForm({
         ...payload.body,
         ...(createHeaders === undefined ? {} : { headers: createHeaders }),
       },
-      update: { ...payload.body, ...(updateHeaders === undefined ? {} : { headers: updateHeaders }) },
+      update: presentationOnly
+        ? {
+            ...(payload.body.exposure === undefined ? {} : { exposure: payload.body.exposure }),
+            ...(payload.body.description === undefined ? {} : { description: payload.body.description }),
+          }
+        : { ...payload.body, ...(updateHeaders === undefined ? {} : { headers: updateHeaders }) },
     });
   };
 
@@ -393,6 +421,8 @@ function ServerForm({
             <Textarea
               rows={4}
               value={draft.description}
+              // The draft replaces the text when it arrives; typing meanwhile would be lost.
+              disabled={describe.isPending}
               maxLength={DESCRIPTION_MAX_LENGTH}
               onChange={(event) => setDraft({ ...draft, description: event.target.value })}
               dir="auto"
@@ -403,7 +433,7 @@ function ServerForm({
               type="button"
               variant="outline"
               color="secondary"
-              disabled={server === null || describe.isPending}
+              disabled={unsavedConnection || describe.isPending}
               onClick={() => {
                 if (server !== null) {
                   describe.mutate(server.alias);
@@ -413,7 +443,11 @@ function ServerForm({
               {describe.isPending ? t('mcp.drafting') : t('mcp.draftDescription')}
             </Button>
             <p className={css({ margin: '0', flex: '1', minWidth: '0', textStyle: 'small', color: 'text-muted' })}>
-              {server === null ? t('mcp.draftNeedsServer') : t('mcp.draftHint')}
+              {server === null
+                ? t('mcp.draftNeedsServer')
+                : unsavedConnection
+                  ? t('mcp.draftNeedsSave')
+                  : t('mcp.draftHint')}
             </p>
           </div>
           {describe.isError ? <Alert tone="error">{errorMessage(describe.error)}</Alert> : null}

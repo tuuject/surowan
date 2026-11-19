@@ -88,6 +88,7 @@ export const mcp = {
   draftHint:
     'One billed call to the tool model over the advertised tools. The draft only fills the field; review it, then save.',
   draftNeedsServer: 'Save the server first; a draft needs its advertised tools.',
+  draftNeedsSave: 'A draft describes the saved server: save the connection and tool changes first.',
   descriptionMissingHint: 'Without a description the model only sees a few tool names of this server.',
   noDescription: 'none',
   errors: {

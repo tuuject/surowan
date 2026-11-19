@@ -202,7 +202,11 @@ function WarningDetails({ warning }: { readonly warning: WarningItem }): ReactEl
           </p>
           {aliases.length > 0 ? (
             <p className={css({ textStyle: 'small', color: 'text-muted', fontFamily: 'mono' })}>
-              {t('pages.warnings.mcpUndescribedAliases', { aliases: aliases.join(', ') })}
+              <Trans
+                i18nKey="pages.warnings.mcpUndescribedAliases"
+                values={{ aliases: aliases.join(', ') }}
+                components={{ aliases: <TechText /> }}
+              />
             </p>
           ) : null}
         </div>

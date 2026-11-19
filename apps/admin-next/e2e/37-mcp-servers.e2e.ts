@@ -289,7 +289,19 @@ test('switches a server to progressive exposure with a confirmed tool-model desc
       dialog.getByText('Without a description the model only sees a few tool names of this server.'),
     ).toBeVisible();
 
-    await dialog.getByRole('button', { name: 'Draft with tool model', exact: true }).click();
+    // A draft describes the saved server, so unsaved connection edits block it.
+    const draftButton = dialog.getByRole('button', { name: 'Draft with tool model', exact: true });
+    const resultLimit = dialog.getByLabel('Result limit (bytes)', { exact: true });
+    await resultLimit.fill('1024');
+    await expect(draftButton).toBeDisabled();
+    await expect(
+      dialog.getByText('A draft describes the saved server: save the connection and tool changes first.'),
+    ).toBeVisible();
+    await resultLimit.fill('32768');
+    await expect(draftButton).toBeEnabled();
+    const savedServer = (await configFile()).mcp?.servers?.find((entry) => entry.alias === 'stdio-fixture');
+
+    await draftButton.click();
     const description = dialog.getByLabel('Description', { exact: true });
     await expect(description).toHaveValue(E2E_MCP_DESCRIPTION_DRAFT);
     // The draft only filled the field: nothing is in the file before Save.
@@ -303,10 +315,11 @@ test('switches a server to progressive exposure with a confirmed tool-model desc
     const server = (await configFile()).mcp?.servers?.find((entry) => entry.alias === 'stdio-fixture') as
       | Record<string, unknown>
       | undefined;
-    expect(server).toMatchObject({
+    // A presentation-only save leaves every connection field exactly as stored.
+    expect(server).toEqual({
+      ...savedServer,
       exposure: 'progressive',
       description: `${E2E_MCP_DESCRIPTION_DRAFT} Reviewed.`,
-      tools: ['echo'],
     });
 
     // The detail view shows both fields back.

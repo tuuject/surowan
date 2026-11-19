@@ -58,10 +58,12 @@ const CJK_STOP_WORDS: ReadonlySet<string> = new Set([
 
 /**
  * The words of one query, lower-cased and deduplicated. `_` joins words in tool
- * names (`web_fetch`), so a token keeps it as a space and matches the spaced
- * form a caller adds next to the raw name. Latin tokens shorter than two
- * characters are noise; a CJK token is kept unless it is a function word or a
- * lone kana.
+ * names (`web_fetch`, `alias__tool`), so a token keeps each run of it as one
+ * space and matches the spaced form a caller adds next to the raw name (see
+ * `spacedName`). ICU keeps `web.fetch` or `a:b` as one word; such a word is
+ * split at its punctuation, as the ASCII splitter before it did. Latin tokens
+ * shorter than two characters are noise; a CJK token is kept unless it is a
+ * function word or a lone kana.
  */
 export function searchTokens(query: string): string[] {
   const tokens = new Set<string>();
@@ -69,16 +71,23 @@ export function searchTokens(query: string): string[] {
     if (isWordLike !== true) {
       continue;
     }
-    const token = segment.replaceAll('_', ' ').trim();
-    if (token.length === 0) {
-      continue;
+    for (const part of segment.split(/[^\p{L}\p{N}\p{M}_]+/u)) {
+      const token = spacedName(part).trim();
+      if (token.length === 0) {
+        continue;
+      }
+      if (CJK_PATTERN.test(token) ? CJK_STOP_WORDS.has(token) || SINGLE_KANA_PATTERN.test(token) : token.length < 2) {
+        continue;
+      }
+      tokens.add(token);
     }
-    if (CJK_PATTERN.test(token) ? CJK_STOP_WORDS.has(token) || SINGLE_KANA_PATTERN.test(token) : token.length < 2) {
-      continue;
-    }
-    tokens.add(token);
   }
   return [...tokens];
+}
+
+/** A `_`-joined name in the spaced form query tokens use: `alias__get_page` → `alias get page`. */
+export function spacedName(name: string): string {
+  return name.replace(/_+/g, ' ');
 }
 
 /** One searchable field and what a token found in it is worth. */

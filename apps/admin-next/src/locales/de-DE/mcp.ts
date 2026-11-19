@@ -90,6 +90,8 @@ export const mcp: Catalog<typeof mcpEn> = {
   draftHint:
     'Ein kostenpflichtiger Aufruf des Werkzeugmodells über die angebotenen Werkzeuge. Der Entwurf füllt nur das Feld; prüfen, dann speichern.',
   draftNeedsServer: 'Speichere den Server zuerst; ein Entwurf braucht seine angebotenen Werkzeuge.',
+  draftNeedsSave:
+    'Ein Entwurf beschreibt den gespeicherten Server: Speichere zuerst die Änderungen an Verbindung und Werkzeugen.',
   descriptionMissingHint: 'Ohne Beschreibung sieht das Modell nur einige Werkzeugnamen dieses Servers.',
   noDescription: 'keine',
   errors: {

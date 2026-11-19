@@ -20,7 +20,7 @@ export const warnings: typeof warningsEn = {
   missingFields: '缺少：{{fields}}',
   invalidApiKeys: '非法密钥：{{keys}}',
   mcpDeprecatedAliases: '仍设置于：{{aliases}}',
-  mcpUndescribedAliases: '服务器：{{aliases}}',
+  mcpUndescribedAliases: '服务器：<aliases>{{aliases}}</aliases>',
   deprecatedConfigFields: '仍设置：{{fields}}',
   mcpNextReconnect: '下次重试 <time>{{time}}</time>',
   lastFailedAt: '最近失败：<time>{{time}}</time>',

@@ -47,8 +47,12 @@ export interface ParsedMcpServerWrite {
 /** `tool_policies: null` removes the field; omitted keeps what the file has. */
 const PoliciesField = Type.Optional(Type.Union([Type.Array(ToolPolicySchema), Type.Null()]));
 const DefaultPolicyField = Type.Optional(Type.Union([DefaultToolPolicySchema, Type.Null()]));
-/** `description: null` removes it; omitted keeps what the file has. */
-const DescriptionField = Type.Optional(Type.Union([McpServerDescriptionSchema, Type.Null()]));
+/**
+ * `description: null`, `""` or blank removes it; omitted keeps what the file
+ * has. The empty string is accepted here (the file never stores one) so every
+ * spelling of "no description" means the same thing.
+ */
+const DescriptionField = Type.Optional(Type.Union([McpServerDescriptionSchema, Type.Literal(''), Type.Null()]));
 
 const CreateBodySchema = Type.Object(
   {
@@ -361,7 +365,13 @@ export function updateMcpServer(
     result_max_bytes: body.result_max_bytes ?? current.result_max_bytes,
     ...policyFields(body, current),
     ...presentationFields(body, current),
-    ...(Object.keys(merged).length === 0 ? {} : { headers: merged }),
+    // Untouched headers stay exactly as the file has them, an empty map
+    // included: dropping it would read as a connection change and reconnect.
+    ...(Object.keys(submittedHeaders).length === 0 && current.headers !== undefined
+      ? { headers: current.headers }
+      : Object.keys(merged).length === 0
+        ? {}
+        : { headers: merged }),
   };
   return finishUpdate(file, servers, index, current, server, providers, keys, repairs, replacements);
 }

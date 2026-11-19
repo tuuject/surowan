@@ -35,7 +35,7 @@ export const warnings: CompleteCatalog<typeof warningsEn> = {
   missingFields: 'مفقود: {{fields}}',
   invalidApiKeys: 'مفاتيح غير صالحة: {{keys}}',
   mcpDeprecatedAliases: 'ما يزال معيّنًا في: {{aliases}}',
-  mcpUndescribedAliases: 'الخوادم: {{aliases}}',
+  mcpUndescribedAliases: 'الخوادم: <aliases>{{aliases}}</aliases>',
   deprecatedConfigFields: 'ما يزال معيّنًا: {{fields}}',
   mcpNextReconnect: 'المحاولة التالية <time>{{time}}</time>',
   lastFailedAt: 'آخر إخفاق: <time>{{time}}</time>',

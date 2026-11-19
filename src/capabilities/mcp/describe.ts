@@ -9,7 +9,7 @@
  * the trust boundary — tool names, descriptions and instructions are server
  * data, handed to the tool model as quoted JSON, never as instructions.
  */
-import type { Models } from '@earendil-works/pi-ai';
+import type { Api, Model, Models } from '@earendil-works/pi-ai';
 import { eq } from 'drizzle-orm';
 import Type from 'typebox';
 import Compile from 'typebox/compile';
@@ -29,6 +29,9 @@ const TIMEOUT_MS = 60_000;
 const MAX_TOOLS = 150;
 const TOOL_DESCRIPTION_MAX_CHARACTERS = 400;
 const INSTRUCTIONS_MAX_CHARACTERS = 2_000;
+/** The server data never exceeds this many characters, whatever the model's window. */
+const SERVER_DATA_MAX_CHARACTERS = 24_000;
+const SERVER_DATA_MIN_CHARACTERS = 2_000;
 /** The draft asks for less than the field allows, leaving the operator room to add. */
 const DRAFT_TARGET_CHARACTERS = 600;
 
@@ -74,20 +77,56 @@ function clip(text: string, maxCharacters: number): string {
   return characters.length <= maxCharacters ? text : `${characters.slice(0, maxCharacters).join('')}…`;
 }
 
-function serverData(input: McpDescriptionDraftInput): string {
-  return JSON.stringify(
-    {
-      alias: input.alias,
-      instructions: input.instructions === null ? null : clip(input.instructions, INSTRUCTIONS_MAX_CHARACTERS),
-      tool_count: input.tools.length,
-      tools: input.tools.slice(0, MAX_TOOLS).map((tool) => ({
-        name: tool.name,
-        description: tool.description === null ? null : clip(tool.description, TOOL_DESCRIPTION_MAX_CHARACTERS),
-      })),
-    },
-    null,
-    1,
-  );
+/**
+ * How many characters of server data the prompt may carry for `model`. A CJK
+ * character can be a whole token, so characters stand in for tokens, and half
+ * of what the reply leaves of the window goes to the data: the cap is a
+ * character count, but a small-window tool model must still fit.
+ */
+function serverDataBudget(model: Model<Api>): number {
+  const reply = Math.min(MAX_OUTPUT_TOKENS, model.maxTokens);
+  const fit = Math.floor((model.contextWindow - reply) / 2);
+  return Math.max(SERVER_DATA_MIN_CHARACTERS, Math.min(SERVER_DATA_MAX_CHARACTERS, fit));
+}
+
+/**
+ * The server data as JSON within `budget` characters: descriptions share what
+ * the names leave, and a server too large even for its names is shown by its
+ * first tools only (`tools_shown` says how many).
+ */
+function serverData(input: McpDescriptionDraftInput, budget: number): string {
+  const instructions =
+    input.instructions === null
+      ? null
+      : clip(input.instructions, Math.min(INSTRUCTIONS_MAX_CHARACTERS, Math.floor(budget / 8)));
+  let count = Math.min(input.tools.length, MAX_TOOLS);
+  for (;;) {
+    const shown = input.tools.slice(0, count);
+    const fixed = (instructions?.length ?? 0) + input.alias.length + 200;
+    const names = shown.reduce((sum, tool) => sum + tool.name.length + 40, 0);
+    const perTool = Math.max(
+      0,
+      Math.min(TOOL_DESCRIPTION_MAX_CHARACTERS, Math.floor((budget - fixed - names) / Math.max(count, 1))),
+    );
+    const text = JSON.stringify(
+      {
+        alias: input.alias,
+        instructions,
+        tool_count: input.tools.length,
+        tools_shown: count,
+        tools: shown.map((tool) => ({
+          name: tool.name,
+          description: tool.description === null || perTool === 0 ? null : clip(tool.description, perTool),
+        })),
+      },
+      null,
+      1,
+    );
+    if (text.length <= budget || count <= 1) {
+      return text;
+    }
+    count = Math.floor(count / 2);
+  }
 }
 
 /**
@@ -164,7 +203,11 @@ export async function draftMcpServerDescription(
         messages: [
           {
             role: 'user',
-            content: `${SYSTEM_PROMPT}\n\nServer data:\n\n${serverData(input)}`,
+            // Known secret values never leave for the provider, even if a
+            // server echoed one into its own metadata.
+            content: `${SYSTEM_PROMPT}\n\nServer data:\n\n${dependencies.secrets.redact(
+              serverData(input, serverDataBudget(model)),
+            )}`,
             timestamp: Date.now(),
           },
         ],
@@ -198,12 +241,15 @@ export async function draftMcpServerDescription(
     const text = response.content.flatMap((part) => (part.type === 'text' ? [part.text] : [])).join('');
     let description: string;
     try {
-      description = parseToolModelJson(
-        text,
-        draftValidator,
-        (message) => new McpDescriptionDraftError(message),
-        'an invalid description draft',
-      ).description.trim();
+      // The reply goes back to the caller: a secret the model copied stays out.
+      description = dependencies.secrets.redact(
+        parseToolModelJson(
+          text,
+          draftValidator,
+          (message) => new McpDescriptionDraftError(message),
+          'an invalid description draft',
+        ).description.trim(),
+      );
       if (description.length === 0) {
         throw new McpDescriptionDraftError('The tool model returned an empty description');
       }
@@ -225,7 +271,10 @@ export async function draftMcpServerDescription(
         errorCode: combined.aborted ? 'tool_model_aborted' : 'tool_model_error',
         errorDetail: dependencies.secrets.redactError(error),
       });
-      throw new McpDescriptionDraftError(dependencies.secrets.redactError(error));
+      // The audit row keeps the redacted stack; the caller gets the message only.
+      throw new McpDescriptionDraftError(
+        dependencies.secrets.redact(error instanceof Error ? error.message : String(error)),
+      );
     }
     throw error;
   } finally {

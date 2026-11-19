@@ -23,7 +23,7 @@ export const warnings = {
   missingFields: 'Missing: {{fields}}',
   invalidApiKeys: 'Invalid keys: {{keys}}',
   mcpDeprecatedAliases: 'Still set on: {{aliases}}',
-  mcpUndescribedAliases: 'Servers: {{aliases}}',
+  mcpUndescribedAliases: 'Servers: <aliases>{{aliases}}</aliases>',
   deprecatedConfigFields: 'Still set: {{fields}}',
   mcpNextReconnect: 'next retry <time>{{time}}</time>',
   lastFailedAt: 'Last failure: <time>{{time}}</time>',

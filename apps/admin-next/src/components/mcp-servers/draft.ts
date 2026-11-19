@@ -84,8 +84,28 @@ export function newToolRow(): ToolPolicyDraft {
 }
 
 export interface ServerPayload {
-  readonly body: Omit<McpServerInput, 'headers'> | null;
+  readonly body: ServerBody | null;
   readonly error: ServerDraftError | null;
+}
+
+/** A request body the form builds: every connection field is always present. */
+export type ServerBody = Omit<McpServerInput, 'headers'> &
+  Required<Pick<McpServerInput, 'tools' | 'payload_max_bytes' | 'result_max_bytes'>>;
+
+/**
+ * Whether `body` changes anything but the presentation fields of `server`.
+ * The saved server is put through the same form translation, so a value the
+ * form normalises (an empty override list becomes `null`) compares equal and
+ * a description-only save does not rewrite — and reconnect — the server.
+ */
+export function connectionChanged(server: McpServerView, body: ServerBody): boolean {
+  const saved = serverPayload(draftOf(server)).body;
+  if (saved === null) {
+    return true;
+  }
+  const { exposure: _savedExposure, description: _savedDescription, ...savedConnection } = saved;
+  const { exposure: _exposure, description: _description, ...connection } = body;
+  return JSON.stringify(savedConnection) !== JSON.stringify(connection);
 }
 
 /** Turns the draft into the request body; `error` says why it cannot when it cannot. */

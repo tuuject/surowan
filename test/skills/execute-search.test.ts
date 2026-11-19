@@ -22,6 +22,10 @@ test('queries are cut into words in any script, without function words or lone k
   expect(searchTokens('検索して')).toEqual(['検索']);
   expect(searchTokens('Fetch a web_fetch PAGE')).toEqual(['fetch', 'web fetch', 'page']);
   expect(searchTokens('send-reply')).toEqual(['send', 'reply']);
+  // ICU keeps these as one word; they still split the way an ASCII splitter would.
+  expect(searchTokens('web.fetch')).toEqual(['web', 'fetch']);
+  // Runs of `_` collapse to one space, the form `spacedName` gives a tool name.
+  expect(searchTokens('catalog__lookup')).toEqual(['catalog lookup']);
   expect(searchTokens('  ')).toEqual([]);
 });
 
@@ -69,6 +73,7 @@ test('execute.search finds a capability from a Chinese request', async () => {
     expect((await run('画一张猫的图片')).map((entry) => entry.name)).toEqual(['draw_picture']);
     // The English ranking is unchanged: the name match wins.
     expect((await run('fetch a web page')).map((entry) => entry.name)).toEqual(['web_fetch']);
+    expect((await run('web.fetch')).map((entry) => entry.name)).toEqual(['web_fetch']);
     expect(await run('下雨了吗')).toEqual([]);
   } finally {
     await f.server.stop();

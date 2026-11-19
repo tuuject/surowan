@@ -105,13 +105,14 @@ export interface McpDefaultPolicyInput {
   readonly timeout_seconds: number;
 }
 
+/** Every field is optional: the server keeps whatever a request leaves out. */
 export interface McpServerInput {
   readonly url?: string;
   /** Header name → a new secret, or `null` to delete; omitted keeps the stored one. */
   readonly headers?: Readonly<Record<string, SecretInput | null>>;
-  readonly tools: '*' | readonly string[];
-  readonly payload_max_bytes: number;
-  readonly result_max_bytes: number;
+  readonly tools?: '*' | readonly string[];
+  readonly payload_max_bytes?: number;
+  readonly result_max_bytes?: number;
   readonly tool_policies?: readonly McpToolPolicyInput[] | null;
   readonly default_tool_policy?: McpDefaultPolicyInput | null;
   readonly exposure?: McpExposure;

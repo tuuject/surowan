@@ -47,7 +47,7 @@ pnpm test test/replay/replay.test.ts test/scene/context.test.ts test/scene/slice
 pnpm test test/skills.test.ts test/system-resources.test.ts test/plugins.test.ts
 pnpm test test/media/media.test.ts test/stickers.test.ts
 pnpm test test/mcp.test.ts test/web-fetch test/web-search
-pnpm test test/mcp/progressive.test.ts test/admin/mcp-servers-presentation.test.ts test/skills/execute-search.test.ts   # MCP 渐进式暴露、mcp 网关、描述起草与共享中文分词搜索
+pnpm test test/mcp/progressive.test.ts test/mcp/progressive-limits.test.ts test/admin/mcp-servers-presentation.test.ts test/skills/execute-search.test.ts   # MCP 渐进式暴露、mcp 网关、描述起草与共享中文分词搜索
 pnpm test test/plugins.test.ts   # 插件依赖、扩展点与贡献冲突
 pnpm test test/operations.test.ts test/foundation/foundation.test.ts test/schema/schema.test.ts test/load-env.test.ts
 pnpm test packages/image-service/test test/image/service-store.test.ts test/image/models.test.ts test/image/admin.test.ts test/image/admin-server.test.ts
@@ -172,6 +172,7 @@ pnpm test test/im test/intake test/schema/migrations-host-neutral-ids.test.ts te
 | `media/image.test.ts` | 视频 Sticker 只按 WebM 解码（其他容器冒充时拒绝）、真实 WebM 仍能取帧、解压超过 8 MiB 的 TGS 在转换前拒绝；预取消或下载后立即取消均不启动 ffprobe/ffmpeg/Lottie；本机没有 ffmpeg/ffprobe 时仅视频取帧组跳过，TGS 与取消回归仍运行 |
 | `mcp.test.ts` | stdio/HTTP transport、策略、Header、重定向和审计、发现 Tool 失败时关闭 stdio 子进程、连接中 `stop()` 后保持 stopped 且关闭子进程 |
 | `mcp/progressive.test.ts` | progressive Server 离开注册表、只留一个 `mcp` 网关且 61 上限按它计一次；网关索引列出描述或退回 Tool 名；search/help/call 只在本 Chat 解析出的集合内（绑定收窄、直接暴露的 Tool 一律 `unknown_tool`）；call 先校验 Schema、外层 `mcp` 与内层 `<id>:<alias>__<tool>` 两行审计；工具图片按网关 call ID 加载；中文查询命中 Server 描述；只改 `exposure`/`description` 不重连、不影响任何 Chat；`execute` 拒绝 `mcp` |
+| `mcp/progressive-limits.test.ts` | 两个 progressive Server 拼出同一暴露名时后连上的落为 `degraded`；130 个长描述 Tool 的搜索分页每页都是 32 KiB 内可解析的 JSON 并经 `next_offset` 取全；完整暴露名与 `web.fetch` 式查询命中；被调 Tool 超时的 `outcome_unknown` 同步到外层 `mcp` 行 |
 | `admin/mcp-servers-presentation.test.ts` | `exposure`/`description` 可单独 `PUT` 且不动其它字段、空白描述即删除、`direct` 回落为缺省、超长 400、`mcp_description_missing` 常驻告警；描述起草只读被选中的 Tool、不写文件、审计 `model_calls`、无效回复 502、未连接 409、无付费权限的密钥 403 |
 | `skills/execute-search.test.ts` | `Intl.Segmenter` 分词（中文、日文、`_` 连接的名字）、去虚词与单个假名、评分规则；`execute.search` 用中文请求命中能力且英文排序不变 |
 | `web-fetch/address.test.ts` | 有界不可信文本结果与审计、公网 IPv4 放行与 IPv4 映射字面量拒绝、私网/合成地址拒绝（含跳转目标）、fake-ip 网段默认拒绝且需 `allow_proxy_synthetic_addresses` 开启、6to4/Teredo 过渡地址拒绝、`dangerously_allow_all_ip_addresses` 从配置到插件生效并放行私网/环回/跳转目标但仍拒绝非默认端口 |

@@ -2,7 +2,7 @@ import type { AgentTool, AgentToolResult } from '@earendil-works/pi-agent-core';
 import Type from 'typebox';
 import Compile from 'typebox/compile';
 import { type ToolImageReference, toolImageMarker, toolImageReferences } from '../platform/tool-images.ts';
-import { searchQuery, searchScore } from '../platform/text-search.ts';
+import { searchQuery, searchScore, spacedName } from '../platform/text-search.ts';
 import { safeJson, truncateUtf8 } from '../platform/truncate.ts';
 import type { ToolAudit } from '../store/tool-audit.ts';
 
@@ -338,7 +338,7 @@ function searchCapabilities(
   const scored = capabilities.flatMap(({ entry }) => {
     const name = entry.tool.name;
     const score = searchScore(prepared, [
-      [`${name} ${name.replaceAll('_', ' ')}`, 3],
+      [`${name} ${spacedName(name)}`, 3],
       [entry.tool.label, 2],
       [entry.tool.description, 1],
     ]);

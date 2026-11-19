@@ -625,7 +625,7 @@ Admin Panel 的 **MCP servers** 页（Manage → MCP servers）可以管理这�
 每个 Server 还有两个可选的呈现字段，它们只决定模型怎么看到同一批 Tool，不改变授权：
 
 - `exposure`：`"direct"`（缺省）把每个 Tool 作为 `<alias>__<tool>` 放进注册表；`"progressive"` 让它们离开注册表，由唯一的 `mcp` 网关原语按需 search/help/call（行为见 [telegram-agent-flow.md](telegram-agent-flow.md#渐进式暴露与-mcp-网关)）。只能按 Server 设置，Chat 绑定不能覆盖。
-- `description`：1–1000 字符、不能全是空白，是 `mcp` 网关的 Server 索引里给模型看的说明。可以手写，或由 Admin「MCP servers」页 / `surowan-utils mcp-server describe` / 反向 MCP 的 `surowan_mcp_server_describe` 用工具模型起草后由操作者确认保存；草稿端点本身从不写文件。`progressive` 却没有 `description` 的 Server 会在 Warnings 页显示 `mcp_description_missing`。
+- `description`：1–1000 字符、不能全是空白，是 `mcp` 网关的 Server 索引里给模型看的说明。可以手写，或由 Admin「MCP servers」页 / `surowan-utils mcp-server describe` / 反向 MCP 的 `surowan_mcp_server_describe` 用工具模型起草后由操作者确认保存；草稿端点本身从不写文件，只为文件与运行中一致、状态为 `ready` 的 Server 起草，发给模型的数据与返回的草稿都经 `SecretStore.redact`，数据量按工具模型的上下文窗口收缩。`progressive` 却没有 `description` 的 Server 会在 Warnings 页显示 `mcp_description_missing`。
 
 Streamable HTTP 使用 `url` 与可选 SecretRef `headers`，且 `follow_redirects` 必须为 `false`。`url` 可以包含服务协议要求的查询参数，但禁止 URL userinfo 与 fragment；机密值应使用 SecretRef `headers`，不应写入查询参数。`tools` 为 `"*"` 时全部 Tool 共享 `default_tool_policy`；`tools` 为显式数组时，每个列出的 Tool 必须在 `tool_policies` 中提供对应策略，`default_tool_policy` 只服务于 `"*"`。策略只包含 `read_only` 与 `timeout_seconds`，没有每日调用次数上限。没有策略的 Tool 不会暴露给模型。
 
