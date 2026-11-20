@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import { writeFileSync } from 'node:fs';
+import { setTimeout as delay } from 'node:timers/promises';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import {
@@ -19,6 +20,10 @@ import { z } from 'zod';
  *
  * `hang` never answers `resources/read`; it first touches the marker file
  * named by the second argument, so a test knows discovery is in flight.
+ * `die` exits on the first `resources/read`; `notify` adds a tool and sends
+ * `tools/list_changed` there, answering only after a pause; `deep` lists a
+ * file whose model-facing URI would pass the reader's 512-character limit;
+ * `wronguri` answers one read with content under another URI.
  */
 const mode = process.argv[2] ?? 'ok';
 
@@ -43,6 +48,10 @@ const skills: Skill[] = [
 ];
 if (mode === 'big') {
   skills[0] = { name: 'demo', files: { 'SKILL.md': DEMO_SKILL, 'references/guide.md': 'x'.repeat(40_000) } };
+}
+if (mode === 'deep') {
+  const deep = Array.from({ length: 9 }, (_, index) => `${index}${'d'.repeat(119)}`).join('/');
+  skills[0] = { name: 'demo', files: { 'SKILL.md': DEMO_SKILL, [`${deep}/notes.md`]: GUIDE } };
 }
 if (mode === 'dup') {
   skills.push({ name: 'demo', files: { 'SKILL.md': DEMO_SKILL.replace('演示技能', 'impostor') } });
@@ -79,31 +88,47 @@ const server = new Server(
   { name: 'skills-fixture', version: '1.0.0' },
   {
     capabilities: {
-      tools: {},
+      tools: mode === 'notify' ? { listChanged: true } : {},
       ...(mode === 'noresources' ? {} : { resources: {} }),
       ...(mode === 'noext' ? {} : { extensions: { 'io.modelcontextprotocol/skills': { directoryRead: true } } }),
     },
   },
 );
-server.setRequestHandler(ListToolsRequestSchema, () => ({
-  tools: [
-    {
-      name: 'ping',
-      description: 'Reply pong',
-      inputSchema: { type: 'object' as const, properties: {} },
-      annotations: { readOnlyHint: true },
-    },
-  ],
-}));
+const tools = [
+  {
+    name: 'ping',
+    description: 'Reply pong',
+    inputSchema: { type: 'object' as const, properties: {} },
+    annotations: { readOnlyHint: true },
+  },
+];
+server.setRequestHandler(ListToolsRequestSchema, () => ({ tools }));
 server.setRequestHandler(CallToolRequestSchema, () => ({ content: [{ type: 'text', text: 'pong' }] }));
 if (mode !== 'noresources') {
   server.setRequestHandler(ListResourcesRequestSchema, () => ({ resources: [] }));
 }
-const readResource = (request: { params: { uri: string } }) => {
+let notified = false;
+const readResource = async (request: { params: { uri: string } }) => {
   const uri = request.params.uri;
   if (mode === 'hang') {
     writeFileSync(process.argv[3] ?? '', uri);
-    return new Promise<never>(() => {});
+    return await new Promise<never>(() => {});
+  }
+  if (mode === 'die') {
+    process.exit(1);
+  }
+  if (mode === 'notify' && !notified) {
+    notified = true;
+    tools.push({
+      name: 'pong',
+      description: 'Added mid-discovery',
+      inputSchema: { type: 'object' as const, properties: {} },
+      annotations: { readOnlyHint: true },
+    });
+    await server.sendToolListChanged();
+    // The client debounces the notice (300 ms by default) and then re-lists the
+    // tools; holding this read well past that keeps all of it inside discovery.
+    await delay(1_500);
   }
   const text = served.get(uri);
   if (text === undefined) {
@@ -111,6 +136,9 @@ const readResource = (request: { params: { uri: string } }) => {
   }
   if (mode === 'blob' && uri.endsWith('references/guide.md')) {
     return { contents: [{ uri, mimeType: 'application/octet-stream', blob: Buffer.from(text).toString('base64') }] };
+  }
+  if (mode === 'wronguri' && uri.endsWith('references/guide.md')) {
+    return { contents: [{ uri: `${uri}.other`, mimeType: 'text/markdown', text }] };
   }
   return { contents: [{ uri, mimeType: 'text/markdown', text }] };
 };

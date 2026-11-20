@@ -27,7 +27,8 @@ import {
   stopServer,
 } from './connection.ts';
 import { reconcile } from './reconcile.ts';
-import { createMcpSkillSource, type McpSkillSource, mcpSkillUri, visibleSkills } from './skill-source.ts';
+import { createMcpSkillSource, type McpSkillSource, visibleSkills } from './skill-source.ts';
+import { mcpSkillUri } from './skills.ts';
 import type { McpServerReconcileResult, McpState } from './shared.ts';
 import type { ManagedServer, McpServerToolListing, RegistryValidator } from './support.ts';
 import {

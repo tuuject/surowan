@@ -108,10 +108,12 @@ export function validateAdditionalTools(
         context,
         resources: services.systemResources,
         // The index is per Chat and per moment, so the fit check reserves its
-        // cap instead of whatever the servers publish right now.
+        // cap instead of whatever the servers publish right now — as non-ASCII
+        // text, which the estimator charges a token per character, so a CJK
+        // index cannot outgrow the reservation.
         ...(services.mcpSkills === undefined
           ? {}
-          : { mcpSkills: { index: 'x'.repeat(MCP_SKILL_INDEX_MAX_CHARACTERS), readText: unreadableMcpSkills } }),
+          : { mcpSkills: { index: '汉'.repeat(MCP_SKILL_INDEX_MAX_CHARACTERS), readText: unreadableMcpSkills } }),
       }),
       memberProfileTool(services, host, context),
       ...createMemoReadTools({ store: services.store, memoPad, context }),

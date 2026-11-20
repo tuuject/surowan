@@ -18,13 +18,11 @@ import {
 } from '../../platform/system-resources.ts';
 import { truncateUtf8 } from '../../platform/truncate.ts';
 import { boundChatServers, mcpSkillsEnabled } from './bindings.ts';
-import { SKILL_SEGMENT_PATTERN } from './skills.ts';
+import { MCP_SKILL_URI_MAX_LENGTH, MCP_SKILL_URI_PREFIX, mcpSkillUri, SKILL_SEGMENT_PATTERN } from './skills.ts';
 import type { McpState } from './shared.ts';
 import type { McpSkill } from './support.ts';
 import { chatToolSet } from './tool-sets.ts';
 
-export const MCP_SKILL_URI_PREFIX = 'mcp-skill://';
-const URI_MAX_LENGTH = 512;
 const INDEX_MAX_ENTRIES = 32;
 const INDEX_DESCRIPTION_CHARACTERS = 200;
 /** The whole rendered index; also what the registry fit check reserves. */
@@ -41,11 +39,6 @@ export interface McpSkillSource {
   /** The bounded index shown in the read tool's description. */
   readonly index: string;
   readText(reference: string, base?: string): Promise<SystemResourceText>;
-}
-
-/** The URI the model reads one skill's SKILL.md under. */
-export function mcpSkillUri(alias: string, skill: string, path = 'SKILL.md'): string {
-  return `${MCP_SKILL_URI_PREFIX}${alias}/${skill}/${path}`;
 }
 
 /**
@@ -155,7 +148,7 @@ export function resolveMcpSkillReference(
   reference: string,
   base?: string,
 ): { uri: string; segments: readonly string[] } {
-  if (reference.length > URI_MAX_LENGTH || (base !== undefined && base.length > URI_MAX_LENGTH)) {
+  if (reference.length > MCP_SKILL_URI_MAX_LENGTH || (base !== undefined && base.length > MCP_SKILL_URI_MAX_LENGTH)) {
     throw new SystemResourceError('invalid_uri', 'Resource URI exceeds the length limit');
   }
   let segments: string[];

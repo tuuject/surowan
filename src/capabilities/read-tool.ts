@@ -4,7 +4,8 @@ import type { InvocationContext } from '../platform/invocation-context.ts';
 import { SystemResourceError, type SystemResources } from '../platform/system-resources.ts';
 import type { BusinessStore } from '../store/store.ts';
 import { finishToolCall, startToolCall } from '../store/store.ts';
-import { MCP_SKILL_NOTICE, MCP_SKILL_URI_PREFIX, type McpSkillSource } from './mcp/skill-source.ts';
+import { MCP_SKILL_NOTICE, type McpSkillSource } from './mcp/skill-source.ts';
+import { MCP_SKILL_URI_PREFIX } from './mcp/skills.ts';
 
 const ReadInputSchema = Type.Object(
   {

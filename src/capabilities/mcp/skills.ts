@@ -29,6 +29,15 @@ const DISCOVERY_TIMEOUT_MS = 30_000;
 /** The same shape system resources use for one path segment. */
 export const SKILL_SEGMENT_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
 
+export const MCP_SKILL_URI_PREFIX = 'mcp-skill://';
+/** The reader's URI limit; discovery holds every file to it, so nothing verified is unreadable. */
+export const MCP_SKILL_URI_MAX_LENGTH = 512;
+
+/** The URI the model reads one skill file under. */
+export function mcpSkillUri(alias: string, skill: string, path = 'SKILL.md'): string {
+  return `${MCP_SKILL_URI_PREFIX}${alias}/${skill}/${path}`;
+}
+
 const SkillEntrySchema = z.looseObject({
   uri: z.string(),
   frontmatter: z.looseObject({ name: z.string(), description: z.string() }),
@@ -55,7 +64,11 @@ export function advertisesSkills(client: Client): boolean {
   return client.getServerCapabilities()?.extensions?.[SKILLS_EXTENSION] !== undefined;
 }
 
-export async function discoverSkills(client: Client, attemptSignal: AbortSignal): Promise<SkillsDiscovery> {
+export async function discoverSkills(
+  client: Client,
+  attemptSignal: AbortSignal,
+  alias: string,
+): Promise<SkillsDiscovery> {
   if (!advertisesSkills(client)) {
     return NONE;
   }
@@ -83,7 +96,7 @@ export async function discoverSkills(client: Client, attemptSignal: AbortSignal)
       continue;
     }
     try {
-      const skill = await verifySkill(client, entry, remainingBytes, signal);
+      const skill = await verifySkill(client, entry, alias, remainingBytes, signal);
       names.add(skill.name);
       remainingBytes -= skill.totalBytes;
       skills.push(skill);
@@ -134,6 +147,7 @@ async function listEntries(
 async function verifySkill(
   client: Client,
   entry: z.infer<typeof SkillEntrySchema>,
+  alias: string,
   remainingBytes: number,
   signal: AbortSignal,
 ): Promise<McpSkill> {
@@ -156,7 +170,11 @@ async function verifySkill(
       throw new SkillRejected('skill_manifest_invalid');
     }
     const path = resource.uri.slice(root.length);
-    if (!path.split('/').every((segment) => SKILL_SEGMENT_PATTERN.test(segment)) || paths.has(path)) {
+    if (
+      !path.split('/').every((segment) => SKILL_SEGMENT_PATTERN.test(segment)) ||
+      mcpSkillUri(alias, name, path).length > MCP_SKILL_URI_MAX_LENGTH ||
+      paths.has(path)
+    ) {
       throw new SkillRejected('skill_manifest_invalid');
     }
     paths.set(path, resource);
@@ -178,8 +196,11 @@ async function verifySkill(
   let totalBytes = 0;
   for (const [path, resource] of paths) {
     const read = await client.readResource({ uri: resource.uri }, { signal, timeout: REQUEST_TIMEOUT_MS });
-    const content = read.contents.find((item) => item.uri === resource.uri) ?? read.contents[0];
-    if (content === undefined || !('text' in content) || typeof content.text !== 'string') {
+    const content = read.contents.find((item) => item.uri === resource.uri);
+    if (content === undefined) {
+      throw new SkillRejected('skill_read_failed');
+    }
+    if (!('text' in content) || typeof content.text !== 'string') {
       // A blob is not a document the model can read.
       throw new SkillRejected('skill_not_text');
     }

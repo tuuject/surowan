@@ -4,8 +4,10 @@
  *
  * Ways this can fail, each pinned below:
  * - a tampered skill (wrong digest, wrong size, a blob, a file over the cap, a
- *   resource outside its root) reaches the model, or one bad skill takes its
- *   healthy neighbours down;
+ *   resource outside its root, content answered under another URI) reaches
+ *   the model, or one bad skill takes its healthy neighbours down;
+ * - a file whose model-facing URI is longer than `read` accepts passes
+ *   verification and then can never be read;
  * - skill trouble costs the connection its tools or its `ready` state (a
  *   missing resources capability, a failing skills/list);
  * - a server without the extension reports an error, or a duplicate name
@@ -137,6 +139,8 @@ test.each([
   ['big', 'skills_limit_exceeded'],
   ['blob', 'skill_not_text'],
   ['outside', 'skill_manifest_invalid'],
+  ['deep', 'skill_manifest_invalid'],
+  ['wronguri', 'skill_read_failed'],
 ])(
   'a skill that fails verification (%s) is dropped alone and the server stays ready with its tools',
   async (mode, code) => {
