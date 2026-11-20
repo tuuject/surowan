@@ -17,6 +17,7 @@ import type { McpServerConfig } from '../../platform/config/index.ts';
 import { versionUserAgent } from '../../platform/version.ts';
 import { mcpServerState } from '../../store/schema/index.ts';
 import type { McpState } from './shared.ts';
+import { discoverSkills, SKILLS_EXTENSION } from './skills.ts';
 import {
   advertisedTools,
   CompatibleTransport,
@@ -38,6 +39,8 @@ export function managedServer(config: McpServerConfig): ManagedServer {
     definitions: [],
     advertised: [],
     instructions: null,
+    skills: [],
+    skillsError: null,
     client: undefined,
     attempt: undefined,
     generation: 0,
@@ -71,6 +74,8 @@ export async function stopServer(state: McpState, server: ManagedServer): Promis
   server.definitions = [];
   server.advertised = [];
   server.instructions = null;
+  server.skills = [];
+  server.skillsError = null;
   const attempt = server.attempt;
   if (attempt !== undefined) {
     // An in-flight connect has no published client yet: cancel its handshake
@@ -116,10 +121,26 @@ export async function connect(
     if (oldClient !== undefined) {
       await oldClient.close().catch(() => undefined);
     }
+    // Every exit that does not publish this client closes it: a failed
+    // discovery or validation used to leave its stdio process or HTTP session
+    // running with nothing left that could find and close it.
+    let published = false;
+    // Skill discovery swallows request failures, so a transport that dies
+    // under it would otherwise be published as `ready`.
+    let transportClosed = false;
+    // Until publish, `server.client` is empty and a refresh would fail and
+    // mark a healthy server degraded; an early notice is replayed instead.
+    let toolsChangedEarly = false;
+    const refresh = (): void => {
+      void refreshTools(state, server, revalidate).catch(() => {
+        setState(state, server, 'degraded', 'registry_update_failed');
+        scheduleReconnect(state, server, revalidate);
+      });
+    };
     const client = new Client(
       { name: 'surowan', version: '0.1.0' },
       {
-        capabilities: {},
+        capabilities: { extensions: { [SKILLS_EXTENSION]: {} } },
         enforceStrictCapabilities: true,
         listChanged: {
           tools: {
@@ -129,10 +150,11 @@ export async function connect(
               if (state.stopping || generation !== server.generation) {
                 return;
               }
-              void refreshTools(state, server, revalidate).catch(() => {
-                setState(state, server, 'degraded', 'registry_update_failed');
-                scheduleReconnect(state, server, revalidate);
-              });
+              if (!published) {
+                toolsChangedEarly = true;
+                return;
+              }
+              refresh();
             },
           },
         },
@@ -144,6 +166,7 @@ export async function connect(
       if (state.stopping || generation !== server.generation) {
         return;
       }
+      transportClosed = true;
       server.client = undefined;
       const detail =
         server.config.transport === 'stdio' ? `transport_closed_stderr_${server.stderrBytes}` : 'transport_closed';
@@ -163,10 +186,6 @@ export async function connect(
       // else would ever reconnect this instance.
       scheduleReconnect(state, server, revalidate);
     };
-    // Every exit that does not publish this client closes it: a failed
-    // discovery or validation used to leave its stdio process or HTTP session
-    // running with nothing left that could find and close it.
-    let published = false;
     const attemptSignal = AbortSignal.any([AbortSignal.timeout(30_000), attempt.abort.signal]);
     try {
       await client.connect(transport, {
@@ -187,11 +206,26 @@ export async function connect(
       }
       const definitions = selectTools(server, listed.tools);
       assertBindingsSatisfied(state, server.config, definitions);
+      // Skills never decide whether the connection works: a failure leaves the
+      // tools published and only records a code for the panel.
+      const discovered = await discoverSkills(client, attempt.abort.signal, server.config.alias);
+      if (state.stopping || generation !== server.generation) {
+        return;
+      }
+      if (transportClosed) {
+        // `onclose` already reported the outage and armed the retry; failing
+        // here keeps the backoff growing instead of resetting it on publish.
+        throw new Error('MCP transport closed during skill discovery');
+      }
       // The advertised list survives the selection: the panel shows tools the
       // server's `tools` setting does not expose, marked as such.
       server.advertised = advertisedTools(listed.tools);
       server.instructions = client.getInstructions() ?? null;
       publishCandidate(server, definitions, revalidate);
+      // Only a candidate the registry accepted publishes its skills; a rejected
+      // one must not leave them on the panel of a server that never came up.
+      server.skills = discovered.skills;
+      server.skillsError = discovered.error;
       server.client = client;
       published = true;
     } finally {
@@ -206,6 +240,9 @@ export async function connect(
     setState(state, server, 'ready', null);
     if (!startup) {
       revalidate();
+    }
+    if (toolsChangedEarly) {
+      refresh();
     }
   } finally {
     if (server.attempt === attempt) {

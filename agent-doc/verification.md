@@ -176,6 +176,9 @@ pnpm test test/im test/intake test/schema/migrations-host-neutral-ids.test.ts te
 | `mcp.test.ts` | stdio/HTTP transport、策略、Header、重定向和审计、发现 Tool 失败时关闭 stdio 子进程、连接中 `stop()` 后保持 stopped 且关闭子进程 |
 | `mcp/progressive.test.ts` | progressive Server 离开注册表、只留一个 `mcp` 网关且 61 上限按它计一次；网关索引列出描述或退回 Tool 名；search/help/call 只在本 Chat 解析出的集合内（绑定收窄、直接暴露的 Tool 一律 `unknown_tool`）；call 先校验 Schema、外层 `mcp` 与内层 `<id>:<alias>__<tool>` 两行审计；工具图片按网关 call ID 加载；中文查询命中 Server 描述；只改 `exposure`/`description` 不重连、不影响任何 Chat；`execute` 拒绝 `mcp` |
 | `mcp/progressive-limits.test.ts` | 两个 progressive Server 拼出同一暴露名时后连上的落为 `degraded`；130 个长描述 Tool 的搜索分页每页都是 32 KiB 内可解析的 JSON 并经 `next_offset` 取全；完整暴露名与 `web.fetch` 式查询命中；被调 Tool 超时的 `outcome_unknown` 同步到外层 `mcp` 行 |
+| `mcp/skills.test.ts` | MCP Skills：发现与逐文件 digest/大小/文本校验（坏 Skill 单个丢弃、`skills_error` 短码、Server 仍 `ready` 且 Tool 照常）、无扩展不报错、重名保留第一个、URI 超长与 content URI 不符时丢弃、`read` 的 `mcp-skill://` 绝对/相对解析与越根拒绝、未绑定/无可达 Tool/`skills: false`/Playground/未就绪时索引缺席且 `resource_not_found`、`read` 审计行、切换 `skills` 不重连、索引上限与单行化、面板视图字段 |
+| `mcp/skills-race.test.ts` | Skill 发现期间的三种竞态：卡在 `resources/read` 时 `stop()`（attempt 的 abort 让它及时返回，过期 attempt 不发布 Skill、错误码、Tool 或 `ready`）；Server 在发现中退出（attempt 失败、从未持久化 `ready`、退避不被清零）；发现中收到 `tools/list_changed`（不报 degraded、不重连，发布后重列出新增的 Tool） |
+| `admin/mcp-servers-skills.test.ts` | `skills` 开关可单独 `PUT`、`true` 删除字段、非布尔 400、创建接受、视图与运行配置跟随 |
 | `admin/mcp-servers-presentation.test.ts` | `exposure`/`description` 可单独 `PUT` 且不动其它字段、空白描述即删除、`direct` 回落为缺省、超长 400、`mcp_description_missing` 常驻告警；描述起草只读被选中的 Tool、不写文件、审计 `model_calls`、无效回复 502、未连接 409、无付费权限的密钥 403 |
 | `skills/execute-search.test.ts` | `Intl.Segmenter` 分词（中文、日文、`_` 连接的名字）、去虚词与单个假名、评分规则；`execute.search` 用中文请求命中能力且英文排序不变 |
 | `web-fetch/address.test.ts` | 有界不可信文本结果与审计、公网 IPv4 放行与 IPv4 映射字面量拒绝、私网/合成地址拒绝（含跳转目标）、fake-ip 网段默认拒绝且需 `allow_proxy_synthetic_addresses` 开启、6to4/Teredo 过渡地址拒绝、`dangerously_allow_all_ip_addresses` 从配置到插件生效并放行私网/环回/跳转目标但仍拒绝非默认端口 |
@@ -336,7 +339,7 @@ pnpm run admin:test:e2e 08-models 16-model-health 18-tool-model 27-model-roles  
 pnpm run admin:test:e2e 17-dictionary 18-tool-model  # 辞典页与 Tool Model 回归
 pnpm run admin:test:e2e 20-playground  # Playground 房间 API 与页面回归
 pnpm run admin:test:e2e 22-search-settings  # 网络搜索设置页与保存流程
-pnpm run admin:test:e2e 37-mcp-servers  # 出站 MCP Server 页：增删改、绑定、渐进式暴露与工具模型起草描述（起草只填输入框，保存才落盘；产物：页面截图与 mcp 配置段）
+pnpm run admin:test:e2e 37-mcp-servers  # 出站 MCP Server 页：增删改、绑定、渐进式暴露、Skill 徽标/详情/开关与工具模型起草描述（起草只填输入框，保存才落盘；产物：页面截图与 mcp 配置段）
 pnpm run admin:test:e2e 32-recurring-alarms  # 循环闹钟：规则控件与 Cron 互转、预览、停用、立即执行与删除（产物：立即执行后的触发记录截图）
 pnpm run admin:test:e2e 30-dev-mock --workers=1  # 一键 mock 调试命令、Vite 代理认证与退出清理
 ```

@@ -11,6 +11,7 @@ import {
 import { and, eq, sql } from 'drizzle-orm';
 import { capability, createExecuteTool, type ExecutableCapability } from '../../capabilities/execute-tool.ts';
 import { createMemberProfileTool } from '../../capabilities/member-profile.ts';
+import { MCP_SKILL_INDEX_MAX_CHARACTERS } from '../../capabilities/mcp/skill-source.ts';
 import { createReadTool } from '../../capabilities/read-tool.ts';
 import { createSendTools } from '../../capabilities/send/index.ts';
 import { createTyping } from '../../capabilities/typing-tool.ts';
@@ -102,7 +103,18 @@ export function validateAdditionalTools(
   const memoPad = new MemoPadStore(services.store.orm);
   validateToolRegistry(
     [
-      createReadTool({ store: services.store, context, resources: services.systemResources }),
+      createReadTool({
+        store: services.store,
+        context,
+        resources: services.systemResources,
+        // The index is per Chat and per moment, so the fit check reserves its
+        // cap instead of whatever the servers publish right now — as non-ASCII
+        // text, which the estimator charges a token per character, so a CJK
+        // index cannot outgrow the reservation.
+        ...(services.mcpSkills === undefined
+          ? {}
+          : { mcpSkills: { index: '汉'.repeat(MCP_SKILL_INDEX_MAX_CHARACTERS), readText: unreadableMcpSkills } }),
+      }),
       memberProfileTool(services, host, context),
       ...createMemoReadTools({ store: services.store, memoPad, context }),
       // Counted unconditionally: the preview context has no Chat, but any
@@ -115,6 +127,10 @@ export function validateAdditionalTools(
     ],
     model.contextWindow,
   );
+}
+
+async function unreadableMcpSkills(): Promise<never> {
+  throw new Error('The fit check never reads a document');
 }
 
 /** Current definitions only; scene tests never receive these production executors. */
@@ -219,7 +235,12 @@ export function buildTools(
         );
   const memoPad = new MemoPadStore(services.store.orm);
   return [
-    createReadTool({ store: services.store, context: target, resources }),
+    createReadTool({
+      store: services.store,
+      context: target,
+      resources,
+      mcpSkills: services.mcpSkills?.(target, config),
+    }),
     memberProfileTool(services, host, target),
     ...createMemoReadTools({ store: services.store, memoPad, context: target }),
     ...createGroupMemoryReadTools({ store: services.store, configStore: services.configStore, context: target }),

@@ -12,6 +12,7 @@ import { type ReactElement, useId, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { SettingRow } from '@/components/business';
 import { HeaderFields } from '@/components/models/header-fields';
+import { SkillsSwitch } from '@/components/mcp-servers/skills-switch.tsx';
 import {
   createMcpServer,
   draftMcpServerDescription,
@@ -34,7 +35,14 @@ import { isConfigConflict } from '@/lib/model-manager';
 import { keychainQuery } from '@/lib/queries';
 import { toast } from '@/lib/toast.ts';
 import { useProviderWrite } from '@/lib/use-provider-write';
-import { connectionChanged, draftOf, serverPayload, type ServerDraft, type ServerDraftError } from './draft.ts';
+import {
+  connectionChanged,
+  draftOf,
+  presentationFields,
+  type ServerDraft,
+  type ServerDraftError,
+  serverPayload,
+} from './draft.ts';
 import { ToolPolicyRows } from './tool-policy-rows.tsx';
 
 const ALIAS_PATTERN = /^[A-Za-z][A-Za-z0-9_-]{0,63}$/;
@@ -259,10 +267,7 @@ function ServerForm({
         ...(createHeaders === undefined ? {} : { headers: createHeaders }),
       },
       update: presentationOnly
-        ? {
-            ...(payload.body.exposure === undefined ? {} : { exposure: payload.body.exposure }),
-            ...(payload.body.description === undefined ? {} : { description: payload.body.description }),
-          }
+        ? presentationFields(payload.body)
         : { ...payload.body, ...(updateHeaders === undefined ? {} : { headers: updateHeaders }) },
     });
   };
@@ -416,6 +421,7 @@ function ServerForm({
             },
           ]}
         />
+        <SkillsSwitch checked={draft.skills} onChange={(skills) => setDraft({ ...draft, skills })} />
         <div className={css({ display: 'flex', flexDirection: 'column', gap: '2' })}>
           <Field label={t('mcp.fieldDescription')} help={t('mcp.fieldDescriptionHint')}>
             <Textarea

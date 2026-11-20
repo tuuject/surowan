@@ -78,6 +78,29 @@ export interface AdvertisedMcpTool {
   readonly input_schema: Record<string, unknown> | null;
 }
 
+/**
+ * One verified skill a server published ("MCP with Skills"). Memory only: it is
+ * rediscovered on every connect, so there is nothing to migrate or invalidate.
+ * Every file passed its digest and size check; `files` maps the path inside the
+ * skill root to its UTF-8 text. Server data: untrusted, never an instruction.
+ */
+export interface McpSkill {
+  readonly name: string;
+  readonly description: string;
+  readonly files: ReadonlyMap<string, string>;
+  readonly totalBytes: number;
+}
+
+/** One skill as the Admin Panel lists it; never the file contents. */
+export interface McpSkillListing {
+  readonly name: string;
+  readonly description: string;
+  /** The `mcp-skill://` URI the model would read, whether or not it is exposed. */
+  readonly uri: string;
+  readonly file_count: number;
+  readonly total_bytes: number;
+}
+
 /** The per-alias advertised-tool listing the Admin Panel reads. */
 export interface McpServerToolListing {
   readonly alias: string;
@@ -87,6 +110,10 @@ export interface McpServerToolListing {
    * untrusted, never shown to the agent; only the description draft reads it.
    */
   readonly instructions: string | null;
+  /** Verified skills of the last successful connect, whatever the `skills` setting says. */
+  readonly skills: readonly McpSkillListing[];
+  /** Why skill discovery dropped something or failed entirely; `null` when it was clean. */
+  readonly skills_error: string | null;
 }
 
 /** The advertised view of one discovery result: every name, nothing filtered. */
@@ -106,6 +133,10 @@ export interface ManagedServer {
   advertised: readonly AdvertisedMcpTool[];
   /** The server's initialization `instructions` from the last successful connect. */
   instructions: string | null;
+  /** Verified skills from the last successful connect; discovery failure leaves it empty. */
+  skills: readonly McpSkill[];
+  /** A short code for the last skill discovery problem; never fails the connection. */
+  skillsError: string | null;
   client: Client | undefined;
   /** The connection attempt currently running, if any — never the published client. */
   attempt: PendingAttempt | undefined;

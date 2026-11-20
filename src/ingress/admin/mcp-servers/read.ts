@@ -9,8 +9,8 @@
  * this view and the panel renders them as plain text, never as markup.
  */
 import { basename } from 'node:path';
-import { mcpExposure } from '../../../capabilities/mcp/bindings.ts';
-import type { McpServerToolListing } from '../../../capabilities/mcp/support.ts';
+import { mcpExposure, mcpSkillsEnabled } from '../../../capabilities/mcp/bindings.ts';
+import type { McpServerToolListing, McpSkillListing } from '../../../capabilities/mcp/support.ts';
 import type { FileConfig, McpServerConfig, SecretRef } from '../../../platform/config/index.ts';
 import type { McpServerAvailability } from '../../../platform/warning-catalog.ts';
 import type { SecretSourceView } from '../secret-input.ts';
@@ -71,6 +71,12 @@ export interface McpServerView {
   readonly exposure: 'direct' | 'progressive';
   /** The operator-reviewed description the gateway shows the model; `null` when unset. */
   readonly description: string | null;
+  /** Whether the model may read this server's skills; the panel lists them either way. */
+  readonly skills_enabled: boolean;
+  /** Verified skills of the last connect; metadata only, never file contents. Untrusted server data. */
+  readonly skills: readonly McpSkillListing[];
+  /** Short code of the last skill discovery problem, if any. */
+  readonly skills_error: string | null;
   readonly state: McpServerStateView | null;
   readonly connection: McpConnectionView;
   readonly tools: '*' | readonly string[];
@@ -150,7 +156,7 @@ export function mcpServersView(
 ): McpServersView {
   const servers = file.mcp?.servers ?? [];
   const states = new Map((options.serverStates ?? []).map((state) => [state.alias, state]));
-  const listings = new Map((options.toolListings ?? []).map((listing) => [listing.alias, listing.tools]));
+  const listings = new Map((options.toolListings ?? []).map((listing) => [listing.alias, listing]));
   const chats = file.telegram?.chats ?? [];
   return {
     revision,
@@ -193,12 +199,16 @@ export function mcpServersView(
                 url: server.url,
                 headers: secretRows(server.headers, options.withSources),
               };
-      const advertised = listings.get(server.alias) ?? [];
+      const listing = listings.get(server.alias);
+      const advertised = listing?.tools ?? [];
       return {
         alias: server.alias,
         transport: server.transport,
         exposure: mcpExposure(server),
         description: server.description ?? null,
+        skills_enabled: mcpSkillsEnabled(server),
+        skills: listing?.skills ?? [],
+        skills_error: listing?.skills_error ?? null,
         state,
         connection,
         tools: server.tools,

@@ -30,6 +30,7 @@ export interface PreparedConfig {
 
 /** The real stdio MCP fixture the page lists as a connected server. */
 const MCP_STDIO_FIXTURE = join(import.meta.dirname, '..', '..', '..', 'test', 'fixtures', 'mcp-server.ts');
+const MCP_SKILLS_FIXTURE = join(import.meta.dirname, '..', '..', '..', 'test', 'fixtures', 'mcp-skills-server.ts');
 
 export async function prepareConfig(options: {
   readonly directory: string;
@@ -122,6 +123,16 @@ export async function prepareConfig(options: {
             payload_max_bytes: 32_768,
             result_max_bytes: 32_768,
             tool_policies: [{ name: 'echo', read_only: true, timeout_seconds: 20 }],
+          },
+          {
+            // Publishes two verified skills ("demo" and "second").
+            alias: 'skills-fixture',
+            transport: 'stdio',
+            command: [process.execPath, MCP_SKILLS_FIXTURE.replaceAll('\\', '/'), 'ok'],
+            tools: ['ping'],
+            payload_max_bytes: 32_768,
+            result_max_bytes: 32_768,
+            tool_policies: [{ name: 'ping', read_only: true, timeout_seconds: 20 }],
           },
           {
             alias: 'http-remote',

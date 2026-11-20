@@ -57,6 +57,8 @@ const StdioMcpSchema = Type.Object(
     default_tool_policy: Type.Optional(DefaultToolPolicySchema),
     exposure: Type.Optional(McpExposureSchema),
     description: Type.Optional(McpServerDescriptionSchema),
+    // Omitted means enabled: whether the model may read the skills this server publishes.
+    skills: Type.Optional(Type.Boolean()),
   },
   Strict,
 );
@@ -77,6 +79,8 @@ const HttpMcpSchema = Type.Object(
     default_tool_policy: Type.Optional(DefaultToolPolicySchema),
     exposure: Type.Optional(McpExposureSchema),
     description: Type.Optional(McpServerDescriptionSchema),
+    // Omitted means enabled: whether the model may read the skills this server publishes.
+    skills: Type.Optional(Type.Boolean()),
   },
   Strict,
 );

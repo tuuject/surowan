@@ -71,6 +71,7 @@ const CreateBodySchema = Type.Object(
     default_tool_policy: DefaultPolicyField,
     exposure: Type.Optional(McpExposureSchema),
     description: DescriptionField,
+    skills: Type.Optional(Type.Boolean()),
   },
   { additionalProperties: false },
 );
@@ -92,6 +93,7 @@ const EditBodySchema = Type.Object(
     default_tool_policy: DefaultPolicyField,
     exposure: Type.Optional(McpExposureSchema),
     description: DescriptionField,
+    skills: Type.Optional(Type.Boolean()),
   },
   { additionalProperties: false },
 );
@@ -154,19 +156,26 @@ function policyFields(
 }
 
 /**
- * `exposure` and `description` as the request states them: omitted keeps the
- * file's value, `direct` drops the field (it is the default), `null` or a
- * blank description removes it. Spread onto a base without either field.
+ * `exposure`, `description` and `skills` as the request states them: omitted
+ * keeps the file's value, `direct` and `skills: true` drop the field (they are
+ * the defaults), `null` or a blank description removes it. Spread onto a base
+ * without any of the three fields.
  */
 function presentationFields(
-  body: { readonly exposure?: 'direct' | 'progressive'; readonly description?: string | null },
+  body: {
+    readonly exposure?: 'direct' | 'progressive';
+    readonly description?: string | null;
+    readonly skills?: boolean;
+  },
   current: McpServerConfig | undefined,
 ) {
   const exposure = body.exposure === undefined ? current?.exposure : body.exposure;
   const description = body.description === undefined ? current?.description : (body.description?.trim() ?? undefined);
+  const skills = body.skills === undefined ? current?.skills : body.skills;
   return {
     ...(exposure === undefined || (body.exposure === 'direct' && exposure === 'direct') ? {} : { exposure }),
     ...(description === undefined || description.length === 0 ? {} : { description }),
+    ...(skills === undefined || (body.skills === true && skills) ? {} : { skills }),
   };
 }
 
@@ -175,6 +184,7 @@ function settingsChanged(current: McpServerConfig, next: McpServerConfig): boole
   return (
     next.exposure !== current.exposure ||
     next.description !== current.description ||
+    next.skills !== current.skills ||
     JSON.stringify(next.transport === 'stdio' ? undefined : next.url) !==
       JSON.stringify(current.transport === 'stdio' ? undefined : current.url) ||
     JSON.stringify(next.tools) !== JSON.stringify(current.tools) ||
@@ -205,7 +215,7 @@ export function createMcpServer(
   if (!createValidator.Check(body)) {
     throw new AdminQueryError(
       'invalid_body',
-      'Expected alias, url, optional headers, tools, payload_max_bytes, result_max_bytes, tool_policies, default_tool_policy, exposure and description',
+      'Expected alias, url, optional headers, tools, payload_max_bytes, result_max_bytes, tool_policies, default_tool_policy, exposure, description and skills',
     );
   }
   const servers = fileServers(file);
@@ -283,7 +293,7 @@ export function updateMcpServer(
   if (!editValidator.Check(body)) {
     throw new AdminQueryError(
       'invalid_body',
-      'Expected optional url, headers, tools, payload_max_bytes, result_max_bytes, tool_policies, default_tool_policy, exposure and description',
+      'Expected optional url, headers, tools, payload_max_bytes, result_max_bytes, tool_policies, default_tool_policy, exposure, description and skills',
     );
   }
   if (current.transport === 'stdio') {
@@ -297,6 +307,7 @@ export function updateMcpServer(
       default_tool_policy: _keptDefault,
       exposure: _keptExposure,
       description: _keptDescription,
+      skills: _keptSkills,
       ...base
     } = current;
     const server: McpServerConfig = {
@@ -355,6 +366,7 @@ export function updateMcpServer(
     default_tool_policy: _keptDefault,
     exposure: _keptExposure,
     description: _keptDescription,
+    skills: _keptSkills,
     ...base
   } = current;
   const server: McpServerConfig = {

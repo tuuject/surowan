@@ -27,6 +27,8 @@ import {
   stopServer,
 } from './connection.ts';
 import { reconcile } from './reconcile.ts';
+import { createMcpSkillSource, type McpSkillSource, visibleSkills } from './skill-source.ts';
+import { mcpSkillUri } from './skills.ts';
 import type { McpServerReconcileResult, McpState } from './shared.ts';
 import type { ManagedServer, McpServerToolListing, RegistryValidator } from './support.ts';
 import {
@@ -125,7 +127,26 @@ export class McpManager {
         input_schema: tool.input_schema,
       })),
       instructions: server.instructions,
+      skills: server.skills.map((skill) => ({
+        name: skill.name,
+        description: skill.description,
+        uri: mcpSkillUri(server.config.alias, skill.name),
+        file_count: skill.files.size,
+        total_bytes: skill.totalBytes,
+      })),
+      skills_error: server.skillsError,
     }));
+  }
+
+  /**
+   * The skills `read` may serve one invocation, resolved from the configuration
+   * it runs under exactly like its tools: a host without MCP, an unbound or
+   * degraded server, a server with no reachable tool and a server whose
+   * `skills` setting is off all contribute nothing. `undefined` means the
+   * `read` tool stays system-only.
+   */
+  createSkillSource(context: InvocationContext, config: RawConfig): McpSkillSource | undefined {
+    return createMcpSkillSource(visibleSkills(this.#state, config, context));
   }
 
   setRegistryValidator(validator: RegistryValidator): void {

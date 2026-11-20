@@ -82,6 +82,14 @@ export const mcp: Catalog<typeof mcpEn> = {
   exposureProgressive: 'Schrittweise',
   exposureProgressiveHint:
     'Die Werkzeuge bleiben aus der Liste; das Modell findet und ruft sie über das mcp-Werkzeug auf, geleitet von der Beschreibung unten.',
+  fieldSkills: 'Skills für das Modell',
+  skillsBadge: 'Skills: {{count}}',
+  skillsExposed: 'Für das Modell lesbar',
+  skillsHidden: 'Dem Modell nicht angeboten',
+  skillsTitle: 'Skills',
+  noSkills: 'Dieser Server veröffentlicht keine Skills.',
+  skillsError: 'Skill-Erkennung meldete:',
+  skillsFiles: 'Dateien: {{files}}, {{bytes}} Bytes',
   fieldDescription: 'Beschreibung',
   fieldDescriptionHint:
     'Daran entscheidet das Modell, ob dieser Server helfen kann. Wird bei schrittweiser Bereitstellung verwendet; bis zu 1000 Zeichen.',

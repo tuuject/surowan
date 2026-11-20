@@ -35,6 +35,7 @@ import type { LoadedPlugins } from '../../plugins/plugin.ts';
 import type {
   AgentRuntimeOptions,
   CapabilityToolFactory,
+  McpSkillSourceFactory,
   ToolFactory,
   ToolImageStore,
 } from '../../orchestration/agent-runtime/types.ts';
@@ -70,6 +71,8 @@ export interface HostTooling {
   readonly capabilityTools: CapabilityToolFactory;
   /** Tools exposed directly, today the allowlisted MCP set. */
   readonly additionalTools: ToolFactory;
+  /** The MCP skills `read` serves, resolved per invocation like the tools. */
+  readonly mcpSkills: McpSkillSourceFactory;
   /** Whether one skill is part of one conversation's index. */
   readonly skillVisible: (skill: SystemSkill, target: SkillVisibilityTarget) => boolean;
 }
@@ -155,7 +158,11 @@ export function createHostTooling(options: HostToolingOptions): HostTooling {
     mcp === undefined || !hostExecutionProfile(context.hostKind).mcp
       ? []
       : [...mcp.createTools(context, deadline, config)];
-  return { capabilityTools, additionalTools, skillVisible };
+  const mcpSkills: McpSkillSourceFactory = (context, config) =>
+    mcp === undefined || !hostExecutionProfile(context.hostKind).mcp
+      ? undefined
+      : mcp.createSkillSource(context, config);
+  return { capabilityTools, additionalTools, mcpSkills, skillVisible };
 }
 
 /**

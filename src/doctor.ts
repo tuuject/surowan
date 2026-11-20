@@ -236,6 +236,7 @@ async function runDoctorChecks(
       additionalTools: (context, deadline, _capabilities, config) => [
         ...manager.createTools(context, deadline, config),
       ],
+      mcpSkills: (context, config) => manager.createSkillSource(context, config),
     });
     // The base registry (no MCP tools) must fit every configured model, even
     // ones no Telegram Chat uses: Playground work runs on those too. Each host
