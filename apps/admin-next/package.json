@@ -9,7 +9,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "check": "tsc --noEmit",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright install --only-shell chromium && playwright test"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",

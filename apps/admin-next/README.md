@@ -65,9 +65,10 @@ Koi 组件与 token 使用 `@tuuject/koi-react` / `@tuuject/koi-tokens` 0.5.0（
 
 ```bash
 pnpm run admin:build                       # 前置：E2E 驱动已构建的 dist
-pnpm --filter surowan-admin-next exec playwright install chromium  # 首次运行前安装 Chromium
 pnpm run admin:test:e2e                    # 或在本目录 pnpm --filter surowan-admin-next run test:e2e
 ```
+
+`test:e2e` 会先跑 `playwright install --only-shell chromium`：升级 `@playwright/test` 后缺的浏览器自动补齐，已装时是空操作。
 
 Playwright 套件位于 `e2e/**/*.e2e.ts`（文件名不以 `.test.ts` 结尾，vitest
 不会发现它们）。每个 spec 文件由 `e2e/helpers.ts` 派生自己的 Node 子进程
