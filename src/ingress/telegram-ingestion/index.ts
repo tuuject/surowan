@@ -6,6 +6,7 @@
  * transaction, exactly as the storage and bucket append always were.
  */
 import type { Update } from 'grammy/types';
+import { botCommandEntry } from '../../orchestration/bot-commands/catalog.ts';
 import type { ParsedCommand } from '../../orchestration/bot-commands/index.ts';
 import { isAsk } from '../../platform/telegram-markdown/cues.ts';
 import { conversationThreadId, parseBotCommand } from './commands.ts';
@@ -145,12 +146,10 @@ export class TelegramIngestion {
       hostChatId: chatId,
     });
     const ignoredUserIds = chatConfig?.ignored_user_ids ?? [];
-    const selfIgnoreCommand = handledCommand?.name === 'ignoreme' || handledCommand?.name === 'unignoreme';
-    if (
-      isIgnoredUser(message, ignoredUserIds) &&
-      !selfIgnoreCommand &&
-      (edited || !isAsk(message, this.#botUsername))
-    ) {
+    // The catalog decides which commands survive the ignore filter; `/ask` is
+    // not a control command and keeps its own live-message rule below.
+    const passthrough = handledCommand !== null && botCommandEntry(handledCommand.name).ignoredPassthrough;
+    if (isIgnoredUser(message, ignoredUserIds) && !passthrough && (edited || !isAsk(message, this.#botUsername))) {
       return {};
     }
     const internalChatId = upsertChat(this.#chatDeps, chat, chatId, receivedAt);

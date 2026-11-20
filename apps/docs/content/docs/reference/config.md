@@ -37,7 +37,7 @@ description: 按配置节理解 Surowan 的必填项、覆盖关系与运行风�
 
 Conversation、短期记忆和注意力窗口按 Chat + Topic 隔离；预算硬限制不是每群配额：主 Agent 日 Token 限制全局共享，Vision 有另一组全局限制。
 
-`telegram.chats[].ignored_user_ids` 是当前 Chat 的忽略名单，包含唯一的正安全整数 User ID，支持热应用。成员可用 [`/ignoreme`、`/unignoreme`](../configure/telegram.md#自助忽略与恢复) 自行加入或取消，覆盖该 Chat 的全部 Topic；已有消息和 Context 不会追溯删除。
+`telegram.chats[].ignored_user_ids` 是当前 Chat 的忽略名单，包含唯一的正安全整数 User ID，支持热应用。成员可用 [`/ignoreme`、`/unignoreme`](../configure/telegram.md#自助忽略与恢复) 自行加入或取消，覆盖该 Chat 的全部 Topic；被忽略期间，实时新消息中的 `/ask`、[`/help`](../configure/telegram.md#查看可用命令)、`/ignoreme`、`/unignoreme` 仍可达，其余命令与普通消息被丢弃；已有消息和 Context 不会追溯删除。
 
 ## SecretRef 与安全
 
