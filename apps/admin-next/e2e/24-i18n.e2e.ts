@@ -33,8 +33,8 @@ const EN_GROUPS: readonly NavGroup[] = [
   },
   {
     label: 'Agent setup',
-    routes: ['/models', '/providers', '/prompts', '/harness', '/mcp-servers', '/search-settings'],
-    labels: ['Models', 'Providers', 'Prompts', 'Harness tuning', 'MCP servers', 'Web search'],
+    routes: ['/models', '/providers', '/prompts', '/harness', '/decision-gate', '/mcp-servers', '/search-settings'],
+    labels: ['Models', 'Providers', 'Prompts', 'Harness tuning', 'Entry gate', 'MCP servers', 'Web search'],
   },
   {
     label: 'Telegram',
@@ -70,6 +70,7 @@ const ZH_LABELS = [
   '供应商',
   '提示词',
   '运行参数',
+  '入场闸门',
   'MCP 服务器',
   '网络搜索',
   'Telegram',
@@ -127,7 +128,7 @@ test('seven parent groups collapse, expand, preserve order and open the current 
   });
   await expect(parents).toHaveCount(7);
   await expect(parents).toHaveText(EN_GROUPS.map((group) => group.label));
-  expect(EN_GROUPS.flatMap((group) => group.routes)).toHaveLength(31);
+  expect(EN_GROUPS.flatMap((group) => group.routes)).toHaveLength(32);
   await expect(nav.getByRole('button', { name: 'Agent data', exact: true }).locator('svg').first()).toBeVisible();
 
   const current = nav.getByRole('button', { name: 'Agent data', exact: true });
@@ -148,7 +149,7 @@ test('seven parent groups collapse, expand, preserve order and open the current 
     await expect(trigger).toHaveAttribute('aria-expanded', 'true');
     await expectGroupRoutes(page, group);
   }
-  await expect(nav.getByRole('link')).toHaveCount(31);
+  await expect(nav.getByRole('link')).toHaveCount(32);
 });
 
 test('language switch re-labels parents and children immediately and persists', async ({ page }) => {

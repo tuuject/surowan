@@ -15,6 +15,7 @@ import { Route as AlarmsRouteImport } from './routes/alarms'
 import { Route as ApiKeysRouteImport } from './routes/api-keys'
 import { Route as ChatsRouteImport } from './routes/chats'
 import { Route as ContextsRouteImport } from './routes/contexts'
+import { Route as DecisionGateRouteImport } from './routes/decision-gate'
 import { Route as DeveloperRouteImport } from './routes/developer'
 import { Route as DictionaryRouteImport } from './routes/dictionary'
 import { Route as GroupMemoriesRouteImport } from './routes/group-memories'
@@ -73,6 +74,11 @@ const ChatsRoute = ChatsRouteImport.update({
 const ContextsRoute = ContextsRouteImport.update({
   id: '/contexts',
   path: '/contexts',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DecisionGateRoute = DecisionGateRouteImport.update({
+  id: '/decision-gate',
+  path: '/decision-gate',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DeveloperRoute = DeveloperRouteImport.update({
@@ -229,6 +235,7 @@ export interface FileRoutesByFullPath {
   '/api-keys': typeof ApiKeysRoute
   '/chats': typeof ChatsRoute
   '/contexts': typeof ContextsRoute
+  '/decision-gate': typeof DecisionGateRoute
   '/developer': typeof DeveloperRoute
   '/dictionary': typeof DictionaryRoute
   '/group-memories': typeof GroupMemoriesRoute
@@ -266,6 +273,7 @@ export interface FileRoutesByTo {
   '/api-keys': typeof ApiKeysRoute
   '/chats': typeof ChatsRoute
   '/contexts': typeof ContextsRoute
+  '/decision-gate': typeof DecisionGateRoute
   '/developer': typeof DeveloperRoute
   '/dictionary': typeof DictionaryRoute
   '/group-memories': typeof GroupMemoriesRoute
@@ -304,6 +312,7 @@ export interface FileRoutesById {
   '/api-keys': typeof ApiKeysRoute
   '/chats': typeof ChatsRoute
   '/contexts': typeof ContextsRoute
+  '/decision-gate': typeof DecisionGateRoute
   '/developer': typeof DeveloperRoute
   '/dictionary': typeof DictionaryRoute
   '/group-memories': typeof GroupMemoriesRoute
@@ -343,6 +352,7 @@ export interface FileRouteTypes {
     | '/api-keys'
     | '/chats'
     | '/contexts'
+    | '/decision-gate'
     | '/developer'
     | '/dictionary'
     | '/group-memories'
@@ -380,6 +390,7 @@ export interface FileRouteTypes {
     | '/api-keys'
     | '/chats'
     | '/contexts'
+    | '/decision-gate'
     | '/developer'
     | '/dictionary'
     | '/group-memories'
@@ -417,6 +428,7 @@ export interface FileRouteTypes {
     | '/api-keys'
     | '/chats'
     | '/contexts'
+    | '/decision-gate'
     | '/developer'
     | '/dictionary'
     | '/group-memories'
@@ -455,6 +467,7 @@ export interface RootRouteChildren {
   ApiKeysRoute: typeof ApiKeysRoute
   ChatsRoute: typeof ChatsRoute
   ContextsRoute: typeof ContextsRoute
+  DecisionGateRoute: typeof DecisionGateRoute
   DeveloperRoute: typeof DeveloperRoute
   DictionaryRoute: typeof DictionaryRoute
   GroupMemoriesRoute: typeof GroupMemoriesRoute
@@ -528,6 +541,13 @@ declare module '@tanstack/react-router' {
       path: '/contexts'
       fullPath: '/contexts'
       preLoaderRoute: typeof ContextsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/decision-gate': {
+      id: '/decision-gate'
+      path: '/decision-gate'
+      fullPath: '/decision-gate'
+      preLoaderRoute: typeof DecisionGateRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/developer': {
@@ -743,6 +763,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiKeysRoute: ApiKeysRoute,
   ChatsRoute: ChatsRoute,
   ContextsRoute: ContextsRoute,
+  DecisionGateRoute: DecisionGateRoute,
   DeveloperRoute: DeveloperRoute,
   DictionaryRoute: DictionaryRoute,
   GroupMemoriesRoute: GroupMemoriesRoute,

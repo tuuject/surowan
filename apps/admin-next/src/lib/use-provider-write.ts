@@ -5,6 +5,7 @@ import { applyFeedback } from './model-manager.ts';
 import {
   chatsQuery,
   configStatusQuery,
+  decisionGateQuery,
   developerQuery,
   harnessQuery,
   mcpServersQuery,
@@ -34,6 +35,7 @@ export function useProviderWrite(): ProviderWriteFeedback {
     void queryClient.invalidateQueries({ queryKey: harnessQuery.queryKey });
     void queryClient.invalidateQueries({ queryKey: telegramQuery.queryKey });
     void queryClient.invalidateQueries({ queryKey: mcpServersQuery.queryKey });
+    void queryClient.invalidateQueries({ queryKey: decisionGateQuery.queryKey });
   };
   return {
     refresh,

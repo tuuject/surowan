@@ -266,6 +266,15 @@ test.describe('routes and deep links', () => {
     await expect(page.getByRole('button', { name: 'Clear payloads', exact: true })).toBeVisible();
   });
 
+  test('/decision-gate renders the entry gate form with its defaults', async ({ page }) => {
+    await page.goto(await adminUrl('/decision-gate'));
+    await expect(page.getByRole('heading', { name: 'Entry gate', level: 1 })).toBeVisible();
+    await expect(page.getByLabel('Threshold', { exact: true })).toHaveValue('0.57');
+    await expect(page.getByLabel('Address', { exact: true })).toHaveValue('https://openrouter.ai/api/alpha');
+    await expect(page.getByRole('button', { name: 'Save and apply' })).toBeDisabled();
+    await expect(page.locator('[data-route-error]')).toHaveCount(0);
+  });
+
   test('/harness renders the grouped agent settings', async ({ page }) => {
     await page.goto(await adminUrl('/harness'));
     for (const title of ['Budget and concurrency', 'Send behavior', 'Rate limits', 'Context']) {

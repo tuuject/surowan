@@ -334,7 +334,7 @@ Playground 是产品的虚拟群聊沙盒：房间对应一个 `host_kind = 'pla
 - `revision` 是读取视图时磁盘 `config.jsonc` 原始字节的 SHA-256；`supervised` 与 `restart_required` 沿用 Models 页的含义。
 - `defaults` 是文件里的全局 agent 设置。`models` 只列文件中有 text 输入能力的模型，包含 `provider`、`model`、`name` 与按强度从低到高排列的 `thinking_levels`。
 - `items` 是文件与运行态 Chat ID 的并集。每项有字符串 `id`（配置 ID）、`runtime_chat_id`（迁移后的 ID）、`title`、`type`、`saved` 与 `active`。名称/类型来自已有 SQLite 数据，未知时为 `null`；不会向 Telegram 探测。编辑始终按配置 ID 定位，不擅自把旧群 ID 替换成迁移后的 ID。
-- `saved` / `active` 分别按文件与运行配置解析，含 `topic_ids`、`provider`、`model`、`thinking_level`、`participation`（该 Chat 的参与策略节，未配置为 `null`）、`group_memory`（该 Chat 的群聊记忆开关、idle 分钟数与 `thirty_hour_clock`，未配置为 `null`）、`proactive_reply`（该 Chat 的主动回复覆盖，未配置为 `null`）、`effective_proactive_reply`（与全局合并后的生效值）、`timezone`（该 Chat 的时区覆盖，未配置为 `null`）与解析继承后的 `effective`。视图顶层另有 `timezone`（全局默认时区）、`global_participation`（全局参与策略节，未配置为 `null`）、`global_proactive_reply`（全局主动回复节，未配置为 `null`）与 `effective_global_proactive_reply`（补默认值后的全局生效值），供面板推算继承行为与时区显示。某侧不存在该 Chat 时整个值为 `null`，因此可区分待新增、待删除与设置不一致；不会回传 instructions 正文或凭据。
+- `saved` / `active` 分别按文件与运行配置解析，含 `topic_ids`、`provider`、`model`、`thinking_level`、`participation`（该 Chat 的参与策略节，未配置为 `null`）、`group_memory`（该 Chat 的群聊记忆开关、idle 分钟数与 `thirty_hour_clock`，未配置为 `null`）、`proactive_reply`（该 Chat 的主动回复覆盖，未配置为 `null`）、`effective_proactive_reply`（与全局合并后的生效值）、`decision_gate`（该 Chat 的入场闸门覆盖，未配置为 `null`，只含实际写入的六个行为字段）、`timezone`（该 Chat 的时区覆盖，未配置为 `null`）与解析继承后的 `effective`。视图顶层另有 `timezone`（全局默认时区）、`global_participation`（全局参与策略节，未配置为 `null`）、`global_proactive_reply`（全局主动回复节，未配置为 `null`）与 `effective_global_proactive_reply`（补默认值后的全局生效值），供面板推算继承行为与时区显示。某侧不存在该 Chat 时整个值为 `null`，因此可区分待新增、待删除与设置不一致；不会回传 instructions 正文或凭据。
 
 | 端点 | Body / 语义 |
 | --- | --- |
@@ -492,6 +492,16 @@ Manage → Harness tuning 编辑 `agent` 段里除 `provider`/`model`/`thinking_
 `PUT /harness` 接受严格的 `{ values: { <key>: value } }`，至少一项；未知键返回 400 `invalid_body`，类型或单字段范围不符返回 400 `invalid_harness_value`，`null` 只允许用于可选字段并表示从文件删除该字段。必须带 revision 的 `If-Match`，不符返回 409 `config_conflict`。端点只把值与文件不同的字段写成编辑（可选字段缺省时，等于缺省值的写入也跳过，保持文件干净；字符串列表按内容逐项比较）；值只有数字、布尔、枚举字符串、`null` 与字符串列表五种，枚举在页面上是下拉框，字符串列表在页面上是「一行一条」的文本框，前端逐行去首尾空白、丢弃空行，全空时本地报错而不是写 `null`。没有任何编辑时不写文件，返回当前视图与空的 `apply`。跨字段规则（`retained_sends_target < retained_sends_max`、`hard_token_ratio <= context_stop_ratio`、`idle_grace_seconds` 与 Bucket 窗口、`max_wall_clock_seconds > idle_grace_seconds`）由整文件 `loadConfig` 校验，失败时 422 `config_invalid` 且文件不变。写入与热应用经 `ConfigReloader.writeAndApply`，失败后文件/运行态分离等契约与其它配置端点一致；成功返回更新后的视图与 `apply`。
 
 页面把字段分为预算与并发、发送行为、限流、上下文、主动回复五组，旁边是分区导航（`components/section-navigation/`）：表单容器宽于 720px 时为吸顶侧栏，随滚动高亮当前分组（只有滚到容器底部才让较短的末组成为当前项），点击跳转并聚焦组标题；更窄时改为吸顶下拉框，不移动焦点；各项按 `parseDraft` 结果标出待修正与未保存。草稿在本地按同一边界预校验，「Save and apply」一次提交全部改动；文件值与运行值不同时在字段下显示运行值。保存 mutation 挂在表单之上：写入成功但应用失败会改变 revision 并重建表单，错误提示仍需保留。
+
+## Decision gate 页
+
+`/decision-gate` 是入场闸门全局段 `telegram.decision_gate` 的设置页，导航在 Agent setup 分组、Harness tuning 之后，标题「入场闸门」。页面分「行为」（开关、模式、阈值、历史条数、批内条数、提问文本）与「连接」（模型、地址、密钥、超时）两块；`GET` / `PUT` 的契约、字段范围与密钥规则见 [API](#api) 中的 `/decision-gate` 行。
+
+- 视图用 `GET /decision-gate` 的 `saved` 起步，缺省字段由后端补成实际生效值；`saved` 与 `active` 不同的字段（含总开关）在下方以 `Running: …` 标出运行值。保存是逐字段补丁：只发送与 `saved` 不同的字段，提问清空时发送 `null`（删除自定义文本、回到内置提问），其余字段不会写 `null`。未改动的原始草稿不算改动（服务端保留首尾空白），无效字段留在草稿里算未保存改动但不算补丁，因此 Discard 始终能撤销它。
+- 密钥用共享的 `SecretField`：可以粘贴新值（自动命名为 `decision-gate`，重名加后缀）或选用已有 keychain 条目；`key_source` 指向条目时在字段下显示条目名，`env`/`command` 由同一组件的只读外部态显示。页面与响应从不持有密钥值，提交的明文在服务端先登记脱敏；保存带了明文时刷新 keychain 列表。明文只经页面 ref 交给 `mutationFn`，成功或失败后都不进入 mutation variables。
+- 保存 mutation 挂在页面层，表单以「revision + 保存代数」为 key：轮换只被这一处使用的条目或空写不会改变文件 revision，仍要重挂载以清掉已提交的明文；apply 失败会移动 revision，而错误仍显示在表单上方。冲突（409 `config_conflict`）显示「配置已在别处被修改」与 Reload，并保留当前草稿与旧 revision——不自动刷新，只有 Reload 才清掉 mutation 错误并重读；没有可提交的改动时保存按钮禁用。
+- Chats 页的群行有「入场闸门」列，只按该 Chat 的覆盖显示：未覆盖为「跟随全局设置」，`enabled: false` 为「关闭」，`enabled: true` 且该 Chat 自己写了模式时显示「开启（只记录）」/「开启（拦截）」，只写 `enabled: true` 时只显示「开启」（继承的模式不替它命名），只覆盖其它字段为「自定义设置」；私聊不显示这一列的内容，也没有对应菜单项。
+- Chats 行的 More actions →「编辑入场闸门」打开覆盖对话框，仿 `proactive-reply-dialog`：六个行为字段各有「单独设置」开关，关闭时控件禁用并显示全局值（取自 `GET /decision-gate` 的 `saved`），开启时编辑并保存该字段的值；草稿保留该 Chat 自己的值（或打开时的继承值），重新勾选会把它们带回来。保存只发相对打开时覆盖的差异：未改动字段省略，取消已有覆盖发 `null`，数值按解析后比较（`0.570` 等于 `0.57`），没有差异时直接关闭对话框、不发请求。全局没有密钥时启用该 Chat 的闸门由服务端拒绝并内联显示，409 关闭对话框并提示重新打开。
 
 ## Inspection 只读视图
 

@@ -90,6 +90,7 @@ export const layout: typeof layoutEn = {
     chats: '会话',
     prompts: '提示词',
     harness: '运行参数',
+    decisionGate: '入场闸门',
     developer: '开发者',
     settings: '设置',
     preferences: '面板偏好',

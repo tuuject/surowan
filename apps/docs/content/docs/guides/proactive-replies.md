@@ -91,4 +91,4 @@ n >= hard_pity ? 100% : min(100%, base_probability + (n - 1) × increment)
 4. 未命中时在 Tool sessions / Messages 中会看到 Bucket 结束于 `proactive_reply_skipped`，且没有新 Invocation。
 5. 连续发送普通消息，确认计数递增，并在到达 `hard_pity` 时出现 Invocation。
 
-相关页面：[设置活跃时段与触发条件](participation.md)、[Telegram 配置](../configure/telegram.md)、[字段参考](../reference/fields.md)。
+相关页面：[设置活跃时段与触发条件](participation.md)、[用入场闸门减少插话](entry-gate.md)、[Telegram 配置](../configure/telegram.md)、[字段参考](../reference/fields.md)。

@@ -61,6 +61,7 @@ export const ROUTES = [
   { path: '/providers', slug: 'providers' },
   { path: '/prompts', slug: 'prompts' },
   { path: '/harness', slug: 'harness' },
+  { path: '/decision-gate', slug: 'decision-gate' },
   { path: '/mcp-servers', slug: 'mcp-servers' },
   { path: '/search-settings', slug: 'search-settings' },
   { path: '/telegram', slug: 'telegram' },

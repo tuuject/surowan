@@ -151,4 +151,17 @@ export const chats: Catalog<typeof chatsEn> = {
   proactiveOffSummary: 'Aus',
   proactiveInheritSummary: 'Folgt global ({{summary}})',
   proactiveSummary: '{{base}} % zuerst, +{{increment}} % pro Fehlversuch, garantiert bei Versuch {{pity}}',
+  colDecisionGate: 'Eingangsfilter',
+  editDecisionGate: 'Eingangsfilter bearbeiten',
+  decisionGateTitle: 'Eingangsfilter',
+  decisionGateInheritSummary: 'Folgt der globalen Einstellung',
+  decisionGateOffSummary: 'Aus',
+  decisionGateShadowSummary: 'An (nur aufzeichnen)',
+  decisionGateOnSummary: 'An',
+  decisionGateEnforceSummary: 'An (durchsetzen)',
+  decisionGateCustomSummary: 'Eigene Einstellungen',
+  decisionGateOverrideField: '{{field}} für diesen Chat setzen',
+  decisionGateInheritedUnavailable: 'Die globalen Einstellungen des Eingangsfilters sind nicht verfügbar',
+  decisionGateInvalid:
+    'Eine Schwelle von 0 bis 1, 0–50 Verlaufsnachrichten, 1–50 neue Nachrichten und eine Frage eingeben.',
 };

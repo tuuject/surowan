@@ -17,6 +17,7 @@ import {
 } from '@/components/business';
 import { ChatDialog } from '@/components/chats/chat-dialog';
 import { ChatTable } from '@/components/chats/chat-table';
+import { DecisionGateDialog } from '@/components/chats/decision-gate-dialog';
 import { GroupMemoryDialog } from '@/components/chats/group-memory-dialog';
 import { McpBindingDialog } from '@/components/chats/mcp-binding-dialog';
 import { ParticipationDialog } from '@/components/chats/participation-dialog';
@@ -62,6 +63,12 @@ export default function ChatsPage(): ReactElement {
     readonly nonce: number;
   } | null>(null);
   const [proactiveOpen, setProactiveOpen] = useState(false);
+  const [decisionGate, setDecisionGate] = useState<{
+    readonly view: ChatsView;
+    readonly chat: ChatEntry;
+    readonly nonce: number;
+  } | null>(null);
+  const [decisionGateOpen, setDecisionGateOpen] = useState(false);
   const [groupMemory, setGroupMemory] = useState<{
     readonly view: ChatsView;
     readonly chat: ChatEntry;
@@ -186,6 +193,10 @@ export default function ChatsPage(): ReactElement {
             setProactive((previous) => ({ view, chat, nonce: (previous?.nonce ?? 0) + 1 }));
             setProactiveOpen(true);
           }}
+          onDecisionGate={(chat) => {
+            setDecisionGate((previous) => ({ view, chat, nonce: (previous?.nonce ?? 0) + 1 }));
+            setDecisionGateOpen(true);
+          }}
           onGroupMemory={(chat) => {
             setGroupMemory((previous) => ({ view, chat, nonce: (previous?.nonce ?? 0) + 1 }));
             setGroupMemoryOpen(true);
@@ -227,6 +238,13 @@ export default function ChatsPage(): ReactElement {
         view={proactive?.view ?? view}
         chat={proactive?.chat ?? null}
         formKey={proactive?.nonce ?? 0}
+      />
+      <DecisionGateDialog
+        open={decisionGateOpen}
+        onOpenChange={setDecisionGateOpen}
+        view={decisionGate?.view ?? view}
+        chat={decisionGate?.chat ?? null}
+        formKey={decisionGate?.nonce ?? 0}
       />
       <GroupMemoryDialog
         open={groupMemoryOpen}
