@@ -5,6 +5,7 @@ import {
   index,
   integer,
   primaryKey,
+  real,
   sqliteTable,
   text,
   uniqueIndex,
@@ -63,6 +64,52 @@ export const bucketMessages = sqliteTable(
     primaryKey({ columns: [t.bucketId, t.messageId] }),
     uniqueIndex('bucket_messages_bucket_sequence_unique').on(t.bucketId, t.sequenceNo),
     index('bucket_messages_message_idx').on(t.messageId),
+  ],
+);
+
+/**
+ * Audit of the Decisions entry gate, one row per request. `state` follows the
+ * two-phase flow: `pending` is written inside the due batch's transaction and
+ * the result lands in a second one, so a process that dies mid-request leaves
+ * a row for the next start to mark as `error`. `outcome` and `applied` are
+ * separate because a verdict can be reached and still be discarded as `stale`.
+ */
+export const bucketDecisions = sqliteTable(
+  'bucket_decisions',
+  {
+    id: sqliteBigIntId('id').primaryKey(),
+    bucketId: sqliteBigInt('bucket_id')
+      .notNull()
+      .references(() => buckets.id, { onDelete: 'cascade' }),
+    conversationId: sqliteBigInt('conversation_id')
+      .notNull()
+      .references(() => conversations.id, { onDelete: 'cascade' }),
+    mode: text('mode').notNull(),
+    model: text('model').notNull(),
+    state: text('state').notNull(),
+    outcome: text('outcome'),
+    applied: integer('applied', { mode: 'boolean' }).notNull().default(false),
+    probability: real('probability'),
+    threshold: real('threshold').notNull(),
+    historyCount: sqliteBigInt('history_count').notNull().default(0n),
+    pendingCount: sqliteBigInt('pending_count').notNull().default(0n),
+    inputTokens: sqliteBigInt('input_tokens'),
+    cost: real('cost'),
+    durationMs: sqliteBigInt('duration_ms'),
+    errorCode: text('error_code'),
+    errorDetail: text('error_detail'),
+    createdAt: text('created_at').notNull(),
+    finishedAt: text('finished_at'),
+  },
+  (t) => [
+    check('bucket_decisions_mode_check', sql`mode IN ('shadow', 'enforce')`),
+    check('bucket_decisions_state_check', sql`state IN ('pending', 'success', 'error', 'stale')`),
+    check('bucket_decisions_outcome_check', sql`outcome IN ('enter', 'drop')`),
+    check('bucket_decisions_applied_check', sql`applied IN (0, 1)`),
+    check('bucket_decisions_history_count_check', sql`history_count >= 0`),
+    check('bucket_decisions_pending_count_check', sql`pending_count >= 0`),
+    index('bucket_decisions_conversation_time_idx').on(t.conversationId, t.createdAt, t.id),
+    index('bucket_decisions_bucket_idx').on(t.bucketId),
   ],
 );
 

@@ -26,6 +26,7 @@ import {
 import { HOST_KINDS } from '../im-host/identity.ts';
 import { supportedThinkingLevels } from '../thinking-levels.ts';
 import { validateWebSearchSection, type SearchProviderRule } from '../web-search.ts';
+import { validateDecisionGate, validateDecisionGateChat } from './semantics-decision-gate.ts';
 
 /**
  * Cross-field rules the schema cannot express: provider aliases and model
@@ -93,6 +94,7 @@ export function validateSemantics(config: FileConfig, options: ValidateSemantics
   const telegram = resolveTelegramSection(config.telegram);
   validateTimezone(config.timezone, 'timezone');
   validateParticipation(telegram.participation, 'telegram.participation');
+  validateDecisionGate(telegram);
   // The ceiling is counted from the batch's first message, so one below the
   // window would contradict it instead of capping anything.
   const bucketTiming = resolveBucketTiming({ telegram }, 'telegram');
@@ -119,6 +121,7 @@ export function validateSemantics(config: FileConfig, options: ValidateSemantics
     if (chat.proactive_reply !== undefined && chat.id > 0) {
       throw new Error(`Chat ${chat.id} is a private chat and cannot configure proactive_reply`);
     }
+    validateDecisionGateChat(chat);
     if (chat.timezone !== undefined) {
       validateTimezone(chat.timezone, `chat ${chat.id} timezone`);
     }

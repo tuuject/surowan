@@ -55,6 +55,88 @@ export const ProactiveReplySchema = Type.Object(
   Strict,
 );
 
+/**
+ * The Decisions entry gate: before a batch reaches the main model, a small
+ * decision model is asked one yes/no question, and a rejected batch is closed
+ * without starting an invocation. The six behavior fields live on both levels
+ * and inherit field by field; the connection fields below them are global only,
+ * because one credential and endpoint serve every Chat.
+ */
+const DecisionGateBehaviorFields = {
+  enabled: Type.Optional(
+    Type.Boolean({
+      description: 'Ask the decision model before the batch reaches the main model; off by default.',
+    }),
+  ),
+  mode: Type.Optional(
+    Type.Union([Type.Literal('shadow'), Type.Literal('enforce')], {
+      description:
+        'shadow records the decision without changing scheduling; enforce withholds a rejected batch from the main model.',
+    }),
+  ),
+  threshold: Type.Optional(
+    Type.Number({
+      minimum: 0,
+      maximum: 1,
+      description:
+        'The probability at or above which the batch is handed to the main model. Tied to model and instructions: changing either invalidates the default, which is 0.57.',
+    }),
+  ),
+  history_messages: Type.Optional(
+    Type.Integer({
+      minimum: 0,
+      maximum: 50,
+      description: 'How many earlier visible messages of the Conversation are sent as history; 0 sends none.',
+    }),
+  ),
+  pending_messages: Type.Optional(
+    Type.Integer({
+      minimum: 1,
+      maximum: 50,
+      description: 'How many of the newest messages in the batch are sent as pending.',
+    }),
+  ),
+  instructions: Type.Optional(
+    Type.String({
+      minLength: 1,
+      description:
+        'The question asked about the batch, replacing the default text. It must stay a yes/no question whose "yes" answer means the batch should be handed to the main model. Changing it invalidates the default threshold, so observe the gate in shadow mode again first. Supports {{ bot.name }} and {{ bot.username }}.',
+    }),
+  ),
+};
+
+export const DecisionGateChatSchema = Type.Object(DecisionGateBehaviorFields, Strict);
+
+export const DecisionGateSchema = Type.Object(
+  {
+    ...DecisionGateBehaviorFields,
+    model: Type.Optional(
+      Type.String({
+        minLength: 1,
+        description: 'The decision model id sent in the request; the default is typesafe/jev-1.14.',
+      }),
+    ),
+    base_url: Type.Optional(
+      Type.String({
+        minLength: 1,
+        maxLength: 2048,
+        description:
+          'The HTTPS API prefix the client appends /decisions to; https://openrouter.ai/api/alpha by default. Credentials, query and fragment are rejected.',
+      }),
+    ),
+    api_key: Type.Optional(SecretRefSchema),
+    timeout_ms: Type.Optional(
+      Type.Integer({
+        minimum: 500,
+        maximum: 10_000,
+        description:
+          'The budget shared by credential resolution and the HTTP request; 3000 by default. A decision that exceeds it admits the batch.',
+      }),
+    ),
+  },
+  Strict,
+);
+
 export const DictionaryInjectionModeSchema = Type.Union([
   Type.Literal('off'),
   Type.Literal('on_demand'),
@@ -272,6 +354,7 @@ export const ChatSchema = Type.Object(
     group_memory: Type.Optional(GroupMemorySchema),
     participation: Type.Optional(ParticipationSchema),
     proactive_reply: Type.Optional(ProactiveReplySchema),
+    decision_gate: Type.Optional(DecisionGateChatSchema),
     dictionary_injection_mode: Type.Optional(DictionaryInjectionModeSchema),
     mcp: Type.Optional(Type.Array(ChatMcpBindingSchema)),
     provider: Type.Optional(Type.String({ minLength: 1 })),

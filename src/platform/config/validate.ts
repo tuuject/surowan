@@ -117,6 +117,7 @@ export function plaintextSecrets(parsed: unknown): { readonly path: JSONPath; re
   };
   const root = asRecord(parsed);
   check(asRecord(root.telegram).token, ['telegram', 'token']);
+  check(asRecord(asRecord(root.telegram).decision_gate).api_key, ['telegram', 'decision_gate', 'api_key']);
   for (const [alias, provider] of Object.entries(asRecord(root.providers))) {
     check(asRecord(provider).api_key, ['providers', alias, 'api_key']);
     checkEach(asRecord(provider).headers, ['providers', alias, 'headers']);

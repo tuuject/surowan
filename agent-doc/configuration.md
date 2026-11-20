@@ -56,6 +56,7 @@ node src/cli.ts check-config --config dev-data/config.jsonc
 | `telegram.chats[<id>].dictionary_injection_mode` | 该 Chat 的辞典注入模式覆盖；增删字段都热应用，下一次 Invocation 生效。缺省继承全局 `dictionary.injection_mode` |
 | `telegram.participation` 与 `telegram.chats[<id>].participation`（含全部子字段） | 参与策略时段；`ParticipationRegistry` 按发布代数即时重编译，下一次消息判定就用新时段（时段按该 Chat 的 `timezone` 解析，时区本身是 restart 字段）。可经 Admin Chats 页编辑 |
 | `telegram.proactive_reply` 与 `telegram.chats[<id>].proactive_reply`（含全部子字段） | 群聊主动回复概率；每次 Bucket 到期时读取当前发布值，下一次抽样即生效；`base_probability` / `increment` / `hard_pity` 任一变化会在下一次抽样时把该群的连续未命中计数清零（仅开关 `enabled` 或重启不清零）。全局值可经 Admin Harness tuning 页编辑，Chat 覆盖经 Chats 页编辑 |
+| `telegram.decision_gate` 与 `telegram.chats[<id>].decision_gate`（含全部子字段，包括 `api_key`、`base_url` 与 `model`） | 入场闸门的连接与行为设置；每次决策都从当前发布的配置重新解析生效值，包括每次重新解析 `api_key` 的 SecretRef，所以改阈值、换模型、换地址或在面板里轮换被引用的 keychain 条目都在下一次决策生效，不需要重启。全局段只在 Admin 面板的「入场闸门」页编辑，Chat 覆盖按逐字段继承，见「入场闸门（decision_gate）」 |
 | `telegram.chats[<id>].group_memory`（含 `enabled`、`idle_minutes`、`thirty_hour_clock`） | 该 Chat 的群聊记忆开关、空闲阈值与按日期搜索的 30 小时制；增删字段或改值都热应用，下一次 sleeping 扫描使用新值，`thirty_hour_clock` 在下一次 `search_group_memory` 调用即生效。开关状态变化时先 fence 该 Chat 的全部 Conversation（期间排队的 Invocation 不启动），中止 running Invocation，等它们真正落定后才驱逐 Agent 缓存并重建全部 Conversation Context；关闭只停止后续整理并让新 Invocation 不再拿到回忆工具，已写入的记忆与原文保留 |
 | `telegram.sticker_sets`（整个列表，含 `alias`、`note`） | 发布时先把 Set 对账进 `sticker_sets` 表（按 Telegram 名称大小写不敏感地识别，`alias`/`note` 只是复制，改名保留同一行与索引），再由运行中的 Sticker worker 在后台拉取未同步的 Set；没有 Telegram 连接时只对账存储。Set 的增删（按名称）立即中止所有运行中的 Telegram Invocation（原因 `sticker_sets_changed`，Playground 房间不受影响），只改昵称或备注不中止，下一次注入的贴纸目录即用新值。Admin「Bot sticker sets」页编辑，见 [admin-panel.md](admin-panel.md#sticker-sets-页端点) |
 | `telegram.bucket_window_seconds`、`telegram.bucket_max_seconds`、`telegram.bucket_bump_seconds` | Bucket 节拍。ingestion 开新 Bucket 时读一次当前发布值，写进该 Bucket 行的 `window_seconds` / `max_seconds` / `bump_seconds`（迁移 `057`）；之后的消息延长与三处推迟（轮结束、Scheduler 轮中途、运行结束）都只读这一行。因此修改只作用于之后新开的 Bucket，正在收集的 Bucket 按开桶时的节拍走完，运行中 Invocation 的配置快照也不会替它决定窗口。与 `agent.context.idle_grace_seconds` 同为热字段，两者在 candidate 里一起校验。Admin「Telegram」页编辑，见 [admin-panel.md](admin-panel.md#api) |
@@ -73,7 +74,7 @@ node src/cli.ts check-config --config dev-data/config.jsonc
 
 `outside_serve` 字段（不算已应用也不算待重启）：`paths.backups` 与 `retention.backup_copies`，只由 `backup` 命令和迁移前备份轮换读取。`retention.warning_read_days` 由 `serve` 的警告清理读取，因此和 `retention` 的其它字段不同：它按普通 restart 字段处理，改动后需要重启才生效。
 
-其它所有路径都是 restart：改动会写进文件，但要重启才生效，包括 `telegram.token`、`data_dir`、`paths.database`、`admin.*`、Chat allowlist 中已有 Chat 的修改（新增与删除 Chat、参与策略 `participation`、主动回复 `proactive_reply` 是热变更），以及 `instructions_file`、`provider`、`model`、`thinking_level`、`ignored_user_ids`、`dictionary_injection_mode`、`group_memory`、`participation`、`proactive_reply` 以外的 Chat 字段，以及 `vision` 的 `max_concurrency`、`prompt_version`、`daily_budget`。
+其它所有路径都是 restart：改动会写进文件，但要重启才生效，包括 `telegram.token`、`data_dir`、`paths.database`、`admin.*`、Chat allowlist 中已有 Chat 的修改（新增与删除 Chat、参与策略 `participation`、主动回复 `proactive_reply`、入场闸门 `decision_gate` 是热变更），以及 `instructions_file`、`provider`、`model`、`thinking_level`、`ignored_user_ids`、`dictionary_injection_mode`、`group_memory`、`participation`、`proactive_reply`、`decision_gate` 以外的 Chat 字段，以及 `vision` 的 `max_concurrency`、`prompt_version`、`daily_budget`。
 
 **已废弃字段**：`agent.memory_ttl_warning_days`、`agent.send_empty_text_fallback_enabled`、`vision.background_sticker_concurrency` 仅为升级兼容保留——schema 仍接受（标注 `deprecated`），运行时完全不读取：`resolveAgentSection`/`resolveVisionSection` 不把它们带进运行时类型，`send_empty_text_fallback_enabled: true` 也不再推导 `random_text`（缺省策略仍是 `reject`）。唯一定义在 `src/platform/config/deprecated.ts`：`validateFileConfig` 据此输出加载警告（`check-config` 的 `warnings` 与 `serve` 的 `config_warnings` 事件），`assembleRawConfig` 把出现的字段路径写进 `RawConfig.deprecated_fields`，`standingWarnings` 据此发出 `config_fields_deprecated` 常态警告（Admin 警告页列出字段与替代写法）。增删改这些字段按热应用处理——不需要重启，唯一变化是警告随之出现或消失。新废弃字段按同一模式加进 `DEPRECATED_CONFIG_FIELDS` 即可。
 
@@ -208,10 +209,11 @@ command SecretRef：
 - `group_memory`（可选）开启群聊记忆：Chat 安静 `idle_minutes`（缺省 30）后，后台 sleeping worker 把未整理的本地日期消息交给系统工具模型，生成带 Telegram message-id 区间的日期事件摘要；已完成日期的消息不必等空闲。模型通过 `search_group_memory` 按日期/关键词回忆摘要，再用 `read_group_messages` 回放原始消息。该功能只用系统级 `tool_model`（缺省继承全局 agent 模型），不影响 Memo Pad，也不自动注入摘要；详见 [telegram-agent-flow.md](telegram-agent-flow.md#群聊记忆sleeping)。正数 Chat ID（私聊）也可以开启，但功能面向群聊设计。`thirty_hour_clock`（可选，`off` | `non_overlapping` | `overlapping`，缺省 `off`）借用日本放送业的 30 小时制，只改变带日期搜索覆盖的 Chat 本地时段：`off` 为当日 0–24 时，`non_overlapping` 为当日 6 时至次日 6 时，`overlapping` 为当日 0 时至次日 6 时；整理与归档仍按自然日。
 - `participation`（可选）配置此 Chat 的定时活跃时段、触发关键词与注意力窗口，见「定时活跃（participation）」。
 - `proactive_reply`（可选）配置此 Chat 的主动回复概率与保底，见「主动回复概率（proactive_reply）」；正数 Chat ID（私聊）上显式配置会被 `check-config` 拒绝。
+- `decision_gate`（可选）配置此 Chat 的入场闸门覆盖，可写 `enabled`、`mode`、`threshold`、`history_messages`、`pending_messages`、`instructions` 六项，逐项继承全局段，见「入场闸门（decision_gate）」；`model`、`base_url`、`api_key`、`timeout_ms` 是全局字段，写在 Chat 上会被 schema 拒绝，正数 Chat ID（私聊）上显式配置整个对象会被 `check-config` 拒绝。
 - `ignored_user_ids`（可选）是此 Chat 内要忽略的 Telegram User ID 数组；必须是唯一的正安全整数。匹配 `message.from.id` 的新消息和编辑只保留 Update 审计，不写入 Message、Revision、Media 或 Bucket，也不会进入实时或启动追赶 Invocation 的 Context。命令同样被丢弃，只有实时新消息中的 `/ask`、`/help`、`/ignoreme`、`/unignoreme` 会放行：`/ask` 显式唤起 Bot 回答，`/help` 列出该成员仍可用的命令，`/ignoreme` 与 `/unignoreme` 让成员自行加入或取消忽略；后两者只改发送者自己的 ID，作用于当前 Chat 的全部 Topic。其他成员消息中若 Reply 快照指向被忽略用户，该引用同样不保存。该字段不匹配 `sender_chat` 身份，支持热应用；已入库的旧消息不会追溯删除。
 - `instructions_file`（可选）指向该 Chat 的附加系统提示 Markdown 文件，缺省时为空；提示内容不提供额外授权。
 - `provider` / `model` / `thinking_level`（可选）是此 Chat 的按群模型覆盖：全局 `agent.provider` / `agent.model` / `agent.thinking_level` 作为默认值，缺省逐项继承（`resolveAgentSettings`）。`provider` 与 `model` 必须成对出现，只写其一会被 `check-config` 直接拒绝；`thinking_level` 可独立覆盖，不必随模型一起写。生效模型按「Chat 覆盖 → 全局默认」逐项解析，该组合必须合法：覆盖模型必须在该 Provider 下存在、支持 text，`thinking_level` 必须被解析后的生效模型接受，否则严格报错。每次 Invocation 从运行快照按此解析模型与思考档；运行中的 Invocation（含 attach 的批次）沿用启动时冻结的快照，下一次 Invocation 才用新值。Topic 共用所在 Chat 的设置，私聊同理；群迁移按已有 `resolveChatConfig` 规则解析到迁移前 Chat 的配置。
-- 修改 Topic 或其它非热字段后必须重启，并比较 `check-config` 与 `serve_started` 的 `config_hash`；新增或删除 Chat、已有 Chat 的 `instructions_file`、`provider`/`model`/`thinking_level`、`ignored_user_ids`、`group_memory`、`participation` 与 `proactive_reply` 属于热更新白名单（删除 Chat 会停跑但保留数据），见「运行时配置热更新」。
+- 修改 Topic 或其它非热字段后必须重启，并比较 `check-config` 与 `serve_started` 的 `config_hash`；新增或删除 Chat、已有 Chat 的 `instructions_file`、`provider`/`model`/`thinking_level`、`ignored_user_ids`、`group_memory`、`participation`、`proactive_reply` 与 `decision_gate` 属于热更新白名单（删除 Chat 会停跑但保留数据），见「运行时配置热更新」。
 - Chat 没有每日 Invocation 次数上限，也不设 Token 硬上限；Token 只按 Chat 归属统计，唯一硬上限是全局 `agent.daily_budget.max_tokens`。
 - `admins`（可选）是 Telegram User ID 数组，Bot 管理员白名单的唯一事实源；只有管理员能执行 `/pause`、`/resume`、`/model`、`/cut_topic`、`/rebuild_context`。属热更新白名单，见「运行时配置热更新」。
 
@@ -302,6 +304,57 @@ participation 放行 = 未配置 participation || 处于活跃时段 || 更新�
 - 私聊不受影响：私聊消息始终按直接对话处理；正数 Chat ID 上显式写 `proactive_reply` 会被 `check-config` 拒绝。
 - 日志事件：直接绕过为 `agent_proactive_reply_bypassed`（含 `trigger_kind`）；抽样为 `agent_proactive_reply_sampled`（含 `attempt`、`probability`、`consecutive_misses_before/after`、`hit`、`hard_pity`、`state_reset`）。不写入长期审计表。
 - Admin Chats 页的「主动回复」列与星形按钮可编辑本群模式：跟随全局、关闭、或自定义三个参数；保存后热应用。
+
+## 入场闸门（decision_gate）
+
+```jsonc
+{
+  "telegram": {
+    "decision_gate": {
+      "enabled": true,
+      "mode": "shadow",
+      "threshold": 0.57,
+      "history_messages": 10,
+      "pending_messages": 10,
+      "timeout_ms": 3000,
+      "model": "typesafe/jev-1.14",
+      "base_url": "https://openrouter.ai/api/alpha",
+      "api_key": { "jar": "decision-gate" },
+    },
+    "chats": [
+      {
+        "id": -1001234567890,
+        "decision_gate": { "mode": "enforce", "threshold": 0.7, "instructions": "Would {{ bot.name }} reply here?" },
+      },
+    ],
+  },
+}
+```
+
+**当前状态：只落地了配置、解析与 HTTP 客户端，闸门还没有接进 Bucket 到期流程。** 因此本节的设置现在都不改变运行行为：即使 `enabled: true`，也没有任何决策请求发出，Bucket 的下场与未配置时完全一样。字段、默认值与校验按最终设计冻结，接入后不再改动。
+
+规则：
+
+- 全局段 `telegram.decision_gate` 有十个字段，Chat 覆盖 `telegram.chats[<id>].decision_gate` 只能写前六项，逐字段继承（Chat → 全局 → 默认）；全局段缺席即全部取默认值。`resolveDecisionGate`（`src/platform/decision-gate.ts`）是唯一解析入口。
+- 字段与默认值：
+
+  | 字段 | 默认 | 层级 | 说明 |
+  | --- | --- | --- | --- |
+  | `enabled` | `false` | 全局、Chat | 关闭时零影响 |
+  | `mode` | `shadow` | 全局、Chat | `shadow` 只记录判断结果、不改变调度；`enforce` 让被拒绝的批次不进入主模型 |
+  | `threshold` | `0.57` | 全局、Chat | 回答的 P(yes) 大于等于它即送入；与 `model`、`instructions` 绑定 |
+  | `history_messages` | `10` | 全局、Chat | 送出的历史条数，0–50，0 表示不带历史 |
+  | `pending_messages` | `10` | 全局、Chat | 送出的批内条数，1–50 |
+  | `instructions` | 见下 | 全局、Chat | 提问文本，支持两个占位符 |
+  | `model` | `typesafe/jev-1.14` | 仅全局 | 请求里的决策模型 id |
+  | `base_url` | `https://openrouter.ai/api/alpha` | 仅全局 | 客户端在末尾接 `/decisions` |
+  | `api_key` | 无 | 仅全局 | SecretRef，不接受明文 |
+  | `timeout_ms` | `3000` | 仅全局 | 500–10000，密钥解析与 HTTP 请求共用的总预算 |
+
+- `instructions` 整段替换默认提问。默认文本是：`A group chat has an AI member named {{ bot.name }} (@{{ bot.username }}), described in \`bot\` and shown as \`{{ bot.name }} [bot]\`. \`pending\` holds the new messages since the bot last looked; \`history\` holds earlier messages. Would the bot, behaving like a friendly regular member, send a reply after reading \`pending\`?`。两个占位符分别替换为 Bot 的显示名与用户名（取自连接身份，不调用 Telegram API）；未知占位符原样保留，不会让请求失败。自定义文本必须仍是一个是非题，且「是」表示应当送入，因为判定固定为「P(yes) ≥ `threshold`」；换了提问以后 0.57 这个默认阈值不再有依据，应先用 `mode: "shadow"` 重新观察再切 `enforce`。消息正文只放在请求的 `state` 里，永不拼进 `instructions`。
+- `api_key` 是 SecretRef：`{ "jar": "<条目名>" }` 走 keychain（面板里叫「密钥」），也可以用 `env` 或 `command`。已经配了 OpenRouter Provider 的部署可以直接引用同一个条目，不必再存一份。`enabled: true` 而没有 `api_key` 会被 `check-config` 直接拒绝；它只查字段在不在，不解析引用。每次决策都会重新 `resolve`，所以面板里轮换条目、手工改文件、改引用指向都在下一次决策生效，不需要重启；引用悬空（条目或环境变量不存在、`command` 失败）不会在加载时报错，只会在运行时暴露——闸门按「异常一律送入」处理并记一条 `secret_unresolved` 的决策行，因此 `doctor` 的探测是必做项。
+- `base_url` 必须是 HTTPS、不带凭证，也不能带 query 或 fragment（客户端只会在末尾接 `/decisions`）。请求带 `Authorization: Bearer <key>`，禁止重定向。
+- 全部字段热更新（`telegram.decision_gate.*` 与 `telegram.chats[<id>].decision_gate.*`），包括 `api_key`、`base_url` 与 `model`，见「运行时配置热更新」。
 
 ## Sticker Set
 
