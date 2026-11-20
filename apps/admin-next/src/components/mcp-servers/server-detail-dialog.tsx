@@ -4,7 +4,7 @@ import type { ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
 import { type ColumnSpec, JsonViewer, KvList, MonoValue, TableShell, ToneBadge } from '@/components/business';
 import { AppLink } from '@/components/router-links';
-import type { McpAdvertisedToolView, McpServerView } from '@/lib/api/mcp-servers.ts';
+import type { McpAdvertisedToolView, McpServerView, McpSkillView } from '@/lib/api/mcp-servers.ts';
 import type { SecretSource } from '@/lib/api/keychain.ts';
 
 function secretRow(row: { readonly name: string; readonly source?: SecretSource }): string {
@@ -116,6 +116,10 @@ export function ServerDetailDialog({
               value: server.exposure === 'progressive' ? t('mcp.exposureProgressive') : t('mcp.exposureDirect'),
             },
             {
+              label: t('mcp.fieldSkills'),
+              value: server.skills_enabled ? t('mcp.skillsExposed') : t('mcp.skillsHidden'),
+            },
+            {
               label: t('mcp.fieldDescription'),
               value: (
                 <span dir="auto" className={css({ whiteSpace: 'pre-wrap' })}>
@@ -140,6 +144,30 @@ export function ServerDetailDialog({
           )}
         </section>
         <section>
+          <h3 className={css({ margin: '0 0 2', textStyle: 'heading-3' })}>{t('mcp.skillsTitle')}</h3>
+          {server.skills_error === null ? null : (
+            <p className={css({ margin: '0 0 2', textStyle: 'small', color: 'warning-text' })}>
+              {t('mcp.skillsError')} <MonoValue value={server.skills_error} />
+            </p>
+          )}
+          {server.skills.length === 0 ? (
+            <p className={css({ margin: '0', textStyle: 'small', color: 'text-muted' })}>{t('mcp.noSkills')}</p>
+          ) : (
+            <ul
+              className={css({
+                margin: '0',
+                padding: '0',
+                listStyle: 'none',
+                '& > li + li': { marginBlockStart: '3' },
+              })}
+            >
+              {server.skills.map((skill) => (
+                <SkillItem key={skill.name} skill={skill} />
+              ))}
+            </ul>
+          )}
+        </section>
+        <section>
           <h3 className={css({ margin: '0 0 2', textStyle: 'heading-3' })}>{t('mcp.usageTitle')}</h3>
           {server.bound_chats.length === 0 ? (
             <p className={css({ margin: '0', textStyle: 'small', color: 'text-muted' })}>{t('mcp.noBoundChats')}</p>
@@ -161,5 +189,21 @@ export function ServerDetailDialog({
         </section>
       </div>
     </Dialog>
+  );
+}
+
+/** One skill: untrusted server data, so its description is plain text. */
+function SkillItem({ skill }: { readonly skill: McpSkillView }): ReactElement {
+  const { t } = useTranslation();
+  return (
+    <li>
+      <MonoValue value={skill.name} />
+      <p dir="auto" className={css({ margin: '0', whiteSpace: 'pre-wrap' })}>
+        {skill.description}
+      </p>
+      <p className={css({ margin: '0', textStyle: 'small', color: 'text-muted' })}>
+        {t('mcp.skillsFiles', { files: skill.file_count, bytes: skill.total_bytes })}
+      </p>
+    </li>
   );
 }

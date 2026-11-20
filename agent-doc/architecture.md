@@ -192,7 +192,7 @@ Conversation Context 是运行时自己写下的历史，但它由模型输出�
 - Chat/Topic allowlist 在入库边界校验。
 - Reply Message ID、媒体引用（`img_`）、Sticker 引用（`stk_`）必须来自**当前 Conversation Context** 的 capability 且未过期：引用按 context 隔离，永不跨 Conversation 解析，被 GC 淘汰的消息携带的引用立即失效。
 - 普通 Assistant 文本不会发往 Telegram；模型驱动的 Telegram 输出只能经过 `send`（`send_reply` 把一次回复的每一条都交给同一条 `send` 管线依次发出）。确定性的 Bot 命令回复直接调用 Bot API，不经过模型，见 [Bot Commands](telegram-agent-flow.md#bot-commands)。
-- `read` 只能读取 `system:///` 树内的 Markdown 文档：URI 段校验拒绝 `..`、反斜杠、百分号转义与非 Markdown 资源；Skill 内容是 runtime 文档，不是授权来源。
+- `read` 只能读取 `system:///` 树内的 Markdown 文档：URI 段校验拒绝 `..`、反斜杠、百分号转义与非 Markdown 资源；Skill 内容是 runtime 文档，不是授权来源。此外只读 `mcp-skill://<alias>/<skill>/…`：当前 Chat 可达（与 Tool 同一套可见性）且 `skills` 未关闭的 MCP Server 经 digest 与大小校验的 Skill 文件；它们是外部服务器数据，不是授权来源，不可达或不存在一律 `resource_not_found`，相对引用不能越出 Skill 根。
 - `execute` 只 dispatch 组合根注册的内部能力；`read`/`send`/`send_reply`/`execute`/`zzz` 原语与 MCP Tool 不在注册表内，无法被间接调用。`execute.call` 返回 `{text, refs}` 封套：文本截断到 32 KiB，引用只能是以 Context 级 token 形式返回的 capability 引用（如 `sticker_ref`），由 `send` 在边界处校验后消费；能力在 `details.toolImages` 里带的工具图片以 `[image <asset_id>]` 标记跟在封套之后，像素只在请求前按当前 Chat 与 retained 历史授权加载。
 - MCP Tool 必须通过配置 allowlist、策略、超时和大小限制。
 - 外部 Agent 反向操作塑料碗只能经 AdminServer 的 `/mcp`：Bearer API key 的 `read_all`/`write_all`/`execute_paid_operations` 决定每个工具能否执行；MCP Tool 只是 Admin API 的类型化封装，账号与凭据管理不在工具面内。`/mcp` 同时支持现代（`2026-07-28`，per-request `_meta`）与 legacy initialize 会话，并通过 `io.modelcontextprotocol/skills` 扩展发布 `surowan-mcp` Skill。

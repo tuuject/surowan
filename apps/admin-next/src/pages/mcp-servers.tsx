@@ -127,6 +127,11 @@ export default function McpServersPage(): ReactElement {
             {server.transport === 'stdio' ? 'stdio' : 'streamable_http'}
           </p>
           {server.exposure === 'progressive' ? <ToneBadge tone="info">{t('mcp.exposureProgressive')}</ToneBadge> : null}
+          {server.skills.length > 0 ? (
+            <ToneBadge tone={server.skills_enabled ? 'info' : 'neutral'}>
+              {t('mcp.skillsBadge', { count: server.skills.length })}
+            </ToneBadge>
+          ) : null}
         </div>
       ),
     },

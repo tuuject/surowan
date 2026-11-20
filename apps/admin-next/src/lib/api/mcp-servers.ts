@@ -69,12 +69,26 @@ export interface McpBoundChatView {
   readonly tool_policies: readonly McpToolPolicyView[] | null;
 }
 
+/** One verified skill a server publishes; metadata only, untrusted server data. */
+export interface McpSkillView {
+  readonly name: string;
+  readonly description: string;
+  readonly uri: string;
+  readonly file_count: number;
+  readonly total_bytes: number;
+}
+
 export interface McpServerView {
   readonly alias: string;
   readonly transport: 'stdio' | 'streamable_http';
   readonly exposure: McpExposure;
   /** What the model reads about a progressive server; `null` when unset. */
   readonly description: string | null;
+  /** Whether the model may read this server's skills; the panel lists them either way. */
+  readonly skills_enabled: boolean;
+  readonly skills: readonly McpSkillView[];
+  /** Short code of the last skill discovery problem, if any. */
+  readonly skills_error: string | null;
   readonly state: McpServerStateView | null;
   readonly connection: McpConnectionView;
   readonly tools: '*' | readonly string[];
@@ -118,6 +132,7 @@ export interface McpServerInput {
   readonly exposure?: McpExposure;
   /** `null` removes the description; omitted keeps it. */
   readonly description?: string | null;
+  readonly skills?: boolean;
 }
 
 export interface McpServerCreateInput {
@@ -131,6 +146,7 @@ export interface McpServerCreateInput {
   readonly default_tool_policy?: McpDefaultPolicyInput | null;
   readonly exposure?: McpExposure;
   readonly description?: string | null;
+  readonly skills?: boolean;
 }
 
 export interface McpServersWriteResult extends McpServersView {

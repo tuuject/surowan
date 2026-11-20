@@ -44,16 +44,35 @@ type ChatBindingShape = Pick<FileChat, 'mcp'>;
  * Chat may call or under which policy. Reconnecting for them, or stopping a run
  * and rebuilding its Context, would buy nothing: the next Invocation reads both
  * from the configuration it runs under, and a run in flight keeps its set.
+ * `skills` is the same kind of setting: discovery always runs at connect, and
+ * the flag only gates whether the model is shown what was discovered.
  */
 export function sameMcpServerConfig(left: McpServerConfig, right: McpServerConfig): boolean {
-  const { required: _leftRequired, exposure: _leftExposure, description: _leftDescription, ...leftRest } = left;
-  const { required: _rightRequired, exposure: _rightExposure, description: _rightDescription, ...rightRest } = right;
+  const {
+    required: _leftRequired,
+    exposure: _leftExposure,
+    description: _leftDescription,
+    skills: _leftSkills,
+    ...leftRest
+  } = left;
+  const {
+    required: _rightRequired,
+    exposure: _rightExposure,
+    description: _rightDescription,
+    skills: _rightSkills,
+    ...rightRest
+  } = right;
   return deepEqual(leftRest, rightRest);
 }
 
 /** How one configured server's tools reach the model; omitted means `direct`. */
 export function mcpExposure(server: McpServerConfig): 'direct' | 'progressive' {
   return server.exposure ?? 'direct';
+}
+
+/** Whether the model may read this server's skills; omitted means yes. */
+export function mcpSkillsEnabled(server: McpServerConfig): boolean {
+  return server.skills !== false;
 }
 
 /** The server-level policy of one tool, in the shape bound policies use. */

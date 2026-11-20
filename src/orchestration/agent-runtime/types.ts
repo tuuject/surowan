@@ -1,6 +1,7 @@
 import type { Agent, AgentContext, AgentMessage, AgentTool } from '@earendil-works/pi-agent-core';
 import type { Api, ImageContent, Model } from '@earendil-works/pi-ai';
 import type { ExecutableCapability } from '../../capabilities/execute-tool.ts';
+import type { McpSkillSource } from '../../capabilities/mcp/skill-source.ts';
 import type { SendToolEnvironment } from '../../capabilities/send/support.ts';
 import type { ContextBuilder, ContextIdentity, StablePrompt } from '../../context/builder/index.ts';
 import type { ContextInjector } from '../../context/injector.ts';
@@ -40,6 +41,13 @@ export type ToolFactory = (
   capabilities: CapabilityRefResolver,
   config: RawConfig,
 ) => readonly AgentTool[];
+
+/**
+ * Builds the per-invocation MCP skill source `read` serves `mcp-skill://` from.
+ * Like `ToolFactory` it receives the configuration snapshot the run started
+ * with, so the Chat's server bindings are the ones its tools were resolved from.
+ */
+export type McpSkillSourceFactory = (context: InvocationContext, config: RawConfig) => McpSkillSource | undefined;
 
 /**
  * Runtime-only facilities a capability factory needs from the live run. The
@@ -109,6 +117,8 @@ export interface AgentRuntimeOptions {
   readonly mediaFiles?: SendToolEnvironment['mediaFiles'];
   /** Directly exposed non-primitive tools (allowlisted MCP tools). */
   readonly additionalTools?: ToolFactory;
+  /** Verified skills of the MCP servers a Chat reaches, served through `read`. */
+  readonly mcpSkills?: McpSkillSourceFactory;
   readonly directImageLoader?: DirectImageLoader;
   /**
    * Stores one tool-obtained picture as a Chat-owned tool image. Absent when the
@@ -172,6 +182,7 @@ export interface RuntimeServices {
   readonly capabilityTools: CapabilityToolFactory | undefined;
   readonly skillVisibility: ((skill: SystemSkill, target: SkillVisibilityTarget) => boolean) | undefined;
   readonly additionalTools: ToolFactory | undefined;
+  readonly mcpSkills: McpSkillSourceFactory | undefined;
   readonly directImageLoader: DirectImageLoader | undefined;
   readonly toolImageStore: ToolImageStore | undefined;
   readonly modelGate: KeyedSemaphore;

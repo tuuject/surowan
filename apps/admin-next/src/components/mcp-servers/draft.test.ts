@@ -23,6 +23,9 @@ function view(overrides: Partial<McpServerView>): McpServerView {
     bound_chats: [],
     exposure: 'direct',
     description: null,
+    skills_enabled: true,
+    skills: [],
+    skills_error: null,
     ...overrides,
   } as McpServerView;
 }
@@ -101,4 +104,18 @@ test('only presentation edits leave the connection unchanged, even where the for
   }
   expect(connectionChanged(server, presentation)).toBe(false);
   expect(connectionChanged(server, widened)).toBe(true);
+});
+
+test('the skills switch round-trips and, alone, is a presentation change that never reconnects', () => {
+  const server = view({ skills_enabled: false });
+  const draft = draftOf(server);
+  expect(draft.skills).toBe(false);
+  const payload = serverPayload(draft);
+  expect(payload.body).toMatchObject({ skills: false });
+  expect(connectionChanged(server, payload.body as NonNullable<typeof payload.body>)).toBe(false);
+  // A new server starts with skills on.
+  expect(draftOf(null).skills).toBe(true);
+  const flipped = serverPayload({ ...draft, skills: true });
+  expect(flipped.body).toMatchObject({ skills: true });
+  expect(connectionChanged(server, flipped.body as NonNullable<typeof flipped.body>)).toBe(false);
 });

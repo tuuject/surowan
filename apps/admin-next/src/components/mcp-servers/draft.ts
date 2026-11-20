@@ -39,6 +39,8 @@ export interface ServerDraft {
   readonly exposure: McpExposure;
   /** Free text; blank removes the description on save. */
   readonly description: string;
+  /** Whether the model may read the skills this server publishes. */
+  readonly skills: boolean;
 }
 
 /** Why a draft cannot become a request body; the component translates each kind. */
@@ -76,6 +78,7 @@ export function draftOf(server: McpServerView | null): ServerDraft {
     url: server !== null && server.connection.kind === 'streamable_http' ? server.connection.url : '',
     exposure: server?.exposure ?? 'direct',
     description: server?.description ?? '',
+    skills: server?.skills_enabled ?? true,
   };
 }
 
@@ -93,7 +96,7 @@ export type ServerBody = Omit<McpServerInput, 'headers'> &
   Required<Pick<McpServerInput, 'tools' | 'payload_max_bytes' | 'result_max_bytes'>>;
 
 /**
- * Whether `body` changes anything but the presentation fields of `server`.
+ * Whether `body` changes anything but the presentation fields (exposure, description, skills) of `server`.
  * The saved server is put through the same form translation, so a value the
  * form normalises (an empty override list becomes `null`) compares equal and
  * a description-only save does not rewrite — and reconnect — the server.
@@ -103,9 +106,19 @@ export function connectionChanged(server: McpServerView, body: ServerBody): bool
   if (saved === null) {
     return true;
   }
-  const { exposure: _savedExposure, description: _savedDescription, ...savedConnection } = saved;
-  const { exposure: _exposure, description: _description, ...connection } = body;
+  const { exposure: _savedExposure, description: _savedDescription, skills: _savedSkills, ...savedConnection } = saved;
+  const { exposure: _exposure, description: _description, skills: _skills, ...connection } = body;
   return JSON.stringify(savedConnection) !== JSON.stringify(connection);
+}
+
+/** The presentation-only part of a body: the fields a save may send without touching the connection. */
+export function presentationFields(body: ServerBody): Pick<ServerBody, 'exposure' | 'description' | 'skills'> {
+  const { exposure, description, skills } = body;
+  return {
+    ...(exposure === undefined ? {} : { exposure }),
+    ...(description === undefined ? {} : { description }),
+    ...(skills === undefined ? {} : { skills }),
+  };
 }
 
 /** Turns the draft into the request body; `error` says why it cannot when it cannot. */
@@ -174,6 +187,7 @@ function finish(
   const body = {
     ...(draft.url.length > 0 ? { url: draft.url } : {}),
     exposure: draft.exposure,
+    skills: draft.skills,
     description: description.length > 0 ? description : null,
     tools: policies.tools,
     payload_max_bytes: payloadMax,

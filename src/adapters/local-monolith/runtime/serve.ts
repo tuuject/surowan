@@ -102,6 +102,7 @@ export interface ServeServices {
   readonly skillVisibleForHost: HostTooling['skillVisible'];
   readonly capabilityTools: HostTooling['capabilityTools'];
   readonly additionalTools: HostTooling['additionalTools'];
+  readonly mcpSkills: HostTooling['mcpSkills'];
 }
 
 /** The two transports this process exposes. */
@@ -371,5 +372,6 @@ export async function startServeServices(session: ServeContext, environment: Ser
     skillVisibleForHost,
     capabilityTools,
     additionalTools,
+    mcpSkills: tooling.mcpSkills,
   };
 }

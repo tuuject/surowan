@@ -23,6 +23,7 @@ import type {
   CapabilityToolFactory,
   DirectImageLoader,
   RuntimeServices,
+  McpSkillSourceFactory,
   ToolFactory,
 } from './types.ts';
 
@@ -44,6 +45,7 @@ export class AgentRuntime {
   /** Per-invocation skill visibility; used to hide disabled capability skills. */
   readonly #skillVisibility: ((skill: SystemSkill, target: SkillVisibilityTarget) => boolean) | undefined;
   readonly #additionalTools: ToolFactory | undefined;
+  readonly #mcpSkills: McpSkillSourceFactory | undefined;
   readonly #directImageLoader: DirectImageLoader | undefined;
   readonly #modelGate: KeyedSemaphore;
   readonly #contextBuilder: ContextBuilder;
@@ -85,6 +87,7 @@ export class AgentRuntime {
     this.#capabilityTools = options.capabilityTools;
     this.#skillVisibility = options.skillVisibility;
     this.#additionalTools = options.additionalTools;
+    this.#mcpSkills = options.mcpSkills;
     this.#directImageLoader = options.directImageLoader;
     this.#contextInjectors = options.contextInjectors ?? [];
     this.#modelGate = options.modelGate ?? new KeyedSemaphore();
@@ -111,6 +114,7 @@ export class AgentRuntime {
       capabilityTools: this.#capabilityTools,
       skillVisibility: this.#skillVisibility,
       additionalTools: this.#additionalTools,
+      mcpSkills: this.#mcpSkills,
       directImageLoader: this.#directImageLoader,
       toolImageStore: options.toolImageStore,
       modelGate: this.#modelGate,

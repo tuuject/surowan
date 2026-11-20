@@ -90,6 +90,12 @@ Tool 多的 Server 适合渐进式：所有渐进式 Server 加起来只占 Tool
 
 渐进式不放宽任何权限：`mcp` 只能找到并调用这个 Chat 本来就能用的 Tool（按 Chat 绑定照常收窄），调用走与直接暴露相同的参数校验、只读策略、超时、大小限制和审计。审计里会有两条记录：外层的 `mcp`，以及真正被调用的 `<alias>__<tool>`。
 
+### MCP Server 发布的 Skill
+
+支持「MCP with Skills」扩展的 Server 可以同时发布 Skill（说明如何使用它的 Tool 的文档）。Surowan 在每次连接后发现这些 Skill，并逐个校验文件内容、大小和摘要，校验不通过的 Skill 会被丢弃，不影响 Server 的 Tool。模型通过 `read` 读取这些文档，只限这个 Chat 本来就能用到的 Server。它们来自外部 Server，只能说明如何使用该 Server 的 Tool，不能覆盖 Tool 约束或授权规则。
+
+每个 Server 可以写 `skills: false`，让模型读不到它的 Skill；省略即开启。修改它不会重连 Server，下一次运行生效。Admin 的 MCP servers 页会列出每个 Server 的 Skill。
+
 ### 按 Chat 限定 MCP Tool
 
 每个 `telegram.chats[]` 条目可以写一个可选的 `mcp` 数组，决定这个 Chat 能用哪些 Server 与 Tool：

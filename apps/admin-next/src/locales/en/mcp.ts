@@ -80,6 +80,14 @@ export const mcp = {
   exposureProgressive: 'Progressive',
   exposureProgressiveHint:
     'The tools stay out of the list; the model finds and calls them through the mcp tool, guided by the description below.',
+  fieldSkills: 'Skills for the model',
+  skillsBadge: 'Skills: {{count}}',
+  skillsExposed: 'Readable by the model',
+  skillsHidden: 'Hidden from the model',
+  skillsTitle: 'Skills',
+  noSkills: 'This server publishes no skills.',
+  skillsError: 'Skill discovery reported:',
+  skillsFiles: 'Files: {{files}}, {{bytes}} bytes',
   fieldDescription: 'Description',
   fieldDescriptionHint:
     'What the model reads to decide whether this server can help. Used by progressive exposure; up to 1000 characters.',

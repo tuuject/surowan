@@ -17,6 +17,7 @@ import type { McpServerConfig } from '../../platform/config/index.ts';
 import { versionUserAgent } from '../../platform/version.ts';
 import { mcpServerState } from '../../store/schema/index.ts';
 import type { McpState } from './shared.ts';
+import { discoverSkills, SKILLS_EXTENSION } from './skills.ts';
 import {
   advertisedTools,
   CompatibleTransport,
@@ -38,6 +39,8 @@ export function managedServer(config: McpServerConfig): ManagedServer {
     definitions: [],
     advertised: [],
     instructions: null,
+    skills: [],
+    skillsError: null,
     client: undefined,
     attempt: undefined,
     generation: 0,
@@ -71,6 +74,8 @@ export async function stopServer(state: McpState, server: ManagedServer): Promis
   server.definitions = [];
   server.advertised = [];
   server.instructions = null;
+  server.skills = [];
+  server.skillsError = null;
   const attempt = server.attempt;
   if (attempt !== undefined) {
     // An in-flight connect has no published client yet: cancel its handshake
@@ -119,7 +124,7 @@ export async function connect(
     const client = new Client(
       { name: 'surowan', version: '0.1.0' },
       {
-        capabilities: {},
+        capabilities: { extensions: { [SKILLS_EXTENSION]: {} } },
         enforceStrictCapabilities: true,
         listChanged: {
           tools: {
@@ -187,11 +192,21 @@ export async function connect(
       }
       const definitions = selectTools(server, listed.tools);
       assertBindingsSatisfied(state, server.config, definitions);
+      // Skills never decide whether the connection works: a failure leaves the
+      // tools published and only records a code for the panel.
+      const discovered = await discoverSkills(client, attempt.abort.signal);
+      if (state.stopping || generation !== server.generation) {
+        return;
+      }
       // The advertised list survives the selection: the panel shows tools the
       // server's `tools` setting does not expose, marked as such.
       server.advertised = advertisedTools(listed.tools);
       server.instructions = client.getInstructions() ?? null;
       publishCandidate(server, definitions, revalidate);
+      // Only a candidate the registry accepted publishes its skills; a rejected
+      // one must not leave them on the panel of a server that never came up.
+      server.skills = discovered.skills;
+      server.skillsError = discovered.error;
       server.client = client;
       published = true;
     } finally {
