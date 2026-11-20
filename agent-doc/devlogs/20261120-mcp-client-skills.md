@@ -122,5 +122,5 @@ git diff --check
 ## 提交
 
 ```txt
-1a182b46 Support MCP server skills in the outbound MCP client
+a7a4184b Support MCP server skills in the outbound MCP client
 ```
