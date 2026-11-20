@@ -11,15 +11,15 @@
     },
     "tuu-create-feature": {
       "source": "tuuject/skills",
-      "ref": "v0.2.0",
+      "ref": "v0.3.0",
       "sourceType": "github",
       "skillPath": "skills/tuu-create-feature/SKILL.md",
-      "computedHash": "cee2dd781dfd421d63c525f44ac633f7455c496ceef911ce339d970d43ec5750",
+      "computedHash": "fa42591a7e4e6a026989aa6e1df0ed7743a093385c783b910d8276751ebb805c",
       "via": "."
     },
     "tuu-review-design-prd": {
       "source": "tuuject/skills",
-      "ref": "v0.2.0",
+      "ref": "v0.3.0",
       "sourceType": "github",
       "skillPath": "skills/tuu-review-design-prd/SKILL.md",
       "computedHash": "bfd693c9212bfd2c736741648edc472ab67b5f5c71b05479d3b4244de8dece11",

@@ -79,7 +79,7 @@
     },
     {
       "source": "tuuject/skills",
-      "ref": "v0.2.0",
+      "ref": "v0.3.0",
       "skills": [
         "tuu-create-feature",
         "tuu-review-design-prd"
