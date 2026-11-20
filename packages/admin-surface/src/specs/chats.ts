@@ -49,6 +49,16 @@ export const CHAT_SPECS: readonly EndpointSpec[] = [
     summary: 'Patch Chat participation: active_windows and ask_only (null removes an override)',
   },
   {
+    command: 'chat decision-gate',
+    method: 'PUT',
+    path: 'chats/:id/decision-gate',
+    positional: [{ name: 'id', kind: 'decimal' }],
+    body: true,
+    revision: 'config',
+    summary:
+      "Patch this Chat's entry gate override (behavior fields only, null removes one, removing all inherits the global section)",
+  },
+  {
     command: 'chat proactive-reply',
     method: 'PUT',
     path: 'chats/:id/proactive-reply',

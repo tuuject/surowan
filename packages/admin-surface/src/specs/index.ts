@@ -2,6 +2,7 @@ import { AUDIT_SPECS } from './audit.ts';
 import { AUTH_SPECS } from './auth.ts';
 import { CHAT_SPECS } from './chats.ts';
 import { CONTROL_SPECS } from './control.ts';
+import { DECISION_GATE_SPECS } from './decision-gate.ts';
 import { DICTIONARY_SPECS } from './dictionary.ts';
 import { IMAGE_SPECS } from './image.ts';
 import { MEMORY_SPECS } from './memory.ts';
@@ -24,6 +25,7 @@ export const ADMIN_SURFACE_SPECS: readonly EndpointSpec[] = [
   ...AUDIT_SPECS,
   ...AUTH_SPECS,
   ...CONTROL_SPECS,
+  ...DECISION_GATE_SPECS,
   ...RECURRING_ALARM_SPECS,
   ...TUNING_SPECS,
   ...DICTIONARY_SPECS,

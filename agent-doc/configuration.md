@@ -56,7 +56,7 @@ node src/cli.ts check-config --config dev-data/config.jsonc
 | `telegram.chats[<id>].dictionary_injection_mode` | 该 Chat 的辞典注入模式覆盖；增删字段都热应用，下一次 Invocation 生效。缺省继承全局 `dictionary.injection_mode` |
 | `telegram.participation` 与 `telegram.chats[<id>].participation`（含全部子字段） | 参与策略时段；`ParticipationRegistry` 按发布代数即时重编译，下一次消息判定就用新时段（时段按该 Chat 的 `timezone` 解析，时区本身是 restart 字段）。可经 Admin Chats 页编辑 |
 | `telegram.proactive_reply` 与 `telegram.chats[<id>].proactive_reply`（含全部子字段） | 群聊主动回复概率；每次 Bucket 到期时读取当前发布值，下一次抽样即生效；`base_probability` / `increment` / `hard_pity` 任一变化会在下一次抽样时把该群的连续未命中计数清零（仅开关 `enabled` 或重启不清零）。全局值可经 Admin Harness tuning 页编辑，Chat 覆盖经 Chats 页编辑 |
-| `telegram.decision_gate` 与 `telegram.chats[<id>].decision_gate`（含全部子字段，包括 `api_key`、`base_url` 与 `model`） | 入场闸门的连接与行为设置；每次决策都从当前发布的配置重新解析生效值，包括每次重新解析 `api_key` 的 SecretRef，所以改阈值、换模型、换地址或在面板里轮换被引用的 keychain 条目都在下一次决策生效，不需要重启。全局段只在 Admin 面板的「入场闸门」页编辑，Chat 覆盖按逐字段继承，见「入场闸门（decision_gate）」 |
+| `telegram.decision_gate` 与 `telegram.chats[<id>].decision_gate`（含全部子字段，包括 `api_key`、`base_url` 与 `model`） | 入场闸门的连接与行为设置；每次决策都从当前发布的配置重新解析生效值，包括每次重新解析 `api_key` 的 SecretRef，所以改阈值、换模型、换地址或在面板里轮换被引用的 keychain 条目都在下一次决策生效，不需要重启。全局段可经 Admin 面板的「入场闸门」页、`PUT /api/decision-gate`（`surowan-utils decision-gate update`、MCP `surowan_decision_gate_update`）或直接编辑文件写入，Chat 覆盖走 `PUT /api/chats/:id/decision-gate` 并按逐字段继承，见「入场闸门（decision_gate）」 |
 | `telegram.chats[<id>].group_memory`（含 `enabled`、`idle_minutes`、`thirty_hour_clock`） | 该 Chat 的群聊记忆开关、空闲阈值与按日期搜索的 30 小时制；增删字段或改值都热应用，下一次 sleeping 扫描使用新值，`thirty_hour_clock` 在下一次 `search_group_memory` 调用即生效。开关状态变化时先 fence 该 Chat 的全部 Conversation（期间排队的 Invocation 不启动），中止 running Invocation，等它们真正落定后才驱逐 Agent 缓存并重建全部 Conversation Context；关闭只停止后续整理并让新 Invocation 不再拿到回忆工具，已写入的记忆与原文保留 |
 | `telegram.sticker_sets`（整个列表，含 `alias`、`note`） | 发布时先把 Set 对账进 `sticker_sets` 表（按 Telegram 名称大小写不敏感地识别，`alias`/`note` 只是复制，改名保留同一行与索引），再由运行中的 Sticker worker 在后台拉取未同步的 Set；没有 Telegram 连接时只对账存储。Set 的增删（按名称）立即中止所有运行中的 Telegram Invocation（原因 `sticker_sets_changed`，Playground 房间不受影响），只改昵称或备注不中止，下一次注入的贴纸目录即用新值。Admin「Bot sticker sets」页编辑，见 [admin-panel.md](admin-panel.md#sticker-sets-页端点) |
 | `telegram.bucket_window_seconds`、`telegram.bucket_max_seconds`、`telegram.bucket_bump_seconds` | Bucket 节拍。ingestion 开新 Bucket 时读一次当前发布值，写进该 Bucket 行的 `window_seconds` / `max_seconds` / `bump_seconds`（迁移 `057`）；之后的消息延长与三处推迟（轮结束、Scheduler 轮中途、运行结束）都只读这一行。因此修改只作用于之后新开的 Bucket，正在收集的 Bucket 按开桶时的节拍走完，运行中 Invocation 的配置快照也不会替它决定窗口。与 `agent.context.idle_grace_seconds` 同为热字段，两者在 candidate 里一起校验。Admin「Telegram」页编辑，见 [admin-panel.md](admin-panel.md#api) |
@@ -336,7 +336,7 @@ participation 放行 = 未配置 participation || 处于活跃时段 || 更新�
 
 规则：
 
-- 全局段 `telegram.decision_gate` 有十个字段，Chat 覆盖 `telegram.chats[<id>].decision_gate` 只能写前六项，逐字段继承（Chat → 全局 → 默认）；全局段缺席即全部取默认值。`resolveDecisionGate`（`src/platform/decision-gate.ts`）是唯一解析入口。
+- 全局段 `telegram.decision_gate` 有十个字段，Chat 覆盖 `telegram.chats[<id>].decision_gate` 只能写前六项，逐字段继承（Chat → 全局 → 默认）；全局段缺席即全部取默认值。`resolveDecisionGate`（`src/platform/decision-gate.ts`）是唯一解析入口。面板端点是逐字段补丁：省略的字段保留，`null` 删除该字段；面板、CLI 与 MCP 的写法与密钥规则见 [admin-panel.md](admin-panel.md#api)。
 - 字段与默认值：
 
   | 字段 | 默认 | 层级 | 说明 |

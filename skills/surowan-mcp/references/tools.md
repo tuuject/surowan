@@ -43,6 +43,8 @@
 | `surowan_provider_preset_list` | read | 内置 Provider 预设 |
 | `surowan_developer_show` / `surowan_developer_update` / `surowan_developer_clear_payloads` | read / write | Developer 页 |
 | `surowan_search_show` / `surowan_search_update` | read / write | 网络搜索配置 |
+| `surowan_decision_gate_show` / `surowan_decision_gate_update` | read / write | 入场闸门的全局设置（saved/active 与 `key_configured`；不回显密钥）与逐字段补丁；新明文存入 keychain，程序化凭据不能选用已有条目、也不能保留密钥改 `base_url` |
+| `surowan_decision_gate_decisions` | read | 闸门决策行，最新在前，支持 chat/limit/offset/as_of；复核 shadow 数据的唯一手段 |
 | `surowan_mcp_server_list` | read | 出站 MCP Server 列表：实时状态、连接摘要（stdio 只有程序名与参数个数，HTTP 有 URL 与 Header 名；URL 只给 origin 并带 `url_redacted` 标记，路径与查询可能携带密钥）、发现过的 Tool 与使用它的 Chat。`mcp_server_update` 回传读到的 origin 视为「URL 不变」，不算改地址 |
 | `surowan_mcp_server_create` / `surowan_mcp_server_update` | write | 新增（仅 streamable_http，stdio 必须写进 config.jsonc）与编辑 MCP Server；stdio 只能改 Tool 选择、上限与策略；Header 走 SecretInput，程序化凭据改 url 必须同请求重交 Header |
 | `surowan_mcp_server_delete` | write | 删除 MCP Server；有 Chat 显式绑定时 409 `mcp_server_in_use`，需 `confirm: true` |
@@ -58,7 +60,7 @@
 | 工具 | 权限 | 用途 |
 | --- | --- | --- |
 | `surowan_chat_list` / `surowan_chat_create` / `surowan_chat_update` / `surowan_chat_delete` | read / write | Chat 与 Topic |
-| `surowan_chat_participation` / `surowan_chat_proactive_reply` / `surowan_chat_group_memory` | write | 单 Chat 覆盖 |
+| `surowan_chat_participation` / `surowan_chat_proactive_reply` / `surowan_chat_group_memory` / `surowan_chat_decision_gate` | write | 单 Chat 覆盖 |
 | `surowan_prompt_global_view` / `surowan_prompt_group_view` | read | 当前 Prompt |
 | `surowan_prompt_versions` / `surowan_prompt_version_show` / `surowan_prompt_diff` | read | 版本历史与 diff |
 | `surowan_prompt_save` / `surowan_prompt_restore` / `surowan_prompt_cancel_running` | write | Prompt 写入/恢复/取消运行 |

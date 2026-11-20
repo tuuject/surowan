@@ -69,6 +69,10 @@ test('modern MCP advertises tools, permissions and skills', async () => {
         expect.objectContaining({ name: 'surowan_key_show' }),
         expect.objectContaining({ name: 'surowan_invocation_replay' }),
         expect.objectContaining({ name: 'surowan_harness_update' }),
+        expect.objectContaining({ name: 'surowan_decision_gate_show' }),
+        expect.objectContaining({ name: 'surowan_decision_gate_update' }),
+        expect.objectContaining({ name: 'surowan_decision_gate_decisions' }),
+        expect.objectContaining({ name: 'surowan_chat_decision_gate' }),
       ]),
     );
     expect(listed.result.tools.map((tool: { name: string }) => tool.name)).not.toContain('surowan_setup');
@@ -109,6 +113,18 @@ test('modern MCP advertises tools, permissions and skills', async () => {
       modern('tools/call', { name: 'surowan_harness_update', arguments: { body: {}, if_match: 'x' } }, 6, auth),
     );
     expect(await readJson(denied)).toMatchObject({
+      result: { isError: true, content: [{ type: 'text', text: expect.stringContaining('Permission denied') }] },
+    });
+
+    // The entry gate keeps the same split: its list is a read, its write needs write.
+    const decisions = await server.handle(
+      modern('tools/call', { name: 'surowan_decision_gate_decisions', arguments: {} }, 7, auth),
+    );
+    expect((await readJson(decisions)).result.structuredContent).toMatchObject({ items: [], total: 0 });
+    const gateDenied = await server.handle(
+      modern('tools/call', { name: 'surowan_decision_gate_update', arguments: { body: { threshold: 0.5 } } }, 8, auth),
+    );
+    expect(await readJson(gateDenied)).toMatchObject({
       result: { isError: true, content: [{ type: 'text', text: expect.stringContaining('Permission denied') }] },
     });
 

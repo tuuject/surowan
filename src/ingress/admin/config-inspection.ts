@@ -1,4 +1,4 @@
-import type { RawConfig } from '../../platform/config/index.ts';
+import type { DecisionGateConfig, RawConfig } from '../../platform/config/index.ts';
 import type { ConfigController } from '../../platform/config/write.ts';
 import type { RuntimeConfigurationStore } from '../../platform/runtime-config.ts';
 import type { SecretStore } from '../../platform/secrets.ts';
@@ -72,6 +72,27 @@ export async function inspectConfiguration(
   }
 }
 
+/**
+ * The gate's non-secret fields, global or per Chat. `api_key` is a SecretRef and
+ * `base_url` is a connection address, which this projection never carries for
+ * any section; the panel reads both through `/decision-gate` instead.
+ */
+function decisionGateProjection(gate: Readonly<Partial<DecisionGateConfig>> | undefined) {
+  if (gate === undefined) {
+    return undefined;
+  }
+  return {
+    enabled: gate.enabled,
+    mode: gate.mode,
+    threshold: gate.threshold,
+    history_messages: gate.history_messages,
+    pending_messages: gate.pending_messages,
+    instructions: gate.instructions,
+    model: gate.model,
+    timeout_ms: gate.timeout_ms,
+  };
+}
+
 /** Explicit projection: no credentials, SecretRefs, command argv, URLs with query tokens or host paths. */
 export function configurationView(config: RawConfig) {
   const providerView = listProviders(config, '', []);
@@ -86,6 +107,9 @@ export function configurationView(config: RawConfig) {
       bucket_bump_seconds: config.telegram.bucket_bump_seconds,
       participation: config.telegram.participation,
       proactive_reply: config.telegram.proactive_reply,
+      // The gate's non-secret fields sit next to `proactive_reply`; `api_key`
+      // and `base_url` stay out of this projection entirely.
+      decision_gate: decisionGateProjection(config.telegram.decision_gate),
       chats: config.telegram.chats.map((chat) => ({
         id: BigInt(chat.id).toString(),
         topic_ids: chat.topic_ids?.map((id) => BigInt(id).toString()),
@@ -93,6 +117,7 @@ export function configurationView(config: RawConfig) {
         timezone: chat.timezone,
         participation: chat.participation,
         proactive_reply: chat.proactive_reply,
+        decision_gate: decisionGateProjection(chat.decision_gate),
         provider: chat.provider,
         model: chat.model,
         thinking_level: chat.thinking_level,

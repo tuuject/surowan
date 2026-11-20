@@ -75,10 +75,15 @@ surowan-utils commands               # 列出全部面板命令
 # 读取
 surowan-utils harness show --json
 surowan-utils chat list --json
+surowan-utils decision-gate show --json        # 入场闸门的 saved/active 值与是否已配置密钥（不回显密钥）
+surowan-utils decision-gate decisions --chat -1001234567890 --limit 20 --json   # 影子数据的复核入口
 surowan-utils memo list --chat -1001234567890 --json
 
 # 写入（需要 read_write 或 all）：body 由 --set / --set-json / --body / --file 组成
 surowan-utils harness update --set-json values.history_messages=40 --json
+surowan-utils decision-gate update --set-json threshold=0.6 --set-json mode=shadow --json
+surowan-utils decision-gate update --set api_key='<新密钥>' --json   # 新明文按 decision-gate 存入 keychain
+surowan-utils chat decision-gate -1001234567890 --set-json mode=shadow --set-json threshold=null --json
 surowan-utils chat create --set id=-1009876543210 --set-json topic_ids=null --set-json provider=null --set-json model=null --set-json thinking_level=null --json
 surowan-utils memo create --set chat_id=-1001234567890 --set summary=偏好 --set detail=细节 --set-json ttl_seconds=null --json
 surowan-utils prompt save global --file prompt.md --set note='更简短' --json   # --file 读原始 Markdown

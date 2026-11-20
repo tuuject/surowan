@@ -24,6 +24,7 @@ import { createWarningsAdminHandler } from '../warnings.ts';
 import { createAdminsAdminHandler } from './admins.ts';
 import { createAdminAuthHandler } from './auth.ts';
 import { createChatsAdminHandler } from './chats.ts';
+import { createDecisionGateAdminHandler } from './decision-gate.ts';
 import { createDictionaryAdminHandler } from './dictionary.ts';
 import { createGroupMemoryAdminHandler } from './group-memory.ts';
 import { createImageAdminRoutes } from './image.ts';
@@ -151,6 +152,12 @@ export function createAdminRoutes(deps: AdminRoutesDeps) {
       memoBlobs,
       searchProviders: options.searchProviders ?? BUILTIN_SEARCH_PROVIDERS,
       ...(scheduler === undefined ? {} : { scheduler }),
+    }),
+    decisionGate: createDecisionGateAdminHandler({
+      store: options.store,
+      configStore: options.configStore,
+      configReloader: reloader,
+      secrets,
     }),
     prompts: createPromptsAdminHandler({
       store: options.store,
