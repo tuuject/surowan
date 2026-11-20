@@ -62,6 +62,14 @@ export function recoverQueue(deps: InvocationQueueDeps, now = new Date()): void 
         ),
       )
       .run();
+    // A decision request that was in flight when the previous process died
+    // leaves its `pending` row behind. The Bucket is still `collecting` and is
+    // decided again on this start; the row closes as `interrupted` so no reader
+    // waits on it forever.
+    store.orm.run(
+      sql`UPDATE bucket_decisions SET state = 'error', error_code = 'interrupted', finished_at = ${nowIso}
+         WHERE state = 'pending' AND ${processConversations(deps, sql`conversation_id`)}`,
+    );
     const expiring = store.orm
       .select({ id: buckets.id, hostKind: chats.hostKind })
       .from(buckets)

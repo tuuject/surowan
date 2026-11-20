@@ -13,6 +13,7 @@ import { buckets } from '../../store/schema/index.ts';
 import { activeSleepUntil } from '../../store/sleep.ts';
 import type { BusinessStore } from '../../store/store.ts';
 import { activeHosts, conversationsOfHosts, everyHostReady, type HostReadiness } from '../host-scope.ts';
+import type { DecisionGate } from '../decision-gate/index.ts';
 import type { BucketAttachmentTarget } from './index.ts';
 import type { ProactiveReplyGate } from '../proactive-reply.ts';
 
@@ -29,6 +30,8 @@ export interface InvocationQueueDeps {
   readonly attachment: BucketAttachmentTarget | undefined;
   readonly tasks: LongTaskService;
   readonly proactive: ProactiveReplyGate | undefined;
+  /** The Decisions entry gate; undefined when this process carries none. */
+  readonly decisionGate: DecisionGate | undefined;
   /**
    * Hosts this process serves. Undefined means every host (a shared process).
    * Every query except crash recovery narrows this by `isHostReady`, so a host
@@ -142,11 +145,16 @@ export function proactiveAllows(
   hostChatId: bigint,
   chatType: string,
   conversationId: bigint,
-  chat: Pick<ChatConfigEntry, 'proactive_reply'>,
+  chat: Pick<ChatConfigEntry, 'proactive_reply' | 'decision_gate'>,
   now: Date,
 ): boolean {
   const proactive = deps.proactive;
   if (proactive === undefined) {
+    return true;
+  }
+  // An enforcing gate already decides this batch's fate, so sampling it first
+  // would only burn the pity counter for a batch the gate may drop.
+  if (deps.decisionGate?.enforcesBatch(bucketId, hostKind, chat) === true) {
     return true;
   }
   const rule = deps.participation.ruleFor(deps.store.orm, { hostKind, hostChatId }, chatType);
@@ -163,7 +171,12 @@ export function proactiveAllows(
   }).allowed;
 }
 
-export function markBucketSkipped(deps: InvocationQueueDeps, bucketId: bigint, now: Date, reason: string): void {
+export function markBucketSkipped(
+  deps: Pick<InvocationQueueDeps, 'store'>,
+  bucketId: bigint,
+  now: Date,
+  reason: string,
+): void {
   const timestamp = now.toISOString();
   deps.store.orm
     .update(buckets)

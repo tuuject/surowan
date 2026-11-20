@@ -1,4 +1,5 @@
 import type Database from 'better-sqlite3';
+import { loadConversationDecisions, renderDecision } from './decisions.ts';
 import { preview } from './support.ts';
 
 interface ConversationRow {
@@ -99,6 +100,7 @@ export function renderConversation(database: Database.Database, id: number, limi
   const memos = database
     .prepare<[number], { count: number }>(`SELECT count(*) AS count FROM memo_pad_entries WHERE chat_id = ?`)
     .get(conversation.chat_id);
+  const decisions = loadConversationDecisions(database, id, limit);
   const gate =
     attention === undefined
       ? 'no attention window recorded'
@@ -114,6 +116,7 @@ export function renderConversation(database: Database.Database, id: number, limi
         context: context ?? null,
         attention: attention ?? null,
         memoCount: memos?.count ?? 0,
+        decisions,
       },
       null,
       2,
@@ -148,6 +151,10 @@ export function renderConversation(database: Database.Database, id: number, limi
     out.push(
       `#${send.id} ${send.kind} ${send.state} telegram_message_id=${send.telegram_message_id ?? '-'} ${send.created_at}`,
     );
+  }
+  section(`Recent entry-gate decisions (${decisions.length})`);
+  for (const decision of decisions) {
+    out.push(`${renderDecision(decision)} ${decision.created_at}`);
   }
   section(`Recent private assistant texts (${privateTexts.length})`);
   for (const row of privateTexts) {

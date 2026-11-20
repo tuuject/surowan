@@ -1,16 +1,17 @@
-import { eq, sql } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { hostIntakeSettings } from '../platform/config/index.ts';
 import type { FileChat } from '../platform/config/index.ts';
+import type { BotIdentity } from '../platform/im-host/cues.ts';
 import type { HostKind } from '../platform/im-host/identity.ts';
-import { matchTriggerKind, type TriggerKind } from '../platform/participation.ts';
-import { rawFragmentReader } from '../platform/raw-fragments.ts';
+import type { TriggerKind } from '../platform/participation.ts';
 import { proactiveReplyFingerprint, resolveProactiveReply, sampleProactiveReply } from '../platform/proactive-reply.ts';
 import type { RuntimeConfigurationStore } from '../platform/runtime-config.ts';
 import { proactiveReplyState } from '../store/schema/index.ts';
 import type { Orm } from '../store/store.ts';
+import { bucketDirectTriggerKind } from './direct-trigger.ts';
 
 export interface ProactiveReplyGateOptions {
-  readonly bot: { readonly id: bigint; readonly username: string | null };
+  readonly bot: BotIdentity;
   /** Test seam; production uses `Math.random`. */
   readonly random?: () => number;
 }
@@ -126,67 +127,18 @@ export class ProactiveReplyGate {
     return { allowed: sample.hit, reason: sample.hit ? 'hit' : 'miss', triggerKind: null };
   }
 
-  /**
-   * A direct cue anywhere in the frozen batch makes the whole batch direct:
-   * one attempt is one aggregated batch, not one message.
-   */
   #directTriggerKind(bucketId: bigint, keywords: readonly string[], hostKind: HostKind): TriggerKind | null {
-    const stickerTrigger = hostIntakeSettings(this.#configStore.current().config, hostKind).sticker_trigger_enabled
-      ? 1
-      : 0;
-    const rows = this.#orm.all<{
-      raw_fragment_json: string | null;
-      original_fragment_json: string;
-      current_eligible: bigint;
-    }>(
-      // Messages from bots and the bot's own sends are filtered exactly like
-      // ingestion filters them: they may join a batch, but they cannot call the
-      // bot. A sticker-only message likewise only counts when stickers are
-      // allowed to trigger.
-      sqlDirectMessages(bucketId, stickerTrigger),
-    );
-    const reader = rawFragmentReader(hostKind);
-    for (const row of rows) {
-      // An original-revision ask stays a direct cue even after the message was
-      // edited; a malformed fragment simply carries no cue. The ask-only read
-      // never walks mention entities or rich text.
-      if (reader.asks(row.original_fragment_json, this.#bot)) {
-        return 'ask';
-      }
-      if (row.current_eligible !== 1n) {
-        continue;
-      }
-      const kind = matchTriggerKind(reader.cues(row.raw_fragment_json, this.#bot), keywords, false);
-      if (kind !== null) {
-        return kind;
-      }
-    }
-    return null;
+    return bucketDirectTriggerKind({
+      orm: this.#orm,
+      config: this.#configStore.current().config,
+      hostKind,
+      bucketId,
+      bot: this.#bot,
+      keywords,
+    });
   }
 
   #log(fields: Readonly<Record<string, string | number | boolean | null>>): void {
     console.log(JSON.stringify(fields));
   }
-}
-
-// Keeps the SQL template next to the only query that uses it.
-function sqlDirectMessages(bucketId: bigint, stickerTrigger: number) {
-  return sql`SELECT r.raw_fragment_json,
-      (SELECT original.raw_fragment_json FROM message_revisions original
-       WHERE original.message_id = m.id AND original.revision_no = 1) AS original_fragment_json,
-      CASE WHEN r.kind <> 'service'
-        AND (r.text IS NOT NULL OR r.caption IS NOT NULL OR r.reply_to_message_id IS NOT NULL)
-        AND (r.kind <> 'sticker' OR r.text IS NOT NULL OR r.caption IS NOT NULL
-          OR EXISTS (SELECT 1 FROM media md WHERE md.revision_id = r.id AND md.kind <> 'sticker')
-          OR ${stickerTrigger} = 1)
-        THEN 1 ELSE 0 END AS current_eligible
-    FROM bucket_messages bm
-    JOIN messages m ON m.id = bm.message_id
-    JOIN message_revisions r ON r.id = m.current_revision_id
-    LEFT JOIN senders s ON s.id = r.sender_id
-    WHERE bm.bucket_id = ${bucketId}
-      AND m.visible = 1
-      AND m.sent_by_bot = 0
-      AND COALESCE(s.is_bot, 0) = 0
-    ORDER BY bm.sequence_no`;
 }

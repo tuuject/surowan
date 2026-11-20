@@ -66,7 +66,7 @@ node src/cli.ts doctor --config dev-data/config.jsonc
 - `pnpm test`：运行全部行为测试。
 - `pnpm run lint` / `pnpm run lint:fix`：Biome 检查与格式校验；`lint` 只读、每个 workflow 都跑，`lint:fix` 写回文件后仍需重跑 `lint`。
 - `check-config`：只验证 JSONC Schema、语义与引用，输出配置哈希。
-- `doctor`：执行 SQLite/Sharp/FFmpeg/Lottie、Provider、Vision、全部已配置 MCP Server 与（配置了 token 时）Telegram 的真实探针；MCP 不可达只报告为不可用项，不会让 doctor 失败。
+- `doctor`：执行 SQLite/Sharp/FFmpeg/Lottie、Provider、Vision、全部已配置 MCP Server、入场闸门（闸门开启时）与（配置了 token 时）Telegram 的真实探针；MCP 不可达只报告为不可用项，不会让 doctor 失败。
 - `serve`：启动服务与 Telegram 连接（可用时）；启动时与运行期间每 24 小时各执行一次保留清理（`purgeExpiredData`，读取当前发布的 `retention.online_days`，失败只记日志不中断进程）。白名单字段（agent 模型、Prompt、预算与并发等，见 [configuration.md](configuration.md#运行时配置热更新)）可在运行中通过 Admin 的「应用配置文件」或 `/model` 应用，其余字段仍需重启。
 - `backup`：执行保留清理、SQLite `VACUUM INTO` 备份与轮换；完整性检查属于独立恢复验证。
 - `configure`：`src/tui/` 的交互式配置向导，编辑既有配置的 Provider 与 thinking level，可从 Provider `/models` 拉取可路由模型 ID 后写回原文件。要求已存在可加载的配置且 stdin 是 TTY，非交互环境直接报错退出——agent 不要调用它。
@@ -193,6 +193,8 @@ node src/cli.ts doctor --config dev-data/config.jsonc
 ```
 
 Doctor 是对已配置运行环境执行的真实依赖检查，不是静态 lint；完整检查范围与何时可判定通过见[验证：Doctor](verification.md#doctor)。它会产生 `role = 'doctor'` 的模型调用审计并消耗少量 Provider Token；Tool Call 探针按实际选用的模型组合去重，因此新增 Chat 模型覆盖会引入新的探针并消耗相应 Token。
+
+入场闸门开启（全局或任意 Chat）时，Doctor 还会解析 `decision_gate.api_key` 并向配置的 `base_url` 发一次最小的决策请求，成功时 JSON 报告的 `decision_gate` 为 `{ "status": "connected", "model": …, "base_url": … }`，闸门未开启时为 `{ "status": "disabled", … }`。引用悬空、鉴权失败、网络错误或响应不合法都会让 Doctor 失败——闸门在运行时按「异常一律送入」处理，只有 Doctor 能把这类静默失效暴露出来。该探针消耗一次 Decisions API 请求（未配置 `decision_gate` 时不发）。
 
 Telegram 是可选依赖：没有 `telegram` 段、没有 token 或 token 解析为空串时，Doctor 跳过 Telegram 探针，其余检查照常执行，成功 JSON 中 `telegram_status` 为 `"disabled"`、`telegram_bot_id` 为 `null`。有 token 时执行一次 `getMe`，成功时 `telegram_status` 为 `"connected"`、`telegram_bot_id` 为 Bot ID 字符串。token 的 SecretRef 无法解析（环境变量未设、jar 无此项、命令失败）时 Doctor 直接报错，不把它当成停用。
 

@@ -302,6 +302,7 @@ participation 放行 = 未配置 participation || 处于活跃时段 || 更新�
 - 计数按 Chat 隔离（Forum Topic 共享所在群的计数），存在 SQLite 的 `proactive_reply_state`，跨重启保持。每个 Bucket 最多一次写入；抽样与 Bucket 状态转换在同一个同步事务里，不存在并发重复计数。
 - 概率配置变化后，下一次抽样发现 `proactive_reply_state.settings_fingerprint` 不匹配，会先把该群连续未命中数清零再抽。指纹只包含 `base_probability`、`increment` 与 `hard_pity`：仅关闭再开启功能或仅重启都不会清零。
 - 私聊不受影响：私聊消息始终按直接对话处理；正数 Chat ID 上显式写 `proactive_reply` 会被 `check-config` 拒绝。
+- 某个 Chat 的入场闸门处于 `enforce` 时，该 Chat 的抽样整体停用：`proactiveAllows` 直接放行，`random` 不被调用，保底计数不变（`shadow` 不改变抽样）。理由是两层叠加时，抽中后又被闸门抛弃会白白清零保底计数。
 - 日志事件：直接绕过为 `agent_proactive_reply_bypassed`（含 `trigger_kind`）；抽样为 `agent_proactive_reply_sampled`（含 `attempt`、`probability`、`consecutive_misses_before/after`、`hit`、`hard_pity`、`state_reset`）。不写入长期审计表。
 - Admin Chats 页的「主动回复」列与星形按钮可编辑本群模式：跟随全局、关闭、或自定义三个参数；保存后热应用。
 
@@ -331,7 +332,7 @@ participation 放行 = 未配置 participation || 处于活跃时段 || 更新�
 }
 ```
 
-**当前状态：只落地了配置、解析与 HTTP 客户端，闸门还没有接进 Bucket 到期流程。** 因此本节的设置现在都不改变运行行为：即使 `enabled: true`，也没有任何决策请求发出，Bucket 的下场与未配置时完全一样。字段、默认值与校验按最终设计冻结，接入后不再改动。
+**接线：** 闸门接在 Bucket 到期流程的两个入口上——新开 Invocation（`queueCollectingBucket`）与 attach 到运行中的 Invocation（`attachDueBucket`），默认关闭。只有同时满足下列条件才会发出决策请求：全局段存在、该 Chat 解析后的 `enabled` 为 `true`、Chat 不是私聊、Bucket 的 `kind` 是 `realtime`、批内没有直接触发（`/ask`、@ Bot、回复 Bot 自己的消息、命中触发关键词）。`startup_catch_up` 批次、长程任务完成回执、循环闹钟、面板恢复的 Invocation、Playground 房间与 [send 屏障](telegram-agent-flow.md#send-屏障)自己取走的批次都不经过闸门；Chat 被暂停、离开配置、agent 三元组不完整或 Bot 在睡眠时，批次也不会产生请求或决策行。`shadow` 只记录结果、不改变任何调度；`enforce` 让被拒绝的批次以 `skipped_budget`/`decision_gate_dropped` 关闭，消息、Revision 与 `bucket_messages` 全部保留。任何失败（超时、网络错误、非 2xx、响应不合法、refusal、密钥解析失败）都按送入处理，不重试。
 
 规则：
 
@@ -352,9 +353,11 @@ participation 放行 = 未配置 participation || 处于活跃时段 || 更新�
   | `timeout_ms` | `3000` | 仅全局 | 500–10000，密钥解析与 HTTP 请求共用的总预算 |
 
 - `instructions` 整段替换默认提问。默认文本是：`A group chat has an AI member named {{ bot.name }} (@{{ bot.username }}), described in \`bot\` and shown as \`{{ bot.name }} [bot]\`. \`pending\` holds the new messages since the bot last looked; \`history\` holds earlier messages. Would the bot, behaving like a friendly regular member, send a reply after reading \`pending\`?`。两个占位符分别替换为 Bot 的显示名与用户名（取自连接身份，不调用 Telegram API）；未知占位符原样保留，不会让请求失败。自定义文本必须仍是一个是非题，且「是」表示应当送入，因为判定固定为「P(yes) ≥ `threshold`」；换了提问以后 0.57 这个默认阈值不再有依据，应先用 `mode: "shadow"` 重新观察再切 `enforce`。消息正文只放在请求的 `state` 里，永不拼进 `instructions`。
-- `api_key` 是 SecretRef：`{ "jar": "<条目名>" }` 走 keychain（面板里叫「密钥」），也可以用 `env` 或 `command`。已经配了 OpenRouter Provider 的部署可以直接引用同一个条目，不必再存一份。`enabled: true` 而没有 `api_key` 会被 `check-config` 直接拒绝；它只查字段在不在，不解析引用。每次决策都会重新 `resolve`，所以面板里轮换条目、手工改文件、改引用指向都在下一次决策生效，不需要重启；引用悬空（条目或环境变量不存在、`command` 失败）不会在加载时报错，只会在运行时暴露——闸门按「异常一律送入」处理并记一条 `secret_unresolved` 的决策行，因此 `doctor` 的探测是必做项。
+- `api_key` 是 SecretRef：`{ "jar": "<条目名>" }` 走 keychain（面板里叫「密钥」），也可以用 `env` 或 `command`。已经配了 OpenRouter Provider 的部署可以直接引用同一个条目，不必再存一份。`api_key` 只在全局段：全局 `enabled: true`，或任意一个群在 Chat 覆盖里把 `enabled` 设为 `true`，都要求全局段写了 `api_key`，否则 `check-config` 拒绝；它只查字段在不在，不解析引用。每次决策都会重新 `resolve`，所以面板里轮换条目、手工改文件、改引用指向都在下一次决策生效，不需要重启；引用悬空（条目或环境变量不存在、`command` 失败或超过 `timeout_ms`）不会在加载时报错，只会在运行时暴露——闸门按「异常一律送入」处理并记一条 `secret_unresolved` 的决策行，因此 `doctor` 的探测是必做项。
 - `base_url` 必须是 HTTPS、不带凭证，也不能带 query 或 fragment（客户端只会在末尾接 `/decisions`）。请求带 `Authorization: Bearer <key>`，禁止重定向。
-- 全部字段热更新（`telegram.decision_gate.*` 与 `telegram.chats[<id>].decision_gate.*`），包括 `api_key`、`base_url` 与 `model`，见「运行时配置热更新」。
+- 全部字段热更新（`telegram.decision_gate.*` 与 `telegram.chats[<id>].decision_gate.*`），包括 `api_key`、`base_url` 与 `model`，见「运行时配置热更新」。决策结果在新事务里用**当时已发布**的配置复核：请求期间闸门被关掉或切到 `shadow`、Chat 被移除时，结论不会抛弃批次，只记 `applied = 0` 并把 Bucket 交回下一轮现有闸门。
+- 某个 Chat 的闸门处于 `enforce` 时，该 Chat 不再做主动回复抽样：`proactiveAllows` 视为放行且不读写保底计数（`shadow` 不改变抽样）。同一时刻全局最多 4 个在途决策请求，超出时该批次按送入处理并记 `concurrency_limit`，不排队。
+- 每个决策写一行 `bucket_decisions`（列见 [data-layer.md](data-layer.md#入场闸门决策迁移-066)），并打一行 `agent_decision_gate` 日志（含 Chat、Conversation、Bucket、决策行 id、模式、结果、`applied`、概率与脱敏后的错误码，不含消息正文）。决策的 Token 与花费不计入 `daily_budget`。
 
 ## Sticker Set
 

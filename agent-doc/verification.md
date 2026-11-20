@@ -58,6 +58,7 @@ pnpm test test/runtime/host.test.ts test/config/boundary.test.ts test/store-boun
 pnpm test test/memo
 pnpm test test/group-memory
 pnpm test test/dictionary/dictionary.test.ts test/dictionary/runtime.test.ts
+pnpm test test/decision-gate
 pnpm test test/tasks/long-tasks.test.ts test/tasks/migration.test.ts test/tasks/delivery.test.ts test/tasks/runtime.test.ts test/tasks/context.test.ts test/tasks/hot-injection.test.ts
 pnpm test test/alarm/alarm.test.ts test/alarm/context.test.ts
 pnpm test test/recurring-alarms
@@ -92,6 +93,7 @@ pnpm test test/im test/intake test/schema/migrations-host-neutral-ids.test.ts te
 | `telegram/markdown-context.test.ts` | 格式消息入库到 Agent 上下文：Revision 保留原文，快照冻结 Markdown 与必要的 `match_text`；完整链接 spoiler 包含 URL、部分标签 spoiler 不扩大范围；Rich Message 的 Revision/媒体行/`media_slots`、多模态 `figure_N` 顺序与 `context_refs` 对应；保留历史与回复引用。`dictionary/injection.test.ts` 验证 text/caption/rich 部分格式下的 Term/Alias 匹配、链接目标排除及快照后编辑不改变注入 |
 | `participation/participation.test.ts` | 全局/每 Chat 规则合并、私聊配置拒绝、跨午夜时段、触发与注意力窗口（含 Rich Message 内的 @ 与关键词）；复制载荷与 caption/credit 跨字段短语不创建 Bucket/attention，按钮可见标签仍触发；暂停/编辑边界、启动追赶与清理 |
 | `proactive/reply.test.ts` | 默认关闭、概率递增与硬保底、命中/未命中计数、聚合批次一次抽样、批次内直接唤起绕过、@/Reply/关键词/Bot Command；隐藏复制载荷及 caption/credit 拼接不绕过抽样，分段格式的可见关键词仍直接唤起；直呼不改变计数、按群隔离、跨重启恢复、配置变更清零、attach 前抽样、私聊/暂停/participation 边界；`startup/catch-up.test.ts` 覆盖追赶批次抽样 |
+| `decision-gate/*.test.ts` | 入场闸门的真实调度与落盘状态：默认关闭时无请求无决策行；`shadow` 的时序与关闭时一致且只多一行 `applied = 0`；`enforce` 的送入（含阈值边界）、抛弃（`skipped_budget` + `decision_gate_dropped`，消息保留）与 attach 路径；失败表逐行（超时、网络、401/402/429/500、非 JSON、缺 `answers.gate.noul`、refusal、悬空 keychain 与未设环境变量、超预算的 `command` 引用、在途上限）都以 `error`/`enter` 收尾并带稳定 `error_code`；决策期间的新增消息触发重新决策（最多 2 次后送入）、send 屏障取走批次后行标 `stale`、Chat 暂停/移除/闸门关闭或切 `shadow` 时不产生 Invocation 也不抛弃、进程停止不挂起且残留行变 `interrupted`、已放行批次被推迟后不重复决策；直接触发（`/ask`、@、回复 Bot、关键词）、`ask_only`、私聊、Playground 房间、`startup_catch_up`、任务回执、循环闹钟与面板恢复的 Invocation 全部不发请求；`enforce` 不动保底计数而 `shadow` 照旧抽样；请求内容（history/pending 选取与顺序、两个条数上限、`<name> [bot]`、`[photo]`/`[sticker]`、500 字截断、`reply_to`、自定义提问与 Chat 覆盖、决策时读取 Bot 名称）；密钥轮换与脱敏；保留清理随 Bucket 删除决策行；`doctor` 探测（关闭跳过、悬空引用、鉴权失败、成功、输出脱敏） |
 | `startup/catch-up.test.ts` | 每 Conversation 一个追赶 Invocation（同群不同 Topic 分开）、`history_messages` 上限、`ignored_user_ids` 与 `sticker_trigger_enabled` 生效、排空后切换实时 Bucket、各 Topic 发送落回自己的 Topic；积压 `/pause`/`/resume` 顺序执行与鉴权、其他命令只审计不入上下文、重复 Update 不重放；慢排空或崩溃续跑后刚排队的追赶不被启动恢复判为过期，真正排队超过 recovery 年龄的仍以 `recovery_age` 过期 |
 | `scheduler/scheduler.test.ts` | 配置 deadline、冻结快照、恢复和并发串行 |
 | `scheduler/bucket-timing.test.ts` | 自适应 Bucket 节拍：缺省与旧配置保持固定窗口、bump 延长与只往后推（不拉回轮结束写入的更晚 deadline）、`bucket_max_seconds` 截断与持续消息流仍按上限结算、不能开 Bucket 的消息不延长、deadline 附近的消息与结算竞争时每条消息只进一个 Bucket、运行中的 Scheduler 循环在 fake timers 下按延长后的 deadline 重排定时器且只结算一次、配置校验（max ≥ window、idle grace 覆盖 max） |
@@ -287,6 +289,7 @@ node src/cli.ts check-config --config dev-data/config.jsonc
 - Vision 图片请求。
 - Telegram Bot Token：没有 `telegram` 段或没有 token 时跳过探针，JSON 报告 `telegram_status = "disabled"`、`telegram_bot_id = null`；有 token 时执行 `getMe`，成功报告 `telegram_status = "connected"` 与 Bot ID；SecretRef 无法解析时 Doctor 失败。
 - 全部已配置 MCP Server（Telegram 停用时仍检查；不可达报告为警告项而非失败）。
+- 入场闸门：`telegram.decision_gate` 开启（全局或任意 Chat）时解析 `api_key` 并向 `base_url` 发一次最小决策请求，成功报告 `decision_gate.status = "connected"` 与模型/地址；未开启时报告 `"disabled"` 且不发请求。引用悬空、鉴权失败（401/402）、网络错误或响应不合法都是 Doctor 失败，不降级为警告；这是唯一能发现「闸门静默失效」的自动检查。
 
 Doctor 成功只证明连接与最小能力，不证明真实群聊调度、Reply、Sticker capability 或“不回复”行为。
 
@@ -491,6 +494,15 @@ Remove-Item Env:E2E_PASSKEYS
 - `send_duplicate_guard_enabled` 缺省且模型反复调用同一条 `send`：Telegram 上只出现一条，`tool_calls` 是一条 `success` 后跟 `error` / `send_duplicate`，Invocation 以 `repeated_tool_failure`（同一条连发）或 `duplicate_send`（交替重复，累计超过 3 次）结束，而不是 `turn_budget`。自动化用例见 `test/agent/runtime.test.ts` 与 `test/replay/replay.test.ts` 中的 duplicate 用例。
 - `/cut_topic`：日志出现 `context_cleared`，`conversation_contexts.head_seq = next_seq` 且 `context_refs` 清空，下一条消息不再看到切点前的 transcript（Telegram 上切了历史、模型仍记得的旧故障形态不应再出现）。该 Conversation 正在运行的 Invocation 会以 `aborted` / `context_cut` 收尾；切点落在某一轮中途时，下一次运行日志出现 `context_realigned` 而不是 provider 400。
 - `/status` 的 Context 行显示该 Conversation 的保留消息数、保留 send 数与 `head_seq`，以及 `未 GC` 或上次 GC 时间；尚未建立 Context 时显示 `Context: 尚未建立`。
+
+### 入场闸门
+
+- 在允许的群里把 `telegram.decision_gate` 打开、`mode: "shadow"`：`bucket_decisions` 每个到期批次一行（`state = "success"` 或 `error`、`applied = 0`），日志出现 `agent_decision_gate`，Bucket 的状态与时间线与未开启时一致，Bot 照常发言。
+- 把同一群改成 `enforce`：日志与决策行的 `mode` 变为 `enforce`；`probability` 低于 `threshold` 的批次以 `skipped_budget`/`decision_gate_dropped` 收尾、没有 Invocation、消息仍可被下一条消息的 history 看到；送入的批次会出现一次 `bucket_decisions.applied = 1`，随后是正常的 `agent_invocation_start`。
+- 群里发一条 `/ask`、@ Bot、回复 Bot 或命中 `trigger_keywords` 的消息：不产生 `bucket_decisions` 行，直接进入 Invocation。
+- 决策期间再发一条消息：若结论是抛弃，该行标 `stale`、`applied = 0`，随后还有一行新的决策；同一 Bucket 最多重新决策 2 次。
+- 临时把 `api_key` 指向不存在的 keychain 条目：每个到期批次都记 `secret_unresolved`，Invocation 照常启动；`doctor` 对此直接报错。
+- 重启进程时若恰有决策在途：`bucket_decisions` 留下的一行在下次启动后变成 `error`/`interrupted`，Bucket 仍为 `collecting` 并被重新处理。
 
 ### 输出与 Reply
 

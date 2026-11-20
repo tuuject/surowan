@@ -189,8 +189,9 @@ Alarm 是 `plugin_id = 'alarm'` 的任务投影。`long_tasks.created_by_user_id
 - `mode` 与 `state`（`pending` / `success` / `error` / `stale`）、`outcome`（`enter` / `drop`，未得出时为 NULL）、`applied`（是否真的决定了 Bucket 的去向）都有 CHECK 或 0/1 约束。`applied = 0` 的 `stale` 行表示判断做完了但 Bucket 已经不在 `collecting`，结论被丢弃。
 - 存的是设置与结果而不是请求体：`model`、`threshold`、`history_count`、`pending_count`、`probability`、`input_tokens`、`cost`、`duration_ms`，加上 `error_code` 与经 `SecretStore.redact` 处理的 `error_detail`。消息原文已经在库里，按 `bucket_id` 可以从 `bucket_messages` 重建请求。
 - 索引 `bucket_decisions_conversation_time_idx`（`conversation_id, created_at, id`）服务「某个 Conversation 的决策、按时间倒序」；`bucket_decisions_bucket_idx` 服务按 Bucket 取行。
-- 进程启动时残留的 `pending` 行会被标成 `error`、`error_code = 'interrupted'`（由闸门接入后负责）。
-- 当前状态：表与迁移已落地，但闸门还没有接进 Bucket 到期流程，所以运行中的进程不会写入任何行。
+- 写入分两段：到期事务里写 `pending`（`state = 'pending'`，含模式、模型、阈值与此刻的 `history_count` / `pending_count`），请求返回后在新事务里补结果。`shutdown` 时在途请求被 abort 且不等待，迟到的结果不写库。
+- 进程启动时（`recoverQueue`）把残留的 `pending` 行标成 `error`、`error_code = 'interrupted'`、`outcome = NULL`、`applied = 0`，只处理本进程宿主范围内的 Conversation 行。
+- `applied = 1` 只在 `enforce` 下由真正决定 Bucket 去向的那一行写入（送入、失败送入、或抛弃）；`shadow` 行与 `stale` 行恒为 0。`stale` 有两种来源：Bucket 在决策期间已经离开 `collecting`，以及判定为抛弃但批次随后变了（新消息或编辑了批内消息，此时会重新决策，最多 2 次）。重新决策次数用尽后按送入处理，该行记为 `outcome = 'enter'`、`applied = 1`，`probability` 仍保留原值，所以 `probability < threshold` 与 `outcome = enter` 同时出现时表示「被重新决策上限救回」。
 
 ### dictionary_entries（迁移 034）
 
