@@ -1,8 +1,9 @@
 import { and, eq, sql } from 'drizzle-orm';
 import { completeAgentSettings, resolveAgentSettings } from '../../platform/config/resolve.ts';
-import { resolveChatConfig } from '../../platform/config/index.ts';
-import { parseHostKind } from '../../platform/im-host/identity.ts';
+import { type ChatConfigEntry, resolveChatConfig } from '../../platform/config/index.ts';
+import { parseHostKind, type HostKind } from '../../platform/im-host/identity.ts';
 import { buckets } from '../../store/schema/index.ts';
+import type { DecisionToken } from '../decision-gate/index.ts';
 import {
   enqueueBucketInvocation,
   type InvocationQueueDeps,
@@ -17,6 +18,7 @@ import {
 export interface BucketRow {
   readonly id: bigint;
   readonly conversation_id: bigint;
+  readonly kind: string;
   readonly first_received_at: string;
   readonly deadline_at: string;
   /** The batch's own window, recorded when it opened. */
@@ -30,26 +32,32 @@ export interface BucketRow {
 export function processDueBuckets(deps: InvocationQueueDeps, now = new Date()): bigint[] {
   const store = deps.store;
   const sleepUntil = sleepUntilFor(deps, now);
-  return store.transaction(() => {
-    // A bucket whose conversation already has a *running* invocation is
-    // injected into it (below) instead of starting its own run. Everything
-    // else keeps the previous chat-level pacing: a queued invocation will
-    // open with this bucket, and a running invocation of a *different*
-    // conversation in the same chat still owns the chat, because agent
-    // sessions stay serialized per chat.
-    // No age ceiling here. A batch collects for as long as its Conversation is
-    // busy — the runtime pushes its deadline one window at a time while the
-    // round runs — so a batch that is entirely legitimate is older than
-    // `RECOVERY_MAX_AGE_MS` by the time it comes due. Filtering those out left
-    // them `collecting` forever: the run ends without taking them, nothing
-    // re-queues them, and every later message of that Conversation joins the
-    // same dead batch while the scheduler keeps waking on its already-passed
-    // deadline (observed: invocations/1320, where a 30-minute round left the
-    // next batch stranded and the chat went silent for good). The five-minute
-    // rule is a *startup* rule: `recover()` expires that work before this
-    // method is ever called, so nothing stale can reach the queue from here.
-    const due = store.orm.all<BucketRow>(
-      sql`SELECT b.id, b.conversation_id, b.first_received_at, b.deadline_at, b.window_seconds
+  // Requests start only once the transaction is committed, so the Decision
+  // gate's phase 1 writes and the request that reads them never overlap.
+  const decisions: DecisionToken[] = [];
+  let invocations: bigint[];
+  try {
+    invocations = store.transaction(() => {
+      // A bucket whose conversation already has a *running* invocation is
+      // injected into it (below) instead of starting its own run. Everything
+      // else keeps the previous chat-level pacing: a queued invocation will
+      // open with this bucket, and a running invocation of a *different*
+      // conversation in the same chat still owns the chat, because agent
+      // sessions stay serialized per chat.
+      // No age ceiling here. A batch collects for as long as its Conversation is
+      // busy — the runtime pushes its deadline one window at a time while the
+      // round runs — so a batch that is entirely legitimate is older than
+      // `RECOVERY_MAX_AGE_MS` by the time it comes due. Filtering those out left
+      // them `collecting` forever: the run ends without taking them, nothing
+      // re-queues them, and every later message of that Conversation joins the
+      // same dead batch while the scheduler keeps waking on its already-passed
+      // deadline (observed: invocations/1320, where a 30-minute round left the
+      // next batch stranded and the chat went silent for good). The five-minute
+      // rule is a *startup* rule: `recover()` expires that work before this
+      // method is ever called, so nothing stale can reach the queue from here.
+      deps.decisionGate?.pruneMarks();
+      const due = store.orm.all<BucketRow>(
+        sql`SELECT b.id, b.conversation_id, b.kind, b.first_received_at, b.deadline_at, b.window_seconds
        FROM buckets b
        JOIN conversations v ON v.id = b.conversation_id
        JOIN chats c ON c.id = v.chat_id
@@ -63,35 +71,108 @@ export function processDueBuckets(deps: InvocationQueueDeps, now = new Date()): 
              AND (i.state = 'queued' OR (i.state = 'running' AND i.conversation_id <> b.conversation_id))
          )
        ORDER BY b.deadline_at, b.id`,
-    );
-    const invocations: bigint[] = [];
-    for (const bucket of due) {
-      const running = runningInvocationId(deps, bucket.conversation_id);
-      if (running !== undefined) {
-        // A run that is still working on its round has not been free for the
-        // batch's window yet, so the batch keeps collecting: its window starts
-        // when the round ends (`AgentRuntime` pushes the deadline then). Handing
-        // it over here would inject a batch that collected almost nothing, and
-        // would also split the messages that arrive during a long round across
-        // two batches.
-        if (deps.attachment?.isRoundInProgress(bucket.conversation_id) === true) {
-          deferBucket(deps, bucket, now);
+      );
+      const opened: bigint[] = [];
+      for (const bucket of due) {
+        // A batch with a request in flight is never decided twice, even when
+        // another path moved its deadline earlier than the pushed one.
+        if (deps.decisionGate?.isDeciding(bucket.id) === true) {
+          deferDecidingBucket(deps, bucket, now);
           continue;
         }
-        if (attachDueBucket(deps, bucket, running, now, sleepUntil)) {
+        const running = runningInvocationId(deps, bucket.conversation_id);
+        if (running !== undefined) {
+          // A run that is still working on its round has not been free for the
+          // batch's window yet, so the batch keeps collecting: its window starts
+          // when the round ends (`AgentRuntime` pushes the deadline then). Handing
+          // it over here would inject a batch that collected almost nothing, and
+          // would also split the messages that arrive during a long round across
+          // two batches.
+          if (deps.attachment?.isRoundInProgress(bucket.conversation_id) === true) {
+            deferBucket(deps, bucket, now);
+            continue;
+          }
+          if (attachDueBucket(deps, bucket, running, now, sleepUntil, decisions)) {
+            continue;
+          }
+          // The run is closing and cannot take this batch; leave the bucket
+          // collecting so the next invocation picks it up.
           continue;
         }
-        // The run is closing and cannot take this batch; leave the bucket
-        // collecting so the next invocation picks it up.
-        continue;
+        const invocationId = queueCollectingBucket(deps, bucket, now, sleepUntil, decisions);
+        if (invocationId !== undefined) {
+          opened.push(invocationId);
+        }
       }
-      const invocationId = queueCollectingBucket(deps, bucket, now, sleepUntil);
-      if (invocationId !== undefined) {
-        invocations.push(invocationId);
-      }
-    }
-    return invocations;
+      return opened;
+    });
+  } catch (error) {
+    // The rows went back with the transaction; the in-memory reservations have
+    // to go back too, or the batch would look "deciding" forever.
+    deps.decisionGate?.abandon(decisions);
+    throw error;
+  }
+  for (const token of decisions) {
+    deps.decisionGate?.start(token);
+  }
+  return invocations;
+}
+
+/**
+ * Keeps a batch with a request in flight out of the loop's zero-delay path. Such
+ * a batch is only in the due list because the request outlived the deadline
+ * phase 1 pushed (a slow event loop), and phase 2 makes it due again as soon as
+ * the verdict lands, so the floor is all it needs.
+ */
+function deferDecidingBucket(deps: InvocationQueueDeps, bucket: BucketRow, now: Date): void {
+  const atLeast = new Date(now.getTime() + deps.minimumDeferMs).toISOString();
+  deps.store.orm.run(
+    sql`UPDATE buckets SET deadline_at = ${atLeast}, updated_at = ${now.toISOString()}
+       WHERE id = ${bucket.id} AND state = 'collecting' AND deadline_at < ${atLeast}`,
+  );
+}
+
+/**
+ * Hands one due batch to the Decisions gate, after every ordinary check passed.
+ * `hold` means `enforce` is waiting for the verdict and the caller must not
+ * queue or attach the batch; a collected token is started once the transaction
+ * commits and the ordinary path continues meanwhile.
+ *
+ * `begin` contains its own failures and admits the batch (fail-open), so this
+ * function cannot throw for a gate reason: the pass always keeps going.
+ */
+function decide(
+  deps: InvocationQueueDeps,
+  bucket: BucketRow,
+  hostKind: HostKind,
+  chat: { readonly chat_id: bigint; readonly telegram_chat_id: bigint; readonly type: string },
+  chatConfig: Pick<ChatConfigEntry, 'decision_gate'>,
+  now: Date,
+  decisions: DecisionToken[],
+): 'hold' | undefined {
+  const gate = deps.decisionGate;
+  if (gate === undefined) {
+    return undefined;
+  }
+  const rule = deps.participation.ruleFor(deps.store.orm, { hostKind, hostChatId: chat.telegram_chat_id }, chat.type);
+  const begun = gate.begin({
+    bucketId: bucket.id,
+    conversationId: bucket.conversation_id,
+    bucketKind: bucket.kind,
+    hostChatId: chat.telegram_chat_id,
+    hostKind,
+    chatType: chat.type,
+    chat: chatConfig,
+    keywords: rule?.keywords ?? [],
+    now,
   });
+  if (begun === undefined) {
+    return undefined;
+  }
+  if (begun.token !== undefined) {
+    decisions.push(begun.token);
+  }
+  return begun.held ? 'hold' : undefined;
 }
 
 /**
@@ -106,6 +187,7 @@ export function attachDueBucket(
   invocationId: bigint,
   now: Date,
   sleepUntil: string | null,
+  decisions: DecisionToken[],
 ): boolean {
   const store = deps.store;
   const attachment = deps.attachment;
@@ -161,6 +243,11 @@ export function attachDueBucket(
     markBucketSkipped(deps, bucket.id, now, 'proactive_reply_skipped');
     return true;
   }
+  // A rejected batch must not be attached either: the gate covers this path
+  // exactly like opening a run.
+  if (decide(deps, bucket, hostKind, chat, attachChat, now, decisions) === 'hold') {
+    return true;
+  }
   const timestamp = now.toISOString();
   deps.attachBucketToInvocation(
     store,
@@ -207,6 +294,7 @@ export function queueCollectingBucket(
   bucket: BucketRow,
   now: Date,
   sleepUntil: string | null,
+  decisions: DecisionToken[],
 ): bigint | undefined {
   const store = deps.store;
   const chat = store.orm
@@ -255,6 +343,11 @@ export function queueCollectingBucket(
     )
   ) {
     markBucketSkipped(deps, bucket.id, now, 'proactive_reply_skipped');
+    return undefined;
+  }
+  // `enforce` keeps the batch collecting until the verdict arrives; `shadow`
+  // carries on here and only records what the model would have said.
+  if (decide(deps, bucket, hostKind, chat, chatConfig, now, decisions) === 'hold') {
     return undefined;
   }
   store.orm

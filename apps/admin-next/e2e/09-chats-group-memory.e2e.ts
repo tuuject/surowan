@@ -28,7 +28,7 @@ test('group memory can be enabled, tuned and disabled from the Chat row', async 
   await page.reload();
   const row = () => chatRow(page, GROUP);
   await expect(row()).toBeVisible();
-  await expect(row().getByRole('cell').nth(5)).toHaveText('Off');
+  await expect(row().getByRole('cell').nth(6)).toHaveText('Off');
 
   let dialog = page.getByRole('dialog');
   await openChatAction(page, row(), 'Edit group memory');
@@ -41,8 +41,8 @@ test('group memory can be enabled, tuned and disabled from the Chat row', async 
     enabled: true,
     idle_minutes: 45,
   });
-  await expect(row().getByRole('cell').nth(5)).toContainText('On, idle 45 min');
-  await expect(row().getByRole('cell').nth(5)).not.toContainText('30-hour');
+  await expect(row().getByRole('cell').nth(6)).toContainText('On, idle 45 min');
+  await expect(row().getByRole('cell').nth(6)).not.toContainText('30-hour');
 
   await openChatAction(page, row(), 'Edit group memory');
   dialog = page.getByRole('dialog');
@@ -71,7 +71,7 @@ test('group memory can be enabled, tuned and disabled from the Chat row', async 
   });
   // Hot-applied: nothing about group memory waits for a restart.
   expect((await viewOf(page)).restart_required.filter((path) => path.includes('group_memory'))).toEqual([]);
-  await expect(row().getByRole('cell').nth(5)).toContainText('On, idle 45 min, 30-hour clock');
+  await expect(row().getByRole('cell').nth(6)).toContainText('On, idle 45 min, 30-hour clock');
 
   await openChatAction(page, row(), 'Edit group memory');
   dialog = page.getByRole('dialog');
@@ -98,7 +98,7 @@ test('group memory can be enabled, tuned and disabled from the Chat row', async 
     idle_minutes: 45,
     thirty_hour_clock: 'overlapping',
   });
-  await expect(row().getByRole('cell').nth(5)).toHaveText('Off');
+  await expect(row().getByRole('cell').nth(6)).toHaveText('Off');
 
   await openChatAction(page, row(), 'Edit group memory');
   dialog = page.getByRole('dialog');
@@ -111,7 +111,7 @@ test('group memory can be enabled, tuned and disabled from the Chat row', async 
     enabled: true,
     idle_minutes: 45,
   });
-  await expect(row().getByRole('cell').nth(5)).toHaveText('On, idle 45 min');
+  await expect(row().getByRole('cell').nth(6)).toHaveText('On, idle 45 min');
 
   await row().getByRole('button', { name: 'Remove', exact: true }).click();
   await page.getByRole('button', { name: 'Remove Chat', exact: true }).click();

@@ -8,6 +8,7 @@ import { ParticipationRegistry } from '../../store/participation.ts';
 import { buckets, invocationBuckets } from '../../store/schema/index.ts';
 import type { BusinessStore } from '../../store/store.ts';
 import { everyHostReady, type HostReadiness } from '../host-scope.ts';
+import { DecisionGate, type DecisionGateOptions } from '../decision-gate/index.ts';
 import { processDueBuckets } from './due.ts';
 import {
   releaseUninjectedBuckets as releaseUninjected,
@@ -83,6 +84,7 @@ export class InvocationQueueService {
     proactive?: ProactiveReplyGateOptions,
     hosts?: readonly HostKind[],
     isHostReady: HostReadiness = everyHostReady,
+    decisionGate?: DecisionGateOptions,
   ) {
     /**
      * Conversations this process serves. Undefined means every host (a shared
@@ -103,6 +105,7 @@ export class InvocationQueueService {
       // The global sleep state is Telegram's; a process without it never reads or clears it.
       servesSleep: hosts === undefined || hosts.length === 0 || hosts.some((host) => hostExecutionProfile(host).sleep),
       proactive: proactive === undefined ? undefined : new ProactiveReplyGate(store.orm, configStore, proactive),
+      decisionGate: decisionGate === undefined ? undefined : new DecisionGate(store, configStore, decisionGate),
       recoveryMaxAgeMs: RECOVERY_MAX_AGE_MS,
       startupCatchUpStateKey: STARTUP_CATCH_UP_STATE_KEY,
       minimumDeferMs: MINIMUM_DEFER_MS,
@@ -130,6 +133,20 @@ export class InvocationQueueService {
 
   processDue(now = new Date()): bigint[] {
     return processDueBuckets(this.#deps, now);
+  }
+
+  /**
+   * Process shutdown: aborts in-flight Decisions and never waits for them. A
+   * result that lands afterwards writes nothing, because the store may be gone;
+   * startup recovery closes the leftover `pending` rows.
+   */
+  stopDecisions(): void {
+    this.#deps.decisionGate?.stop();
+  }
+
+  /** Resolves when no Decision request is in flight. */
+  decisionsSettled(): Promise<void> {
+    return this.#deps.decisionGate?.whenIdle() ?? Promise.resolve();
   }
 
   releaseUninjectedBuckets(invocationId: bigint, now: Date): void {

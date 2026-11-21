@@ -112,6 +112,12 @@ const HOT_PROACTIVE_REPLY_PATHS = [
   /^telegram\.chats\[-?\d+\]\.proactive_reply(\.|$)/,
 ];
 /**
+ * The entry gate resolves its whole settings object from the published
+ * configuration before every decision, so a changed threshold, endpoint, model
+ * or credential applies to the next batch without a restart.
+ */
+const HOT_DECISION_GATE_PATHS = [/^telegram\.decision_gate(\.|$)/, /^telegram\.chats\[-?\d+\]\.decision_gate(\.|$)/];
+/**
  * The MCP section and every per-Chat binding below it. The MCP manager diffs
  * the server list by alias and the composition root runs the cutover that
  * stops the affected Chats before those instances move, so neither needs a
@@ -143,6 +149,11 @@ export function classify(path: string): ConfigChangeKind {
   // Same for spontaneous-participation tuning: the gate resolves the current
   // published values and resets a counter whose parameter set changed.
   if (HOT_PROACTIVE_REPLY_PATHS.some((pattern) => pattern.test(path))) {
+    return 'hot';
+  }
+  // The gate re-reads the published section for every decision, so tuning it —
+  // or rotating its credential reference — never needs a restart.
+  if (HOT_DECISION_GATE_PATHS.some((pattern) => pattern.test(path))) {
     return 'hot';
   }
   // MCP servers and Chat bindings are reconciled from the published

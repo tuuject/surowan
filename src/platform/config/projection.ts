@@ -19,7 +19,13 @@ import { chatMigrations, chats } from '../../store/schema/index.ts';
 import type { BusinessStore, Orm } from '../../store/store.ts';
 import { hostExecutionProfile, hostsWhere } from '../host-profile.ts';
 import { type HostKind, unreachableHostKind } from '../im-host/identity.ts';
-import type { ChatConfigEntry, ParticipationConfig, ProactiveReplyConfig, RawConfig } from './index.ts';
+import type {
+  ChatConfigEntry,
+  DecisionGateConfig,
+  ParticipationConfig,
+  ProactiveReplyConfig,
+  RawConfig,
+} from './index.ts';
 import { type BucketTiming, resolveBucketTiming } from './resolve.ts';
 
 /** Identity a configured-chat lookup is keyed by: the host plus its own chat id. */
@@ -102,6 +108,7 @@ export interface HostIntakeSettings {
   readonly mention_typing_enabled: boolean | undefined;
   readonly participation: ParticipationConfig | undefined;
   readonly proactive_reply: ProactiveReplyConfig | undefined;
+  readonly decision_gate: DecisionGateConfig | undefined;
   readonly admins: readonly number[];
 }
 
@@ -115,6 +122,7 @@ export function hostIntakeSettings(config: RawConfig, host: HostKind): HostIntak
         mention_typing_enabled: config.telegram.mention_typing_enabled,
         participation: config.telegram.participation,
         proactive_reply: config.telegram.proactive_reply,
+        decision_gate: config.telegram.decision_gate,
         admins: config.telegram.admins ?? [],
       };
     case 'playground':
@@ -125,6 +133,7 @@ export function hostIntakeSettings(config: RawConfig, host: HostKind): HostIntak
         mention_typing_enabled: undefined,
         participation: undefined,
         proactive_reply: undefined,
+        decision_gate: undefined,
         admins: [],
       };
     default: {

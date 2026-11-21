@@ -81,7 +81,7 @@ deadline = anchor + telegram.bucket_window_seconds
 2. 同一 Chat 同时最多一个 queued/running Invocation；运行期间任何 Topic 的新消息只进入自己的 Bucket，不修改当前 Invocation。
 3. 每个 Bucket 的 deadline 是 **`max(第一条消息时刻, 该 Conversation 上一轮结束时刻) + bucket_window_seconds`**，按 Conversation 计算。Agent 空闲时它退化成 `first_received_at + bucket_window_seconds`；若第一条消息到达时上一轮还在跑，这批的窗口从该轮结束才开始，因此至少收集满一个窗口。deadline 与 Invocation 的 `started_at`/`finished_at`、queued/running 状态无关，也不会提前。
 4. 没有新的可触发消息时不创建 Bucket，也不启动空会话。`sticker_trigger_enabled` 默认为 `false`：单独的人类 Sticker 不开 Bucket，但可以加入已有 collecting Bucket；设为 `true` 后可以单独触发。
-5. 到达 deadline 后，Scheduler 冻结 `history` 与 `new` 快照并创建 Invocation；若该 **Conversation** 已有 running Invocation，则改为 attach，见「长活 Invocation 与热注入」。创建/attach 之前还有一道按群概率的主动回复闸门（见「主动回复概率调度」）：批次含 @、Reply Bot 或触发关键词时直接放行，否则抽样；未命中会关闭该 Bucket 而不创建 Invocation。
+5. 到达 deadline 后，Scheduler 冻结 `history` 与 `new` 快照并创建 Invocation；若该 **Conversation** 已有 running Invocation，则改为 attach，见「长活 Invocation 与热注入」。创建/attach 之前还有两道闸门：按群概率的主动回复抽样（见「主动回复概率调度」）与按群可选的 Decision 入场闸门（见「入场闸门（Decisions）」）。批次含 @、Reply Bot、`/ask` 或触发关键词时两道闸门都直接放行；抽样未命中、或入场闸门判定抛弃时，都会关闭该 Bucket 而不创建 Invocation。
 6. 每一轮结束时，该 Conversation 仍 `collecting` 的 Bucket 会把 deadline 推到至少 `本轮结束 + bucket_window_seconds`（只往后推，已有更晚的 deadline 不动）；Invocation 结束时，已到期的 collecting Bucket 立刻被处理，尚未到期的保持自己的窗口。deadline 从不被提前裁剪，已建立的批次也不会被打断。
 
 因此，只要 Agent 每轮都很快结束，会话开始时间仍大致相隔 `bucket_window_seconds`；某一轮超过一个窗口时，该轮期间到达的消息统一从该轮结束起算，这批会比固定网格晚一些，与该群有多少活跃 Topic 无关。Bot 自己通过 `send` 产生的消息写入可见历史，但不会触发下一 Bucket。
@@ -250,12 +250,15 @@ participation 放行 = 未配置 participation || 处于活跃时段 || 更新�
 ```text
 Bucket 到期
   → allowlist / 暂停 / agent 配置 / 睡眠 / participation 闸门
-  → 批次内是否有直接唤起（@、Reply Bot、trigger_keyword）
+  → 该 Chat 的入场闸门处于 enforce？→ 是：整体停用抽样，直接放行
+  → 批次内是否有直接唤起（/ask、@、Reply Bot、trigger_keyword）
        ├─ 有：直接放行，不读写保底计数
        └─ 无：按该 Chat 的连续未命中数抽样
               ├─ 命中：重置计数，创建 Invocation 或 attach
               └─ 未命中：Bucket → skipped_budget / proactive_reply_skipped
 ```
+
+抽样通过之后还有一道 Decision 入场闸门，见下一节；`shadow` 模式下它不影响上面的任何一步。
 
 - 抽样粒度是**一个完成聚合的 Bucket**，不是单条消息；批次里任意一条直接唤起消息都会让整批绕过抽样。
 - 概率按 `hard_pity` 保证命中：`attempt >= hard_pity` 时为 1，否则 `min(1, base + (attempt - 1) * increment)`。`attempt` 从 1 开始。
@@ -265,6 +268,27 @@ Bucket 到期
 - 私聊、Bot Command 与任务回执不经过这道闸门。直接唤起不增加、不重置保底计数。
 - [send 屏障](#send-屏障) attach 的批次也不经过这道闸门：当前 Invocation 已经抽中（或被直接唤起），这批是正在进行的那次回复的延续，沿用这次机会，不抽样、不读写保底计数。到期 attach（idle grace）则仍要抽样：屏障每轮至多 attach 一批，而到期 attach 不受这个限制，不抽样的话一次命中就能把运行窗口无限延长。
 - 日志：`agent_proactive_reply_bypassed`、`agent_proactive_reply_sampled`；字段包含 `bucket_id`、`probability`、`attempt`、`consecutive_misses_before/after`、`hit`、`hard_pity`、`state_reset`。
+
+## 入场闸门（Decisions）
+
+`telegram.decision_gate` 开启后（字段见 [configuration.md](configuration.md#入场闸门decision_gate)），到期批次在通过暂停、Chat 配置、agent 三元组、睡眠与参与闸门的检查之后，还会被一个小的决策模型问一次「这批消息值不值得交给主模型」。判定顺序：
+
+```text
+Bucket 到期
+  → allowlist / 暂停 / Chat 配置 / agent 三元组 / 睡眠 / participation
+  → 主动回复抽样（该 Chat 的闸门处于 enforce 时停用，视为放行）
+  → 批内是否有直接触发（/ask、@、Reply Bot、trigger_keyword）→ 有则直接送入
+  → enforce / shadow 决策
+       ├─ enter（P(yes) ≥ threshold）或任何失败：送入
+       └─ drop：enforce 下关闭为 skipped_budget / decision_gate_dropped
+```
+
+- 只覆盖 `realtime` 批次的新开与 attach 两条路径。`startup_catch_up` 批次、长程任务完成回执、循环闹钟、面板恢复的 Invocation、Playground 房间、`ask_only` Chat 的批次（只有 `/ask` 能开桶，全是直接触发）以及 send 屏障自己取走的批次都不经过；被这些路径或现有闸门挡下的批次既不请求决策模型，也不写决策行。
+- `shadow`：在到期事务里写 `pending` 决策行并读出请求内容，Bucket 照旧入队或 attach；请求在事务提交后发出，只更新决策行（`applied = 0`）。它不改变任何状态转换或时序。
+- `enforce`：Bucket 保持 `collecting`，`deadline_at` 推到 `now + timeout_ms + 500ms`（只往后推，同 `deferBucket`），本轮不入队也不 attach，并记入进程内的「决策中」集合；到期查询跳过这些批次，即使别的路径把 deadline 改早也不会重复请求。请求结束后在新事务里：Bucket 已不在 `collecting`（send 屏障取走、暂停或删除）→ 行标 `stale`，不动 Bucket；送入（或任何失败）→ 记「已放行」、`deadline_at` 设为 now 并唤醒 Scheduler，下一轮跳过闸门走完整现有路径；抛弃且批次指纹未变 → `markBucketSkipped(..., 'decision_gate_dropped')`；抛弃但决策期间批次变了（来了新消息，或有人编辑了批内消息——指纹取最大 `sequence_no` 与批内最新 Revision）→ 行标 `stale` 并重新决策，同一 Bucket 最多 2 次，之后按送入处理。请求期间闸门被关掉或在当前配置里不再是 `enforce` 时，结论不得抛弃批次：记 `applied = 0` 并把 deadline 设为 now。
+- 一切异常都送入，不重试：超时、网络错误、非 2xx、响应形状不合法、模型 `refusal`、密钥解析失败（`secret_unresolved`，与请求共用 `timeout_ms` 预算）、全局在途请求达到 4 个（`concurrency_limit`）。闸门自身在到期事务里失败（读批次、渲染请求、写决策行或推 deadline 抛错）同样按送入处理：已写入的行收尾为 `error`/`internal_error`，记一行脱敏日志，同一轮的其它批次照常处理，也不会在进程内留下「决策中」标记。`error_code` 稳定，HTTP 状态写在 `error_detail` 里；详情与日志都经 `SecretStore.redact`。
+- 「决策中」与「已放行」是进程内状态：进程重启后丢失，Bucket 会被重新决策一次；崩溃前留下的 `pending` 决策行在下次启动时标成 `error`/`interrupted`。停进程会 abort 在途请求且不等待，迟到的结果不写库。
+- 每个决策写一行 `bucket_decisions`（列见 [data-layer.md](data-layer.md#入场闸门决策迁移-066)），并打一行 `agent_decision_gate` 日志（字段参照 `agent_proactive_reply_sampled`，不含消息正文）。请求内容按评估时的渲染规则生成：`history` 是早于本批的最近 `history_messages` 条可见消息，`pending` 是本批最后 `pending_messages` 条，正文取当前 Revision 的 `text`（没有则 `caption`）截到 500 字符，`kind` 不是 `text` 时加 `[kind]` 前缀，Bot 自己的消息写成 `<显示名> [bot]`，带回复快照时附 `<发送者>: <被回复正文前 80 字>`。Bot 名称与用户名取自连接身份（`getMe` 的内存结果），每次决策重新读取，因此热换 token 后立刻生效；消息正文只进 `state`，永不拼进 `instructions`。
 
 ## Context
 

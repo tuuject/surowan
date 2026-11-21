@@ -26,10 +26,10 @@ export const USAGE = `surowan-utils - Surowan Admin Panel 与 Admin API 工具�
   config apply|status, model set, vision set, thinking-level set, restart, wake
   provider list|create|update|delete|discover|lookup-metadata|health-check
   model add|update|delete, provider-preset list
-  chat list|create|update|delete|participation|proactive-reply|group-memory
+  chat list|create|update|delete|participation|proactive-reply|group-memory|decision-gate
   prompt versions|version show|diff|save|restore|cancel-running
   dictionary list|chats|create|update|delete|settings|import|export|merge
-  tool-model set, search show|update
+  tool-model set, search show|update, decision-gate show|update|decisions
   image status|config|model|prompt|asset|generation ...
   memo list|chats|create|update|delete|blob content
   group-memory list|messages|update|delete

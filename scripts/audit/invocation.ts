@@ -1,5 +1,6 @@
 import type Database from 'better-sqlite3';
 import { AGENT_PROMPT_VERSION } from '../../src/platform/agent-protocol.ts';
+import { describeDecisions, type DecisionRow, loadInvocationDecisions, renderDecision } from './decisions.ts';
 import { field, parseSnapshot, preview } from './support.ts';
 
 interface InvocationRow {
@@ -203,6 +204,7 @@ function verdict(input: {
     readonly text: string;
     readonly fromBot: boolean;
   }[];
+  readonly decisions: readonly DecisionRow[];
 }): string[] {
   const lines: string[] = [];
   const succeeded = input.sends.filter((send) => send.state === 'success');
@@ -235,6 +237,7 @@ function verdict(input: {
   if (input.invocation.state !== 'completed') {
     lines.push(`Invocation state = ${input.invocation.state}`);
   }
+  lines.push(...describeDecisions(input.decisions));
   if (input.invocation.prompt_version !== Number(AGENT_PROMPT_VERSION)) {
     lines.push(
       `该 Invocation 用的是 prompt_version ${input.invocation.prompt_version}，当前代码是 ${AGENT_PROMPT_VERSION.toString()}：当时的系统提示词与现在不同`,
@@ -262,11 +265,12 @@ export function renderInvocation(database: Database.Database, id: number, json: 
   const messages = loadAgentMessages(database, id);
   const batch = loadBatch(database, id);
   const newest = newestMessages(batch);
-  const lines = verdict({ invocation, sends, toolCalls, messages, newest });
+  const decisions = loadInvocationDecisions(database, id, invocation.bucket_id);
+  const lines = verdict({ invocation, sends, toolCalls, messages, newest, decisions });
 
   if (json) {
     return JSON.stringify(
-      { invocation, modelCalls, toolCalls, sends, messages, batch: newest, verdict: lines },
+      { invocation, decisions, modelCalls, toolCalls, sends, messages, batch: newest, verdict: lines },
       null,
       2,
     );
@@ -285,6 +289,10 @@ export function renderInvocation(database: Database.Database, id: number, json: 
     `prompt_version=${invocation.prompt_version} (current=${AGENT_PROMPT_VERSION.toString()}) config_hash=${invocation.config_hash.slice(0, 12)}`,
     `sends=${invocation.sends_used} tool_calls=${invocation.tool_calls_used} turns=${invocation.turns_used}`,
   );
+  section(`入场闸门决策 (${decisions.length})`);
+  for (const decision of decisions) {
+    out.push(renderDecision(decision));
+  }
   section(`本批 new 消息 (${newest.length})`);
   for (const message of newest) {
     out.push(

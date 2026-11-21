@@ -24,6 +24,21 @@ export interface ProactiveReplyView {
   readonly hard_pity?: number;
 }
 
+/** The Chat's entry gate override; only the fields this Chat actually sets. */
+export interface ChatDecisionGateView {
+  readonly enabled?: boolean;
+  readonly mode?: 'shadow' | 'enforce';
+  readonly threshold?: number;
+  readonly history_messages?: number;
+  readonly pending_messages?: number;
+  readonly instructions?: string;
+}
+
+/** One field of a Chat gate patch: `null` returns that field to the global value. */
+export type DecisionGateChatPatch = {
+  readonly [K in keyof ChatDecisionGateView]?: ChatDecisionGateView[K] | null;
+};
+
 /** How a dated group-memory search reads its date; absent means `off`. */
 export type ThirtyHourClock = 'off' | 'non_overlapping' | 'overlapping';
 
@@ -73,6 +88,7 @@ export interface ChatSettingsView extends ChatSettings {
   readonly group_memory: GroupMemoryView | null;
   readonly proactive_reply: ProactiveReplyView | null;
   readonly effective_proactive_reply: ProactiveReplySettingsView;
+  readonly decision_gate: ChatDecisionGateView | null;
   readonly timezone: string | null;
   readonly mcp: readonly McpChatBindingView[] | null;
   readonly effective: AgentModelReference;
@@ -173,6 +189,22 @@ export function updateChatProactiveReply(
   revision: string,
 ): Promise<ChatWriteResponse> {
   return call<ChatWriteResponse>(`/chats/${encodeURIComponent(id)}/proactive-reply`, {
+    method: 'PUT',
+    headers: writeHeaders(revision),
+    body: JSON.stringify(body),
+  });
+}
+
+/**
+ * Per-field patch of the Chat's gate override: an omitted field is kept, and
+ * `null` removes it (all six removed deletes the whole override).
+ */
+export function updateChatDecisionGate(
+  id: string,
+  body: DecisionGateChatPatch,
+  revision: string,
+): Promise<ChatWriteResponse> {
+  return call<ChatWriteResponse>(`/chats/${encodeURIComponent(id)}/decision-gate`, {
     method: 'PUT',
     headers: writeHeaders(revision),
     body: JSON.stringify(body),

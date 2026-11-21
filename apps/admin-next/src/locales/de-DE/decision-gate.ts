@@ -1,0 +1,45 @@
+import type { Catalog } from '../catalog.ts';
+import type { decisionGate as decisionGateEn } from '../en/decision-gate.ts';
+
+/** Mirrors `en/decision-gate.ts` key for key; the annotation fails the build on drift. */
+export const decisionGate: Catalog<typeof decisionGateEn> = {
+  behaviourTitle: 'Verhalten',
+  connectionTitle: 'Verbindung',
+  enabled: 'Aktiviert',
+  mode: 'Modus',
+  modeShadow: 'Nur aufzeichnen',
+  modeEnforce: 'Durchsetzen',
+  threshold: 'Schwelle',
+  historyMessages: 'Verlaufsnachrichten',
+  pendingMessages: 'Neue Nachrichten',
+  instructions: 'Frage',
+  useDefaultQuestion: 'Standardfrage verwenden',
+  questionResetHint: 'Die Standardfrage wird beim Speichern wiederhergestellt.',
+  model: 'Modell',
+  baseUrl: 'Adresse',
+  apiKey: 'API-Schlüssel',
+  timeout: 'Zeitlimit (ms)',
+  keyFromEntry: 'Verwendet den Keychain-Eintrag {{name}}',
+  on: 'An',
+  off: 'Aus',
+  running: 'Läuft mit: {{value}}',
+  loadFailed: 'Einstellungen des Eingangsfilters konnten nicht geladen werden',
+  errors: {
+    integer: 'Ganze Zahl eingeben',
+    number: 'Zahl eingeben',
+    min: 'Mindestens {{limit}}',
+    max: 'Höchstens {{limit}}',
+    required: 'Erforderlich',
+    option: 'Eine der aufgeführten Optionen wählen',
+  },
+  unchanged: 'Keine ungespeicherten Änderungen',
+  pending_one: '{{count}} ungespeicherte Änderung',
+  pending_other: '{{count}} ungespeicherte Änderungen',
+  invalid: 'Bitte die markierten Felder vor dem Speichern korrigieren.',
+  save: 'Speichern und anwenden',
+  saving: 'Wird gespeichert…',
+  discard: 'Änderungen verwerfen',
+  conflictTitle: 'Die Konfiguration wurde anderswo geändert',
+  conflictBody:
+    'Die Einstellungen wurden nach dem Laden dieser Seite anderswo geändert; es wurde nichts gespeichert. Neu laden, um die aktuellen Einstellungen zu bearbeiten; ungespeicherte Änderungen gehen verloren.',
+};

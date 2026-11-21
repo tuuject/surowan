@@ -366,6 +366,7 @@ function chatSettings(
         group_memory: chat.group_memory ?? null,
         proactive_reply: chat.proactive_reply ?? null,
         effective_proactive_reply: resolveProactiveReply({ proactive_reply: config.telegram?.proactive_reply }, chat),
+        decision_gate: chat.decision_gate ?? null,
         timezone: chat.timezone ?? null,
         mcp: chat.mcp ?? null,
         effective: agentSettingsView(config, chat),

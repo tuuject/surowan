@@ -338,6 +338,7 @@ export class AdminServer {
     response ??= await routes.tuning.handle(request, segments);
     response ??= await routes.dictionary.handle(request, url, segments);
     response ??= await routes.search.handle(request, url, segments, caller);
+    response ??= await routes.decisionGate.handle(request, url, segments, caller);
     response ??= await routes.mcpServers.handle(request, url, segments, caller);
     response ??= await routes.groupMemory.handle(request, url, segments);
     response ??= await routes.recurringAlarms.handle(request, url, segments, username);

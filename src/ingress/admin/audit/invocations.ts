@@ -20,7 +20,23 @@ import {
 } from './shared.ts';
 import { loadMatchedMessages, matchedMessagesExists, parseInvocationMessageFilter } from './invocation-search.ts';
 
-export interface InvocationListRow {
+/**
+ * The chat-identity columns every listing that reports a Chat selects through
+ * `INVOCATION_CHAT_COLUMNS`, so one reader shapes them all.
+ */
+export interface InvocationChatColumns {
+  readonly host_kind: HostKind;
+  /** Internal chat row; a room's id is this value. */
+  readonly chat_id: bigint;
+  /** NULL on virtual rooms. */
+  readonly telegram_chat_id: bigint | null;
+  readonly chat_type: string;
+  readonly chat_title: string | null;
+  readonly chat_username: string | null;
+  readonly message_thread_id: bigint;
+}
+
+export interface InvocationListRow extends InvocationChatColumns {
   readonly id: bigint;
   readonly state: string;
   readonly created_at: string;
@@ -33,15 +49,6 @@ export interface InvocationListRow {
   readonly turns_used: bigint;
   readonly side_effect_started: bigint;
   readonly config_hash: string;
-  readonly host_kind: HostKind;
-  /** Internal chat row; a room's id is this value. */
-  readonly chat_id: bigint;
-  /** NULL on virtual rooms. */
-  readonly telegram_chat_id: bigint | null;
-  readonly chat_type: string;
-  readonly chat_title: string | null;
-  readonly chat_username: string | null;
-  readonly message_thread_id: bigint;
   readonly tool_call_count: bigint;
   /**
    * Tokens this invocation consumed under the daily-budget definition
@@ -157,7 +164,7 @@ export function listInvocations(orm: Orm, query: ListQuery, config?: RawConfig):
  * Telegram id, a room by its own id. The other column is always null, so a
  * reader never mistakes one host's id for the other's.
  */
-export function invocationChat(row: InvocationListRow): Record<string, unknown> {
+export function invocationChat(row: InvocationChatColumns): Record<string, unknown> {
   const telegram = row.host_kind === 'telegram';
   return {
     host_kind: row.host_kind,

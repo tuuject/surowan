@@ -1,5 +1,6 @@
 import { brand } from './en/brand.ts';
 import { common } from './en/common.ts';
+import { decisionGate } from './en/decision-gate.ts';
 import { dictionary } from './en/dictionary.ts';
 import { harness } from './en/harness.ts';
 import { image } from './en/image.ts';
@@ -13,6 +14,7 @@ import { search } from './en/search.ts';
 
 import { brand as brandZh } from './zh-CN/brand.ts';
 import { common as commonZh } from './zh-CN/common.ts';
+import { decisionGate as decisionGateZh } from './zh-CN/decision-gate.ts';
 import { dictionary as dictionaryZh } from './zh-CN/dictionary.ts';
 import { harness as harnessZh } from './zh-CN/harness.ts';
 import { image as imageZh } from './zh-CN/image.ts';
@@ -26,6 +28,7 @@ import { search as searchZh } from './zh-CN/search.ts';
 
 import { brand as brandDe } from './de-DE/brand.ts';
 import { common as commonDe } from './de-DE/common.ts';
+import { decisionGate as decisionGateDe } from './de-DE/decision-gate.ts';
 import { dictionary as dictionaryDe } from './de-DE/dictionary.ts';
 import { harness as harnessDe } from './de-DE/harness.ts';
 import { image as imageDe } from './de-DE/image.ts';
@@ -39,6 +42,7 @@ import { search as searchDe } from './de-DE/search.ts';
 
 import { brand as brandAr } from './ar/brand.ts';
 import { common as commonAr } from './ar/common.ts';
+import { decisionGate as decisionGateAr } from './ar/decision-gate.ts';
 import { dictionary as dictionaryAr } from './ar/dictionary.ts';
 import { harness as harnessAr } from './ar/harness.ts';
 import { image as imageAr } from './ar/image.ts';
@@ -66,6 +70,7 @@ const en = {
   image,
   dictionary,
   harness,
+  decisionGate,
   playground,
   search,
   mcp,
@@ -81,6 +86,7 @@ const zhCN: typeof en = {
   image: imageZh,
   dictionary: dictionaryZh,
   harness: harnessZh,
+  decisionGate: decisionGateZh,
   playground: playgroundZh,
   search: searchZh,
   mcp: mcpZh,
@@ -96,6 +102,7 @@ const deDE: typeof en = {
   image: imageDe,
   dictionary: dictionaryDe,
   harness: harnessDe,
+  decisionGate: decisionGateDe,
   playground: playgroundDe,
   search: searchDe,
   mcp: mcpDe,
@@ -117,6 +124,7 @@ const ar: typeof en = {
   image: imageAr,
   dictionary: dictionaryAr,
   harness: harnessAr,
+  decisionGate: decisionGateAr,
   playground: playgroundAr,
   search: searchAr,
   mcp: mcpAr,

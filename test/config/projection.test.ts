@@ -13,6 +13,7 @@ import {
   type RawConfig,
   resolveChatConfig,
 } from '../../src/platform/config/index.ts';
+import { resolveDecisionGate } from '../../src/platform/decision-gate.ts';
 import { invocationGateKey, resolveInvocationPolicy } from '../../src/platform/invocation-policy.ts';
 import { modelsForChats } from '../../src/platform/providers.ts';
 import { chatMigrations } from '../../src/store/schema/index.ts';
@@ -45,6 +46,19 @@ describe('resolveChatConfig', () => {
     expect(resolveChatConfig(config, store.orm, { hostKind: 'telegram', hostChatId: BigInt(OLD_CHAT) })?.id).toBe(
       OLD_CHAT,
     );
+  });
+
+  test('a resolved Chat entry carries its decision_gate override', async () => {
+    const { store } = await openTestStore();
+    const config = configWith([{ id: OLD_CHAT, decision_gate: { threshold: 0.9, mode: 'enforce' } }]);
+    const entry = resolveChatConfig(config, store.orm, { hostKind: 'telegram', hostChatId: BigInt(OLD_CHAT) });
+    // The override travels on the resolved entry, exactly like proactive_reply,
+    // so the gate resolves its settings from the object it already has.
+    expect(entry?.decision_gate).toEqual({ threshold: 0.9, mode: 'enforce' });
+    const settings = resolveDecisionGate({}, entry);
+    expect(settings.threshold).toBe(0.9);
+    expect(settings.mode).toBe('enforce');
+    expect(settings.enabled).toBe(false);
   });
 
   test('a room never resolves a Telegram chat entry, even on a colliding id', async () => {
@@ -89,6 +103,7 @@ describe('hostIntakeSettings', () => {
         admins: [42],
         participation: { ask_only: true },
         proactive_reply: { enabled: true },
+        decision_gate: { enabled: true, mode: 'enforce' },
       },
       timezone: 'UTC',
       agent: { provider: 'agent-provider', model: 'agent-model' },
@@ -98,11 +113,15 @@ describe('hostIntakeSettings', () => {
     expect(telegram.admins).toEqual([42]);
     expect(telegram.participation?.ask_only).toBe(true);
     expect(telegram.proactive_reply?.enabled).toBe(true);
+    expect(telegram.decision_gate?.enabled).toBe(true);
+    expect(telegram.decision_gate?.mode).toBe('enforce');
     const room = hostIntakeSettings(config, 'playground');
     expect(room.process_bot_messages).toBe(false);
     expect(room.admins).toEqual([]);
     expect(room.participation).toBeUndefined();
     expect(room.proactive_reply).toBeUndefined();
+    // A room never runs the entry gate: its batches are released explicitly.
+    expect(room.decision_gate).toBeUndefined();
   });
 });
 

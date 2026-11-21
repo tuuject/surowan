@@ -17,6 +17,8 @@ surowan-utils commands --json     # 每个面板命令的 command/method/path/re
 ```bash
 surowan-utils config status --json                 # 生效代数、active/file hash、待重启字段与上次错误
 surowan-utils harness show --json                  # agent 调优字段的 saved 与 active 两组值
+surowan-utils decision-gate show --json            # 入场闸门的 saved 与 active 值与是否已配置密钥（永不回显值）
+surowan-utils decision-gate decisions --chat <telegram chat id> --limit 20 --json   # 闸门决策行，最新在前
 surowan-utils chat list --json                     # 已配置 Chat 的 saved/active 与继承结果
 surowan-utils provider list --json                 # 磁盘上的 Provider、模型与 revision
 surowan-utils prompt versions --scope global --json
@@ -55,6 +57,11 @@ surowan-utils harness update --set-json values.history_messages=40 --dry-run --j
 surowan-utils harness update --set-json values.history_messages=40 --json
 # 4. 用同一命令族复查落盘结果与 apply 结果
 surowan-utils harness show --json
+
+# 入场闸门：逐字段补丁，省的字段保留，null 删除该字段；api_key 只接受新明文（不能选用已有条目）
+surowan-utils decision-gate update --set-json threshold=0.6 --set-json mode=shadow --dry-run --json
+# 单个 Chat 的覆盖：只接受 enabled/mode/threshold/history_messages/pending_messages/instructions
+surowan-utils chat decision-gate <telegram chat id> --set-json enabled=true --dry-run --json
 
 # 消息批次节拍：热应用，只影响之后新开的批次；null 删除可选字段
 surowan-utils telegram bucket-timing --set-json bucket_bump_seconds=5 --set-json bucket_max_seconds=60 --dry-run --json

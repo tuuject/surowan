@@ -14,6 +14,7 @@ import {
 import {
   AgentSectionSchema,
   ChatSchema,
+  DecisionGateSchema,
   DictionarySectionSchema,
   ParticipationSchema,
   ProactiveReplySchema,
@@ -166,6 +167,7 @@ export const ConfigSchema = Type.Object(
           bucket_bump_seconds: Type.Optional(Type.Integer({ minimum: 0, maximum: 300 })),
           participation: Type.Optional(ParticipationSchema),
           proactive_reply: Type.Optional(ProactiveReplySchema),
+          decision_gate: Type.Optional(DecisionGateSchema),
           chats: Type.Array(ChatSchema),
           admins: Type.Optional(Type.Array(Type.Integer({ minimum: 1 }), { uniqueItems: true })),
           sticker_sets: Type.Optional(Type.Array(StickerSetSchema)),

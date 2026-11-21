@@ -93,6 +93,7 @@ export const layout: CompleteCatalog<typeof layoutEn> = {
     chats: 'المحادثات',
     prompts: 'التوجيهات',
     harness: 'إعدادات التشغيل',
+    decisionGate: 'بوابة الدخول',
     developer: 'المطوّر',
     settings: 'الإعدادات',
     preferences: 'تفضيلات اللوحة',

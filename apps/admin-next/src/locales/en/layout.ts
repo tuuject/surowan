@@ -95,6 +95,7 @@ export const layout = {
     chats: 'Chats',
     prompts: 'Prompts',
     harness: 'Harness tuning',
+    decisionGate: 'Entry gate',
     developer: 'Developer',
     settings: 'Settings',
     preferences: 'Panel preferences',

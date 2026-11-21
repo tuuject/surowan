@@ -48,6 +48,9 @@ export function createCoreRuntime(options: CoreRuntimeOptions) {
     hosts,
     warnings,
     isHostReady ?? everyHostReady,
+    // The identity object stays live: its getters read the connection's own
+    // `getMe` result, so a replaced token renames the bot without a reload.
+    { bot: options.bot, secrets: options.secrets, wake: () => scheduler?.wake() },
   );
   return { runtime, scheduler, conversationRuntime, tasks };
 }

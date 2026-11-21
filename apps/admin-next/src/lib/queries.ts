@@ -4,6 +4,7 @@ import { listAlarms } from './api/alarms.ts';
 import { getSession, listPasskeys } from './api/auth.ts';
 import { getChats } from './api/chats.ts';
 import { getConfigStatus, getDeveloperSettings, getHarnessSettings } from './api/config.ts';
+import { getDecisionGate } from './api/decision-gate.ts';
 import { getConversationContext, listConversationContexts } from './api/contexts.ts';
 import type { ListFilters, Page } from './api/core.ts';
 import type { DictionaryScope } from './api/dictionary.ts';
@@ -273,6 +274,13 @@ export const developerQuery = queryOptions({
 export const harnessQuery = queryOptions({
   queryKey: ['harness'],
   queryFn: getHarnessSettings,
+  staleTime: 0,
+});
+
+/** The entry gate page and the Chats dialog read the global section from here. */
+export const decisionGateQuery = queryOptions({
+  queryKey: ['decision-gate'],
+  queryFn: getDecisionGate,
   staleTime: 0,
 });
 

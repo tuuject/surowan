@@ -93,6 +93,7 @@ export const layout: Catalog<typeof layoutEn> = {
     chats: 'Chats',
     prompts: 'Prompts',
     harness: 'Harness-Parameter',
+    decisionGate: 'Eingangsfilter',
     developer: 'Entwickler',
     settings: 'Einstellungen',
     preferences: 'Voreinstellungen',

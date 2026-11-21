@@ -26,6 +26,7 @@ All source paths in the following table are relative to `apps/docs/content/docs/
 | `guides/personality.md` | Global/Chat prompts, relative paths, next-run Context rebuild, `/model` reload. |
 | `guides/participation.md` | Trigger versus reply, group windows, overrides, Topic isolation, non-triggering edits/stickers. |
 | `guides/proactive-replies.md` | Per-Chat probability gate, pity counter, direct-trigger bypass, persistence. |
+| `guides/entry-gate.md` | Optional decision-model gate before group runs: shadow versus enforce, bypass list, fail-open and the doctor probe, proactive-sampling and daily-budget relations, hot application, Admin routes. |
 | `guides/playground.md` | Playground rooms as the no-Telegram trial path, Hold/Release, real model calls, image switch, data boundary. |
 | `guides/per-chat.md` | Chat model overrides, Topic inheritance, `/status`. |
 | `guides/memory.md` | TTL facts, Conversation isolation, manual review for lasting knowledge. |
@@ -89,3 +90,11 @@ An independent source-comparison pass checked each of 19 runtime bullets against
 ## Ask refresh scope
 
 Re-read configure/telegram.md and guides/participation.md for /ask, ignored-member exception and ask-only inheritance. Other entries retain the previous bake; no full rebake performed. New facts route to these two manual pages.
+
+## Entry gate refresh scope
+
+Read guides/entry-gate.md in full, plus the sentences linking to it from guides/proactive-replies.md, guides/participation.md and configure/telegram.md, and guides/_meta.json for its navigation slot. One bullet was added after Participation; every clause in it traces to that guide. Other entries retain the previous bake and the coverage counts above were not recomputed; no full rebake performed.
+
+Omitted from the bullet and left to the guide: field ranges and defaults, the default model and endpoint, the threshold value, the concurrency limit, the remaining bypass cases (startup catch-up, panel-resumed Invocations, paused or sleeping Chats), key reference forms and the rollout steps.
+
+Measured after this refresh with `pnpm run manual:prepare` output present: 8916 characters, 8994 UTF-8 bytes, GC-style estimate 2259 tokens (8213 characters and 8289 bytes before); no tokenizer was run. All 40 links (27 unique paths) resolve under `src/manual/`. The model grounding probes were not re-run.

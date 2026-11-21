@@ -181,6 +181,18 @@ Alarm 是 `plugin_id = 'alarm'` 的任务投影。`long_tasks.created_by_user_id
 
 `proactive_reply_state` 每个 Chat 至多一行，记录 `consecutive_misses`、`settings_fingerprint` 与 `last_sampled_at`。它只服务主动回复概率调度的硬保底：抽样在 Bucket 状态转换的同一事务内完成，命中清零、未命中加一；`settings_fingerprint` 只包含三个数值参数，任一变化后下一次抽样先清零，仅开关 `enabled` 或重启则保留。按 Chat 而不是 Conversation 计数，因此 Forum Topic 共享所在群的保底。行随 `chats` 级联删除，不参与在线保留窗口的清理。
 
+### 入场闸门决策（迁移 066）
+
+`bucket_decisions` 每个决策请求一行，是「这批消息为什么没被交给主模型」的唯一审计。它没有复用 `model_calls`：那张表的 `role` 有 CHECK 约束表达不了这个调用者，而且被闸门抛弃的 Bucket 根本没有 Invocation 可挂。
+
+- 两个外键都是级联删除：`bucket_id` 指向 `buckets`，`conversation_id` 指向 `conversations`。删除 Bucket 就删掉它的决策行，因此[保留清理](#保留清理)不需要为这张表单写一条 DELETE——`purgeExpiredData` 删掉终态且过期的 `buckets` 行时，决策行随外键一起消失。
+- `mode` 与 `state`（`pending` / `success` / `error` / `stale`）、`outcome`（`enter` / `drop`，未得出时为 NULL）、`applied`（是否真的决定了 Bucket 的去向）都有 CHECK 或 0/1 约束。`applied = 0` 的 `stale` 行表示判断做完了但 Bucket 已经不在 `collecting`，结论被丢弃。
+- 存的是设置与结果而不是请求体：`model`、`threshold`、`history_count`、`pending_count`、`probability`、`input_tokens`、`cost`、`duration_ms`，加上 `error_code` 与经 `SecretStore.redact` 处理的 `error_detail`。消息原文已经在库里，按 `bucket_id` 可以从 `bucket_messages` 重建请求。
+- 索引 `bucket_decisions_conversation_time_idx`（`conversation_id, created_at, id`）服务「某个 Conversation 的决策、按时间倒序」；`bucket_decisions_bucket_idx` 服务按 Bucket 取行。
+- 写入分两段：到期事务里写 `pending`（`state = 'pending'`，含模式、模型、阈值与此刻的 `history_count` / `pending_count`），请求返回后在新事务里补结果。`shutdown` 时在途请求被 abort 且不等待，迟到的结果不写库。
+- 进程启动时（`recoverQueue`）把残留的 `pending` 行标成 `error`、`error_code = 'interrupted'`、`outcome = NULL`、`applied = 0`，只处理本进程宿主范围内的 Conversation 行。
+- `applied = 1` 只在 `enforce` 下由真正决定 Bucket 去向的那一行写入（送入、失败送入、或抛弃）；`shadow` 行与 `stale` 行恒为 0。`stale` 有两种来源：Bucket 在决策期间已经离开 `collecting`，以及判定为抛弃但批次随后变了（新消息或编辑了批内消息，此时会重新决策，最多 2 次）。重新决策次数用尽后按送入处理，该行记为 `outcome = 'enter'`、`applied = 1`，`probability` 仍保留原值，所以 `probability < threshold` 与 `outcome = enter` 同时出现时表示「被重新决策上限救回」。
+
 ### dictionary_entries（迁移 034）
 
 辞典词条表。作用域为 `global`（所有会话可读）或 `group`（归属一个 Telegram Chat，同群 Forum Topic 共用）：
@@ -265,7 +277,7 @@ Admin 侧的 `admin_users`/`admin_sessions` 语义见 [admin-panel.md](admin-pan
 
 - 已过期的 `memo_pad_entries`（按自身 TTL，不参与在线保留窗口）；`purgeExpiredData` 删除的是行，`memo_blobs` 的行与文件由随后的 `MemoBlobStore.sweep()` 按引用清理（服务启动时也会执行一次）。
 - 已过期的 `conversation_attention` 注意力窗口行（窗口过期即无意义，不参与在线保留窗口）。
-- 终态 Invocation/Send/Bucket 等审计与调度行。
+- 终态 Invocation/Send/Bucket 等审计与调度行；`bucket_decisions` 没有独立的清理语句，随被删除的 `buckets` 行级联消失。
 - **聊天记录永不按在线窗口清理**：`messages`、`message_revisions` 与 `media` 只在 Chat 被显式删除时级联删除；`telegram_updates` 也不再按窗口清理。`purgeExpiredData` 不再删除或匿名化它们，因此 `read_group_messages` 始终能回溯。
 - 删除无引用 Sender、过期普通图片分析、无 `invocation_id` 的非 pending 模型调用（Doctor 与 Tool Model）与旧 `daily_usage` 日期。
 - Sticker 长期视觉索引不按普通图片策略删除。

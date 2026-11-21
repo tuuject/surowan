@@ -5,6 +5,7 @@ import { LongTaskService } from '../../store/long-tasks/index.ts';
 import type { BusinessStore } from '../../store/store.ts';
 import type { WarningService } from '../../store/warnings.ts';
 import { everyHostReady, type HostReadiness } from '../host-scope.ts';
+import type { DecisionGateOptions } from '../decision-gate/index.ts';
 import { type BucketAttachmentTarget, InvocationQueueService } from '../invocation-queue/index.ts';
 import type { ProactiveReplyGateOptions } from '../proactive-reply.ts';
 import { type ActiveInvocation, executeInvocation, type InvocationExecutionDeps } from './execution.ts';
@@ -54,6 +55,8 @@ export class BucketScheduler {
     warnings?: WarningService,
     /** Whether one host may execute work right now; every host by default. */
     isHostReady: HostReadiness = everyHostReady,
+    /** The Decisions entry gate; absent means no batch is ever decided. */
+    decisionGate?: DecisionGateOptions,
   ) {
     this.#store = store;
     this.#hosts = hosts === undefined || hosts.length === 0 ? undefined : hosts;
@@ -65,6 +68,7 @@ export class BucketScheduler {
       proactive,
       this.#hosts,
       isHostReady,
+      decisionGate,
     );
     this.#executionDeps = {
       store,
@@ -249,6 +253,9 @@ export class BucketScheduler {
 
   async stop(graceMilliseconds = 30_000): Promise<void> {
     this.#running = false;
+    // In-flight Decisions are aborted and never awaited: their result is
+    // irrelevant once the process is going, and the store may close under it.
+    this.#queue.stopDecisions();
     this.wake();
     await this.#loopPromise;
     const active = [...this.#active.values()];
@@ -284,6 +291,11 @@ export class BucketScheduler {
 
   processDue(now = new Date()): bigint[] {
     return this.#queue.processDue(now);
+  }
+
+  /** Resolves when no Decisions request is in flight; shutdown does not wait for them. */
+  decisionsSettled(): Promise<void> {
+    return this.#queue.decisionsSettled();
   }
 
   processTasksDue(now = new Date()): bigint[] {

@@ -1,6 +1,7 @@
 import type { SearchProviderRule } from '../../../platform/web-search.ts';
 import { parseChatMcpBody, updateChatMcp } from '../chat-mcp.ts';
 import { parseParticipation, updateChatParticipation } from '../chat-participation.ts';
+import { parseChatDecisionGateBody, updateChatDecisionGate } from '../decision-gate/index.ts';
 import type { RuntimeConfiguration, RuntimeConfigurationStore } from '../../../platform/runtime-config.ts';
 import type { MemoBlobStore } from '../../../context/memo-pad/blobs.ts';
 import type { BucketScheduler } from '../../../orchestration/scheduler/index.ts';
@@ -71,6 +72,7 @@ export function createChatsAdminHandler(deps: ChatsAdminDeps) {
         (request.method === 'POST' && segments.length === 1) ||
         ((request.method === 'PUT' || request.method === 'DELETE') && segments.length === 2) ||
         (request.method === 'PUT' && segments.length === 3 && segments[2] === 'participation') ||
+        (request.method === 'PUT' && segments.length === 3 && segments[2] === 'decision-gate') ||
         (request.method === 'PUT' && segments.length === 3 && segments[2] === 'group-memory') ||
         (request.method === 'PUT' && segments.length === 3 && segments[2] === 'proactive-reply') ||
         (request.method === 'PUT' && segments.length === 3 && segments[2] === 'mcp')
@@ -99,6 +101,8 @@ export function createChatsAdminHandler(deps: ChatsAdminDeps) {
         edits = deleteChat(loaded.fileConfig, id);
       } else if (segments[2] === 'participation') {
         edits = updateChatParticipation(loaded.fileConfig, id, parseParticipation(await readJsonObject(request)));
+      } else if (segments[2] === 'decision-gate') {
+        edits = updateChatDecisionGate(loaded.fileConfig, id, parseChatDecisionGateBody(await readJsonObject(request)));
       } else if (segments[2] === 'mcp') {
         edits = updateChatMcp(
           loaded.fileConfig,

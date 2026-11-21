@@ -1,26 +1,12 @@
-import { useNavigate } from '@tanstack/react-router';
 import { IconButton } from '@tuuject/koi-react/button';
 import { TrashIcon } from '@tuuject/koi-react/icons';
-import { Menu } from '@tuuject/koi-react/menu';
 import { css } from '@tuuject/koi-react/styled-system/css';
 import type { ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
 import { thinkingLevelLabel } from '@/lib/format';
 import { type ColumnSpec, MonoValue, RowActions, TableShell, ToneBadge } from '@/components/business';
-import {
-  AlarmIcon,
-  BookOpenIcon,
-  BrainIcon,
-  ChatTextIcon,
-  ClockIcon,
-  EditIcon,
-  LibraryIcon,
-  MoreIcon,
-  PulseIcon,
-  PuzzleIcon,
-  ScrollIcon,
-  SparklesIcon,
-} from '@/components/icons';
+import { ChatRowMenu } from '@/components/chats/chat-row-menu';
+import { EditIcon } from '@/components/icons';
 import type { ChatEntry, ChatSettingsView, ChatsView, ParticipationWindow } from '@/lib/api/chats.ts';
 import { effectiveWindows, summarizeWindows } from '@/lib/participation';
 
@@ -57,6 +43,7 @@ export function ChatTable({
   onEdit,
   onSchedule,
   onProactive,
+  onDecisionGate,
   onGroupMemory,
   onMcp,
   onRemove,
@@ -67,12 +54,12 @@ export function ChatTable({
   readonly onEdit: (chat: ChatEntry) => void;
   readonly onSchedule: (chat: ChatEntry) => void;
   readonly onProactive: (chat: ChatEntry) => void;
+  readonly onDecisionGate: (chat: ChatEntry) => void;
   readonly onGroupMemory: (chat: ChatEntry) => void;
   readonly onMcp: (chat: ChatEntry) => void;
   readonly onRemove: (chat: ChatEntry) => void;
 }): ReactElement {
   const { t } = useTranslation();
-  const navigate = useNavigate();
   // A Chat removed from the file is still running until restart: show what it runs.
   const shown = (row: ChatEntry): ChatSettingsView | null => row.saved ?? row.active;
   const topicsText = (settings: ChatSettingsView): string =>
@@ -83,28 +70,6 @@ export function ChatTable({
     `${settings.provider === null ? t('pages.chats.defaultModel') : t('pages.chats.chatOverride')}${t('common.separator')}${t('pages.chats.thinkingShort', { level: thinkingLevelLabel(settings.effective.thinking_level) })}${
       settings.thinking_level === null ? t('pages.chats.inheritedSuffix') : ''
     }`;
-  /** A quick link keeps a real href for new-tab/middle-click/copy, and only plain left clicks become SPA navigation. */
-  const quickLink = (
-    value: string,
-    label: string,
-    icon: React.ReactNode,
-    to: string,
-    chatId: string,
-    activate: () => void,
-  ) => ({
-    value,
-    label,
-    icon,
-    href: `${to}?chat=${encodeURIComponent(chatId)}`,
-    onSelect: (_itemValue: string, _item: unknown, details: { readonly event: Event }) => {
-      const event = details.event as MouseEvent;
-      if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) {
-        return;
-      }
-      event.preventDefault();
-      activate();
-    },
-  });
   const windowSummary = (window: ParticipationWindow): string =>
     summarizeWindows([window], {
       dayLabels: t('pages.chats.weekdaysShort').split(','),
@@ -132,6 +97,28 @@ export function ChatTable({
       pity: values.hard_pity,
     });
     return settings.proactive_reply === null ? t('pages.chats.proactiveInheritSummary', { summary }) : summary;
+  };
+  // Only the Chat's own overrides are visible here: the global values live on
+  // the entry gate page, and the row says whether this Chat departs from them.
+  const decisionGateText = (settings: ChatSettingsView): string => {
+    const gate = settings.decision_gate;
+    if (gate === null) {
+      return t('pages.chats.decisionGateInheritSummary');
+    }
+    if (gate.enabled === false) {
+      return t('pages.chats.decisionGateOffSummary');
+    }
+    if (gate.enabled === true) {
+      // Only a mode this Chat sets is named; an inherited mode may be anything.
+      if (gate.mode === 'enforce') {
+        return t('pages.chats.decisionGateEnforceSummary');
+      }
+      if (gate.mode === 'shadow') {
+        return t('pages.chats.decisionGateShadowSummary');
+      }
+      return t('pages.chats.decisionGateOnSummary');
+    }
+    return t('pages.chats.decisionGateCustomSummary');
   };
   // One line per period keeps the allowlist table narrow with many windows.
   // Keys pair the window content with a duplicate tally: identical windows are
@@ -290,6 +277,21 @@ export function ChatTable({
       },
     },
     {
+      key: 'decisionGate',
+      title: t('pages.chats.colDecisionGate'),
+      className: css({ whiteSpace: 'normal' }),
+      // Private chats never gate: every message is already directed at the bot.
+      render: (row) => {
+        const settings = shown(row);
+        return settings === null || !row.id.startsWith('-') ? null : (
+          <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
+            <p className={css({ textStyle: 'body' })}>{decisionGateText(settings)}</p>
+            <RunningNote value={runningDiff(row, decisionGateText)} />
+          </div>
+        );
+      },
+    },
+    {
       key: 'groupMemory',
       title: t('pages.chats.colGroupMemory'),
       width: 144,
@@ -335,116 +337,13 @@ export function ChatTable({
               label={t('common.edit')}
               icon={<EditIcon />}
             />
-            <Menu
-              placement="bottom-end"
-              // Koi's separator bleeds past the scrollable body with negative inline margins, which turns
-              // `overflow-y: auto` into `overflow-x: auto` and shows a horizontal scrollbar. Inset it instead.
-              classNames={{ separator: css({ marginInline: '0' }) }}
-              trigger={
-                <IconButton
-                  variant="ghost"
-                  color="secondary"
-                  label={t('pages.chats.moreActions')}
-                  icon={<MoreIcon />}
-                />
-              }
-              items={[
-                ...(row.id.startsWith('-')
-                  ? [
-                      {
-                        label: t('pages.chats.settingsGroup'),
-                        items: [
-                          {
-                            value: 'active-hours',
-                            label: t('pages.chats.editActiveHours'),
-                            icon: <ClockIcon />,
-                            onSelect: () => onSchedule(row),
-                          },
-                          {
-                            value: 'proactive',
-                            label: t('pages.chats.editProactiveReply'),
-                            icon: <SparklesIcon />,
-                            onSelect: () => onProactive(row),
-                          },
-                          {
-                            value: 'group-memory',
-                            label: t('pages.chats.editGroupMemory'),
-                            icon: <LibraryIcon />,
-                            onSelect: () => onGroupMemory(row),
-                          },
-                        ],
-                      },
-                      'separator' as const,
-                    ]
-                  : []),
-                {
-                  value: 'mcp',
-                  label: t('pages.chats.editMcp'),
-                  icon: <PuzzleIcon />,
-                  onSelect: () => onMcp(row),
-                },
-                {
-                  label: t('pages.chats.quickLinks'),
-                  items: [
-                    quickLink(
-                      'prompts',
-                      t('layout.nav.prompts'),
-                      <ScrollIcon />,
-                      '/prompts',
-                      row.id,
-                      () => void navigate({ to: '/prompts', search: { chat: row.id } }),
-                    ),
-                    quickLink(
-                      'dictionary',
-                      t('layout.nav.dictionary'),
-                      <BookOpenIcon />,
-                      '/dictionary',
-                      row.runtime_chat_id,
-                      () => void navigate({ to: '/dictionary', search: { chat: row.runtime_chat_id } }),
-                    ),
-                    quickLink(
-                      'memories',
-                      t('layout.nav.memories'),
-                      <BrainIcon />,
-                      '/memories',
-                      row.runtime_chat_id,
-                      () => void navigate({ to: '/memories', search: { chat: row.runtime_chat_id } }),
-                    ),
-                    quickLink(
-                      'group-memories',
-                      t('layout.nav.groupMemories'),
-                      <LibraryIcon />,
-                      '/group-memories',
-                      row.runtime_chat_id,
-                      () => void navigate({ to: '/group-memories', search: { chat: row.runtime_chat_id } }),
-                    ),
-                    quickLink(
-                      'messages',
-                      t('layout.nav.messages'),
-                      <ChatTextIcon />,
-                      '/messages',
-                      row.runtime_chat_id,
-                      () => void navigate({ to: '/messages', search: { chat: row.runtime_chat_id } }),
-                    ),
-                    quickLink(
-                      'invocations',
-                      t('layout.nav.toolSessions'),
-                      <PulseIcon />,
-                      '/invocations',
-                      row.runtime_chat_id,
-                      () => void navigate({ to: '/invocations', search: { chat: row.runtime_chat_id } }),
-                    ),
-                    quickLink(
-                      'alarms',
-                      t('layout.nav.alarms'),
-                      <AlarmIcon />,
-                      '/alarms',
-                      row.runtime_chat_id,
-                      () => void navigate({ to: '/alarms', search: { chat: row.runtime_chat_id } }),
-                    ),
-                  ],
-                },
-              ]}
+            <ChatRowMenu
+              row={row}
+              onSchedule={onSchedule}
+              onProactive={onProactive}
+              onDecisionGate={onDecisionGate}
+              onGroupMemory={onGroupMemory}
+              onMcp={onMcp}
             />
             <IconButton
               variant="ghost"

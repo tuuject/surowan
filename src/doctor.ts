@@ -19,6 +19,7 @@ import { assertConfigPermissions, loadConfig } from './adapters/local-monolith/c
 import { SqliteStore } from './adapters/local-monolith/database.ts';
 import { BUNDLED_MANUAL_DIR, bundledManualSpace, FileSystemDocSpaces } from './adapters/local-monolith/doc-spaces.ts';
 import { resolveConversation } from './adapters/local-monolith/runtime/support.ts';
+import { probeDoctorDecisionGate } from './doctor-decisions.ts';
 import { BUNDLED_SYSTEM_RESOURCES_DIR, FileSystemResources } from './adapters/local-monolith/system-resources.ts';
 import { resolveTelegramTokenSource } from './adapters/local-monolith/telegram/connection-token.ts';
 import { grammyTelegramTransport } from './adapters/local-monolith/telegram/grammy-transport.ts';
@@ -75,6 +76,7 @@ async function runDoctorChecks(
   outputAgentPrompt: boolean,
 ): Promise<void> {
   const telegram = await resolveDoctorTelegram(config, secrets);
+  const decisionGate = await probeDoctorDecisionGate(config, secrets);
   await resolveAllSecrets(config.providers, config.mcp?.servers ?? [], secrets);
   const registry = await buildModelRegistry(config, null, secrets);
   const configStore = new RuntimeConfigurationStore({ config, hash: configHash, ...registry });
@@ -282,6 +284,7 @@ async function runDoctorChecks(
         mcp_unavailable: unreachableMcp.map((server) => `${server.alias}:${server.error_code ?? 'unreachable'}`),
         telegram_status: me === undefined ? 'disabled' : 'connected',
         telegram_bot_id: me === undefined ? null : String(me.id),
+        decision_gate: decisionGate,
         config_hash: configHash,
         ...(outputAgentPrompt ? { agent_prompt: renderDoctorAgentPrompt(config) } : {}),
       }),

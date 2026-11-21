@@ -12,6 +12,8 @@ import type {
 } from './schema-model.ts';
 import type {
   AgentSectionSchema,
+  DecisionGateChatSchema,
+  DecisionGateSchema,
   DictionaryInjectionModeSchema,
   EmptyTextSendStrategySchema,
   ParticipationSchema,
@@ -45,6 +47,11 @@ export type ActiveAgentSettings = Required<AgentSettings>;
 export type ToolSchemaKeywords = Static<typeof ToolSchemaKeywordsSchema>;
 
 export type ProactiveReplyConfig = Static<typeof ProactiveReplySchema>;
+
+/** The global `telegram.decision_gate` section as written; every field is optional. */
+export type DecisionGateConfig = Static<typeof DecisionGateSchema>;
+/** The per-Chat override: the behavior fields only, never the connection fields. */
+export type DecisionGateChatConfig = Static<typeof DecisionGateChatSchema>;
 
 export type DictionaryInjectionMode = Static<typeof DictionaryInjectionModeSchema>;
 
