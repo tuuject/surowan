@@ -15,7 +15,7 @@ import { parseId } from '../audit/shared.ts';
 import { claimWebPairing } from '../clients/web-login.ts';
 import type { AdminPasskeys } from '../passkeys.ts';
 
-const SESSION_COOKIE = 'plasticwan_admin';
+export const SESSION_COOKIE = 'plasticwan_admin';
 
 /**
  * Adds `Secure` whenever the browser is on HTTPS. Behind a TLS-terminating proxy

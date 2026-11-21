@@ -37,6 +37,8 @@ pnpm test test/agent/runtime.test.ts test/models/request-audit.test.ts test/runt
 pnpm test test/providers.test.ts test/models/metadata.test.ts test/tool-schema.test.ts test/token-usage.test.ts test/reconcile-daily-token-usage.test.ts
 pnpm test test/typing.test.ts
 pnpm test test/admin/developer.test.ts
+pnpm test test/admin/live-invocations.test.ts   # Invocation 实时变更流：鉴权面、SSE 头与事件、指纹覆盖（含模型请求/响应快照）、心跳、Session 撤销与复查抛错、stop/断开/首拍失败/读端不排空的定时器收尾、并发上限
+pnpm test apps/admin-next/src/lib/coalesced-refresh.test.ts   # 实时重取的合并：不取消在途请求、只补一次尾随、失败不卡死
 pnpm test test/admin/api-keys.test.ts test/admin/api-keys-bearer.test.ts test/admin/mcp.test.ts test/admin/inspection.test.ts test/admin/invocation-media.test.ts
 pnpm test test/invocations/cli.test.ts test/cli/inspection.test.ts test/invocations/search.test.ts test/invocations/model-filter.test.ts test/cli/media.test.ts
 pnpm test test/cli/credentials.test.ts test/cli/login.test.ts test/cli/login-http.test.ts
@@ -345,6 +347,7 @@ pnpm run admin:test:e2e 22-search-settings  # 网络搜索设置页与保存流�
 pnpm run admin:test:e2e 38-decision-gate 39-chats-decision-gate  # 入场闸门全局表单与 Chats 覆盖（产物：两张全页截图）
 pnpm run admin:test:e2e 37-mcp-servers  # 出站 MCP Server 页：增删改、绑定、渐进式暴露、Skill 徽标/详情/开关与工具模型起草描述（起草只填输入框，保存才落盘；产物：页面截图与 mcp 配置段）
 pnpm run admin:test:e2e 32-recurring-alarms  # 循环闹钟：规则控件与 Cron 互转、预览、停用、立即执行与删除（产物：立即执行后的触发记录截图）
+pnpm run admin:test:e2e 40-invocation-live-refresh  # Invocation 列表/详情的「自动刷新」：运行中的 Tool 调用原地追加、标签页与展开行保持、关掉后冻结与偏好持久化、列表第 1 页自动换快照、390px 无横向滚动（产物：详情与列表截图、手机截图）
 pnpm run admin:test:e2e 30-dev-mock --workers=1  # 一键 mock 调试命令、Vite 代理认证与退出清理
 ```
 
@@ -603,6 +606,8 @@ pnpm test
 - 哪些真实场景执行过。
 - 哪些外部场景因 Token、Chat、Provider 或 MCP 不可用而未执行。
 - 观察到的审计状态，而不是推测状态。
+
+Invocation 实时刷新浏览器回归：`pnpm run admin:build` 后执行 `pnpm run admin:test:e2e 40-invocation-live-refresh`，用 `/__e2e/append-tool-call`、`/__e2e/running-invocation`、`/__e2e/running-invocation/finish` 与 `/__e2e/insert-invocation` 在真实服务端上写入审计行，断言运行中的详情页在一个事件内出现新的 Tool 调用（标签计数增加）而当前标签页与已展开行不动、状态徽标随行更新；关掉开关后追加的行不再出现、刷新页面开关仍是关的、重新打开后立即出现；列表第 1 页的到达直接出现在顶部且没有提示条，关掉后不再自动变化。同一条约束的反面（旧快照只靠提示条换新）由 `02-lists-filters-invocations.e2e.ts` 在预先关掉自动刷新的页面上继续覆盖。另外覆盖：一次详情重取失败（502）不把已在屏幕上的运行换成错误页、下一次事件即恢复；第 2 页计数的到达在读者回到第 1 页时直接置顶（不依赖新事件）；第 1 页换快照期间表格保持 `aria-busy` 之外、旧行不被骨架替换；关掉开关后 6.5 秒（长于 5 秒兜底轮询与 15 秒心跳）内没有任何 `/api/live/` 或列表/详情请求。合并重取的行为由 `apps/admin-next/src/lib/coalesced-refresh.test.ts` 覆盖（在途请求不被取消、只补一次尾随请求、失败不卡死）。
 
 图片设置浏览器回归：`pnpm run admin:build` 后执行 `pnpm run admin:test:e2e 11-image-settings`，覆盖搜索与下拉选型、自动能力、保存与回显、空密钥沿用、旧配置凭据复用与重复项合并、缺项提示但按钮可点击且不发送非法写入、目录/供应商失败重试和窄屏无横向溢出；模型目录使用固定响应，真实 OpenRouter 目录需另行只读验收。
 

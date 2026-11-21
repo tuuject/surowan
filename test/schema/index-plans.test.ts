@@ -5,6 +5,10 @@ import { drizzle } from 'drizzle-orm/better-sqlite3';
 
 import { loadConfig } from '../../src/adapters/local-monolith/config/index.ts';
 import { SqliteStore } from '../../src/adapters/local-monolith/database.ts';
+import {
+  invocationListLiveFingerprint,
+  invocationLiveFingerprint,
+} from '../../src/ingress/admin/audit/invocation-live.ts';
 import { listInvocations } from '../../src/ingress/admin/audit/invocations.ts';
 import { adminPasskeys, adminSessions, adminUsers, hostSends, toolCalls } from '../../src/store/schema/index.ts';
 import * as schema from '../../src/store/schema/index.ts';
@@ -362,6 +366,43 @@ test.each(['fresh', 'upgraded'])('per-conversation message reads use their index
     expect(lookup.some((detail) => /SEARCH bm USING (COVERING )?INDEX bucket_messages_message_idx/.test(detail))).toBe(
       true,
     );
+  } finally {
+    store.close();
+  }
+});
+
+test('the live Invocation fingerprints probe indexes instead of scanning audit tables', async () => {
+  const fixture = await openStore();
+  const store = fixture.store;
+  try {
+    const seed = seedAdminFixture(store);
+    const plans: string[] = [];
+    const orm = drizzle(store.db, {
+      schema,
+      logger: {
+        logQuery(query, params) {
+          const plan = store.db.prepare<unknown[], { detail: string }>(`EXPLAIN QUERY PLAN ${query}`).all(...params);
+          plans.push(...plan.map((row) => row.detail));
+        },
+      },
+    });
+    expect(invocationLiveFingerprint(orm, seed.invocationA)).toMatch(/^[0-9a-f]{16}$/);
+    invocationListLiveFingerprint(orm);
+    // A stream re-reads these once a second while a page is open, so the only
+    // acceptable plan is an index probe on the Invocation's own rows. The
+    // whole-ledger scan of `host_sends` this guards against is why migration
+    // 067 added `host_sends_tool_call_idx`.
+    expect(
+      plans.filter((plan) =>
+        /^SCAN (?:host_sends|tool_calls|model_calls|agent_messages|invocation_messages)\b/.test(plan),
+      ),
+    ).toEqual([]);
+    // The subqueries alias their tables; a scan of one of those aliases is the
+    // same regression as a scan of the table name.
+    expect(plans.filter((plan) => /^SCAN (?:s|t|m|a)\b/.test(plan))).toEqual([]);
+    expect(plans.some((plan) => /SEARCH s USING (?:COVERING )?INDEX host_sends_tool_call_idx/.test(plan))).toBe(true);
+    // The list folds only non-terminal rows, which is the (state, id) index.
+    expect(plans.some((plan) => plan.startsWith('SEARCH i USING COVERING INDEX invocations_queue_idx'))).toBe(true);
   } finally {
     store.close();
   }

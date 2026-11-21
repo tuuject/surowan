@@ -25,6 +25,7 @@ import {
 import { AdminAuth } from '../../../src/ingress/admin/auth.ts';
 import { enterSleep, wakeFromSleep } from '../../../src/store/sleep.ts';
 import { asRunResult } from '../../../src/store/store.ts';
+import { handleLiveHook } from './server-live.ts';
 import { shutdown } from './server-lifecycle.ts';
 import { holdHealthGate, relayStatsPayload, releaseHealthGate, resetRelayStats } from './server-relay.ts';
 import { type PlaygroundModelStep, playgroundSeedPayload, roomModelCalls, setPlaygroundModel } from './server-rooms.ts';
@@ -61,6 +62,10 @@ async function createPairingWithCli(purpose: 'web' | 'client', ttlSeconds: strin
 }
 
 export async function handleHook(request: Request, url: URL): Promise<Response> {
+  const live = await handleLiveHook(request, url, serverState.store);
+  if (live !== undefined) {
+    return live;
+  }
   const route = url.pathname.slice('/__e2e'.length);
   if (request.method === 'GET' && route === '/health') {
     return json({ ok: true });

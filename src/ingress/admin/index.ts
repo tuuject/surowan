@@ -35,6 +35,7 @@ import { McpEndpoint } from './mcp/index.ts';
 import { AdminPasskeys } from './passkeys.ts';
 import type { PlaygroundAdminDeps } from './playground/index.ts';
 import { type AdminRoutes, createAdminRoutes } from './routes/index.ts';
+import type { LiveStreamOptions } from './routes/live.ts';
 
 export type AdminConfig = NonNullable<RawConfig['admin']>;
 
@@ -93,6 +94,8 @@ export interface AdminServerOptions {
   readonly mcpServerTools?: (() => readonly McpServerToolListing[]) | undefined;
   /** Search providers registered by the loaded plugins; absent uses the bundled set. */
   readonly searchProviders?: readonly SearchProviderRule[];
+  /** Live stream timers and cap; tests shorten the intervals instead of waiting out seconds. */
+  readonly liveStreams?: LiveStreamOptions;
   /** Override for the MCP skill directory; tests and packaged hosts may relocate it. */
   readonly mcpSkillRoot?: string;
 }
@@ -355,6 +358,7 @@ export class AdminServer {
     response ??= await routes.telegram.handle(request, segments, caller);
     response ??= await routes.keychain.handle(request, url, segments);
     response ??= await routes.warnings.handle(request, url, segments);
+    response ??= await routes.live.handle(request, segments, caller);
     if (response !== undefined) {
       return response;
     }

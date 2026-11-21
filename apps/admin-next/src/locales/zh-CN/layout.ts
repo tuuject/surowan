@@ -106,6 +106,7 @@ export const layout: typeof layoutEn = {
     filters: '筛选条件',
     appliedFilters: '已筛选 {{count}} 项',
     refreshList: '刷新列表',
+    autoRefresh: '自动刷新',
     reset: '重置',
     cursorPageCount_one: '第 {{page}} 页，{{count}} 条记录',
     cursorPageCount_other: '第 {{page}} 页，{{count}} 条记录',

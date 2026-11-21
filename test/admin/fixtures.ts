@@ -15,6 +15,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { Update } from 'grammy/types';
 import { AdminServer } from '../../src/ingress/admin/index.ts';
+import type { LiveStreamOptions } from '../../src/ingress/admin/routes/live.ts';
 import { type LoadedConfig, loadConfig } from '../../src/adapters/local-monolith/config/index.ts';
 import type { ImConnectionRegistry } from '../../src/platform/im-connection.ts';
 import type { RuntimeConfigurationStore } from '../../src/platform/runtime-config.ts';
@@ -43,6 +44,7 @@ export async function fixture(
   options: {
     readonly connections?: ImConnectionRegistry;
     readonly mcpServerStates?: () => readonly McpServerAvailability[];
+    readonly liveStreams?: LiveStreamOptions;
   } = {},
 ): Promise<Fixture> {
   const directory = await mkdtemp(join(tmpdir(), 'surowan-admin-'));
@@ -76,6 +78,7 @@ export async function fixture(
       configStore,
       ...(options.connections === undefined ? {} : { connections: options.connections }),
       ...(options.mcpServerStates === undefined ? {} : { mcpServerStates: options.mcpServerStates }),
+      ...(options.liveStreams === undefined ? {} : { liveStreams: options.liveStreams }),
     }),
     loaded,
     configStore,

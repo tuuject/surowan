@@ -150,17 +150,34 @@ function snapshotList<T>(
   list: (filters: ListFilters) => Promise<Page<T>>,
   filters: ListFilters,
   position: SnapshotPosition,
+  options: { readonly poll?: number | false; readonly refetchOnReconnect?: boolean } = {},
 ) {
   return queryOptions({
     queryKey: [key, filters, position.snapshot, position.page],
     queryFn: () => list({ ...filters, limit: PAGE_SIZE, ...snapshotWindow(position) }),
     placeholderData: withinSnapshot(position.snapshot),
-    refetchInterval: LIST_POLL_MS,
+    refetchInterval: options.poll ?? LIST_POLL_MS,
+    ...(options.refetchOnReconnect === undefined ? {} : { refetchOnReconnect: options.refetchOnReconnect }),
   });
 }
 
-export function invocationsQuery(filters: ListFilters, position: SnapshotPosition) {
-  return snapshotList('invocations', listInvocations, filters, position);
+/**
+ * `poll: false` hands every automatic refresh to the page's live channel: with
+ * Auto refresh on the stream drives the refetches, with it off the list stays
+ * still until the reader asks, which is what the switch promises. That channel
+ * polls at its own slower interval while a broken stream is reconnecting, and
+ * it is also what refetches after a reconnect — the query itself must not, or
+ * "off" would refresh as soon as the network comes back.
+ */
+export function invocationsQuery(
+  filters: ListFilters,
+  position: SnapshotPosition,
+  options: { readonly poll?: boolean } = {},
+) {
+  return snapshotList('invocations', listInvocations, filters, position, {
+    poll: options.poll === false ? false : LIST_POLL_MS,
+    refetchOnReconnect: false,
+  });
 }
 
 export function messagesQuery(filters: ListFilters, position: SnapshotPosition) {
@@ -313,10 +330,12 @@ export function promptDiffQuery(from: string, to: string) {
   });
 }
 
+/** The live channel owns automatic refresh while Auto refresh is on (and means "off" when it is off). */
 export function invocationQuery(id: string) {
   return queryOptions({
     queryKey: ['invocation', id],
     queryFn: () => getInvocation(id),
+    refetchOnReconnect: false,
   });
 }
 
