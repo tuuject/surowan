@@ -89,7 +89,7 @@ if (decide(deps, bucket, hostKind, chat, chatConfig, now, decisions) === 'hold')
 - 重新决策次数用尽时，那一行记 `state = success`、`outcome = enter`、`applied = 1`，`probability` 保留原值。
 - `history` 遵守 `/cut_topic` 的 Context cutoff，与 `snapshotInvocation` 一致。
 - 决策行只读端点的路径定为 `GET /decision-gate/decisions`，参数与分页照现有审计列表。
-- 没有改 `src/platform/prompts/2-product-knowledge.md`。子 agent 按 `agent-doc/product-knowledge.md` 加过一条索引，主会话撤回了：改动系统 Prompt 分区会改变稳定 Prompt 哈希，让所有 Conversation Context 重建一次。代价是产品知识索引里暂时没有指向新指南页的条目。
+- 产品知识索引 `src/platform/prompts/2-product-knowledge.md` 加了一条入场闸门的条目，指向 `guides/entry-gate.md`。子 agent 加过一条，主会话因为它会改变稳定 Prompt 哈希、让所有 Conversation Context 在升级后各重建一次而撤回；PR 开出后用户决定要改系统提示词，于是按烘焙 Skill 重新写入（单独一个提交），溯源记录 `skills/surowan-dev-bake-product-knowledge/references/provenance.md` 同步更新。索引从 8213 字符增加到 8916 字符（8994 UTF-8 字节，`estimateTextTokens` 粗估 2259，没有跑 tokenizer）。
 - Decisions API 的线上格式计划里没写，实现前查了 OpenRouter 文档：`answers.gate` 是 `{ "type": "noul", "noul": <0..1> }` 或 `{ "type": "refusal" }`。
 
 ## Review 与处理
@@ -153,7 +153,7 @@ git diff --check origin/develop..HEAD
 # 通过；之后 git status --porcelain 为空
 ```
 
-文档构建与 `docs:verify` 是在撤回产品知识索引那一行之前跑的；那次撤回只把 `src/platform/prompts/2-product-knowledge.md` 恢复成 `develop` 的内容，文档站不读这个文件，没有重跑。提交 hook 的文件大小检查（`node scripts/file-token-limit.ts`）在每个子任务提交前都通过；rebase 之后按字节数扫了一遍分支改动的文件，超过 20,000 字节的只有豁免的 `AGENTS.md`、`packages/cli/README.md` 与 `routeTree.gen.ts`。
+产品知识索引那个提交是在上面这些命令之后加的。加完后重跑了 `pnpm run lint`、`pnpm run check`、`pnpm test`（480 个文件、2474 条通过）、完整 `pnpm run admin:test:e2e`（378 passed）与 `pnpm run manual:prepare`，并核对索引里的 40 个链接（27 个不同路径）都能在 `src/manual/` 里读到。文档构建与 `docs:verify` 没有重跑，文档站不读这个文件。模型 grounding 探针没有跑。提交 hook 的文件大小检查（`node scripts/file-token-limit.ts`）在每个子任务提交前都通过；rebase 之后按字节数扫了一遍分支改动的文件，超过 20,000 字节的只有豁免的 `AGENTS.md`、`packages/cli/README.md` 与 `routeTree.gen.ts`。
 
 各子任务提交前还各跑过一次快速层（lint、类型检查、受影响测试，新测试连跑 3 到 5 轮），均通过。rebase 之后第一次完整 E2E 有 2 条失败，原因是没有重新构建前端，旧的 `dist` 里没有 `develop` 新带进来的 MCP Skill 徽标；重新 `pnpm run admin:build` 后 378 条全过。
 
@@ -174,4 +174,5 @@ b48efc3e Add decision gate configuration, client and audit table
 b7211c33 Gate due buckets on a decision model
 116ce9c3 Add the decision gate Admin API
 8e334225 Add the entry gate page to the Admin Panel
+57429def Add the entry gate to the product knowledge index
 ```
