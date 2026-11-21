@@ -14,6 +14,7 @@ import {
   TechText,
   TimeText,
 } from '@/components/business';
+import { AutoRefreshSwitch } from '@/components/invocations/auto-refresh-switch';
 import { AppLink } from '@/components/router-links';
 import type { InvocationListItem } from '@/lib/api/invocations.ts';
 import { formatCost, formatNumber, stateLabel } from '@/lib/format';
@@ -168,8 +169,12 @@ export default function InvocationsPage(): ReactElement {
         )}
       </ListSearchForm>
       <SnapshotList
-        factory={invocationsQuery}
+        // The live channel owns every automatic refresh here, so the snapshot
+        // query itself never polls: off means off.
+        factory={(nextFilters, position) => invocationsQuery(nextFilters, position, { poll: false })}
         filters={filters}
+        live={{ url: '/api/live/invocations', renewOnPageOne: true }}
+        actions={<AutoRefreshSwitch />}
         renderItems={(items, { loading }) => (
           <TableShell columns={COLUMNS} data={items} rowKey={(row) => row.id} loading={loading} minWidth={1120} />
         )}

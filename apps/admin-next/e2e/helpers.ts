@@ -239,6 +239,21 @@ export function watchPageIssues(page: Page): () => PageIssues {
   };
 }
 
+/**
+ * Starts this page with the Invocation pages' live refresh already off, seeded
+ * the way the panel store persists it. A spec that asserts the snapshot
+ * "new records" contract, or a first request that must fail, cannot race the
+ * stream's own refetch that way.
+ */
+export async function disableInvocationAutoRefresh(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    window.localStorage.setItem(
+      'surowan-admin-ui',
+      JSON.stringify({ version: 0, state: { invocationAutoRefresh: false } }),
+    );
+  });
+}
+
 /** Counts rendered body rows of the first table on the page. */
 export function tableBodyRows(page: Page): ReturnType<Page['locator']> {
   return page.locator('table tbody tr');

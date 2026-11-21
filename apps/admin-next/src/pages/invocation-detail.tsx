@@ -4,6 +4,7 @@ import { Tabs } from '@tuuject/koi-react/tabs';
 import type { ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
 import { DetailError, DetailSkeleton, ListPageHeader } from '@/components/business';
+import { AutoRefreshSwitch } from '@/components/invocations/auto-refresh-switch';
 import { DetailHeader } from '@/components/invocations/detail-header';
 import { InvocationReviewPanel } from '@/components/review/invocation-review-panel.tsx';
 import { ModelCallsTab } from '@/components/invocations/model-calls-tab';
@@ -12,30 +13,38 @@ import { SendsTab } from '@/components/invocations/sends-tab';
 import { isRoom } from '@/components/invocations/shared';
 import { ToolCallsTab } from '@/components/invocations/tool-calls-tab';
 import { AgentTranscriptTab, FrozenContextTab } from '@/components/invocations/transcripts-tab';
+import { useCoalescedRefetch } from '@/hooks/use-coalesced-refetch';
+import { useLiveRefresh } from '@/hooks/use-live-refresh';
+import { ApiError } from '@/lib/api/core.ts';
 import { invocationQuery } from '@/lib/queries';
+import { useUiStore } from '@/stores/ui';
 
 export function InvocationDetailView({ id }: { readonly id: string }): ReactElement {
   const { t } = useTranslation();
-  const { data, isPending, isError, error } = useQuery(invocationQuery(id));
+  const autoRefresh = useUiStore((state) => state.invocationAutoRefresh);
+  const { data, isPending, error, refetch } = useQuery(invocationQuery(id));
+  // Only a deleted Invocation is a final answer. A failed background refetch
+  // keeps the data the reader is looking at (the QueryClient retries nothing, so
+  // a deploy or a blip must not replace a live run with an error page) and keeps
+  // the channel open, so the next event or poll recovers it.
+  const deleted = error instanceof ApiError && error.status === 404;
+  // The stream only says "something changed"; this refetch is what keeps the
+  // tab, the expanded rows and the scroll position, since the query keeps its
+  // data while the new one is in flight. Coalesced so a slow fetch is not
+  // cancelled by the next event before it can deliver.
+  useLiveRefresh({
+    url: `/api/live/invocations/${encodeURIComponent(id)}`,
+    enabled: autoRefresh && !deleted,
+    onChange: useCoalescedRefetch(refetch),
+  });
 
   if (isPending) {
     return <DetailSkeleton />;
   }
-  if (isError) {
+  if (data === undefined || deleted) {
     return (
       <DetailError
-        error={error}
-        notFoundTitle={t('invocations.invocationDetail.notFound')}
-        failedTitle={t('invocations.invocationDetail.loadFailed')}
-        backTo="/invocations"
-        backLabel={t('invocations.invocationDetail.backToToolSessions')}
-      />
-    );
-  }
-  if (data === undefined) {
-    return (
-      <DetailError
-        error={new Error(t('invocations.invocationDetail.dataMissing'))}
+        error={error ?? new Error(t('invocations.invocationDetail.dataMissing'))}
         notFoundTitle={t('invocations.invocationDetail.notFound')}
         failedTitle={t('invocations.invocationDetail.loadFailed')}
         backTo="/invocations"
@@ -46,7 +55,10 @@ export function InvocationDetailView({ id }: { readonly id: string }): ReactElem
 
   return (
     <div key={data.id} className={css({ '& > * + *': { marginBlockStart: '6' } })}>
-      <ListPageHeader title={t('invocations.invocationDetail.title', { id: data.id })} />
+      <ListPageHeader
+        title={t('invocations.invocationDetail.title', { id: data.id })}
+        actions={<AutoRefreshSwitch />}
+      />
       <DetailHeader invocation={data} />
       <InvocationReviewPanel invocation={data} />
       <section>

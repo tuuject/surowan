@@ -355,8 +355,12 @@ describe('send kind:file', () => {
     trackStore(store);
     const upgraded = {
       rows: store.db.prepare(LEDGER.replace('telegram_message_id', 'message_no AS telegram_message_id')).all(),
+      // 067 adds an index for the live Invocation streams; the three indexes
+      // 049 rebuilt must come out of the rebuild byte for byte.
       indexes: store.db
-        .prepare("SELECT name, sql FROM sqlite_master WHERE type = 'index' AND tbl_name = 'host_sends' ORDER BY name")
+        .prepare(
+          "SELECT name, sql FROM sqlite_master WHERE type = 'index' AND tbl_name = 'host_sends' AND name <> 'host_sends_tool_call_idx' ORDER BY name",
+        )
         .all(),
     };
     expect(upgraded).toEqual(before);

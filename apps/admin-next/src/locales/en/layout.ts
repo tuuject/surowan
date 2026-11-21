@@ -111,6 +111,7 @@ export const layout = {
     filters: 'Filters',
     appliedFilters: '{{count}} applied',
     refreshList: 'Refresh list',
+    autoRefresh: 'Auto refresh',
     reset: 'Reset',
     cursorPageCount_one: 'Page {{page}}, {{count}} record',
     cursorPageCount_other: 'Page {{page}}, {{count}} records',

@@ -112,6 +112,9 @@ export const hostSends = sqliteTable(
     finishedAt: text('finished_at'),
   },
   (table) => [
+    // The live Invocation streams look up sends through their tool call; see
+    // migration 067.
+    index('host_sends_tool_call_idx').on(table.toolCallId),
     index('host_sends_reply_delivery_idx')
       .on(table.conversationId, sql`json_extract(${table.requestJson}, '$.reply_to_message_id')`)
       .where(sql`${table.state} IN ('success', 'pending', 'outcome_unknown')`),

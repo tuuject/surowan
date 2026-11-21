@@ -29,6 +29,7 @@ import { createDictionaryAdminHandler } from './dictionary.ts';
 import { createGroupMemoryAdminHandler } from './group-memory.ts';
 import { createImageAdminRoutes } from './image.ts';
 import { createKeychainAdminRoutes } from './keychain.ts';
+import { createLiveAdminHandler } from './live.ts';
 import { createMemoryAdminHandler } from './memory.ts';
 import { createMcpServersAdminRoutes } from './mcp-servers.ts';
 import { createPlaygroundAdminRoutes } from './playground.ts';
@@ -183,6 +184,12 @@ export function createAdminRoutes(deps: AdminRoutesDeps) {
       secrets,
     }),
     keychain: createKeychainAdminRoutes({ configReloader: reloader, secrets }),
+    live: createLiveAdminHandler({
+      orm: options.store.orm,
+      auth,
+      stopSignal: healthSignal,
+      ...(options.liveStreams === undefined ? {} : { options: options.liveStreams }),
+    }),
     inspection: createInspectionAdminHandler({
       store: options.store,
       configStore: options.configStore,

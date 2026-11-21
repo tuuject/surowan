@@ -3,6 +3,7 @@ import { expect, type Page } from '@playwright/test';
 import {
   adminUrl,
   clickSearch,
+  disableInvocationAutoRefresh,
   e2eFetch,
   expectRealPagination,
   nextPage,
@@ -58,6 +59,10 @@ test.describe('invocations list', () => {
   test('an invocation that arrives after opening stays out of every page until the notice is used', async ({
     page,
   }, testInfo) => {
+    // The snapshot notice is what a reader sees with Auto refresh turned off:
+    // while it is on, page 1 renews its own snapshot and the arrival lands on
+    // top by itself (40-invocation-live-refresh covers that).
+    await disableInvocationAutoRefresh(page);
     const requests: { offset: string | null; as_of: string | null }[] = [];
     page.on('request', (request) => {
       const url = new URL(request.url());
@@ -148,6 +153,9 @@ test.describe('invocations list', () => {
   });
 
   test('an initial failure does not invent an empty page or a zero count', async ({ page }) => {
+    // Auto refresh would retry the failed request through the stream's own
+    // refetch before the assertion could see the error state.
+    await disableInvocationAutoRefresh(page);
     let failed = false;
     await page.route('**/api/invocations?*', async (route) => {
       if (!failed && new URL(route.request().url()).pathname === '/api/invocations') {
