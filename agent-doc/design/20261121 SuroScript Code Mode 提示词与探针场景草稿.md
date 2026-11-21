@@ -10,7 +10,7 @@
 
 | # | 假设 | 说明 |
 | --- | --- | --- |
-| H1 | 工具叫 `run_script`，参数只有一个 `code` 字符串 | 用户 11-21 提议：原先的 `execute_js` 和现有的 `execute` 只差一个后缀，模型容易分不清该用哪个，所以改名。名字里不再带语言，描述第一句必须写明是 JavaScript。 |
+| H1 | 工具叫 `run_js`，参数只有一个 `code` 字符串 | 用户 11-21 提议：原先的 `execute_js` 和现有的 `execute` 只差一个后缀，模型容易分不清该用哪个，所以改名。中途考虑过 `run_script`，但名字里没有语言，而且以后「运行存好的脚本」也会想用这个名字。以后那个工具暂定叫 `run_saved_js`，这一期不做。 |
 | H2 | 脚本里只有一个调用入口：`await tools.call(name, input)` | `name` 和 `input` 与模型直接调用时完全相同：内部能力用 `execute.call` 的名字，MCP 工具用 `<alias>__<tool>`。这样示例能举一反三，提示词不用逐个列出函数。 |
 | H3 | `tools.call` 返回 `{ text, data, refs }`，工具失败时抛异常 | `text` 是模型直接调用时看到的那段文本；`data` 只在 `text` 本身是合法 JSON 时给出解析结果；`refs` 原样透传。 |
 | H4 | 回到模型手里的只有 `console.log` 的输出和脚本 `return` 的值 | 对应 PRD 的「stdout／结构化数据回传」。 |
@@ -18,6 +18,13 @@
 | H6 | 图片回传的写法不在这一版草稿里 | PRD 只写了「必要时可以回传图片」，机制还没有定。 |
 
 核对源码时发现一个会影响 H3 的事实：现有内部能力的返回值大多是**写给模型读的文本**，不是结构化数据。例如 `web_search` 返回的是带表头的纯文本结果列表，`web_fetch` 返回 Markdown。脚本要从里面取字段只能靠正则。MCP 工具在只有文本内容时，返回的是整个结果的 JSON 字符串，可以解析。这意味着 Code Mode 对 MCP 工具天然好用，对内部能力则要么接受正则，要么以后让它们额外给出结构化结果。
+
+用户 11-22 提出、还在考虑的两点。它们定下来以后 H2、H3 和下面的提示词都要跟着改，这一版正文暂时没有动：
+
+- 一些工具在 Code Mode 里可能需要返回 JSON 结构，而不是纯文本。
+- 需要用 TypeScript 类型声明来告诉模型它可以使用哪些函数。目前 Code Mode 不支持 TypeScript。
+
+核对源码的补充：MCP Server 给出结构化结果时，现在会被转成一段 JSON 文本交给模型，脚本可以解析；但工具的返回值结构说明在发现工具时没有保留，模型事先不知道返回值长什么样。
 
 ## 2. 工具描述初稿
 
@@ -33,7 +40,7 @@ Use it when one task needs several tool calls whose intermediate results you do 
 
 You SHOULD NOT use it for a single tool call, for a tool that already accepts a batch in one call, for steps where you must judge the result before choosing the next step, or for ordinary conversation. In those cases call the tool directly.
 
-Inside the program, `await tools.call(name, input)` calls a tool by the same name and input object you would use directly (capabilities by their execute name, MCP tools as `<alias>__<tool>`). It resolves to `{text, data, refs}` — `text` is what you would have read, `data` is the parsed value when `text` is JSON — and throws when the tool fails. `run_script` itself is not callable. There is no network, file system, timer or import: tools are the only way out.
+Inside the program, `await tools.call(name, input)` calls a tool by the same name and input object you would use directly (capabilities by their execute name, MCP tools as `<alias>__<tool>`). It resolves to `{text, data, refs}` — `text` is what you would have read, `data` is the parsed value when `text` is JSON — and throws when the tool fails. `run_js` itself is not callable. There is no network, file system, timer or import: tools are the only way out.
 
 Example:
   const urls = ["https://a.example/1", "https://b.example/2"];
@@ -64,12 +71,12 @@ Read the code-mode skill for more patterns before writing anything longer than t
 ````markdown
 ---
 name: code-mode
-description: Write a JavaScript program for run_script that fans out, filters or chains tool calls and returns only the answer.
+description: Write a JavaScript program for run_js that fans out, filters or chains tool calls and returns only the answer.
 ---
 
 # Code mode
 
-Tool: `run_script`, called directly with `{ "code": "..." }`.
+Tool: `run_js`, called directly with `{ "code": "..." }`.
 
 ## When to use
 
@@ -150,7 +157,7 @@ A thrown error comes back with its line. Fix the cause and run again. Tool resul
 
 | # | 群友说的话（示意） | 通过的标准 |
 | --- | --- | --- |
-| A1 | 「这 6 个链接里哪个提到了 moejs？」附 6 个链接 | 出现一次 `run_script`，里面有 6 次 `web_fetch`；最后有 `send`。 |
+| A1 | 「这 6 个链接里哪个提到了 moejs？」附 6 个链接 | 出现一次 `run_js`，里面有 6 次 `web_fetch`；最后有 `send`。 |
 | A2 | 「搜一下 moejs，把前三个结果里讲内存限制的句子列出来」 | 一个程序里先搜索再抓取；模型没有逐个直接调用 `web_fetch`。 |
 | A3 | 「看板上开着的任务按标签各有多少？」（MCP 测试服务器返回 200 条） | 用程序统计；200 条原始数据没有进入上下文。 |
 | A4 | 「把所有带 sandbox 的条目都找出来，一共多少条？」（结果分 5 页） | 程序里循环翻页直到结束；数字与测试数据一致。 |
@@ -160,11 +167,11 @@ A thrown error comes back with its line. Fix the cause and run again. Tool resul
 
 | # | 群友说的话（示意） | 通过的标准 |
 | --- | --- | --- |
-| B1 | 「帮我看看这个链接讲了什么」 | 直接 `web_fetch`，没有 `run_script`。 |
-| B2 | 普通闲聊 | 没有 `run_script`。 |
-| B3 | 「这 8 个词辞典里都有吗？」 | 一次 `lookup_dictionary` 传 8 个词，没有 `run_script`。这个工具自己就能批量。 |
+| B1 | 「帮我看看这个链接讲了什么」 | 直接 `web_fetch`，没有 `run_js`。 |
+| B2 | 普通闲聊 | 没有 `run_js`。 |
+| B3 | 「这 8 个词辞典里都有吗？」 | 一次 `lookup_dictionary` 传 8 个词，没有 `run_js`。这个工具自己就能批量。 |
 | B4 | 「搜一下 moejs，挑一个你觉得最靠谱的来源细读」 | 搜索和抓取之间由模型自己判断，没有把「挑哪个」写进程序。 |
-| B5 | 「跟大家说声晚安」 | 直接 `send`，没有 `run_script`。 |
+| B5 | 「跟大家说声晚安」 | 直接 `send`，没有 `run_js`。 |
 | B6 | 「这篇文章的作者是不是在阴阳怪气？」附 1 个链接 | 直接抓取后自己判断，没有用关键词匹配代替判断。 |
 
 ### C. 写得对不对
@@ -190,8 +197,8 @@ A thrown error comes back with its line. Fix the cause and run again. Tool resul
 
 | 指标 | 怎么算 |
 | --- | --- |
-| 触发率 | A 类场景中出现成功的 `run_script` 的比例 |
-| 误触发率 | B 类场景中出现 `run_script` 的比例 |
+| 触发率 | A 类场景中出现成功的 `run_js` 的比例 |
+| 误触发率 | B 类场景中出现 `run_js` 的比例 |
 | 一次成功率 | 第一个程序就成功的比例 |
 | 两次内成功率 | 两个程序以内成功的比例 |
 | 说话率 | 程序成功后有 `send` 的比例 |
