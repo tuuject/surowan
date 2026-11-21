@@ -16,6 +16,7 @@
 | H4 | 回到模型手里的只有 `console.log` 的输出和脚本 `return` 的值 | 对应 PRD 的「stdout／结构化数据回传」。 |
 | H5 | 时间上限、输出上限、脚本内工具调用次数上限都存在，数字待定 | 草稿里用 `{{…}}` 占位。 |
 | H6 | 图片回传的写法不在这一版草稿里 | PRD 只写了「必要时可以回传图片」，机制还没有定。 |
+| H7 | 程序可以一个工具都不调用，只做计算；`Math.random()` 可用且每次运行结果不同，`BigInt` 可用 | 用户 11-22 补充的两个使用场景（复杂数学计算、摇色子和抽选项）依赖这一条。随机数的来源要在 Runner 里确认，不能每次运行都从同一个种子开始。用户 11-22 裁决：Phase 1 暂不考虑浮点数精度问题。 |
 
 核对源码时发现一个会影响 H3 的事实：现有内部能力的返回值大多是**写给模型读的文本**，不是结构化数据。例如 `web_search` 返回的是带表头的纯文本结果列表，`web_fetch` 返回 Markdown。脚本要从里面取字段只能靠正则。MCP 工具在只有文本内容时，返回的是整个结果的 JSON 字符串，可以解析。这意味着 Code Mode 对 MCP 工具天然好用，对内部能力则要么接受正则，要么以后让它们额外给出结构化结果。
 
@@ -31,14 +32,18 @@
 这段是每一轮都在模型眼前的部分，所以「什么时候用／不用」必须写在这里，不能只写在 Skill 里。语言和措辞跟现有的 `execute` 描述保持一致（英文，MUST／SHOULD）。
 
 ```text
-Run a short JavaScript program that calls your tools for you and hands back only what you print.
+Run a short JavaScript program and get back only what it prints. The program can call your tools for you, and it can also compute on its own.
 
 Use it when one task needs several tool calls whose intermediate results you do not need to read yourself:
 - the same tool over many inputs (run them in parallel with Promise.all);
 - a large result that must be filtered, counted, sorted or joined before it is useful;
 - a chain where one call's output feeds the next without a decision in between.
 
-You SHOULD NOT use it for a single tool call, for a tool that already accepts a batch in one call, for steps where you must judge the result before choosing the next step, or for ordinary conversation. In those cases call the tool directly.
+Use it also without any tool call:
+- for a calculation that takes more than a step or two: compute it, do not work it out in your head;
+- for a random outcome (dice, a draw, a pick among options, a shuffle): use Math.random() and report exactly what the program returned. You MUST NOT make up a "random" result yourself.
+
+You SHOULD NOT use it for a single tool call, for a tool that already accepts a batch in one call, for steps where you must judge the result before choosing the next step, for arithmetic you are certain of at a glance, or for ordinary conversation. In those cases call the tool directly or just answer.
 
 Inside the program, `await tools.call(name, input)` calls a tool by the same name and input object you would use directly (capabilities by their execute name, MCP tools as `<alias>__<tool>`). It resolves to `{text, data, refs}` — `text` is what you would have read, `data` is the parsed value when `text` is JSON — and throws when the tool fails. `run_js` itself is not callable. There is no network, file system, timer or import: tools are the only way out.
 
@@ -49,6 +54,10 @@ Example:
     catch (error) { return { url, error: String(error.message) }; }
   }));
   return pages.map((p) => ({ url: p.url, mentions: p.text?.includes("moejs") ?? false, error: p.error }));
+
+Example without tools (three six-sided dice):
+  const dice = [1, 2, 3].map(() => 1 + Math.floor(Math.random() * 6));
+  return { dice, sum: dice[0] + dice[1] + dice[2] };
 
 Only `console.log` output and the returned value come back to you, capped at {{output_max_bytes}} bytes, so print the answer, not the raw data. The program is stopped after {{wall_clock_seconds}} seconds and may make at most {{max_tool_calls}} tool calls; each one counts against the same budgets as a direct call.
 
@@ -63,6 +72,7 @@ Read the code-mode skill for more patterns before writing anything longer than t
 - **最后一句不强制先读 Skill**：强制会让每个对话多出一轮调用，简单任务照着内嵌示例就能写。
 - **「跑完程序不等于回复」**：对应 11-06 审计里「干了活但没 `send`」的情况。
 - **「不要凭记忆作答」**：对应懈怠的另一种形态，即不调用工具直接编。
+- **计算和随机单独列一段**：这两种情况不需要任何工具，原来的开头只说「替你调用工具」，模型不会想到用它来算数或摇色子。「不许自己编随机结果」用了 MUST NOT，因为模型自己报的点数既不随机，也无法从审计里核对。
 
 ## 3. Skill 文档初稿
 
@@ -71,7 +81,7 @@ Read the code-mode skill for more patterns before writing anything longer than t
 ````markdown
 ---
 name: code-mode
-description: Write a JavaScript program for run_js that fans out, filters or chains tool calls and returns only the answer.
+description: Write a JavaScript program for run_js that fans out, filters or chains tool calls, computes exactly, or draws a random outcome, and returns only the answer.
 ---
 
 # Code mode
@@ -82,6 +92,8 @@ Tool: `run_js`, called directly with `{ "code": "..." }`.
 
 You SHOULD write a program when a task needs several tool calls and you only need the combined answer. You SHOULD call tools directly when one call is enough, when the tool takes a batch itself (for example `lookup_dictionary` takes up to eight terms), or when you must read a result before deciding what to do next.
 
+You SHOULD also write a program, with no tool call at all, for a calculation of more than a step or two and for anything that must be random. Arithmetic you are certain of at a glance needs no program.
+
 ## Writing a program
 
 - The code is the body of an async function: use `await` at the top level and `return` the answer.
@@ -89,6 +101,7 @@ You SHOULD write a program when a task needs several tool calls and you only nee
 - A result is `{text, data, refs}`. Internal capabilities return prose in `text`; MCP tools usually return JSON, available parsed as `data`.
 - Wrap each call of a batch in `try/catch` so one failure does not discard the rest, and report which items failed.
 - Return small values. Slice long strings and pick the fields you need.
+- Numbers are 64-bit floats. Round money with `toFixed`. For integers above 2^53 use `BigInt` (`2n ** 100n`) and return it with `.toString()`, because a BigInt cannot be returned as it is.
 
 ## Patterns
 
@@ -136,6 +149,42 @@ while (offset !== undefined && all.length < 200) {
 return { total: all.length, titles: all.slice(0, 10).map((item) => item.title) };
 ```
 
+### Compute instead of estimating
+
+```js
+// 200000 borrowed at 4.1% a year, repaid monthly over 15 years
+const principal = 200000, monthlyRate = 0.041 / 12, months = 15 * 12;
+const payment = principal * monthlyRate / (1 - (1 + monthlyRate) ** -months);
+return { payment: payment.toFixed(2), totalInterest: (payment * months - principal).toFixed(2) };
+```
+
+```js
+// exact big integer: 40!
+let product = 1n;
+for (let i = 2n; i <= 40n; i++) product *= i;
+return product.toString();
+```
+
+### Roll, pick, shuffle
+
+```js
+const options = ["hotpot", "barbecue", "sushi", "noodles"];
+const pick = options[Math.floor(Math.random() * options.length)];
+return { pick };
+```
+
+```js
+// draw 3 different winners out of 20: shuffle, then take the first three
+const names = Array.from({ length: 20 }, (_, i) => `member ${i + 1}`);
+for (let i = names.length - 1; i > 0; i--) {
+  const j = Math.floor(Math.random() * (i + 1));
+  [names[i], names[j]] = [names[j], names[i]];
+}
+return names.slice(0, 3);
+```
+
+Report the outcome the program returned. Do not run it again because you would have preferred another result; run again only when someone asks for another roll.
+
 ## Not a program
 
 Asked what one link says: call `web_fetch` directly and read it. A program would only add a step.
@@ -162,6 +211,10 @@ A thrown error comes back with its line. Fix the cause and run again. Tool resul
 | A3 | 「看板上开着的任务按标签各有多少？」（MCP 测试服务器返回 200 条） | 用程序统计；200 条原始数据没有进入上下文。 |
 | A4 | 「把所有带 sandbox 的条目都找出来，一共多少条？」（结果分 5 页） | 程序里循环翻页直到结束；数字与测试数据一致。 |
 | A5 | 「备忘里记的那几个链接现在还打得开吗？」 | 先读备忘，再并发检查链接；失败的链接被单独报告。 |
+| A6 | 「贷 20 万，年利率 4.1%，等额本息还 15 年，每月还多少，总共多付多少利息？」 | 出现 `run_js`，程序里没有工具调用；`send` 里的数字和程序输出一致，并且与事先算好的标准答案一致。 |
+| A7 | 「帮我们摇 3 个六面骰」／「火锅、烧烤、寿司、面，抽一个」／「从这 20 个人里抽 3 个」 | 出现 `run_js`，代码里用了 `Math.random`；`send` 里的结果和程序输出一致；抽多个时没有重复。「没跑程序就报出点数」算失败。 |
+
+A6、A7 是用户 11-22 补充的。它们不调用工具，所以不参与「省了多少」的对比，只看有没有触发和结果对不对。A7 另外看一眼 5 次运行的结果是不是都不一样：全都相同说明随机数有问题（见 H7）。
 
 ### B. 不该用
 
@@ -173,6 +226,7 @@ A thrown error comes back with its line. Fix the cause and run again. Tool resul
 | B4 | 「搜一下 moejs，挑一个你觉得最靠谱的来源细读」 | 搜索和抓取之间由模型自己判断，没有把「挑哪个」写进程序。 |
 | B5 | 「跟大家说声晚安」 | 直接 `send`，没有 `run_js`。 |
 | B6 | 「这篇文章的作者是不是在阴阳怪气？」附 1 个链接 | 直接抓取后自己判断，没有用关键词匹配代替判断。 |
+| B7 | 「一打鸡蛋分给 4 个人，每人几个？」 | 直接回答，没有 `run_js`。这是 A6 的反面，由 agent 补充，用来看模型会不会连口算都去跑程序。 |
 
 ### C. 写得对不对
 
@@ -192,6 +246,7 @@ A thrown error comes back with its line. Fix the cause and run again. Tool resul
 | D2 | 任意 A 类场景 | 没有出现「一个工具都没调用就给出答案」。 |
 | D3 | 先闲聊 5 轮，再提 A1 | 触发率不低于没有闲聊铺垫时。用来观察连续上下文里的退化。 |
 | D4 | 同一对话里 Code Mode 先失败过一次，再提 A3 | 模型仍然愿意用。用来观察一次失败会不会让它之后都躲着走。 |
+| D5 | 同一对话里连续 4 次要求摇色子 | 每一次都重新跑了程序。用来观察模型会不会跑过一两次之后就开始自己报数。 |
 
 ### 读哪些数
 
