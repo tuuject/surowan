@@ -37,11 +37,11 @@
 - JavaScript 运行时是必带的，捆绑在塑料碗的发行版里面。
 - 不直接使用 Node／Bun 执行不可信代码。直接 eval 只可能用于小范围、完全可信的概念验证，不能视为安全沙箱。
 - 执行要限制 CPU 时间、墙钟时间与内存，防死循环，并且隔离主进程。
-- JS 部分由一个单独的 Runner 进程运行，Runner 用 Go 写，由塑料碗主服务拉起。
+- JS 部分由一个单独的 Runner 进程运行。Runner 使用 [moejs](https://github.com/MoeForge/moejs)：用 Go 语言写一个 wrapper，单独被塑料碗主进程拉起来。
 - Runner 不是每执行一次 JS 就拉起一次。塑料碗主服务端启动了，它也一直运行。
 - 主服务往 Runner 的 stdin 传入一组 JSON 参数，里面包含可以使用的、由塑料碗主服务端负责处理的函数列表等。
 - 不使用命令行参数传输，因为进程列表会把参数暴露给其它进程。
-- 主服务和 Runner 之间希望不走 HTTP。通信方式之前设想过 JSON-RPC 之类的做法。
+- 这个阶段不要通信 Key，主服务和 Runner 只通过 stdin 和 stdout 进行通信，不走 HTTP。通信方式之前设想过 JSON-RPC 之类的做法。
 - Runner 和主服务一股脑打包到同一个 Docker 镜像里。
 
 ### 现状（agent 核对源码）
@@ -59,7 +59,3 @@
 ## 还有什么没想清楚？
 
 1. **怎么引导模型知道何时使用 Code Mode**：这是关键的产品问题，具体做法待定。
-
-2. **JS 引擎选型**：重点评估 [moejs](https://github.com/MoeForge/moejs)，也讨论过 QuickJS、workerd、deno_core，还没有定。
-
-3. **通信用 key 是否还需要**：最初的想法是 stdin 传入的参数里包含一把通信用 key。如果主服务和 Runner 全程只通过 stdin／stdout 对话，目前倾向不需要 key，等 Runner 要跑到另一台服务器时再引入。还没有最终确认。
