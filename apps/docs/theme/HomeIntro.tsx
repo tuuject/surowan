@@ -2,19 +2,38 @@ import { useLang, withBase } from '@rspress/core/runtime';
 import { pageLink } from './links';
 import { VersionNotice } from './VersionNotice';
 
+/**
+ * Where the home page sends readers. Both locales use the same files under the
+ * same relative paths, so each destination is written once and the `/en` prefix
+ * is only added when rendering.
+ */
+const DESTINATIONS = {
+  persona: '/docs/guides/first-persona.html',
+  models: '/docs/guides/models.html',
+  tuning: '/docs/guides/tuning.html',
+  troubleshooting: '/docs/guides/troubleshooting.html',
+} as const;
+
+type Destination = keyof typeof DESTINATIONS;
+
 interface HomeIntroText {
-  readonly ownBowl: { readonly heading: string; readonly lines: readonly string[]; readonly link: string };
+  readonly ownBowl: {
+    readonly heading: string;
+    readonly lines: readonly string[];
+    readonly link: { readonly href: Destination; readonly label: string };
+  };
   readonly example: {
     readonly heading: string;
     readonly caption: string;
     readonly you: string;
     readonly speaker: string;
-    readonly turns: readonly string[];
+    /** One exchange: what the reader says, then how the bot answers. */
+    readonly turns: readonly [string, string];
     readonly note: string;
   };
   readonly tasks: {
     readonly heading: string;
-    readonly items: readonly { readonly href: string; readonly label: string; readonly detail: string }[];
+    readonly items: readonly { readonly href: Destination; readonly label: string; readonly detail: string }[];
   };
   readonly llms: string;
   readonly llmsFull: string;
@@ -28,29 +47,27 @@ interface HomeIntroText {
 const TEXT: Record<'zh' | 'en', HomeIntroText> = {
   zh: {
     ownBowl: {
-      heading: '一只碗，各有各的性格',
+      heading: '先写你想让它成为谁',
       lines: [
-        '在私聊、群组和 Topic 里，用你选择的模型、人格和参与方式，让对话自然发生。',
-        '它可以看图、使用贴纸、按会话记住一些事；是否开口由模型决定，不是每条消息必回。',
+        '塑料碗只负责把消息送进模型：谁在说话、用什么语气、在哪些群里活跃，都来自你写的人格与规则。',
+        '它可以在私聊、群组和话题里读消息、看图片、用贴纸，也可以选择不接话——沉默是模型的决定，不是故障。',
       ],
-      link: '从写一份人格开始 →',
+      link: { href: 'persona', label: '从写一份人格开始 →' },
     },
     example: {
-      heading: '对话可以这样开始',
-      caption: '虚构示意，不代表实际回复或已保存的记忆',
+      heading: '一段对话大致长这样',
+      caption: '虚构示意，不是真实回复，也没有保存任何记忆',
       you: '你',
       speaker: '塑料碗',
-      turns: ['碗，以后在这个群里话少一点，遇到技术问题再搭把手。', '好，我先在旁边待着。需要时叫我。'],
-      note: '想长期保持？将规则写进该群的附加指令，而不只依赖一次聊天。',
+      turns: ['这个群聊技术的时候再出声，别每句都接。', '好。有人问问题我再过来。'],
+      note: '想让它长期保持？写进该群的附加指令，或者写进全局人格，而不是只说一次。',
     },
     tasks: {
-      heading: '已经跑起来了？',
+      heading: '已经在运行了？',
       items: [
-        { href: '/docs/guides/chats.html', label: '给不同群配置不同的碗', detail: '模型、指令与参与时段' },
-        { href: '/docs/guides/knowledge.html', label: '管理记忆与遗忘', detail: '短期记忆、TTL 与人工整理' },
-        { href: '/docs/guides/tuning.html', label: '控制用量', detail: '全局预算与运行限制' },
-        { href: '/docs/guides/images.html', label: '让碗画图', detail: '启用生图、聊天改图与图片管理' },
-        { href: '/docs/guides/troubleshooting.html', label: '排查为什么不回复', detail: '从消息可见性到模型调用' },
+        { href: 'models', label: '换一个模型', detail: '供应商、三个模型角色与思考强度' },
+        { href: 'tuning', label: '让它少说一点、便宜一点', detail: '消息批次、入场闸门与预算' },
+        { href: 'troubleshooting', label: '为什么不回复', detail: '从消息可见性查到模型调用' },
       ],
     },
     llms: 'Agent 文档索引',
@@ -58,48 +75,30 @@ const TEXT: Record<'zh' | 'en', HomeIntroText> = {
   },
   en: {
     ownBowl: {
-      heading: 'One bowl, its own personality',
+      heading: 'Write the bot you actually want',
       lines: [
-        'Pick the models, persona and participation rules, and let conversations happen in private chats, groups and forum topics.',
-        'It can look at images, use stickers and remember a few things per conversation. Whether it speaks is the model’s decision, not a reply to every message.',
+        'Surowan only carries messages to the model. Who is speaking, in what tone, and in which chats all come from the persona and rules you write.',
+        'It reads messages and images in private chats, groups and topics, can use stickers, and may stay quiet — silence is the model’s decision, not a failure.',
       ],
-      link: 'Start with a persona →',
+      link: { href: 'persona', label: 'Start with a persona →' },
     },
     example: {
-      heading: 'A conversation might begin like this',
-      caption: 'Illustrative only; not a real reply and not a stored memory',
+      heading: 'A conversation might look like this',
+      caption: 'Illustrative only; not a real reply and no memory is stored',
       you: 'You',
       speaker: 'Surowan',
       turns: [
-        'Stay quiet in this group from now on, and pitch in when there is a technical question.',
-        'Understood. I’ll sit this one out until you call me.',
+        'Only speak up when something technical comes up — no need to answer every message.',
+        'Understood. I’ll come over when someone asks.',
       ],
-      note: 'Want it to stick? Write the rule into that chat’s extra instructions instead of relying on one conversation.',
+      note: 'Want it to stick? Put the rule in that chat’s extra instructions, or in the global persona — not in one passing message.',
     },
     tasks: {
       heading: 'Already running?',
       items: [
-        {
-          href: '/docs/guides/chats.html',
-          label: 'Different behaviour per chat',
-          detail: 'Models, instructions and active hours',
-        },
-        {
-          href: '/docs/guides/knowledge.html',
-          label: 'Manage memory and forgetting',
-          detail: 'Short-term memory, TTL and manual review',
-        },
-        { href: '/docs/guides/tuning.html', label: 'Control usage', detail: 'Global budgets and run limits' },
-        {
-          href: '/docs/guides/images.html',
-          label: 'Let it draw',
-          detail: 'Turn on image generation, edit images in chat, manage assets',
-        },
-        {
-          href: '/docs/guides/troubleshooting.html',
-          label: 'Why no reply?',
-          detail: 'From message visibility to model calls',
-        },
+        { href: 'models', label: 'Switch models', detail: 'Providers, the three model roles and thinking effort' },
+        { href: 'tuning', label: 'Talk less, spend less', detail: 'Message batches, the entry gate and budgets' },
+        { href: 'troubleshooting', label: 'Why no reply?', detail: 'From message visibility to model calls' },
       ],
     },
     llms: 'Agent documentation index',
@@ -111,7 +110,7 @@ export function HomeIntro() {
   const lang = useLang() === 'en' ? 'en' : 'zh';
   const text = TEXT[lang];
   const prefix = lang === 'en' ? '/en' : '';
-  const link = (href: string): string => pageLink(`${prefix}${href}`);
+  const link = (destination: Destination): string => pageLink(`${prefix}${DESTINATIONS[destination]}`);
   return (
     <main className="home-intro">
       <div className="home-intro__columns">
@@ -120,7 +119,7 @@ export function HomeIntro() {
           {text.ownBowl.lines.map((line) => (
             <p key={line}>{line}</p>
           ))}
-          <a href={link('/docs/guides/first-persona.html')}>{text.ownBowl.link}</a>
+          <a href={link(text.ownBowl.link.href)}>{text.ownBowl.link.label}</a>
         </section>
         <section className="home-intro__example" aria-labelledby="example-title">
           <h2 id="example-title">{text.example.heading}</h2>
