@@ -13,7 +13,8 @@
       "!!skills/**/examples",
       "!!apps/docs/content/public/examples",
       "!!apps/docs/content/public/config.schema.json",
-      "!!apps/docs/content/public/build-info.json"
+      "!!apps/docs/content/public/build-info.json",
+      "!!apps/docs/content/public/screenshots/manifest.json"
     ]
   },
   "formatter": {

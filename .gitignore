@@ -6,6 +6,8 @@ dist/
 *.sqlite-shm
 *.sqlite-wal
 test-tmp/
+# Staged files of a docs screenshot run; only a complete run publishes them.
+apps/admin-next/.docs-shots-staging/
 dev-data/
 .env
 .env.local

@@ -21,6 +21,7 @@
     "admin:dev:mock": "pnpm --filter surowan-admin-next run dev:mock",
     "admin:build": "pnpm --filter surowan-admin-next run build",
     "admin:test:e2e": "pnpm --filter surowan-admin-next run test:e2e",
+    "docs:screenshots": "pnpm --filter surowan-admin-next run docs:screenshots",
     "docs:dev": "pnpm --filter surowan-docs run dev",
     "docs:build": "pnpm --filter surowan-docs run build",
     "docs:preview": "pnpm --filter surowan-docs run preview",
