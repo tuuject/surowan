@@ -110,6 +110,7 @@ export const layout: Catalog<typeof layoutEn> = {
     appliedFilters: '{{count}} aktiv',
     refreshList: 'Liste aktualisieren',
     autoRefresh: 'Automatisch aktualisieren',
+    autoScroll: 'Automatisch nach unten scrollen',
     reset: 'Zurücksetzen',
     cursorPageCount_one: 'Seite {{page}}, {{count}} Eintrag',
     cursorPageCount_other: 'Seite {{page}}, {{count}} Einträge',

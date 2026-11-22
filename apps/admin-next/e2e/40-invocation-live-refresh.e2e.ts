@@ -11,6 +11,7 @@ import { adminUrl, e2eFetch, nextPage, previousPage, tableBodyRows, test } from 
 test.use({ signedIn: true });
 
 const AUTO_REFRESH = { name: 'Auto refresh', exact: true } as const;
+const AUTO_SCROLL = { name: 'Auto scroll to bottom', exact: true } as const;
 
 function switchOn(page: Page) {
   return page.getByRole('switch', AUTO_REFRESH);
@@ -34,6 +35,23 @@ function recordApiPaths(page: Page): { readonly paths: string[] } {
     }
   });
   return { paths };
+}
+
+/** How far the end of the page is below the viewport's bottom edge (`html` is the scroller). */
+function distanceFromBottom(page: Page): Promise<number> {
+  return page.evaluate(() => {
+    const root = document.documentElement;
+    return root.scrollHeight - root.scrollTop - root.clientHeight;
+  });
+}
+
+function scrollTop(page: Page): Promise<number> {
+  return page.evaluate(() => document.documentElement.scrollTop);
+}
+
+async function scrollToTop(page: Page): Promise<void> {
+  await page.evaluate(() => window.scrollTo({ top: 0, behavior: 'instant' }));
+  await expect.poll(() => scrollTop(page)).toBe(0);
 }
 
 /** The running fixture Invocation this spec drives; created by `/running-invocation`. */
@@ -244,6 +262,65 @@ test('an arrival on page 1 is fetched without dropping the table to its skeleton
   await expect(rows.first().locator('td:first-child')).toHaveText(String(id), { timeout: 10_000 });
 });
 
+test('Auto scroll follows new rows to the bottom from the floating controls, only while it is on', async ({
+  page,
+}, testInfo) => {
+  // Short enough that the detail page scrolls, so "at the bottom" means something.
+  await page.setViewportSize({ width: 1280, height: 560 });
+  const id = await runningInvocation();
+  await appendToolCall(id);
+  await appendToolCall(id);
+  await page.goto(await adminUrl(`/invocations/${id}`));
+  await page.getByRole('tab', { name: 'Tool calls (2)' }).click();
+  // Clicking scrolls the tab into view; the reader starts at the top.
+  await scrollToTop(page);
+
+  // Off by default. Both live switches float over the page, so they are in
+  // reach at the top of a page whose end is far below the viewport.
+  const follow = page.getByRole('switch', AUTO_SCROLL);
+  await expect(follow).not.toBeChecked();
+  await expect(follow).toBeInViewport();
+  await expect(switchOn(page)).toBeInViewport();
+  expect(await distanceFromBottom(page)).toBeGreaterThan(100);
+
+  // Off: a new row arrives and the page stays where the reader is.
+  await appendToolCall(id);
+  await expect(page.getByRole('tab', { name: 'Tool calls (3)' })).toBeVisible({ timeout: 10_000 });
+  expect(await scrollTop(page)).toBe(0);
+
+  // Turning it on goes to the bottom at once, without waiting for a change.
+  await follow.click();
+  await expect.poll(() => distanceFromBottom(page)).toBeLessThan(2);
+
+  // The reader goes back up; the next row brings the page down to it.
+  await scrollToTop(page);
+  const followed = await appendToolCall(id);
+  await expect(page.getByRole('tab', { name: 'Tool calls (4)' })).toBeVisible({ timeout: 10_000 });
+  await expect.poll(() => distanceFromBottom(page)).toBeLessThan(2);
+  await expect(page.getByText(followed.tool_call_id)).toBeInViewport();
+  const shot = testInfo.outputPath('detail-auto-scroll.png');
+  await page.screenshot({ path: shot });
+  await testInfo.attach('detail-auto-scroll', { path: shot, contentType: 'image/png' });
+
+  // Remembered in the browser; opening the page does not jump on its own, the
+  // first fetch only marks where following starts.
+  await page.reload();
+  await expect(page.getByRole('switch', AUTO_SCROLL)).toBeChecked();
+  await page.waitForTimeout(2_000);
+  expect(await scrollTop(page)).toBe(0);
+
+  // Off again: the next row leaves the page alone.
+  await page.getByRole('switch', AUTO_SCROLL).click();
+  await expect(page.getByRole('switch', AUTO_SCROLL)).not.toBeChecked();
+  await page.getByRole('tab', { name: 'Tool calls (4)' }).click();
+  await scrollToTop(page);
+  await appendToolCall(id);
+  await expect(page.getByRole('tab', { name: 'Tool calls (5)' })).toBeVisible({ timeout: 10_000 });
+  await page.waitForTimeout(500);
+  expect(await scrollTop(page)).toBe(0);
+  await e2eFetch(`/running-invocation/finish?id=${id}`, { method: 'POST' });
+});
+
 test('phone width keeps the switch reachable on both pages without sideways scrolling', async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 390, height: 844 });
 
@@ -254,7 +331,8 @@ test('phone width keeps the switch reachable on both pages without sideways scro
 
   const id = await runningInvocation();
   await page.goto(await adminUrl(`/invocations/${id}`));
-  await expect(switchOn(page)).toBeVisible();
+  await expect(switchOn(page)).toBeInViewport();
+  await expect(page.getByRole('switch', AUTO_SCROLL)).toBeInViewport();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(390);
   await page.screenshot({ path: testInfo.outputPath('detail-switch-phone.png'), fullPage: true });
 
