@@ -1,0 +1,16 @@
+[
+  {
+    "text": "快速开始",
+    "link": "/docs/guides/installation"
+  },
+  {
+    "text": "文档",
+    "link": "/docs/",
+    "activeMatch": "/docs/"
+  },
+  {
+    "text": "GitHub",
+    "link": "https://github.com/tuuject/surowan",
+    "position": "right"
+  }
+]

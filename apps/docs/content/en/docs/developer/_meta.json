@@ -1,0 +1,15 @@
+[
+  "index",
+  {
+    "type": "dir",
+    "name": "http",
+    "label": "HTTP API",
+    "collapsible": false
+  },
+  "mcp-server",
+  "service-cli",
+  "client-cli",
+  "replay",
+  "telegram-commands",
+  "extensions"
+]

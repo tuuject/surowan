@@ -20,7 +20,7 @@ Surowan Admin Panel 与 Admin API 的工具客户端，包内命令为 `surowan-
 
 它与服务端入口 `surowan`（`node src/cli.ts`）不是同一个程序：本客户端只通过 Admin API 访问运行中的面板，不包含 `serve`、`check-config`、`backup`、`configure` 等服务命令；客户端自己的 `doctor` 也不执行服务端 Doctor 的 SQLite、媒体、Telegram、Provider 与 MCP 探针，只检查连通、鉴权与当前 key 权限。
 
-配套 Agent Skill 的安装与用法见 [AGENT-SKILL.md](./AGENT-SKILL.md)；支持 MCP 的 Harness 也可以直接使用 [MCP Server](../apps/docs/content/docs/configure/mcp-server.md) 与 `surowan-mcp` Skill。
+配套 Agent Skill 的安装与用法见 [AGENT-SKILL.md](./AGENT-SKILL.md)；支持 MCP 的 Harness 也可以直接使用 [MCP Server](../apps/docs/content/zh/docs/developer/mcp-server.md) 与 `surowan-mcp` Skill。
 
 ## 安装
 

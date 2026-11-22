@@ -35,8 +35,8 @@ export interface DocSpaceDefinition {
 export function bundledManualSpace(root: string): DocSpaceDefinition {
   return {
     id: 'manual',
-    title: '塑料碗用户手册',
-    description: '塑料碗（Surowan）的部署、配置与维护指南，与当前运行版本一起发布',
+    title: 'Surowan User Manual',
+    description: 'Deployment, configuration and maintenance guide for Surowan, shipped with the running version',
     root,
   };
 }

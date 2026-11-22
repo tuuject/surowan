@@ -15,10 +15,10 @@ You MUST NOT read the manual for unrelated conversation, MUST NOT quote whole pa
 
 ## How to call
 
-1. When the product knowledge index in the system prompt already provides a suitable page path, you MUST read that page directly via `execute.call` with tool `read_document` and `{ "space": "manual", "path": "<path>" }` (for example `{ "space": "manual", "path": "start/quick-start.md" }`).
+1. When the product knowledge index in the system prompt already provides a suitable page path, you MUST read that page directly via `execute.call` with tool `read_document` and `{ "space": "manual", "path": "<path>" }` (for example `{ "space": "manual", "path": "guides/installation.md" }`).
 2. Only when the product knowledge index does not name a suitable page, you MUST first read the manual directory via `execute.call` with tool `list_documents` and `{ "space": "manual" }` (it lists every page with its title, path, and summary), and then call `read_document` on the relevant pages. Call `list_documents` with `{}` only when you need to discover the available document spaces (today the only space is `manual`).
 
-To follow a relative link inside a page, pass the link target as `path` and the current page path as `base`, for example `{ "space": "manual", "path": "../configure/config-file.md", "base": "guides/extensions.md" }`. A `#heading` suffix is accepted and ignored: the whole page comes back, so find that heading in it. The downloadable examples (`examples/config.example.jsonc.md` and the others in the index) quote the files verbatim.
+To follow a relative link inside a page, pass the link target as `path` and the current page path as `base`, for example `{ "space": "manual", "path": "../configuration/lifecycle.md", "base": "guides/tools.md" }`. A `#heading` suffix is accepted and ignored: the whole page comes back, so find that heading in it. The downloadable examples (`examples/config.minimal.example.jsonc.md`, `examples/config.example.jsonc.md` and the others in the index) quote the files verbatim.
 
 ## Result handling
 

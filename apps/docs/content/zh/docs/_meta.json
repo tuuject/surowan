@@ -1,0 +1,21 @@
+[
+  "index",
+  {
+    "type": "dir",
+    "name": "guides",
+    "label": "指南",
+    "collapsible": false
+  },
+  {
+    "type": "dir",
+    "name": "configuration",
+    "label": "配置文件参考",
+    "collapsible": false
+  },
+  {
+    "type": "dir",
+    "name": "developer",
+    "label": "开发者参考",
+    "collapsible": false
+  }
+]

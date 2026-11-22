@@ -6,7 +6,7 @@ This ledger supports local maintenance of `src/platform/product-knowledge.ts`; i
 
 Read **31 authored manual pages in full**, all **6 navigation files**, and **3 public example sources** (40 content sources total). The generated field reference was produced by `pnpm run docs:prepare` for this refresh and read as a generated route, not as authored evidence. The manual packer emitted 34 documents plus the generated root index (35 Markdown files under `src/manual/`). The website landing page is read for discovery but is replaced by the generated packed index.
 
-All source paths in the following table are relative to `apps/docs/content/docs/`. Except for the landing page, the same paths are packed manual paths.
+The table records the bake that preceded the bilingual reorganization, so its source paths are relative to the pre-reorganization `apps/docs/content/docs/`. The current sources live under `apps/docs/content/en/docs/`; the old-to-new mapping is in the design document. Except for the landing page, the same paths were packed manual paths at the time.
 
 | Source read | Facts selected / routing role |
 | --- | --- |

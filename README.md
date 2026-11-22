@@ -16,7 +16,7 @@
   <p>
     <a href="#使用前须知">使用前须知</a> |
     <a href="#快速开始">快速开始</a> |
-    <a href="apps/docs/content/docs/index.md">使用文档</a> |
+    <a href="apps/docs/content/zh/docs/index.md">使用文档</a> |
     <a href="https://github.com/tuuject/surowan/issues">反馈问题</a>
   </p>
 
@@ -90,7 +90,7 @@ Telegram 消息
 | `/model` | Bot 管理员 | 查看或切换模型 |
 | `/effort` | Bot 管理员 | 查看或设置本群模型的思考强度 |
 
-完整命令与管理员配置见 [Telegram 接入](apps/docs/content/docs/configure/telegram.md#管理员命令与验证)。
+完整命令与管理员配置见 [Telegram 接入](apps/docs/content/zh/docs/developer/telegram-commands.md)。
 
 ## 能做什么
 
@@ -105,7 +105,7 @@ Telegram 消息
 | 本地管理面板 | 查看消息、模型调用、工具执行与用量，管理记忆和模型；部分配置可以不重启直接生效。 |
 | 数据与运维 | SQLite 存储；`backup` 命令按保留期清理旧数据并生成备份；提供配置检查和依赖诊断。 |
 
-使用指南：[人格](apps/docs/content/docs/guides/personality.md)、[群聊参与](apps/docs/content/docs/guides/participation.md)、[记忆](apps/docs/content/docs/guides/memory.md)、[图片能力](apps/docs/content/docs/guides/images.md)、[扩展](apps/docs/content/docs/guides/extensions.md)
+使用指南：[人格](apps/docs/content/zh/docs/guides/first-persona.md)、[群聊参与](apps/docs/content/zh/docs/guides/chats.md)、[记忆](apps/docs/content/zh/docs/guides/knowledge.md)、[图片能力](apps/docs/content/zh/docs/guides/images.md)、[扩展](apps/docs/content/zh/docs/guides/tools.md)
 
 ## 使用前须知
 
@@ -119,7 +119,7 @@ Telegram 消息
 - 加入的群数量、群内消息频率、模型选择、上下文和工具使用情况都会影响实际消耗，所以没法给出统一的月费。
 - 消息聚合、参与时段、上下文裁剪和预算限制可以约束用量，但不能保证零成本；服务商侧的余额和账单也需要单独检查。
 
-可以先从一个 Chat、明确的参与时段和可接受的预算开始，再根据审计记录里的实际用量调整。具体配置见[预算与限流](apps/docs/content/docs/guides/budgets.md)。
+可以先从一个 Chat、明确的参与时段和可接受的预算开始，再根据审计记录里的实际用量调整。具体配置见[预算与限流](apps/docs/content/zh/docs/guides/tuning.md)。
 
 <details>
 <summary>查看作者心得原文</summary>
@@ -131,19 +131,19 @@ Telegram 消息
 ### 数据与安全边界
 
 - 即使自行部署，消息、上下文和图片仍会按配置发送给你选择的模型和外部工具服务。**接入群聊前，请告知参与者并核对服务商的数据政策。**
-- 在线数据按 `retention.online_days` 保留，过期数据在 `serve` 运行时由启动与每日清理（`backup` 也会在备份前执行同一次清理，见 [备份与恢复](apps/docs/content/docs/operations/backup-restore.md)）；备份文件和模型服务商那边保存的数据需要你分别管理。
+- 在线数据按 `retention.online_days` 保留，过期数据在 `serve` 运行时由启动与每日清理（`backup` 也会在备份前执行同一次清理，见 [备份与恢复](apps/docs/content/zh/docs/guides/maintenance.md)）；备份文件和模型服务商那边保存的数据需要你分别管理。
 - 模型没有任意文件系统或 Shell 权限；图片等媒体只能在所属会话内引用，并会过期；MCP 工具受配置与运行时策略约束。
 
-管理面板的访问边界见 [管理面板指南](apps/docs/content/docs/configure/admin.md)。
+管理面板的访问边界见 [管理面板指南](apps/docs/content/zh/docs/guides/admin.md)。
 
 ## 快速开始
 
-推荐使用 GHCR 上的 Docker 镜像部署。镜像已经包含 Node.js、媒体转换依赖和管理面板，本机只需要 Docker Compose。想直接用 Node.js 在本机运行，见 [部署方式与环境要求](apps/docs/content/docs/start/installation.md#宿主机运行)。
+推荐使用 GHCR 上的 Docker 镜像部署。镜像已经包含 Node.js、媒体转换依赖和管理面板，本机只需要 Docker Compose。想直接用 Node.js 在本机运行，见 [部署方式与环境要求](apps/docs/content/zh/docs/guides/installation.md)。
 
 开始前还需要：
 
 - 一个模型服务的 API Key。
-- 接入 Telegram 时，一个 Telegram Bot：通过 [@BotFather](https://t.me/BotFather) 创建；群聊中要确认它能收到目标消息（见 [Telegram 接入](apps/docs/content/docs/configure/telegram.md)）。只想先在虚拟群聊里试用时可以不配 Telegram：删除配置里的 `telegram` 段，启动后打开管理面板的 [虚拟群聊](apps/docs/content/docs/guides/playground.md)。
+- 接入 Telegram 时，一个 Telegram Bot：通过 [@BotFather](https://t.me/BotFather) 创建；群聊中要确认它能收到目标消息（见 [Telegram 接入](apps/docs/content/zh/docs/guides/first-bot.md)）。只想先在虚拟群聊里试用时可以不配 Telegram：删除配置里的 `telegram` 段，启动后打开管理面板的 [虚拟群聊](apps/docs/content/zh/docs/guides/playground.md)。
 
 ### 1. 准备配置
 
@@ -169,7 +169,7 @@ Compose 模板默认使用 `ghcr.io/tuuject/surowan:latest`。如果要固定版
 - 接入 Telegram 时，把 `telegram.chats[0].id` 改为允许的 Chat ID；私聊通常为正数，群/Supergroup 通常为负数。只试用虚拟群聊时删除整个 `telegram` 段。
 - 填入 Provider 的 `base_url`、`api` 和模型信息，并同步修改 `agent.model`、`vision.model`。示例中的模型 ID 和地址是占位符，需要换成服务商实际提供的值。
 - 保留容器内的 `/data` 路径；人格写在 `config/system-prompt.md` 中。
-- **首次不使用图片生成时，删除整个可选的 `image` 段。** 图片理解与图片生成是不同能力；需要生成图片时，再按[图片指南](apps/docs/content/docs/guides/images.md)配置。
+- **首次不使用图片生成时，删除整个可选的 `image` 段。** 图片理解与图片生成是不同能力；需要生成图片时，再按[图片指南](apps/docs/content/zh/docs/guides/images.md)配置。
 
 如果需要在浏览器中访问管理面板，取消 `docker-compose.yml` 中 `ports` 段的注释；配置示例里的 `admin.host` 已经是容器所需的 `0.0.0.0`。端口只会发布到本机的 `127.0.0.1:8787`。
 
@@ -182,7 +182,7 @@ export TELEGRAM_BOT_TOKEN='替换为自己的 Bot Token'
 export SUROWAN_API_KEY='替换为自己的模型 API Key'
 ```
 
-真实密钥不要写进 Compose 或 `config.jsonc`，也不要提交到仓库或发到聊天里。也可以改用配置同目录的 `key.json`，详见 [配置文件与密钥](apps/docs/content/docs/configure/config-file.md)。
+真实密钥不要写进 Compose 或 `config.jsonc`，也不要提交到仓库或发到聊天里。也可以改用配置同目录的 `key.json`，详见 [配置文件与密钥](apps/docs/content/zh/docs/configuration/lifecycle.md)。
 
 ### 3. 检查配置并启动
 
@@ -195,7 +195,7 @@ docker compose logs -f plasticwan
 
 `check-config` 只校验配置，成功以后再启动。如果需要检查实际依赖和外部连接，可以运行 `docker compose run --rm plasticwan doctor --config /config/config.jsonc`（会调用模型，消耗少量 Token）。
 
-日志出现 **`serve_started`** 后，向允许的 Chat 发消息，等待消息聚合窗口（示例配置为 15 秒）。没有回复时，排查方法见 [故障处理](apps/docs/content/docs/operations/troubleshooting.md)。
+日志出现 **`serve_started`** 后，向允许的 Chat 发消息，等待消息聚合窗口（示例配置为 15 秒）。没有回复时，排查方法见 [故障处理](apps/docs/content/zh/docs/guides/troubleshooting.md)。
 
 启用端口发布后，访问 [http://127.0.0.1:8787](http://127.0.0.1:8787)。面板没有网页建号，首次登录用服务器上生成的一次性码：
 
@@ -215,10 +215,10 @@ docker compose exec -u surowan plasticwan node /app/src/cli.ts pairing create --
 
 | 想做什么 | 从这里开始 |
 | --- | --- |
-| 选择模型、配置不同会话 | [模型配置](apps/docs/content/docs/configure/models.md)、[按 Chat 配置](apps/docs/content/docs/guides/per-chat.md) |
-| 调整人格、参与时机与预算 | [人格](apps/docs/content/docs/guides/personality.md)、[参与规则](apps/docs/content/docs/guides/participation.md)、[预算](apps/docs/content/docs/guides/budgets.md) |
-| 升级、备份与恢复 | [升级](apps/docs/content/docs/operations/upgrade.md)、[备份与恢复](apps/docs/content/docs/operations/backup-restore.md) |
-| 浏览完整文档 | [使用文档首页](apps/docs/content/docs/index.md) |
+| 选择模型、配置不同会话 | [模型配置](apps/docs/content/zh/docs/guides/models.md)、[按 Chat 配置](apps/docs/content/zh/docs/guides/chats.md) |
+| 调整人格、参与时机与预算 | [人格](apps/docs/content/zh/docs/guides/first-persona.md)、[参与规则](apps/docs/content/zh/docs/guides/chats.md)、[预算](apps/docs/content/zh/docs/guides/tuning.md) |
+| 升级、备份与恢复 | [升级](apps/docs/content/zh/docs/guides/maintenance.md)、[备份与恢复](apps/docs/content/zh/docs/guides/maintenance.md) |
+| 浏览完整文档 | [使用文档首页](apps/docs/content/zh/docs/index.md) |
 
 ## 参与贡献
 

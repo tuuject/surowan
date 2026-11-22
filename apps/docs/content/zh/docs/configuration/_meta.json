@@ -1,0 +1,20 @@
+[
+  "index",
+  "lifecycle",
+  "secrets",
+  "telegram",
+  "providers",
+  "models-dev",
+  "agent",
+  "vision",
+  "tool-model",
+  "image",
+  "dictionary",
+  "web-search",
+  "web-fetch",
+  "mcp",
+  "admin",
+  "developer",
+  "storage",
+  "fields"
+]

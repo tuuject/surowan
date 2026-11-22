@@ -40,6 +40,7 @@ jobs:
       # Separate runs: a filter that matches no file exits non-zero, while
       # vitest ORs multiple filters and silently passes a stale one.
       - run: pnpm test test/docs/examples.test.ts
+      - run: pnpm test test/docs/redirects.test.ts
       - run: pnpm test test/docs/search.test.ts
       - run: pnpm run docs:build
       - run: pnpm run docs:verify
@@ -68,9 +69,11 @@ jobs:
           const require = createRequire(import.meta.url);
           if (existsSync('/app/apps/docs')) throw new Error('Docs site leaked into runtime');
           const index = readFileSync('/app/src/manual/index.md', 'utf8');
-          if (!index.startsWith('# 塑料碗用户手册')) throw new Error('Manual index missing from runtime');
-          if (!existsSync('/app/src/manual/start/quick-start.md')) throw new Error('Manual pages missing from runtime');
-          if (!existsSync('/app/src/manual/examples/config.example.jsonc.md')) throw new Error('Manual examples missing from runtime');
+          if (!index.startsWith('# Surowan User Manual')) throw new Error('Manual index missing from runtime');
+          if (!existsSync('/app/src/manual/guides/installation.md')) throw new Error('Manual pages missing from runtime');
+          if (!existsSync('/app/src/manual/developer/http/index.md')) throw new Error('Nested manual section missing from runtime');
+          if (!existsSync('/app/src/manual/examples/config.minimal.example.jsonc.md')) throw new Error('Minimal manual example missing from runtime');
+          if (!existsSync('/app/src/manual/examples/config.example.jsonc.md')) throw new Error('Full manual example missing from runtime');
           let found = false;
           try { require.resolve('@rspress/core'); found = true; }
           catch (error) { if (error.code !== 'MODULE_NOT_FOUND') throw error; }

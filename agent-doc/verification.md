@@ -158,7 +158,7 @@ pnpm test test/im test/intake test/schema/migrations-host-neutral-ids.test.ts te
 | `cli/login-http.test.ts` | 凭据文件驱动的 doctor 真实 HTTP 链路：`GET /api/invocations?limit=1` 验证连通与鉴权、成功输出 `{status:"ok",endpoint,credential_sources}` 与退出码 0、凭据值缺失或不合法退出码 2、文件校验或请求失败退出码 1、不输出 Invocation 正文、不调用模型/不发送 Telegram/不重试、鉴权仍更新 key 的 `last_used_at` |
 | `npm-release.test.ts` | main canary 版本含 run/attempt/SHA 且不同 run、retry 与 commit 互不相同、仅精确稳定 tag 进入 latest、拒绝非 push/其它仓库与非法 ref、GitHub 输出不改源码 manifest、仅独立 CLI 包公开 |
 | `docs/examples.test.ts` / `docs/search.test.ts` / `docs/markdown.test.ts` | 公开配置示例的离线语义校验、生成字段与部署 URL、已安装搜索组件的键盘回归；Markdown 检查正确区分缩进代码块与真实 H1，LF/CRLF 下不漏提取代码块 |
-| `docs/spaces.test.ts` / `manual-pack.test.ts` | 文档空间路径语法（绝对路径、`..` 越界、空段、非 Markdown 拒绝）与 `base` 链接解析（含 `#锚点` 丢弃与纯锚点链接）；真实目录读取、索引、缺失文档、符号链接逃逸（含根内链接可读）、32 KiB 截断；未安装空间与缺失索引的加载语义；两个能力经 `execute` 注册表调用并与外层审计一致（成功/`unknown_space`/`document_not_found`/`invalid_path`/`unsupported_document`）；构建产物把 `content/docs` 与 `_meta.json` 导航打包为 `src/manual`（无占位符的页面逐字节一致、`__DOCS_BASE__` 链接改写且示例原文成页、生成的字段页来自 ConfigSchema、索引完整且顺序正确、侧栏外页面进入「其他页面」、重打包清理陈旧文档、导航指向缺失页面即失败），打包结果可经 `DocSpaces` 读取且文内相对链接全部落在包内 |
+| `docs/spaces.test.ts` / `manual-pack.test.ts` | 文档空间路径语法（绝对路径、`..` 越界、空段、非 Markdown 拒绝）与 `base` 链接解析（含 `#锚点` 丢弃与纯锚点链接）；真实目录读取、索引、缺失文档、符号链接逃逸（含根内链接可读）、32 KiB 截断；未安装空间与缺失索引的加载语义；两个能力经 `execute` 注册表调用并与外层审计一致（成功/`unknown_space`/`document_not_found`/`invalid_path`/`unsupported_document`）；构建产物把 `content/en/docs` 与 `_meta.json` 导航打包为 `src/manual`（无占位符的页面逐字节一致、`__DOCS_BASE__` 链接改写且示例原文成页、截图变成 `(Screenshot: …)` 文字、生成的英文分页来自 ConfigSchema、嵌套目录成为独立小节、索引完整且顺序正确、侧栏外页面进入 "Other pages"、重打包清理陈旧文档、导航指向缺失页面即失败），打包结果可经 `DocSpaces` 读取且文内相对链接全部落在包内 |
 | `scene/context.test.ts` | 开场冻结快照优先、当时可证明的公开历史、spoiler 标记与线上一致（开场、回退历史、回复引用）、Markdown 正文与 Rich Message 媒体行就位与线上一致（开场、回退历史）、后续 attach/编辑/迟到消息排除、切点/Topic/字符预算、损坏身份拒绝、缺修订与媒体降级、scene-local media/reply 引用、构建全表无写入 |
 | `scene/slice.test.ts` | 切片构建：两条 Bot 消息之间的冻结输入、上一条 Bot 可来自另一次 Invocation 或不带 send 行的消息、同一秒内边界仍精确、切点继续生效、只并入注入时间严格早于发送开始的 attach 批次（同毫秒保守省略）、同一消息重复冻结取最新合格快照、渲染冻结快照而非后续编辑、reply 引用只保留切片内消息、只授权冻结 revision 且已渲染的媒体、拒绝非本 Invocation/失败/跨 Conversation 的目标发送、连续两次发送之间为空、字符预算从新到旧裁剪、构建不写库 |
 | `scene/retention.test.ts` | 真实 029→030 有数据迁移仅移除旧 replay payload，调用/工具/发送/用量/冻结快照整行保留，迁移前备份含完整旧列且 integrity check 通过，重复打开与外键检查；retention 只清理审计行，消息/Revision/Media/Context 保留 |
@@ -596,7 +596,7 @@ pnpm run check
 pnpm test
 ```
 
-- 改动 `apps/docs/`、`scripts/docs/`，或改动会进入生成文档的 `ConfigSchema` 与 `apps/docs/examples/` 示例时，额外运行 `pnpm run docs:build` 与 `pnpm run docs:verify`，并分别用 `DOCS_BASE_PATH=/` 与 `DOCS_BASE_PATH=/surowan/` 各跑一遍；构建后 `git status --porcelain` 必须为空（`apps/docs/dist/`、`apps/docs/content/docs/reference/fields.md` 与分页 `fields-*.md`、`apps/docs/content/public/`、`src/manual/` 都在 `.gitignore` 里）。
+- 改动 `apps/docs/`、`scripts/docs/`，或改动会进入生成文档的 `ConfigSchema` 与 `apps/docs/examples/` 示例时，额外运行 `pnpm run docs:build` 与 `pnpm run docs:verify`，并分别用 `DOCS_BASE_PATH=/` 与 `DOCS_BASE_PATH=/surowan/` 各跑一遍；构建后 `git status --porcelain` 必须为空（`apps/docs/dist/`、两个语言的 `apps/docs/content/*/docs/configuration/fields.md` 与分页 `fields-*.md`、`apps/docs/content/public/`、`src/manual/` 都在 `.gitignore` 里）。
 - 依赖变更同步提交 `pnpm-lock.yaml`；本地 `node_modules` 过期会表现成 `Cannot find package '<name>'`，先按 lockfile 跑 `pnpm install --frozen-lockfile`。
 - `.githooks/pre-commit`（`pnpm install` 自动启用）按暂存内容拒绝超过 5,000 token 的文件（字节 / 4 估算，约 20 KB），超限要拆分文件，不要绕过 hook。
 

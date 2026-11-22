@@ -36,4 +36,4 @@ Tool Model 是系统级辅助模型选择，复用 Provider 注册表、凭据�
 
 `lookup_dictionary` 通过 `offset` 分页返回 `{ entries, total, offset, next_offset, more }`，页面按实际 `execute` 信封编码体积限长，避免通用截断破坏 JSON。`more` 为真时必须继续取 `next_offset` 才能获取所有匹配。群作用域读取及写入同时解析 `chat_migrations`，迁移前后的同群词条继续可见，但不扩大到其他群。真实生命周期回归见 [test/dictionary/runtime.test.ts](../test/dictionary/runtime.test.ts)，覆盖 canonical 落盘、缓存重建、更新和 GC 后重注入；`context_injected.injections` 按注入器名记录本批实际注入数量（辞典的键是 `dictionary`）。
 
-面向用户的步骤见 [辞典指南](../apps/docs/content/docs/guides/dictionary.md)。Admin 路由及写端点白名单见 [Admin Panel](admin-panel.md#api)，配置字段见 [配置](configuration.md#dictionary-与-tool-model)，表结构见 [数据层](data-layer.md#dictionary_entries迁移-034)，注入与能力边界见 [Telegram 与 Agent 流程](telegram-agent-flow.md#skills-与受控能力调用)。
+面向用户的步骤见 [知识管理指南](../apps/docs/content/zh/docs/guides/knowledge.md)。Admin 路由及写端点白名单见 [Admin Panel](admin-panel.md#api)，配置字段见 [配置](configuration.md#dictionary-与-tool-model)，表结构见 [数据层](data-layer.md#dictionary_entries迁移-034)，注入与能力边界见 [Telegram 与 Agent 流程](telegram-agent-flow.md#skills-与受控能力调用)。

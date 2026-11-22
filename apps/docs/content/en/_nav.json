@@ -1,0 +1,16 @@
+[
+  {
+    "text": "Get started",
+    "link": "/docs/guides/installation"
+  },
+  {
+    "text": "Docs",
+    "link": "/docs/",
+    "activeMatch": "/docs/"
+  },
+  {
+    "text": "GitHub",
+    "link": "https://github.com/tuuject/surowan",
+    "position": "right"
+  }
+]

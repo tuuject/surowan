@@ -1,0 +1,21 @@
+[
+  "index",
+  {
+    "type": "dir",
+    "name": "guides",
+    "label": "Guides",
+    "collapsible": false
+  },
+  {
+    "type": "dir",
+    "name": "configuration",
+    "label": "Configuration reference",
+    "collapsible": false
+  },
+  {
+    "type": "dir",
+    "name": "developer",
+    "label": "Developer reference",
+    "collapsible": false
+  }
+]

@@ -9,13 +9,17 @@ agent-doc
 node_modules
 apps/admin-next/node_modules
 apps/admin-next/dist
-# The runtime packs only content/docs and the downloadable examples into src/manual
-# (see scripts/manual-prepare.ts); the docs site itself is built and deployed
-# separately and never ships.
+# The runtime packs only content/en/docs and the downloadable examples into
+# src/manual (see scripts/manual-prepare.ts); the docs site itself is built and
+# deployed separately and never ships. The zh tree is published, never packed.
+# A developer checkout may hold a stale src/manual from an earlier manual:prepare;
+# the builder's COPY --from=assets merges into it, so it must not enter the context.
+src/manual
 apps/docs/dist
 apps/docs/node_modules
-apps/docs/content/index.md
-apps/docs/content/_nav.json
+apps/docs/content/zh
+apps/docs/content/en/_nav.json
+apps/docs/content/en/index.md
 apps/docs/content/public
 apps/docs/theme
 apps/docs/env.d.ts

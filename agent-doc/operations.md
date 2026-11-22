@@ -37,7 +37,7 @@ Linux/macOS 要求 `lottie_convert.py` 本身在服务 PATH 中（`pip --user` �
 cd ~/Projects/surowan
 pnpm install
 
-# 生成 src/manual/（用户手册文档包，gitignored）：从 apps/docs/content/docs 打包
+# 生成 src/manual/（用户手册文档包，gitignored）：从 apps/docs/content/en/docs 打包（仅英文）
 # Markdown 并生成索引。跳过它时 Bot 仍能启动，但 list_documents/read_document
 # 退化为 unknown_space，且 `doctor` 会判为失败；Docker 镜像在构建时自动执行这一步。
 pnpm run manual:prepare
@@ -60,7 +60,7 @@ node src/cli.ts doctor --config dev-data/config.jsonc
 命令清单见 [AGENTS.md 的 Build, Test, and Development Commands](../AGENTS.md#build-test-and-development-commands)。各命令的用途与边界：
 
 - 包管理器为 pnpm（`pnpm-lock.yaml`）；运行时为 Node.js ≥24，测试运行器为 vitest（`pnpm test`），CLI 入口为 `node src/cli.ts …`。
-- `pnpm run manual:prepare`：从 `apps/docs/content/docs` 打包用户手册 Markdown 与索引到 `src/manual/`（gitignored，Docker 构建自动执行）；未生成时 Bot 仍可启动，但文档能力退化为 `unknown_space`，`doctor` 判为失败。
+- `pnpm run manual:prepare`：从 `apps/docs/content/en/docs` 打包英文用户手册 Markdown 与索引到 `src/manual/`，中文正文在 `apps/docs/content/zh/docs`、不进镜像（gitignored，Docker 构建自动执行）；未生成时 Bot 仍可启动，但文档能力退化为 `unknown_space`，`doctor` 判为失败。
 - `pnpm run skills:sync`：把 `skills/` 下的仓库 Skill 软链接进 `.agents/skills/`、`.claude/skills/`（均 gitignored），并按 `package.json` 的 `skills` 字段安装锁定版本的外部 Skill（哈希记入 `skills-lock.json`）。`pnpm install` 实际安装依赖时由 `postinstall` 自动执行（CI 与无 `.git` 时跳过，失败只警告）；只改了 `skills` 字段或新增仓库 Skill 时要手动运行。细节见 [Coding Agent Skills](#coding-agent-skills)。
 - `pnpm run check`：严格 TypeScript 检查（runtime/Admin/docs）；文档检查前会准备被忽略的版本元数据、字段参考和示例，不输出编译 JS。
 - `pnpm test`：运行全部行为测试。
@@ -400,7 +400,7 @@ node src/cli.ts backup --config dev-data/config.jsonc
 - runtime 阶段用 apt 装 `ffmpeg`（含 `ffprobe`）、`python3` 与 `gosu`，再 pip 装 `lottie`；因此**不需要**在宿主机准备任何媒体依赖。
 - runtime 阶段设置 `ENV SUROWAN_OFFICIAL_IMAGE=1`，用来标记官方镜像。Admin Panel 登录页据此显示 `docker compose exec … pairing create --web` 的完整命令；自建镜像没有这个标记，只显示通用提示，见 [admin-panel.md](admin-panel.md#认证)。
 - runtime 阶段接受 `SUROWAN_VERSION` build arg，用运行时自己的 `parseVersion` 推出 Channel，在 `/app/version` 写入 `Version: …` / `Channel: …`；版本号解析失败时构建直接失败，而不是让镜像静默回退到 Develop。Channel 不单独传参，所以不会出现「声明的 Channel 与版本格式不符、运行时拒绝整个文件」的情况（例如手动推送的 `v0.0.0-next-*` tag 会正确写成 Staging）。`docker.yml` 的 `main` 构建传 `v0.0.0-next-<UTC 时间戳>`，`v*` tag 构建传 tag 本身；没有 build arg 的本地 `docker build` 不生成该文件，运行时按 Git tag/commit 回退，最终回退到 `v0.0.0-develop`。Admin Panel 左下角显示这个版本号与 Channel。
-- 只复制 `src/`、`node_modules/`、`packages/image-service/` 的 `package.json`、`dist/` 与 `node_modules/`（经 workspace 符号链接解析）、`apps/admin-next/dist/` 和 `package.json`。`test/`、`agent-doc/`、`dev-data/` 被 `.dockerignore` 排除，镜像里没有这些目录。`apps/docs` 只保留 `content/docs` 与 `examples/` 作为手册源参与构建：`.dockerignore` 排除文档站配置、主题与生成产物，assets 生成的 `src/manual/` 经 builder 随 `src/` 进入 runtime；builder 在剪枝前删除 `apps/docs`——残留的目录没有 `package.json`，`pnpm install --prod --frozen-lockfile` 会把它判为 lockfile 过期而失败；镜像不含 Rspress 或文档站目录，该隔离由 `.github/workflows/docs.yml` 的 image-smoke 断言。
+- 只复制 `src/`、`node_modules/`、`packages/image-service/` 的 `package.json`、`dist/` 与 `node_modules/`（经 workspace 符号链接解析）、`apps/admin-next/dist/` 和 `package.json`。`test/`、`agent-doc/`、`dev-data/` 被 `.dockerignore` 排除，镜像里没有这些目录。`apps/docs` 只保留 `content/en/docs` 与 `examples/` 作为手册源参与构建：`.dockerignore` 排除中文正文（`content/zh`）、站点首页与 `_nav.json`、文档站配置、主题与生成产物，assets 生成的 `src/manual/` 经 builder 随 `src/` 进入 runtime；builder 在剪枝前删除 `apps/docs`——残留的目录没有 `package.json`，`pnpm install --prod --frozen-lockfile` 会把它判为 lockfile 过期而失败；镜像不含 Rspress 或文档站目录，该隔离由 `.github/workflows/docs.yml` 的 image-smoke 断言。
 - Admin 前端已经构建进 `/app/apps/admin-next/dist`，与 `static_dir` 默认值一致，无需额外配置。
 - CI（`.github/workflows/docker.yml`）的 `verify` job 依次跑 `pnpm install --frozen-lockfile` → `pnpm run lint` → `pnpm run check` → `pnpm test` → `pnpm run admin:build` → `pnpm --filter surowan-admin-next exec playwright install --with-deps chromium` → `pnpm run admin:test:e2e`；`main` 与 `v*` 的 `build` job 等它通过后才构建并推送镜像，`develop` 的 `docker-check` 与它并行、只构建不推送。`.github/workflows/docs.yml` 的 `image-smoke` 在 PR 与每次推送时以单架构 `docker build` 构建镜像，并断言手册在镜像内、文档站与 Rspress 不在；同 workflow 的 `verify` job 在 PR 与 push `main`/`develop` 时跑 `pnpm run lint`、`pnpm run check`、`pnpm test test/docs/examples.test.ts test/docs/search.test.ts`、`pnpm run docs:build`、`pnpm run docs:verify`（`DOCS_BASE_PATH=/` 与 `/surowan/` 各一遍），并要求构建后 `git status --porcelain` 为空。`.github/workflows/npm.yml` 在发布前跑 `pnpm run cli:check`、`pnpm test test/invocations test/cli` 与 `pnpm test test/npm-release.test.ts`。全部 workflow 都用 `pnpm install --frozen-lockfile`；完整对照见[验证：CI 对齐](verification.md#ci-对齐)。
 
