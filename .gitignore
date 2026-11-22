@@ -16,6 +16,9 @@ key.json
 # build info, schema copy, downloadable examples and the old-URL redirects).
 apps/docs/content/*/docs/configuration/fields.md
 apps/docs/content/*/docs/configuration/fields-*.md
+apps/docs/content/*/docs/developer/http/endpoints-*.md
+apps/docs/content/*/docs/developer/mcp-tools.md
+apps/docs/content/*/docs/developer/cli-commands.md
 apps/docs/content/public/examples/
 apps/docs/content/public/config.schema.json
 apps/docs/content/public/build-info.json

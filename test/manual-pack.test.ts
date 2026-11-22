@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join, relative, resolve, sep } from 'node:path';
 import { afterAll, expect, test } from 'vitest';
 import { renderConfigFieldPages } from '../scripts/docs/config-fields/index.ts';
+import { renderGeneratedPages } from '../scripts/docs/generated-pages.ts';
 import { exampleNames, exampleSource } from '../scripts/docs/prepare.ts';
 import { isChildSegment, manualContentRoot, packManual } from '../scripts/manual-prepare.ts';
 import { bundledManualSpace, FileSystemDocSpaces } from '../src/adapters/local-monolith/doc-spaces.ts';
@@ -34,7 +35,7 @@ async function markdownFiles(root: string): Promise<readonly string[]> {
 test('packs only the English manual into the runtime resource layout', async () => {
   const outDir = await tempRoot();
   const result = await packManual({ outDir });
-  const generated = renderConfigFieldPages('en');
+  const generated = renderGeneratedPages('en');
   const sources = (await markdownFiles(manualContentRoot)).filter((path) => path !== 'index.md');
   const pages = [...new Set([...sources, ...generated.keys()])].sort();
   const expected = [...pages, ...examplePages].sort();

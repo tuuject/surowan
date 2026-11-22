@@ -1,4 +1,5 @@
 import { FIELDS_INDEX_PAGE, isConfigFieldSectionPage, renderConfigFieldPages } from './config-fields/index.ts';
+import { renderInterfaceCatalogPages } from './interface-catalog/index.ts';
 import type { DocsLocale } from './locales.ts';
 
 /**
@@ -20,15 +21,29 @@ export interface GeneratedPageSet {
   readonly render: (lang: DocsLocale) => ReadonlyMap<string, string>;
 }
 
-// The field reference itself lives in `config-fields/`; this module stays the one
-// registry for every generated page set and nothing else.
+// The field reference itself lives in `config-fields/` and the interface catalogs in
+// `interface-catalog/`; this module stays the one registry for every generated page set.
+
+/**
+ * The interface catalogs: one page per Admin API route group plus the MCP tool
+ * and client CLI tables. Declared by path so prepare, the Bot manual and the
+ * site verifier agree on which files are generated.
+ */
+const INTERFACE_CATALOG_PAGE = /^developer\/(?:http\/endpoints-[a-z-]+\.md|mcp-tools\.md|cli-commands\.md)$/;
+
 const configFieldsPageSet: GeneratedPageSet = {
   id: 'config-fields',
   matches: (path) => path === FIELDS_INDEX_PAGE || isConfigFieldSectionPage(path),
   render: renderConfigFieldPages,
 };
 
-export const generatedPageSets: readonly GeneratedPageSet[] = [configFieldsPageSet];
+const interfaceCatalogPageSet: GeneratedPageSet = {
+  id: 'interface-catalog',
+  matches: (path) => INTERFACE_CATALOG_PAGE.test(path),
+  render: renderInterfaceCatalogPages,
+};
+
+export const generatedPageSets: readonly GeneratedPageSet[] = [configFieldsPageSet, interfaceCatalogPageSet];
 
 /** Whether `path` below `content/<lang>/docs` is generated rather than hand-written. */
 export function isGeneratedPage(path: string): boolean {

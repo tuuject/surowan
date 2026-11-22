@@ -11,5 +11,7 @@
   "client-cli",
   "replay",
   "telegram-commands",
-  "extensions"
+  "extensions",
+  "mcp-tools",
+  "cli-commands"
 ]
