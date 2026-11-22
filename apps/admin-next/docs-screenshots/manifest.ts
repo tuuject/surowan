@@ -12,13 +12,13 @@
  * directory and the committed images are left alone.
  */
 import { execFileSync } from 'node:child_process';
-import { cp, rename, rm, stat, writeFile } from 'node:fs/promises';
+import { cp, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { join, relative } from 'node:path';
 import { chromium } from '@playwright/test';
 import { checkScreenshotAssets } from '../../../scripts/docs/screenshot-assets.ts';
 import { DOCS_LOCALES } from '../e2e/docs-locale.ts';
-import { SCREENSHOTS_DIR, SCREENSHOTS_STAGING_DIR } from './capture.ts';
+import { SCREENSHOTS_DIR, SCREENSHOTS_FAILURES_FILE, SCREENSHOTS_STAGING_DIR } from './capture.ts';
 import { DOCS_DEVICE_SCALE_FACTOR, DOCS_VIEWPORT } from './run-settings.ts';
 import { DOCS_SCENARIOS } from './scenarios.ts';
 
@@ -86,6 +86,16 @@ async function chromiumVersion(): Promise<string> {
   }
 }
 
+/** Failures the reporter saw, or an empty list when it saw none. */
+async function runFailures(): Promise<readonly string[]> {
+  try {
+    const parsed = JSON.parse(await readFile(SCREENSHOTS_FAILURES_FILE, 'utf8')) as { failures?: unknown };
+    return Array.isArray(parsed.failures) ? parsed.failures.filter((entry) => typeof entry === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
 async function exists(path: string): Promise<boolean> {
   try {
     return (await stat(path)).size > 0;
@@ -150,6 +160,19 @@ async function replaceDirectory(source: string, target: string): Promise<void> {
  * the staged files are and publishes nothing.
  */
 export async function publishScreenshots(): Promise<void> {
+  // A failing test can leave a complete-looking set: publish only when the
+  // reporter recorded no failure during the run (see `reporter.ts`).
+  const failures = await runFailures();
+  if (failures.length > 0) {
+    const message = `docs:screenshots had ${String(failures.length)} failing test(s); the published images were not touched:\n${failures.join('\n')}`;
+    if (process.env.DOCS_SHOTS_ALLOW_INCOMPLETE === '1') {
+      console.warn(`${message}\n\nStaged files kept at ${SCREENSHOTS_STAGING_DIR}.`);
+      return;
+    }
+    throw new Error(message);
+  }
+  await rm(SCREENSHOTS_FAILURES_FILE, { force: true });
+
   const missing = await missingScreenshots();
   if (missing.length > 0) {
     const message = `docs:screenshots did not capture ${String(missing.length)} expected file(s):\n${missing.join('\n')}`;

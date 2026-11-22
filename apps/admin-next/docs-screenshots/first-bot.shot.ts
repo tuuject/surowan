@@ -14,6 +14,7 @@
  */
 import { docsSeedText } from '../e2e/docs-locale.ts';
 import { adminUrl, e2eFetch } from '../e2e/helpers.ts';
+import { DOCS_IDS } from '../e2e/server-docs-ids.ts';
 import { captureScreenshot } from './capture.ts';
 import { expect, test } from './fixtures.ts';
 import { docsLabels } from './labels.ts';
@@ -41,7 +42,11 @@ test('first-bot/chat-allowlist', async ({ page, docLocale }) => {
   await expect(row).toBeVisible();
   await expect(row).toContainText(seed.chatTitle);
   await expect(row).toContainText(labels.chats.active);
-  await expect(page.locator('table tbody tr')).toHaveCount(1);
+  // The docs seed also allowlists the group Chat the per-Chat dialogs document;
+  // the private Chat stays the first row.
+  const group = page.locator('table tbody tr').filter({ hasText: DOCS_IDS.groupChatHostId.toString() });
+  await expect(group).toContainText(seed.groupChatTitle);
+  await expect(page.locator('table tbody tr')).toHaveCount(2);
 
   await captureScreenshot(page, docLocale, 'first-bot/chat-allowlist');
 });

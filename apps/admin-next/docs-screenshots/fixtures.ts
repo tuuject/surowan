@@ -25,8 +25,8 @@ export const test = e2eTest.extend<{ serverReady: boolean }, { docLocale: DocsLo
   // fixture or hook runs, so the locale seed applies even to specs that never
   // sign in and to helpers called before the first page exists.
   serverReady: [
-    async ({ mcpImages, mcpManager, seedLocale, passkeys, adminUsername }, use) => {
-      await prepareServer({ mcpImages, mcpManager, seedLocale, passkeys, adminUsername });
+    async ({ mcpImages, mcpManager, seedLocale, docsRuns, passkeys, adminUsername }, use) => {
+      await prepareServer({ mcpImages, mcpManager, seedLocale, docsRuns, passkeys, adminUsername });
       await use(true);
     },
     { auto: true },

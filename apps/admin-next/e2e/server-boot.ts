@@ -19,11 +19,15 @@ import { ImConnectionRegistry } from '../../../src/platform/im-connection.ts';
 import { keychainPath } from '../../../src/platform/keychain.ts';
 import { AgentModelSwitcher } from '../../../src/platform/models/switch.ts';
 import { buildModelRegistry } from '../../../src/platform/providers.ts';
+import { createImageBridge } from '../../../src/image/bridge/index.ts';
+import { createImageService } from '../../../src/image/service.ts';
 import { RuntimeConfigurationStore } from '../../../src/platform/runtime-config.ts';
 import { SecretStore } from '../../../src/platform/secrets.ts';
 import { LongTaskService } from '../../../src/store/long-tasks/index.ts';
 import { RecurringAlarmService } from '../../../src/store/recurring-alarms/index.ts';
 import { prepareConfig } from './server-config.ts';
+import { requestedDocsSeed } from './docs-locale.ts';
+import { installDocsImageUpstream } from './server-docs-image.ts';
 import { openFixtures } from './server-fixtures.ts';
 import { handleHook, json } from './server-hooks.ts';
 import { createRelayUpstream } from './server-relay.ts';
@@ -49,6 +53,19 @@ export async function main(): Promise<void> {
   const { store, playgroundStore, playgroundAssets, playgroundIngress } = fixtures;
 
   const secrets = new SecretStore(keychainPath(configPath));
+  // Docs screenshots photograph the image pages, so this process runs the real
+  // image core with the vendor answered in-process (see `server-docs-image.ts`).
+  // The shared E2E suites keep /api/image at 503, exactly as before.
+  const docsSeed = requestedDocsSeed();
+  let imageService: ReturnType<typeof createImageService> | null = null;
+  if (docsSeed !== null) {
+    await installDocsImageUpstream();
+    imageService = createImageService(store, loaded.config, {});
+    // Published before the first await: a shutdown signal during boot must find
+    // the worker and drain it.
+    state.imageService = imageService;
+    imageService.publishConfig(await imageService.prepareConfig(loaded.config, secrets));
+  }
   // The real outbound MCP manager, but only for the specs that assert on live
   // MCP state (`test.use({ mcpManager: true })`): the stdio fixture spawns a
   // child process, and every other suite keeps the fixture's small footprint.
@@ -121,6 +138,18 @@ export async function main(): Promise<void> {
         throw new Error('Synthetic apply failure');
       }
     },
+    // An image-settings save republishes the snapshot like `serve` does, so the
+    // enable switch and the model list follow the file without a restart.
+    ...(imageService === null
+      ? {}
+      : {
+          imageConfig: {
+            prepare: (candidate: Parameters<typeof imageService.prepareConfig>[0]) =>
+              imageService.prepareConfig(candidate, secrets),
+            publish: (snapshot: unknown) =>
+              imageService.publishConfig(snapshot as Parameters<typeof imageService.publishConfig>[0]),
+          },
+        }),
     // The sticker-set publish path is the product's: the store follows the
     // file at once. No runtime runs here, so nothing is aborted or fetched.
     onPublished: async () => {
@@ -144,6 +173,18 @@ export async function main(): Promise<void> {
   // No Scheduler runs here: Run now records its firing and task, and the
   // occurrence simply stays undelivered, which is all the panel can observe.
   const tasks = new LongTaskService(store.orm);
+  // The admin image pages read `enabled`/`modelList` from the bridge; this
+  // process has no conversation media to translate into image input, so the
+  // agent-side input path stays closed.
+  const imageBridge =
+    imageService === null
+      ? null
+      : createImageBridge({
+          service: imageService,
+          store,
+          tasks,
+          prepareInputImage: () => Promise.reject(new Error('The E2E fixture translates no conversation media')),
+        });
   const recurringAlarms = new RecurringAlarmService({
     store,
     engine: new CronerScheduleEngine(),
@@ -159,6 +200,7 @@ export async function main(): Promise<void> {
     modelSwitcher,
     configReloader,
     secrets,
+    ...(imageService === null || imageBridge === null ? {} : { imageService, imageBridge }),
     playground: {
       store,
       rooms: playgroundStore,

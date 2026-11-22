@@ -59,7 +59,11 @@ test('admin/keychain', async ({ page, docLocale }) => {
   // the one the docs seed leaves behind on purpose.
   const used = page.getByRole('row', { name: new RegExp(DOCS_KEYCHAIN.relay) });
   await expect(used).toContainText(`providers.${DOCS_PROVIDERS.relay}.api_key`);
-  const unused = page.getByRole('row', { name: new RegExp(DOCS_KEYCHAIN.unused) });
+  // The row's own name cell, not its text: another entry's usage path may
+  // contain this entry's name (the image credential is named `openrouter`).
+  const unused = page.getByRole('row').filter({
+    has: page.getByRole('cell', { name: DOCS_KEYCHAIN.unused, exact: true }),
+  });
   await expect(unused).toContainText(labels.keychain.unused);
 
   const view = await apiJson<KeychainView>(page, await adminUrl('/api/keychain'));

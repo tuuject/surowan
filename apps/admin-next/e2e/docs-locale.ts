@@ -13,20 +13,6 @@
  * aliases and keychain entry names are identifiers, not prose: they stay the
  * same in both locales.
  */
-import { eq } from 'drizzle-orm';
-import type { SqliteStore } from '../../../src/adapters/local-monolith/database.ts';
-import {
-  buckets,
-  chats,
-  groupMemories,
-  invocations,
-  longTasks,
-  memoPadEntries,
-  senders,
-  warnings,
-} from '../../../src/store/schema/index.ts';
-import type { AdminSeedResult } from '../../../test/fixtures/admin-seed.ts';
-import { T } from '../../../test/fixtures/admin-seed-data.ts';
 
 export type DocsLocale = 'zh-CN' | 'en';
 
@@ -74,6 +60,8 @@ export const DOCS_KEYCHAIN = {
   relayHeader: 'relay-header',
   health: 'health-api-key',
   mcpHeader: 'mcp-header',
+  /** The image section's OpenRouter credential. */
+  image: 'image',
   unused: 'openrouter',
 } as const;
 
@@ -87,6 +75,13 @@ export interface DocsSeedText {
   readonly chatTitle: string;
   readonly chatUsername: string;
   readonly chatInstructions: string;
+  /**
+   * The group Chat the Chats-page dialog shots use (active hours, proactive
+   * reply, entry gate, MCP binding, group memory). The shared fixture only has a
+   * private Chat, and those dialogs exist for groups only.
+   */
+  readonly groupChatTitle: string;
+  readonly groupChatUsername: string;
   readonly globalPrompt: string;
   readonly senderName: string;
   readonly otherSenderName: string;
@@ -112,6 +107,69 @@ export interface DocsSeedText {
     readonly expiredSummary: string;
     readonly groupSummary: string;
     readonly alarmSummary: string;
+    /** Sticker analysis text the Sticker sets page shows next to the indexed sticker. */
+    readonly stickerDescription: string;
+    /** The seeded set's title; the alias and Telegram name stay the fixture's. */
+    readonly stickerSetTitle: string;
+  };
+  /** The completed, tool-using run the Tool calls and Reviews shots document. */
+  readonly toolRun: {
+    readonly history: string;
+    readonly incoming: string;
+    readonly reply: string;
+    readonly reasoning: string;
+    readonly sendIntro: string;
+    /** A real bundled `system:///` document, read with the runtime's `{ uri }` input. */
+    readonly readUri: string;
+  };
+  /** The failed run the Resume shot documents (its own Conversation, nothing newer). */
+  readonly resumeRun: {
+    readonly incoming: string;
+    readonly errorDetail: string;
+    readonly reasoning: string;
+    /** A real bundled `system:///` document, read with the runtime's `{ uri }` input. */
+    readonly readUri: string;
+  };
+  readonly reviews: {
+    readonly goal: string;
+    readonly overall: string;
+    readonly toolComment: string;
+  };
+  readonly dictionary: {
+    readonly term: string;
+    readonly definition: string;
+    readonly alias: string;
+    readonly importedTerm: string;
+    readonly importedDefinition: string;
+    readonly importedAliases: readonly [string, string];
+  };
+  readonly search: {
+    readonly engineId: string;
+    readonly note: string;
+    readonly filter: string;
+    readonly testUrl: string;
+  };
+  readonly alarm: {
+    readonly title: string;
+    readonly prompt: string;
+  };
+  readonly mcp: {
+    readonly description: string;
+  };
+  /** The image features: one configured model, one prompt asset, one reference image. */
+  readonly images: {
+    readonly modelName: string;
+    readonly modelNotes: string;
+    readonly promptAssetName: string;
+    readonly promptAssetBody: string;
+    readonly referenceName: string;
+    readonly referenceDescription: string;
+    readonly referenceCategory: string;
+    readonly referenceKeywords: string;
+    readonly promptPrefix: string;
+    readonly promptSuffix: string;
+    readonly extractedName: string;
+    readonly extractedKeywords: readonly string[];
   };
   readonly apiKeys: {
     readonly read: string;
@@ -134,6 +192,8 @@ export const DOCS_SEED: Record<DocsLocale, DocsSeedText> = {
     senderName: '小林',
     otherSenderName: '阿泽',
     channelName: '发布频道',
+    groupChatTitle: '版本发布组',
+    groupChatUsername: 'surowan_release',
     models: {
       agent: '中继模型 A',
       vision: '中继模型 B',
@@ -156,6 +216,62 @@ export const DOCS_SEED: Record<DocsLocale, DocsSeedText> = {
       expiredSummary: '已经过期的旧备注。',
       groupSummary: '小林和阿泽讨论了这次的版本说明。',
       alarmSummary: '提醒小林提交版本说明',
+      stickerDescription: '一只挥手打招呼的吉祥物贴纸',
+      stickerSetTitle: '小碗表情包',
+    },
+    toolRun: {
+      history: '上一版的说明已经发出去了，这次只改了两句。',
+      incoming: '这版的版本说明，帮我看看语气会不会太硬。',
+      reply: '看过了，开头两句更轻松一点就可以直接发。',
+      reasoning: '先读一遍发布规范，再用 send 回复。',
+      sendIntro: '看完规范，可以直接回复了。',
+      readUri: 'system:///skills/memory/SKILL.md',
+    },
+    resumeRun: {
+      incoming: '把今天的构建日志整理成一段摘要。',
+      errorDetail: '上游模型在 30 秒内没有返回（token 已打码）',
+      reasoning: '先读一遍使用说明，再整理成摘要。',
+      readUri: 'system:///skills/user-manual/SKILL.md',
+    },
+    reviews: {
+      goal: '让回复更短，并在开头先给结论。',
+      overall: '回复已经发出来了，但开头可以更短，结论放第一句。',
+      toolComment: '这里发出去的内容比预期长，可以再压缩一些。',
+    },
+    dictionary: {
+      term: '发版窗口',
+      definition: '每周四 18:00 之后不再合并新的改动，紧急修复除外。',
+      alias: '冻结期',
+      importedTerm: '灰度比例',
+      importedDefinition: '新版本先放给 10% 的用户，观察一小时再继续。',
+      importedAliases: ['分批放量', 'canary 比例'],
+    },
+    search: {
+      engineId: 'blog',
+      note: '用来查中文开发者博客和版本发布说明。',
+      filter: 'csdn\\.net',
+      testUrl: 'https://blog.csdn.net/surowan/article/details/1',
+    },
+    alarm: {
+      title: '每周版本提醒',
+      prompt: '提醒大家本周的版本说明还没写。',
+    },
+    mcp: {
+      description: '查询版本发布记录与变更单的服务器。',
+    },
+    images: {
+      modelName: '作图模型 A',
+      modelNotes: '默认模型；适合扁平插画和发布配图。',
+      promptAssetName: '发布配图风格',
+      promptAssetBody: '扁平插画，浅色背景，右侧留出标题的位置。',
+      referenceName: '配色参考',
+      referenceDescription: '浅蓝与米色的配色示例。',
+      referenceCategory: '风格',
+      referenceKeywords: '配色, 浅蓝, 米色',
+      promptPrefix: '按 ',
+      promptSuffix: ' 的配色画一张版本发布插画，扁平风格，浅色背景。',
+      extractedName: '浅蓝配色的发布插画',
+      extractedKeywords: ['浅蓝', '米色', '扁平插画'],
     },
     apiKeys: {
       read: '审计脚本',
@@ -176,6 +292,8 @@ export const DOCS_SEED: Record<DocsLocale, DocsSeedText> = {
     senderName: 'Ada',
     otherSenderName: 'Bo',
     channelName: 'Release channel',
+    groupChatTitle: 'Release group',
+    groupChatUsername: 'surowan_release',
     models: {
       agent: 'Relay Model A',
       vision: 'Relay Model B',
@@ -198,6 +316,62 @@ export const DOCS_SEED: Record<DocsLocale, DocsSeedText> = {
       expiredSummary: 'An older note that already expired.',
       groupSummary: 'Ada and Bo discussed the release note for this version.',
       alarmSummary: 'Remind Ada to submit the release note',
+      stickerDescription: 'A cheerful mascot waving hello',
+      stickerSetTitle: 'Surowan Mascot',
+    },
+    toolRun: {
+      history: 'The previous release note is out; this one only changes two lines.',
+      incoming: 'Have a look at the release note — does the tone sound too harsh?',
+      reply: 'Checked. The first two lines are lighter now, so this can go out.',
+      reasoning: 'Read the release guide first, then reply with send.',
+      sendIntro: 'The guide is clear, so I can answer directly.',
+      readUri: 'system:///skills/memory/SKILL.md',
+    },
+    resumeRun: {
+      incoming: 'Turn the build log for today into a short summary.',
+      errorDetail: 'The upstream model did not answer within 30 s (token redacted)',
+      reasoning: 'Read the manual first, then summarize it.',
+      readUri: 'system:///skills/user-manual/SKILL.md',
+    },
+    reviews: {
+      goal: 'Make replies shorter and lead with the conclusion.',
+      overall: 'The reply went out, but the opening can be shorter and the point comes first.',
+      toolComment: 'The sent text is longer than it needs to be.',
+    },
+    dictionary: {
+      term: 'release window',
+      definition: 'After 18:00 on Thursday no new change lands, unless it is an urgent fix.',
+      alias: 'freeze period',
+      importedTerm: 'canary share',
+      importedDefinition: 'Ship to 10% of users first, watch for an hour, then continue.',
+      importedAliases: ['rolled release', 'percentage rollout'],
+    },
+    search: {
+      engineId: 'blog',
+      note: 'For Chinese developer blogs and release notes.',
+      filter: 'csdn\\.net',
+      testUrl: 'https://blog.csdn.net/surowan/article/details/1',
+    },
+    alarm: {
+      title: 'Weekly release reminder',
+      prompt: 'Remind everyone that the release note for this week is still unwritten.',
+    },
+    mcp: {
+      description: 'Look up releases and change tickets.',
+    },
+    images: {
+      modelName: 'Illustration Model A',
+      modelNotes: 'Default model; flat illustrations and release artwork.',
+      promptAssetName: 'Release artwork style',
+      promptAssetBody: 'Flat illustration, light background, room for a headline on the right.',
+      referenceName: 'Palette reference',
+      referenceDescription: 'A light blue and cream palette sample.',
+      referenceCategory: 'style',
+      referenceKeywords: 'palette, light blue, cream',
+      promptPrefix: 'Use the palette of ',
+      promptSuffix: ' for a flat release illustration with a light background.',
+      extractedName: 'Light blue release illustration',
+      extractedKeywords: ['light blue', 'cream', 'flat illustration'],
     },
     apiKeys: {
       read: 'Audit script',
@@ -219,104 +393,4 @@ export function docsSeedText(locale: DocsLocale): DocsSeedText {
 export function requestedDocsSeed(): DocsSeedText | null {
   const locale = requestedDocsLocale();
   return locale === null ? null : DOCS_SEED[locale];
-}
-
-/**
- * Rewrites the human-readable rows `seedAdminFixture`/`seedAdminBulkRows` wrote
- * so the panel never mixes an English placeholder into a Chinese screenshot or
- * the reverse. Ids, timestamps and states stay exactly as seeded: only prose
- * changes, and the rows themselves are read back through the API afterwards.
- */
-export function localizeAdminSeed(store: SqliteStore, seed: AdminSeedResult, text: DocsSeedText): void {
-  const orm = store.orm;
-  orm.update(chats).set({ title: text.chatTitle, username: text.chatUsername }).where(eq(chats.id, T.chat)).run();
-  orm.update(senders).set({ displayName: text.senderName }).where(eq(senders.id, T.sender)).run();
-  // The two senders `seedAdminBulkRows` adds for the message revisions of the
-  // padding rows (5_002 channel, 5_003 member).
-  orm.update(senders).set({ displayName: text.channelName }).where(eq(senders.id, 5_002n)).run();
-  orm.update(senders).set({ displayName: text.otherSenderName }).where(eq(senders.id, 5_003n)).run();
-  orm
-    .update(memoPadEntries)
-    .set({ summary: text.memories.activeSummary, detail: text.memories.activeDetail })
-    .where(eq(memoPadEntries.id, seed.memoryActiveId))
-    .run();
-  orm
-    .update(memoPadEntries)
-    .set({ summary: text.memories.expiredSummary, detail: text.memories.expiredSummary })
-    .where(eq(memoPadEntries.id, seed.memoryExpiredId))
-    .run();
-  orm
-    .update(groupMemories)
-    .set({ summary: text.memories.groupSummary })
-    .where(eq(groupMemories.id, seed.groupMemoryId))
-    .run();
-  const alarm = orm.select().from(longTasks).where(eq(longTasks.id, T.alarm)).get();
-  if (alarm !== undefined) {
-    // The payload and its timer result carry the summary and the target name.
-    const renamePayload = (json: string | null): string | null => {
-      if (json === null) {
-        return null;
-      }
-      const value = JSON.parse(json) as Record<string, unknown>;
-      if (typeof value.summary === 'string') {
-        value.summary = text.memories.alarmSummary;
-      }
-      if (typeof value.target_display_name === 'string') {
-        value.target_display_name = text.senderName;
-      }
-      return JSON.stringify(value);
-    };
-    // The delivery policy has its own shape and keeps the mention's name nested;
-    // adding a top-level summary there would break the delivery schema.
-    const renameDelivery = (json: string | null): string | null => {
-      if (json === null) {
-        return null;
-      }
-      const value = JSON.parse(json) as { mentionUser?: { displayName?: unknown } };
-      if (typeof value.mentionUser?.displayName === 'string') {
-        value.mentionUser.displayName = text.senderName;
-      }
-      return JSON.stringify(value);
-    };
-    orm
-      .update(longTasks)
-      .set({
-        payloadJson: renamePayload(alarm.payloadJson) ?? alarm.payloadJson,
-        timerResultJson: renamePayload(alarm.timerResultJson),
-        deliveryJson: renameDelivery(alarm.deliveryJson) ?? alarm.deliveryJson,
-      })
-      .where(eq(longTasks.id, T.alarm))
-      .run();
-  }
-}
-
-/**
- * The docs instance is a healthy one.
- *
- * The shared fixture deliberately keeps a failing Invocation and an unread
- * critical warning so the E2E suites can assert on them; a documentation
- * screenshot of a fresh panel would read as a broken deployment. Only the
- * synthetic states change here (rows, ids, timestamps and prose stay as
- * seeded), and only when the docs suite asked for its seeded data.
- */
-export function normalizeDocsInstance(store: SqliteStore): void {
-  const orm = store.orm;
-  // A completed run keeps the completion reason a real successful run stores,
-  // so the list and the detail page agree (the seed's failed run says model_error).
-  orm
-    .update(invocations)
-    .set({ state: 'completed', completionReason: 'turn_limit_reached', errorCode: null })
-    .where(eq(invocations.state, 'failed'))
-    .run();
-  orm.update(buckets).set({ state: 'completed', errorCode: null }).where(eq(buckets.state, 'failed')).run();
-  orm
-    .update(warnings)
-    .set({ readAt: '2026-09-10T08:02:00.000Z' })
-    .where(eq(warnings.code, 'invocation_failure_rate'))
-    .run();
-  orm
-    .update(warnings)
-    .set({ readAt: '2026-09-09T07:05:00.000Z' })
-    .where(eq(warnings.code, 'admin_login_failures'))
-    .run();
 }

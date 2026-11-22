@@ -41,6 +41,8 @@ export interface ServerOptions {
   readonly mcpManager: boolean;
   /** `E2E_SEED_LOCALE`: seed the docs suite's language-specific text. */
   readonly seedLocale: string | null;
+  /** `E2E_DOCS_RUNS`: also seed the docs suite's failed and tool-using runs. */
+  readonly docsRuns: boolean;
   /** `E2E_PASSKEYS`: bind localhost and set `admin.public_url` for real WebAuthn. */
   readonly passkeys: boolean;
   /** Username the fixture administrator is created with; the docs suite uses a presentable one. */
@@ -51,6 +53,7 @@ export const DEFAULT_SERVER_OPTIONS: ServerOptions = {
   mcpImages: false,
   mcpManager: false,
   seedLocale: null,
+  docsRuns: false,
   passkeys: false,
   adminUsername: E2E_USERNAME,
 };
@@ -90,6 +93,7 @@ async function ensureServer(options: ServerOptions = DEFAULT_SERVER_OPTIONS): Pr
       // suite, by contrast, starts the server through its own inherited
       // `E2E_PASSKEYS=1`, so that one is only added when a fixture asks for it.
       E2E_SEED_LOCALE: options.seedLocale ?? '',
+      E2E_DOCS_RUNS: options.docsRuns ? '1' : '0',
       ...(options.passkeys ? { E2E_PASSKEYS: '1' } : {}),
     },
   });
@@ -226,6 +230,7 @@ export const test = base.extend<{
   mcpImages: boolean;
   mcpManager: boolean;
   seedLocale: string | null;
+  docsRuns: boolean;
   passkeys: boolean;
   adminUsername: string;
 }>({
@@ -238,10 +243,14 @@ export const test = base.extend<{
   // Docs screenshot suite only: localized synthetic rows, passkey mode and a
   // presentable fixture administrator name.
   seedLocale: [null, { option: true }],
+  docsRuns: [false, { option: true }],
   passkeys: [false, { option: true }],
   adminUsername: [E2E_USERNAME, { option: true }],
-  storageState: async ({ signedIn, mcpImages, mcpManager, seedLocale, passkeys, adminUsername, storageState }, use) => {
-    const options = { mcpImages, mcpManager, seedLocale, passkeys, adminUsername };
+  storageState: async (
+    { signedIn, mcpImages, mcpManager, seedLocale, docsRuns, passkeys, adminUsername, storageState },
+    use,
+  ) => {
+    const options = { mcpImages, mcpManager, seedLocale, docsRuns, passkeys, adminUsername };
     // The options select the server whether or not this spec wants a session:
     // booting only for `signedIn` would leave an unsigned spec (or a helper that
     // runs first) with the default fixture's text.

@@ -162,6 +162,9 @@ export async function prepareConfig(options: {
         ],
       };
       if (docs !== null) {
+        // The docs suite photographs the per-Chat dialogs, which exist for group
+        // Chats only; the seed adds this Chat's store row with its title.
+        config.telegram.chats.push({ id: -100_555_000_111 });
         // Documentation screenshots run on a clean, fully loopback registry: the
         // fake `example.test` providers would show up as broken connections, and
         // a builtin provider could reach the real internet on a health check.
@@ -223,7 +226,11 @@ export async function prepareConfig(options: {
                 id: DOCS_MODELS.tool,
                 name: docs.models.tool,
                 reasoning: false,
-                input: ['text'],
+                // The same Tool Model serves the dictionary merge, the MCP
+                // description draft and the image-asset extraction, so it reads
+                // images as well; the loopback upstream answers all three
+                // prompt shapes (see `server-relay.ts`).
+                input: ['text', 'image'],
                 context_window: 64_000,
                 max_tokens: 4_096,
                 cost: { input: 0.1, output: 0.2, cache_read: 0, cache_write: 0 },
@@ -239,11 +246,36 @@ export async function prepareConfig(options: {
         config.vision.provider = DOCS_PROVIDERS.relay;
         config.vision.model = DOCS_MODELS.vision;
         // Background helpers (dictionary merge, MCP description draft, image AI
-        // extraction) call the Tool Model; the loopback upstream answers its id.
+        // extraction) call the Tool Model; the loopback upstream answers each
+        // prompt shape for this one id.
         config.tool_model = {
           provider: DOCS_PROVIDERS.tool,
           model: DOCS_MODELS.tool,
           thinking_level: 'off',
+        };
+        // The image section the docs screenshots enable: one OpenRouter model
+        // behind the fixture's keychain entry. The catalog and the generation
+        // endpoint are answered in-process by `server-docs-image.ts`.
+        config.image = {
+          credentials: { openrouter: { jar: DOCS_KEYCHAIN.image } },
+          models: [
+            {
+              id: 'nano-banana',
+              name: docs.images.modelName,
+              description: docs.images.modelNotes,
+              provider: 'openrouter',
+              upstreamModel: 'google/gemini-3.1-flash-image',
+              credentialRef: 'openrouter',
+              providerTag: 'google-ai-studio',
+              capabilities: {
+                imageInput: true,
+                maxInputImages: 14,
+                maxOutputs: 1,
+                aspectRatios: ['auto', '1:1', '16:9'],
+                resolutionClasses: ['auto'],
+              },
+            },
+          ],
         };
       }
     }),
@@ -268,6 +300,7 @@ export async function prepareConfig(options: {
         [DOCS_KEYCHAIN.relayHeader]: E2E_SECRETS.relayHeader,
         [DOCS_KEYCHAIN.health]: E2E_SECRETS.health,
         [DOCS_KEYCHAIN.mcpHeader]: 'e2e-mcp-header-secret',
+        [DOCS_KEYCHAIN.image]: 'docs-image-fixture-key',
         [DOCS_KEYCHAIN.unused]: 'unused-example-key',
       },
       { replace: true, createdAt: '2026-09-01T08:00:00.000Z' },

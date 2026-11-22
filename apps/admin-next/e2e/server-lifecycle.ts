@@ -47,6 +47,12 @@ export async function shutdown(): Promise<void> {
     // best effort
   }
   try {
+    // The image worker drains before the store it borrows closes.
+    await state.imageService?.stop();
+  } catch {
+    // best effort
+  }
+  try {
     state.store?.close();
   } catch {
     // best effort

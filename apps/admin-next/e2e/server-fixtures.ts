@@ -33,7 +33,9 @@ import { seedAdminBulkRows } from '../../../test/fixtures/admin-seed-bulk.ts';
 import { seedAdminWarnings } from '../../../test/fixtures/admin-seed-context.ts';
 import { seedAdminToolImages } from '../../../test/fixtures/admin-tool-images.ts';
 import { fauxRegistry } from '../../../test/helpers.ts';
-import { localizeAdminSeed, normalizeDocsInstance, requestedDocsSeed } from './docs-locale.ts';
+import { requestedDocsSeed } from './docs-locale.ts';
+import { localizeAdminSeed, normalizeDocsInstance } from './docs-locale-normalize.ts';
+import { seedDocsChat, seedDocsRuns } from './server-docs.ts';
 import {
   nudgeRoomScheduler,
   setPlaygroundModel,
@@ -67,9 +69,17 @@ export async function openFixtures(loaded: LoadedConfig, directory: string): Pro
     // Docs screenshots get the same rows in the documentation language (after
     // the bulk rows exist, so their senders are localized too) on a healthy
     // instance; the shared fixture (no `E2E_SEED_LOCALE`) keeps the English
-    // placeholders and its failing rows.
+    // placeholders and its failing rows. The docs-only rows land last: the
+    // healthy-instance normalization must not rewrite the failed run the
+    // Resume shot documents.
     localizeAdminSeed(store, seed, docs);
     normalizeDocsInstance(store);
+    seedDocsChat(store, docs);
+    // The failed and tool-using runs are only on screen in the specs that ask
+    // for them, so the healthy overview stays healthy everywhere else.
+    if (process.env.E2E_DOCS_RUNS === '1') {
+      seedDocsRuns(store, docs);
+    }
   }
   // The playground specs drive the real room store: two rooms, one of them with
   // an admitted (held) message, so the timeline, the counters and the

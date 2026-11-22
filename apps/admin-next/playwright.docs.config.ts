@@ -19,14 +19,18 @@ import { DOCS_DEVICE_SCALE_FACTOR, DOCS_VIEWPORT } from './docs-screenshots/run-
  * motion and `zh-CN`/`en-US` browser locales. Element and card screenshots are
  * preferred over full pages.
  */
-export default defineConfig<{ seedLocale: string | null; signedIn: boolean; adminUsername: string }, object>({
+export default defineConfig<
+  { seedLocale: string | null; docsRuns: boolean; signedIn: boolean; adminUsername: string },
+  object
+>({
   testDir: './docs-screenshots',
   testMatch: '**/*.shot.ts',
   globalSetup: './docs-screenshots/global-setup.ts',
   globalTeardown: './docs-screenshots/global-teardown.ts',
   fullyParallel: false,
   workers: availableParallelism(),
-  reporter: 'list',
+  // `list` for the console, the local reporter for the teardown's verdict.
+  reporter: [['list'], ['./docs-screenshots/reporter.ts']],
   timeout: 120_000,
   expect: { timeout: 15_000 },
   // Keep every artifact out of the repository; the PNGs are the only output.
@@ -34,6 +38,8 @@ export default defineConfig<{ seedLocale: string | null; signedIn: boolean; admi
   use: {
     signedIn: true,
     seedLocale: null,
+    // Only the specs whose shots document a failed or tool-using run seed them.
+    docsRuns: false,
     // A presentable account name: it is visible in the shell's user menu.
     adminUsername: 'admin',
     trace: 'off',

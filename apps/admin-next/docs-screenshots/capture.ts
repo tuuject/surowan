@@ -26,6 +26,14 @@ export const SCREENSHOTS_DIR = join(import.meta.dirname, '..', '..', 'docs', 'co
 export const SCREENSHOTS_STAGING_DIR = join(import.meta.dirname, '..', '.docs-shots-staging');
 
 /**
+ * Failures the reporter saw during the run. The teardown publishes only when
+ * this file is absent: a test that failed after its capture still leaves all
+ * files behind, and a set of images that no longer matches the specs must not
+ * replace the committed one.
+ */
+export const SCREENSHOTS_FAILURES_FILE = join(SCREENSHOTS_STAGING_DIR, 'run-failures.json');
+
+/**
  * Koi animates dialogs, toasts and cards; a screenshot taken mid-transition
  * would differ between runs. Reduced motion already covers most of it (the
  * projects set `reducedMotion: 'reduce'`); this makes it unconditional and
@@ -89,6 +97,24 @@ async function settle(page: Page): Promise<void> {
 }
 
 /**
+ * Puts the page where the shutter will be: the top, or the documentation part
+ * under the app header. Exported so a spec can assert what the frame contains
+ * (for example that the next section starts inside it) before the capture runs.
+ */
+export async function scrollToForCapture(page: Page, options: CaptureOptions = {}): Promise<void> {
+  if (options.scrollTo === undefined) {
+    await page.evaluate(() => window.scrollTo(0, 0));
+  } else if (options.align === 'start') {
+    await options.scrollTo.evaluate((node, clearance) => {
+      const top = node.getBoundingClientRect().top + window.scrollY - clearance;
+      window.scrollTo(0, Math.max(0, top));
+    }, APP_HEADER_CLEARANCE);
+  } else {
+    await options.scrollTo.scrollIntoViewIfNeeded();
+  }
+}
+
+/**
  * Captures `id` for `locale` as `<staging>/<id>.<locale>.light.png` and returns
  * the absolute path. `target` defaults to the viewport: the docs prefer a
  * readable card or page over a long full-page shot.
@@ -109,16 +135,7 @@ export async function captureScreenshot(
   captured.add(key);
 
   await settle(page);
-  if (options.scrollTo === undefined) {
-    await page.evaluate(() => window.scrollTo(0, 0));
-  } else if (options.align === 'start') {
-    await options.scrollTo.evaluate((node, clearance) => {
-      const top = node.getBoundingClientRect().top + window.scrollY - clearance;
-      window.scrollTo(0, Math.max(0, top));
-    }, APP_HEADER_CLEARANCE);
-  } else {
-    await options.scrollTo.scrollIntoViewIfNeeded();
-  }
+  await scrollToForCapture(page, options);
   if (options.scrollTo !== undefined) {
     const viewport = page.viewportSize();
     const box = await options.scrollTo.boundingBox();

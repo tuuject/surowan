@@ -8,8 +8,9 @@ site. It is a **separate Playwright entry** on purpose:
 - `pnpm run docs:screenshots` (root, and the same script in this package) builds
   the SPA, installs the Chromium shell and runs `playwright.docs.config.ts`.
 
-A run captures into a staging directory first; only a complete, validated run
-publishes to the docs site:
+A run captures into a staging directory first; only a *passed*, complete,
+validated run publishes to the docs site (the bundled reporter writes the
+verdict the teardown reads):
 
 ```text
 apps/admin-next/.docs-shots-staging/     # per-run staging (gitignored)
@@ -30,7 +31,7 @@ teardown reports the staging path instead of publishing.
 ## Run it
 
 ```bash
-pnpm run docs:screenshots        # from the repo root: build + 30 captures, ~1 min
+pnpm run docs:screenshots        # from the repo root: build + one capture per scenario and locale
 ```
 
 The root script wraps `pnpm --filter surowan-admin-next run docs:screenshots`,
@@ -63,11 +64,29 @@ touches the published set; re-run the full command before committing.
   `localStorage['admin-theme'] = 'light'` are written before the first
   navigation;
 - Chromium only, 1440×1000 at DPR 1, UTC, reduced motion, no retries.
+  Two settings columns are framed taller (1440×1320 for the entry gate,
+  1440×1400 for image settings) so the switch, the credential row and the saved
+  model fit one image instead of hiding each other behind the sticky save bar.
 
 The server is the real `AdminServer` + temporary SQLite + Faux runtime from
 `e2e/` (`server.ts`, `server-boot.ts`, `server-fixtures.ts`). The browser may
 only talk to that loopback server: `docs-screenshots/fixtures.ts` aborts every
 other origin.
+
+Docs mode (`E2E_SEED_LOCALE`) changes the fixture in three ways beyond the
+localized prose, all in `e2e/`:
+
+- `server-docs.ts` adds the rows the shared fixture cannot carry: the second
+  (group) Chat every per-Chat dialog needs, a failed run that is the newest of
+  its own Conversation (the Resume shot), and a completed tool-using run with a
+  send (the Tool calls and Reviews shots). The shared fixture's failed run stays
+  normalized to completed for the healthy overview.
+- `server-docs-image.ts` answers the OpenRouter image catalog and images
+  endpoint in-process and `server-boot.ts` starts the real `ImageService` plus
+  its worker, so the image pages render real records instead of `503`.
+- specs that photograph live MCP state opt into `test.use({ mcpManager: true })`,
+  which runs the stdio fixture and the unreachable HTTP endpoint exactly as the
+  ordinary E2E specs do.
 
 ## Add a scenario
 
@@ -134,6 +153,8 @@ deployment. They are **not** evidence that:
 - a real Provider or model connection works (every model call stays on the
   loopback fixture, which is also why the Providers page shows a loopback URL on
   purpose outside the shots);
+- a real image vendor works: the catalog, the generation call and the return
+  image are answered by `e2e/server-docs-image.ts`;
 - Telegram delivers or receives anything (the connection state comes from a
   fixture hook; this process runs no live connection manager);
 - a real one-time code, pairing code, API key plaintext, passkey or Cookie was
