@@ -4,8 +4,8 @@ import { Tabs } from '@tuuject/koi-react/tabs';
 import type { ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
 import { DetailError, DetailSkeleton, ListPageHeader } from '@/components/business';
-import { AutoRefreshSwitch } from '@/components/invocations/auto-refresh-switch';
 import { DetailHeader } from '@/components/invocations/detail-header';
+import { InvocationLiveControls } from '@/components/invocations/live-controls';
 import { InvocationReviewPanel } from '@/components/review/invocation-review-panel.tsx';
 import { ModelCallsTab } from '@/components/invocations/model-calls-tab';
 import { OverviewTab } from '@/components/invocations/overview-tab';
@@ -55,10 +55,7 @@ export function InvocationDetailView({ id }: { readonly id: string }): ReactElem
 
   return (
     <div key={data.id} className={css({ '& > * + *': { marginBlockStart: '6' } })}>
-      <ListPageHeader
-        title={t('invocations.invocationDetail.title', { id: data.id })}
-        actions={<AutoRefreshSwitch />}
-      />
+      <ListPageHeader title={t('invocations.invocationDetail.title', { id: data.id })} />
       <DetailHeader invocation={data} />
       <InvocationReviewPanel invocation={data} />
       <section>
@@ -111,6 +108,7 @@ export function InvocationDetailView({ id }: { readonly id: string }): ReactElem
           ]}
         />
       </section>
+      <InvocationLiveControls invocation={data} />
     </div>
   );
 }

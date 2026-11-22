@@ -38,6 +38,8 @@ export const SIDEBAR_OUTER_WIDTH_COLLAPSED = `calc(${SIDEBAR_WIDTH_COLLAPSED} + 
 export const TITLEBAR_HEIGHT = 'var(--app-titlebar-height)';
 /** The sticky header block: below every Koi overlay, above the page. */
 export const TOPBAR_Z_INDEX = 40;
+/** Bars that float over the page while it scrolls (a form's save bar, a page's live controls): below the header. */
+export const STICKY_BAR_Z_INDEX = 30;
 
 /** Koi's keyboard focus outline (mirrors recipes/dimensions.ts focusRing; that helper isn't exported). */
 export const focusRing = {

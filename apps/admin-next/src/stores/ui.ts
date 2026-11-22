@@ -16,10 +16,13 @@ interface UiState {
    * `persist` merges the stored slice over this initial state.
    */
   invocationAutoRefresh: boolean;
+  /** Whether the Invocation detail page scrolls to its bottom when new data arrives. Persisted; off by default. */
+  invocationAutoScroll: boolean;
   toggleSidebar: () => void;
   setNavLayout: (layout: NavLayout) => void;
   setMobileNavOpen: (open: boolean) => void;
   setInvocationAutoRefresh: (autoRefresh: boolean) => void;
+  setInvocationAutoScroll: (autoScroll: boolean) => void;
 }
 
 export const useUiStore = create<UiState>()(
@@ -29,10 +32,12 @@ export const useUiStore = create<UiState>()(
       navLayout: 'sidebar',
       mobileNavOpen: false,
       invocationAutoRefresh: true,
+      invocationAutoScroll: false,
       toggleSidebar: () => set((state) => ({ sidebarCollapsed: !state.sidebarCollapsed })),
       setNavLayout: (layout) => set({ navLayout: layout }),
       setMobileNavOpen: (open) => set({ mobileNavOpen: open }),
       setInvocationAutoRefresh: (autoRefresh) => set({ invocationAutoRefresh: autoRefresh }),
+      setInvocationAutoScroll: (autoScroll) => set({ invocationAutoScroll: autoScroll }),
     }),
     {
       name: 'surowan-admin-ui',
@@ -40,6 +45,7 @@ export const useUiStore = create<UiState>()(
         sidebarCollapsed: state.sidebarCollapsed,
         navLayout: state.navLayout,
         invocationAutoRefresh: state.invocationAutoRefresh,
+        invocationAutoScroll: state.invocationAutoScroll,
       }),
     },
   ),

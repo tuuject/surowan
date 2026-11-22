@@ -116,6 +116,7 @@ export const layout: CompleteCatalog<typeof layoutEn> = {
     appliedFilters_other: '{{count}} عامل تصفية مطبَّق',
     refreshList: 'تحديث القائمة',
     autoRefresh: 'التحديث التلقائي',
+    autoScroll: 'التمرير التلقائي إلى الأسفل',
     reset: 'إعادة تعيين',
     cursorPageCount_zero: 'الصفحة {{page}}، لا سجلات',
     cursorPageCount_one: 'الصفحة {{page}}، سجل واحد',

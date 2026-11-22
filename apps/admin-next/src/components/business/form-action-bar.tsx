@@ -1,10 +1,7 @@
 import { Button } from '@tuuject/koi-react/button';
 import { css } from '@tuuject/koi-react/styled-system/css';
 import type { ReactElement, ReactNode } from 'react';
-import { SAFE_BOTTOM } from '@/components/app-shell/shared';
-
-/** Above the page, below the sticky header (40) and Koi's overlays: the template's sectioned-form layer. */
-const STICKY_Z_INDEX = 30;
+import { SAFE_BOTTOM, STICKY_BAR_Z_INDEX } from '@/components/app-shell/shared';
 
 /**
  * The save bar at the bottom of a long settings form, drawn like the Koi admin
@@ -48,7 +45,7 @@ export function FormActionBar({
       className={css({
         position: 'sticky',
         bottom: `calc(token(spacing.4) + ${SAFE_BOTTOM})`,
-        zIndex: STICKY_Z_INDEX,
+        zIndex: STICKY_BAR_Z_INDEX,
         display: 'flex',
         flexWrap: 'wrap',
         alignItems: 'center',
