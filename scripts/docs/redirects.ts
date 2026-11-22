@@ -1,4 +1,4 @@
-import { renderConfigFieldPages } from './generated-pages.ts';
+import { renderConfigFieldPages } from './config-fields/index.ts';
 
 /**
  * The pre-reorganization documentation tree was deleted, so every published

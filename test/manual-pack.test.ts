@@ -2,7 +2,7 @@ import { access, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:f
 import { tmpdir } from 'node:os';
 import { dirname, join, relative, resolve, sep } from 'node:path';
 import { afterAll, expect, test } from 'vitest';
-import { renderConfigFieldPages } from '../scripts/docs/generated-pages.ts';
+import { renderConfigFieldPages } from '../scripts/docs/config-fields/index.ts';
 import { exampleNames, exampleSource } from '../scripts/docs/prepare.ts';
 import { isChildSegment, manualContentRoot, packManual } from '../scripts/manual-prepare.ts';
 import { bundledManualSpace, FileSystemDocSpaces } from '../src/adapters/local-monolith/doc-spaces.ts';

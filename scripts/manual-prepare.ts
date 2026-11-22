@@ -3,12 +3,8 @@ import { dirname, join, posix, relative, resolve, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { BUNDLED_MANUAL_DIR } from '../src/adapters/local-monolith/doc-spaces.ts';
 import { DOC_INDEX_PATH, resolveDocPath } from '../src/platform/doc-spaces.ts';
-import {
-  FIELDS_INDEX_PAGE,
-  isConfigFieldSectionPage,
-  isGeneratedPage,
-  renderGeneratedPages,
-} from './docs/generated-pages.ts';
+import { FIELDS_INDEX_PAGE, isConfigFieldSectionPage } from './docs/config-fields/index.ts';
+import { isGeneratedPage, renderGeneratedPages } from './docs/generated-pages.ts';
 import { docsRoot, exampleNames, exampleSource, repositoryRoot } from './docs/prepare.ts';
 
 /**
