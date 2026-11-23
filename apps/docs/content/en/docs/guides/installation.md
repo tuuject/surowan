@@ -79,7 +79,7 @@ On a fresh instance this signs in as `admin`, which has no password yet. A new i
 
 Then go to **Settings → Admin credentials**: pick a new username (3–32 letters, digits, dots, underscores or hyphens) and a password (12–200 characters) and choose **Update credentials**. Sessions in other browsers are signed out.
 
-<!-- screenshot: installation/sign-in-one-time-code | The sign-in page with the one-time code form -->
+![The sign-in page with the one-time code form](__DOCS_BASE__/screenshots/installation/sign-in-one-time-code.en.light.png)
 
 ## 5. Connect an Agent model that replies
 
@@ -89,6 +89,8 @@ Then go to **Settings → Admin credentials**: pick a new username (3–32 lette
 2. Choose **Fetch models**, tick the models to enable and create them. If the listing fails, **Add manually** looks models up by ID.
 3. Open **Models**, pick that model and a thinking effort in the **Agent model** card, then **Save** in the bottom bar.
 4. Back on **Providers**, choose **Test** on the model row: an **OK** result with the model's own reply text means it really works.
+
+![The Models page: three roles and the bottom save bar](__DOCS_BASE__/screenshots/models/model-roles.en.light.png)
 
 The Agent model only needs text input; Vision is a separate, optional role and not part of this step. Metadata completion, nicknames, batch health checks and what a model switch does are all in [Connect and switch models](models.md).
 
@@ -106,7 +108,7 @@ While the panel binds loopback, remote access is an SSH tunnel or a reverse prox
 
 `public_url` must be a canonical HTTPS origin: no path, query, credentials or fragment, and no IP address (use `http://localhost` for local work). It is the WebAuthn relying party, so a new domain means registering new passkeys.
 
-`admin.*` fields need a restart: run `docker compose restart plasticwan`, open the panel from exactly that origin, and use **Settings → Passkeys → Add passkey**. The sign-in page then offers **Sign in with a passkey**.
+`admin.*` fields need a restart (types and defaults: [`admin` field reference](../configuration/fields-admin.md)): run `docker compose restart plasticwan`, open the panel from exactly that origin, and use **Settings → Passkeys → Add passkey**. The sign-in page then offers **Sign in with a passkey**.
 
 ## 7. Optional: offline account reset (service stopped)
 

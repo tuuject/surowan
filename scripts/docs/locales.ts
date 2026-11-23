@@ -34,12 +34,13 @@ export const localeText: Record<DocsLocale, DocsLocaleText> = {
   zh: {
     label: '简体中文',
     title: '塑料碗',
-    description: '自行部署的 Telegram Agent Bot。部署、配置，以及把碗配置成自己的使用指南。',
+    description:
+      '塑料碗 Harness（Surowan Harness）的公开文档：一套人设无关的 Harness 服务端，你选模型、写人格、划定边界；今天接上的真实平台只有 Telegram。',
     provenanceLabel: '文档对应源码提交：',
     dirtyNote: '（含未提交修改，仅供本地预览）',
     cleanNote: '。请先与自己的部署版本核对。',
     llmsNotes: [
-      '先核实用户的代码或镜像版本，再读快速开始与具体任务页。不要读取或转发真实密钥；重启、迁移与覆盖配置前须获得确认。',
+      '这是 Harness 服务端的文档，不是某个人设；先核实用户的代码或镜像版本，再读安装与具体任务页。不要读取或转发真实密钥；重启、迁移与覆盖配置前须获得确认。',
       '这是部署文档，不是 Bot 的 System Skills；不保证 Agent 自动发现此索引。',
     ],
     llmsSourceLabel: '源码：',
@@ -47,12 +48,13 @@ export const localeText: Record<DocsLocale, DocsLocaleText> = {
   en: {
     label: 'English',
     title: 'Surowan',
-    description: 'A self-hosted Telegram agent bot. How to deploy it, configure it, and tune it into your own.',
+    description:
+      'Public documentation for Surowan Harness: a persona-agnostic harness server where you pick the models, write the persona and set the boundaries. Telegram is the only real platform it connects to today.',
     provenanceLabel: 'Source commit:',
     dirtyNote: ' (uncommitted changes, local preview only)',
     cleanNote: '. Compare it with the version you run.',
     llmsNotes: [
-      'Check the source commit the user runs before reading the quick start or any task page. Never read or forward real secrets; ask before restarting, migrating or overwriting configuration.',
+      'These are docs for the harness server, not for one persona: check the source commit the user runs, then read the install and task pages. Never read or forward real secrets; ask before restarting, migrating or overwriting configuration.',
       'These are deployment docs, not the Bot system skills; nothing guarantees an agent discovers this index.',
     ],
     llmsSourceLabel: 'Source: ',

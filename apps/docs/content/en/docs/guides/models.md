@@ -41,7 +41,7 @@ When you add a model, the panel looks up its details by ID: first the provider's
 
 For a mirror or an offline network, point the catalog elsewhere: **Developer → Model details source** writes `models_dev.api_url`; empty means the default `https://models.dev/api.json`. It accepts an HTTP(S) URL without credentials or a `#` fragment, and the mirror must serve the same JSON. It applies to the next lookup without a restart. Field details: [Model metadata catalog](../configuration/models-dev.md).
 
-<!-- screenshot: models/providers-list | The Providers page with a provider whose models were fetched -->
+![The Providers page with a provider whose models were fetched](__DOCS_BASE__/screenshots/models/providers-list.en.light.png)
 
 ## 4. Assign the three roles
 
@@ -75,19 +75,19 @@ Select a provider on **Providers** and press **Test** on a model row. To test se
 
 If the provider or model was edited but not applied, the health check refuses outright, so you never test something other than the running configuration.
 
-<!-- screenshot: models/provider-health-check | A health check result: status, timing and the model's reply text -->
+![A health check result: status, timing and the model's reply text](__DOCS_BASE__/screenshots/models/provider-health-check.en.light.png)
 
 ## 6. Field reference
 
 The panel covers day-to-day work; exact fields, defaults and how they apply live in:
 
-- [Providers and models](../configuration/providers.md): `kind`, `base_url`, `api`, `api_key`, `nickname`, `thinking_levels`, cost
-- [Model metadata catalog](../configuration/models-dev.md): `models_dev.api_url`
-- [Agent settings](../configuration/agent.md): the Agent triple and its budget
-- [Vision settings](../configuration/vision.md): the Vision model and `thinking_level`
-- [Tool model settings](../configuration/tool-model.md): the auxiliary model
+- [Providers and models](../configuration/providers.md): `kind`, `base_url`, `api`, `api_key`, `nickname`, `thinking_levels`, cost — field by field in the [`providers` field reference](../configuration/fields-providers.md)
+- [Model metadata catalog](../configuration/models-dev.md): `models_dev.api_url`, field by field in the [`models_dev` field reference](../configuration/fields-models-dev.md)
+- [Agent settings](../configuration/agent.md): the Agent triple and its budget, field by field in the [`agent` field reference](../configuration/fields-agent.md)
+- [Vision settings](../configuration/vision.md): the Vision model and `thinking_level`, field by field in the [`vision` field reference](../configuration/fields-vision.md)
+- [Tool model settings](../configuration/tool-model.md): the auxiliary model, field by field in the [`tool_model` field reference](../configuration/fields-tool-model.md)
 
-<!-- screenshot: models/model-roles | The Models page: three roles and the bottom save bar -->
+![The Models page: three roles and the bottom save bar](__DOCS_BASE__/screenshots/models/model-roles.en.light.png)
 
 ## 7. Common problems
 

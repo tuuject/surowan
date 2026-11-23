@@ -5,7 +5,7 @@ description: Work from symptoms — too noisy, too slow, too expensive, not join
 
 # Tune behaviour and cost
 
-Tuning is not a pass over every field. It is: find out *which batch* was handled *why* and *at what cost*, change one knob, then collect the same evidence again. This page is organised by symptom and names the knob plus where to look afterwards. Field definitions, defaults and apply rules live in [Agent settings](../configuration/agent.md) and [Telegram settings](../configuration/telegram.md); they are not repeated here.
+Tuning is not a pass over every field. It is: find out *which batch* was handled *why* and *at what cost*, change one knob, then collect the same evidence again. This page is organised by symptom and names the knob plus where to look afterwards. Field definitions, defaults and apply rules live in [Agent settings](../configuration/agent.md) and [Telegram settings](../configuration/telegram.md); they are not repeated here. Field-by-field types and defaults are in the [`agent`](../configuration/fields-agent.md) and [`telegram`](../configuration/fields-telegram.md) field references.
 
 One thing to internalise first: **the bot staying quiet is often the correct outcome**. Whether to speak is the model's decision, so a run with zero sends usually means it read the batch and chose silence (a blocked send shows up in the tool calls). The question to investigate is "did it get a chance to read it", not "did it say something".
 
@@ -100,7 +100,7 @@ Three fields decide how long a batch collects between its first message and the 
 
 The example above behaves like this: a lone message reaches the model after 5 seconds; while people keep talking, every message extends the wait to 8 seconds after itself, but never past 30 seconds from the first message, and anything later starts the next batch.
 
-<!-- screenshot: tuning/bucket-timing | The Message batches group on the Telegram settings page, with the three timing fields and the save button -->
+![The Message batches group on the Telegram settings page, with the three timing fields and the save button](__DOCS_BASE__/screenshots/tuning/bucket-timing.en.light.png)
 
 Three cross-field rules are enforced by the server:
 
@@ -118,7 +118,7 @@ Before a due batch turns into an invocation, a small decision model reads it and
 
 It is off by default, and while off the behaviour is exactly as if it did not exist. Once enabled there are two modes: `shadow` (*Record only* in the panel) records decisions without changing scheduling; `enforce` (*Enforce*) withholds a rejected batch.
 
-<!-- screenshot: tuning/entry-gate | The Behaviour and Connection groups on the entry gate page -->
+![The Behaviour and Connection groups on the entry gate page](__DOCS_BASE__/screenshots/tuning/entry-gate.en.light.png)
 
 ### What it asks
 
@@ -197,7 +197,7 @@ Every field (including `api_key`, `base_url` and `model`) is hot: saving applies
 - **Context**: retained sends target and maximum, hard token ratio, reference TTL, idle grace, maximum wall-clock time, in-memory cache size.
 - **Proactive replies**: the global defaults (below).
 
-<!-- screenshot: tuning/harness-budget | The Budget and concurrency and Send behavior groups on the Harness tuning page -->
+![The Budget and concurrency and Send behavior groups on the Harness tuning page](__DOCS_BASE__/screenshots/tuning/harness-budget.en.light.png)
 
 Several values can change at once. *Save and apply* writes them back and applies, *Discard changes* restores the file's values, and only the fields you really changed are written — comments and formatting survive. Out-of-range values are flagged in place; rules that need more than one field (retained sends target below the maximum, idle grace covering the longest batch wait) are checked on the server, and a failure leaves the file untouched and explains why.
 
@@ -234,7 +234,7 @@ The invocation detail page and the **Reviews** page (`/reviews`) let you annotat
 - **Exporting clears the draft.** Both *Download Markdown* (named like `surowan-review-20260101-120000.md`) and *Copy Markdown* ask for confirmation and then clear the draft. The panel cannot import an exported file again, so keep it somewhere.
 - **The JSON tail.** The document ends with a `## Review data (JSON)` block, `format` `surowan.invocation-review`, `version` 1, a machine-readable copy of every comment for the agent to consume as structured input.
 
-<!-- screenshot: tuning/review-export | The purpose selector and export confirmation dialog on the Reviews page -->
+![The purpose selector and export confirmation dialog on the Reviews page](__DOCS_BASE__/screenshots/tuning/review-export.en.light.png)
 
 How to hand that file to a local agent, and what it checks first, is in [Let your local agent tune Surowan](agent-assisted.md).
 
@@ -254,7 +254,7 @@ If the failed batch already reached the context, the new run opens with an empty
 
 Resume really spends money and really may send, so for API-key callers it is `write+paid`: only a key in `all` mode can call it. Replay is a different tool — it produces no Telegram side effects, see [Invocation preflight and replay](../developer/replay.md).
 
-<!-- screenshot: tuning/invocation-resume | A failed run's detail page with the Resume button and the auto-refresh controls -->
+![A failed run's detail page with the Resume button and the auto-refresh controls](__DOCS_BASE__/screenshots/tuning/invocation-resume.en.light.png)
 
 ## Compare results with evidence
 

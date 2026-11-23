@@ -169,7 +169,7 @@ export function renderConfigFieldPages(lang: DocsLocale): ReadonlyMap<string, st
     index.push(text.sectionLink(key, file), '');
     const page = [
       ...frontmatter(text.sectionTitle(key), text.sectionDescription(key)),
-      `# ${text.sectionHeading(key)}`,
+      `# ${text.sectionTitle(key)}`,
       '',
       text.sectionIntro,
       ...text.notice,

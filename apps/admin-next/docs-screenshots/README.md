@@ -92,7 +92,9 @@ localized prose, all in `e2e/`:
 
 1. Add an entry to `docs-screenshots/scenarios.ts` (the id is
    `<topic>/<state>`, e.g. `tuning/entry-gate`), with a one-line description,
-   the target state and the doc pages that will embed it.
+   the target state and the doc pages that embed it. `pnpm run docs:verify`
+   rejects a scenario that no page of a locale references, and a page whose
+   image is missing or in the wrong locale.
 2. Write the test in the matching `docs-screenshots/*.shot.ts` file (split by
    area, not one file per shot). Reach the state by really clicking, typing and
    saving — or with the real API where the UI is not the point — then read it

@@ -45,7 +45,7 @@ Authorization: Bearer <api-key>
 surowan_harness_update — Save changed tuning fields; null removes an optional field (PUT /api/harness; write permission)
 ```
 
-目录由 `packages/admin-surface` 的接口表生成，面板、`surowan-utils` 与 MCP 用的是同一份数据，因此三者不会各自漂移；路由清单见 [HTTP 公共约定](http/index.md)。
+目录由 `packages/admin-surface` 的接口表生成，面板、`surowan-utils` 与 MCP 用的是同一份数据，因此三者不会各自漂移；生成好的 [MCP 工具目录](mcp-tools.md) 逐项列出工具、路由与所需权限，路由清单见 [HTTP 公共约定](http/index.md)。
 
 ### 参数约定
 

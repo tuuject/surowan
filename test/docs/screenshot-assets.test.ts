@@ -1,10 +1,11 @@
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import sharp from 'sharp';
 import { afterAll, describe, expect, test } from 'vitest';
 import { DOCS_SCENARIOS } from '../../apps/admin-next/docs-screenshots/scenarios.ts';
 import {
+  checkPublishedScreenshots,
   checkScreenshotAssets,
   MANIFEST_MAX_BYTES,
   SCREENSHOTS_DIRECTORY,
@@ -283,5 +284,69 @@ describe('the checker', () => {
     const report = await checkScreenshotAssets({ directory, expectedIds: ['admin/navigation'] });
     expect(report.ok).toBe(false);
     expect(report.errors).toEqual(['Manifest lists a scenario outside the catalog: admin/ghost']);
+  });
+});
+
+/**
+ * The published copy, on fixtures only: these tests run before `docs:build` in
+ * CI, so they must not need an artifact. The real `dist/` is checked by
+ * `docs:verify`, which compares the committed tree with what the build wrote.
+ */
+describe('the published screenshot copy', () => {
+  /** A source directory with one healthy scenario, mirrored into `dist/screenshots`. */
+  async function published(mirror: (dist: string) => Promise<void>): Promise<{
+    directory: string;
+    dist: string;
+  }> {
+    const directory = await fixture({
+      manifest: manifestOf([{ id: 'admin/navigation' }]),
+      files: both('admin/navigation'),
+    });
+    // The built site is a separate tree; nesting it inside the source would make
+    // the comparison read its own output.
+    const dist = await mkdtemp(join(tmpdir(), 'surowan-screenshot-dist-'));
+    directories.push(dist);
+    for (const file of [...both('admin/navigation'), 'manifest.json']) {
+      const target = join(dist, 'screenshots', file);
+      await mkdir(dirname(target), { recursive: true });
+      await writeFile(target, await readFile(join(directory, file)));
+    }
+    await mirror(dist);
+    return { directory, dist };
+  }
+
+  test('accepts an identical copy', async () => {
+    const { directory, dist } = await published(async () => {});
+    await expect(checkPublishedScreenshots({ directory, dist })).resolves.toMatchObject({
+      ok: true,
+      errors: [],
+      fileCount: 3,
+    });
+  });
+
+  test('reports a changed byte and a missing file', async () => {
+    const { directory, dist } = await published(async (root) => {
+      await writeFile(
+        join(root, 'screenshots', 'admin', 'navigation.zh-CN.light.png'),
+        Buffer.concat([PNG_BYTES, Buffer.from('x')]),
+      );
+      await rm(join(root, 'screenshots', 'manifest.json'));
+    });
+    const report = await checkPublishedScreenshots({ directory, dist });
+    expect(report.ok).toBe(false);
+    expect(report.errors).toEqual([
+      'Published file differs from its source: screenshots/admin/navigation.zh-CN.light.png',
+      'Missing published file: screenshots/manifest.json',
+    ]);
+  });
+
+  test('reports a published file with no source', async () => {
+    const { directory, dist } = await published(async (root) => {
+      await writeFile(join(root, 'screenshots', 'admin', 'navigation.zh-CN.dark.png'), PNG_BYTES);
+    });
+    const report = await checkPublishedScreenshots({ directory, dist });
+    expect(report.errors).toEqual([
+      'Published file has no source in content/public: screenshots/admin/navigation.zh-CN.dark.png',
+    ]);
   });
 });

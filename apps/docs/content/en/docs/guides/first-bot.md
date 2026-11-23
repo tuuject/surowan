@@ -21,16 +21,17 @@ That token is the whole authority of this bot. Never paste it into a chat, a scr
 
 Open **Telegram**:
 
+![The Telegram page before a token is configured](__DOCS_BASE__/screenshots/first-bot/telegram-token-empty.en.light.png)
+
 1. In the **Bot Token** card, paste the token into **New Bot Token**.
 2. **Entry name** defaults to `telegram`; you may change it. The token goes into the Keychain, and `config.jsonc` only names the entry, never the value.
 3. Choose **Save token**. It applies immediately; no restart.
 
 Once saved, the **Connection** card shows **Status: Connected**, the bot's `@username` and numeric ID, and `Since` for when the connection was made. If the status is **Config error** with "Token rejected", the token was copied wrong or revoked; "This token is used by another process" means a second instance is polling the same bot — stop that one first.
 
-The first save creates the whole `telegram` section in the configuration file, with the default batch timing: a 15-second minimum wait, no extension per message, and a maximum equal to the minimum.
+![The connection status after the token takes effect](__DOCS_BASE__/screenshots/first-bot/telegram-connected.en.light.png)
 
-<!-- screenshot: first-bot/telegram-token-empty | The Telegram page before a token is configured -->
-<!-- screenshot: first-bot/telegram-connected | The connection status after the token takes effect -->
+The first save creates the whole `telegram` section in the configuration file, with the default batch timing: a 15-second minimum wait, no extension per message, and a maximum equal to the minimum.
 
 ## 3. Let it see group messages
 
@@ -45,7 +46,7 @@ Both are Telegram's delivery rules, unrelated to Surowan's configuration. Afterw
 
 ## 4. Allow one chat
 
-Two methods, same effect: the chat is written into `telegram.chats` and applied immediately.
+Two methods, same effect: the chat is written into `telegram.chats` and applied immediately. The fields that entry accepts are in the [`telegram` field reference](../configuration/fields-telegram.md).
 
 **Let the bot add it.** First add your numeric Telegram user ID under **Bot admins** (same Telegram group in the panel), then send this in the target group from your own account:
 
@@ -66,7 +67,7 @@ Don't know your numeric user ID yet? Surowan cannot show it before any chat is a
 
 Telegram clients do not show chat IDs: a private chat's ID is the numeric user ID of the person you are chatting with, which `/whoami` reports in any chat the bot answers in; for a group, `/allowlist` above is the easy way. Once a chat is on the allowlist, its ID is also shown under its name on the **Chats** page, so you can check it there.
 
-<!-- screenshot: first-bot/chat-allowlist | The Chats page with one allowed chat -->
+![The Chats page with two allowed chats](__DOCS_BASE__/screenshots/first-bot/chat-allowlist.en.light.png)
 
 ## 5. Check with `/help`
 

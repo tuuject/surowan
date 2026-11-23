@@ -26,7 +26,7 @@ description: 在面板里建房、暂存消息、放行后触发真实运行，�
 - 放行之后输入按接纳顺序进入运行；同一房间同时最多一个运行，上一条还在跑时新的批次排队等待。
 - 房间标题行会显示版本、暂存状态与待处理数量；标题行下方的 `queued` / `running` 是排队与运行中的数量。
 
-<!-- screenshot: playground/hold-pending | 虚拟群聊：暂存中，待处理消息尚未运行 -->
+![虚拟群聊：暂存中，待处理消息尚未运行](__DOCS_BASE__/screenshots/playground/hold-pending.zh-CN.light.png)
 
 ## 3. 读时间线和运行结果
 
@@ -40,7 +40,7 @@ description: 在面板里建房、暂存消息、放行后触发真实运行，�
 - **主动沉默**：运行结束，但写着「本次运行结束但没有发布任何消息」。这是模型的选择，不是失败。
 - **失败或中止**：展开运行看错误；`结果未知` 是进程中断导致的不确定状态，先核对时间线与审计，不要盲目重试。
 
-<!-- screenshot: playground/release-result | 放行之后：房间输出、运行状态与审计入口 -->
+![放行之后：房间输出、运行状态与审计入口](__DOCS_BASE__/screenshots/playground/release-result.zh-CN.light.png)
 
 ## 4. 重试，以及它和真实运行的续跑
 
@@ -76,7 +76,7 @@ description: 在面板里建房、暂存消息、放行后触发真实运行，�
 - 房间有自己的 Memo 与图片素材，与 Telegram 会话完全隔离；删除房间会一并删除。
 - 房间的模型用量记在独立的 `playground` 用量域，不会挤占 Telegram 会话的日预算；但用的是同一套上限配置。
 
-房间的消息、运行与审计随 `retention.online_days` 清理，本地图片素材随备份保留。细节见[升级、备份与恢复](maintenance.md)与[数据路径与保留](../configuration/storage.md)。
+房间的消息、运行与审计随 `retention.online_days` 清理，本地图片素材随备份保留。细节见[升级、备份与恢复](maintenance.md)、[数据路径与保留](../configuration/storage.md)与 [`retention` 字段参考](../configuration/fields-retention.md)。
 
 ## 8. 常见误区
 

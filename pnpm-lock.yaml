@@ -270,6 +270,9 @@ importers:
       '@types/semver':
         specifier: ^7.8.0
         version: 7.8.0
+      mdast-util-from-markdown:
+        specifier: 2.0.3
+        version: 2.0.3
       skills:
         specifier: 1.7.2
         version: 1.7.2

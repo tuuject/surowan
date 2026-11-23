@@ -20,8 +20,13 @@
  * publishes a run, and `test/docs/screenshot-assets.test.ts` uses it for the
  * committed set.
  *
- * This module is intentionally not wired into `scripts/docs/verify.ts` yet
- * (epic G adds it there together with the per-locale page reference check).
+ * `checkPublishedScreenshots` closes the last gap: the checks above validate
+ * `content/public/screenshots`, while readers download the copies the site build
+ * wrote into `dist/`. It compares them byte for byte, so a stale `dist/`
+ * directory cannot ship a manifest that no longer matches the PNGs beside it.
+ *
+ * Both are wired into `scripts/docs/verify.ts`, next to the per-page reference
+ * check in `screenshot-references.ts`.
  */
 import { open, readdir, readFile } from 'node:fs/promises';
 import { join, relative, resolve, sep } from 'node:path';
@@ -269,4 +274,60 @@ export async function checkScreenshotAssets(options: CheckOptions = {}): Promise
     scenarioCount: scenarios.length,
     fileCount: pngs.length,
   };
+}
+
+export interface ScreenshotPublishReport {
+  readonly ok: boolean;
+  /** One line per problem; empty when `ok` is true. */
+  readonly errors: readonly string[];
+  /** Files the source tree holds; a build must publish every one of them. */
+  readonly fileCount: number;
+}
+
+export interface CheckPublishedOptions {
+  /** The committed assets; defaults to the repository's docs screenshots. */
+  readonly directory?: string;
+  /** The built site root (the directory that holds `screenshots/`). */
+  readonly dist: string;
+}
+
+/**
+ * Compares the published `dist/screenshots/**` copies with the committed source,
+ * byte for byte, and reports files that exist on only one side.
+ */
+export async function checkPublishedScreenshots(options: CheckPublishedOptions): Promise<ScreenshotPublishReport> {
+  const directory = options.directory ?? SCREENSHOTS_DIRECTORY;
+  const published = join(options.dist, 'screenshots');
+  let sources: string[];
+  try {
+    sources = await walk(directory);
+  } catch {
+    return { ok: false, errors: [`Missing screenshots directory: ${directory}`], fileCount: 0 };
+  }
+
+  const errors: string[] = [];
+  for (const file of sources) {
+    const target = join(published, file);
+    let copied: Buffer;
+    try {
+      copied = await readFile(target);
+    } catch {
+      errors.push(`Missing published file: screenshots/${file}`);
+      continue;
+    }
+    if (!copied.equals(await readFile(join(directory, file)))) {
+      errors.push(`Published file differs from its source: screenshots/${file}`);
+    }
+  }
+
+  // A build that published something the source does not have is stale in the
+  // other direction; an absent directory is already reported per file above.
+  const known = new Set(sources);
+  for (const file of await walk(published).catch(() => [])) {
+    if (!known.has(file)) {
+      errors.push(`Published file has no source in content/public: screenshots/${file}`);
+    }
+  }
+
+  return { ok: errors.length === 0, errors, fileCount: sources.length };
 }

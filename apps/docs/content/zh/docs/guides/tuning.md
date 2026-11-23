@@ -5,7 +5,7 @@ description: 按太吵、太慢、太贵、不接话和说话怪这几种症状�
 
 # 按表现和费用调优
 
-调优不是把参数挨个调一遍：先确定「是哪一批消息、为什么这么处理、花了多少」，只改一个开关，然后再收集一遍证据对照。本页按症状组织，说明每个症状该动哪一处开关、之后去哪里看结果；字段的完整定义、默认值和生效方式在[Agent 配置](../configuration/agent.md)与 [Telegram 配置](../configuration/telegram.md)，本页不重抄字段表。
+调优不是把参数挨个调一遍：先确定「是哪一批消息、为什么这么处理、花了多少」，只改一个开关，然后再收集一遍证据对照。本页按症状组织，说明每个症状该动哪一处开关、之后去哪里看结果；字段的完整定义、默认值和生效方式在[Agent 配置](../configuration/agent.md)与 [Telegram 配置](../configuration/telegram.md)，本页不重抄字段表；逐字段的类型与默认值见 [`agent` 字段参考](../configuration/fields-agent.md) 与 [`telegram` 字段参考](../configuration/fields-telegram.md)。
 
 先记住一件事：**Bot 不回话经常是正常结果**。是否发言由模型自己决定，运行记录里「发送」为 0 多半只代表它读完之后选择了沉默（被拦下的发送会留在工具调用里）。真正要查的是「它有没有机会读」，不是「它有没有说话」。
 
@@ -100,7 +100,7 @@ description: 按太吵、太慢、太贵、不接话和说话怪这几种症状�
 
 上例的效果：孤零零一条消息 5 秒后交给模型；有人连着说话时，每句话都让它多等到这句之后 8 秒，但从第一句算起最多等 30 秒，之后的消息进下一批。
 
-<!-- screenshot: tuning/bucket-timing | Telegram 设置页的「消息批次」一组，三个时间字段与保存按钮 -->
+![Telegram 设置页的「消息批次」一组，三个时间字段与保存按钮](__DOCS_BASE__/screenshots/tuning/bucket-timing.zh-CN.light.png)
 
 三条跨字段规则由服务端校验：
 
@@ -118,7 +118,7 @@ description: 按太吵、太慢、太贵、不接话和说话怪这几种症状�
 
 它默认关闭，关闭时行为与没配置完全一样。开起来之后有两种模式：`shadow`（面板写作「只记录」）只记录判断、不影响调度；`enforce`（「拦截」）才会把被拒绝的批次关掉。
 
-<!-- screenshot: tuning/entry-gate | 入场闸门页面的「行为」与「连接」两块设置 -->
+![入场闸门页面的「行为」与「连接」两块设置](__DOCS_BASE__/screenshots/tuning/entry-gate.zh-CN.light.png)
 
 ### 它问什么
 
@@ -199,7 +199,7 @@ description: 按太吵、太慢、太贵、不接话和说话怪这几种症状�
 - **上下文**：保留发送目标与上限、强制清理比例、引用有效期、空闲等待、最长运行时间、内存缓存数。
 - **主动回复**：全局默认（见下文）。
 
-<!-- screenshot: tuning/harness-budget | 运行参数页的「预算与并发」与「发送行为」分组 -->
+![运行参数页的「预算与并发」与「发送行为」分组](__DOCS_BASE__/screenshots/tuning/harness-budget.zh-CN.light.png)
 
 一次可以改多项，点「保存并应用」写回配置文件并应用，点「放弃修改」恢复成文件里的值；只有真正改过的字段会写入文件，注释与格式保持不变。超出范围的值当场标红，需要跨字段判断的规则（例如保留发送目标必须小于保留发送上限、空闲等待必须覆盖消息批次最长等待）由服务端校验，失败时文件不动并给出原因。
 
@@ -236,7 +236,7 @@ n >= hard_pity ? 100% : min(100%, base_probability + (n - 1) × increment)
 - **导出即清空**。点「下载 Markdown」（文件名形如 `surowan-review-20260101-120000.md`）或「复制 Markdown」都会先确认，确认后清空草稿。面板不支持把导出的文件重新导入，请自己保存好。
 - **末尾的 JSON 尾块**。文档最后有 `## Review data (JSON)` 一段，`format` 为 `surowan.invocation-review`、`version` 1，是上面全部意见的机器可读副本；外部 Agent 可以用它做结构化输入。
 
-<!-- screenshot: tuning/review-export | 批改页的导出用途选择与导出确认弹窗 -->
+![批改页的导出用途选择与导出确认弹窗](__DOCS_BASE__/screenshots/tuning/review-export.zh-CN.light.png)
 
 导出的 Markdown 怎么交给本地 Agent、以及 Agent 会先做哪些只读检查，见[让你的本地 Agent 帮你调整塑料碗](agent-assisted.md)。
 
@@ -256,7 +256,7 @@ n >= hard_pity ? 100% : min(100%, base_probability + (n - 1) × increment)
 
 续跑是**真的花钱、真的可能发消息**的操作，所以对 API key 调用方它属于 `write+paid`：只有 `all` 模式的 key 能调。重放（replay）是另一件事，它不产生 Telegram 副作用，见[Invocation 预检与重放](../developer/replay.md)。
 
-<!-- screenshot: tuning/invocation-resume | 失败运行的详情页，续跑按钮与实时刷新开关 -->
+![失败运行的详情页，续跑按钮与实时刷新开关](__DOCS_BASE__/screenshots/tuning/invocation-resume.zh-CN.light.png)
 
 ## 用证据比较改动的结果
 

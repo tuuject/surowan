@@ -103,7 +103,7 @@ surowan-utils auth logout --json
 
 ## 通用面板命令
 
-任何一个面板操作都是一条命令，参数、方法与路径来自与服务端同一份接口表：
+任何一个面板操作都是一条命令，参数、方法与路径来自与服务端同一份接口表；生成好的 [客户端 CLI 命令目录](cli-commands.md) 逐条列出方法、路由、权限与确认要求：
 
 ```bash
 surowan-utils harness show --json

@@ -21,16 +21,17 @@ Token 就是这只 Bot 的全部权限。不要把它贴进聊天、截图、Iss
 
 打开 **Telegram** 页：
 
+![Telegram 页：尚未配置 Token](__DOCS_BASE__/screenshots/first-bot/telegram-token-empty.zh-CN.light.png)
+
 1. 在 **机器人 Token** 卡片里，把 Token 粘进 **新的机器人 Token**。
 2. **条目名** 默认是 `telegram`，可以改。Token 存在 Keychain 里，`config.jsonc` 只写条目名，不写明文。
 3. 点 **保存 Token**。页面会立刻应用，不需要重启。
 
 保存成功后，**连接** 卡片显示 **状态：正常**、Bot 的 `@用户名` 与数字 ID，`自` 是连接建立的时间。如果状态是 **配置异常** 并写着「Token 被拒绝」，说明 Token 复制错了或被撤销；写着「这个 Token 正被其他进程使用」，说明同一只 Bot 还有另一个实例在轮询，先去关掉那一个。
 
-第一次保存会在配置文件里创建整个 `telegram` 段，并带上默认的消息批次时间：最短等待 15 秒、不因新消息延长、最长等于最短。
+![Token 生效后连接状态为「正常」](__DOCS_BASE__/screenshots/first-bot/telegram-connected.zh-CN.light.png)
 
-<!-- screenshot: first-bot/telegram-token-empty | Telegram 页：尚未配置 Token -->
-<!-- screenshot: first-bot/telegram-connected | Token 生效后连接状态为「正常」 -->
+第一次保存会在配置文件里创建整个 `telegram` 段，并带上默认的消息批次时间：最短等待 15 秒、不因新消息延长、最长等于最短。
 
 ## 3. 让它在群里能看见消息
 
@@ -45,7 +46,7 @@ Token 就是这只 Bot 的全部权限。不要把它贴进聊天、截图、Iss
 
 ## 4. 允许一个会话
 
-两种方法，效果一样，都是把会话写进 `telegram.chats` 并立即生效。
+两种方法，效果一样，都是把会话写进 `telegram.chats` 并立即生效。那一行能写哪些字段，见 [`telegram` 字段参考](../configuration/fields-telegram.md)。
 
 **方法一：让 Bot 自己加。** 先把你的数字 Telegram 用户 ID 加到 **机器人管理员**（同样在这一页的 Telegram 分组），然后在目标群里以你的账号发送：
 
@@ -66,7 +67,7 @@ Token 就是这只 Bot 的全部权限。不要把它贴进聊天、截图、Iss
 
 会话 ID 在 Telegram 客户端里不直接显示：私聊的会话 ID 就是对方（或你自己）的数字用户 ID，`/whoami` 会在 Bot 能回答的会话里直接报出来；群组用上面的 `/allowlist` 最省事。已经加进白名单的会话，ID 会直接显示在 **会话** 页那一行下面，方便你核对。
 
-<!-- screenshot: first-bot/chat-allowlist | Chats 页：一个已允许的会话 -->
+![会话页：两个已允许的会话](__DOCS_BASE__/screenshots/first-bot/chat-allowlist.zh-CN.light.png)
 
 ## 5. 用 `/help` 验证
 

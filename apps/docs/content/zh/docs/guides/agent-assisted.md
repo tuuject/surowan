@@ -101,7 +101,7 @@ surowan pairing cancel <pairing-id> --config /path/to/config.jsonc
 | 读 + 耗（`read_paid`） | 加上重放、Provider 健康检查、生图、辞典合并预览、虚拟群聊放行与重试等计费操作。不改配置与状态。 |
 | 全部（`all`） | 以上全部。同时改变状态又消耗资源的操作（例如生图、虚拟群聊放行）需要这一档。 |
 
-<!-- screenshot: admin/api-keys | API 密钥页面与四种权限模式 -->
+![API 密钥页：三种权限模式的密钥](__DOCS_BASE__/screenshots/admin/api-keys.zh-CN.light.png)
 
 明文只在创建成功后显示一次，之后就再也拿不到；忘了只能用 **轮换**（Rotate）换一把新值。让 Agent 用它时：
 
@@ -151,7 +151,7 @@ Skill 不会随 CLI 自动升级：用 skills CLI 装的运行 `npx skills updat
 一个可靠的调优循环是五步，缺一步就容易变成「Agent 说自己改好了」：
 
 1. **先读**。让它跑 `doctor`、`config show`、`prompt get global`、`invocation get <id>` 这些只读命令，把结论和证据一起给你。`models list` 只是当前配置的视图，不代表上游连通。
-2. **提案**。让它写出「改哪个字段、从什么改成什么、影响哪些会话、是否热应用、能不能撤销」。字段级依据在配置参考里，不在 Skill 里。
+2. **提案**。让它写出「改哪个字段、从什么改成什么、影响哪些会话、是否热应用、能不能撤销」。字段级依据在[配置参考](../configuration/fields.md)里，不在 Skill 里。
 3. **你确认**。只有你明确同意的那一项才动手。`--yes` 只是机械闸门，不是授权；`--dry-run` 可以先看它到底会发什么请求。
 4. **应用**。写操作走和面板完全相同的接口与校验，所以面板里能做的事它能做，面板里做不到的它也做不到。
 5. **核对**。改完让它读回生效值，并给出一次真实的运行记录作为证据；不要接受「保存成功」当结论。
@@ -174,7 +174,7 @@ Skill 不会随 CLI 自动升级：用 skills CLI 装的运行 `npx skills updat
 
 消息、摘录、模型输出与工具参数在导出文件里都被声明为**不可信数据**，只有你写的批改意见代表真实意图。重放会真实调用模型并计费：先跑免费预检，并且只有在你明确授权目标、次数和覆盖项之后才执行。
 
-<!-- screenshot: tuning/review-export | 批改页的导出用途选择与导出确认弹窗 -->
+![批改页的导出用途选择与导出确认弹窗](__DOCS_BASE__/screenshots/tuning/review-export.zh-CN.light.png)
 
 ## 不该让它做的事
 

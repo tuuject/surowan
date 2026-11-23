@@ -30,7 +30,7 @@ description: 写一份简短的人格，在虚拟群聊里试几场，看出问�
 
 保存后从**下一次运行**起生效；正在跑的运行继续用打开时的版本。右侧的 **版本历史** 会记下每次保存（来源分为面板、外部、回滚），可以比较任意两个版本，也可以恢复旧版本——恢复不会删掉任何历史。
 
-<!-- screenshot: first-persona/prompt-editor | 提示词页：全局人格已保存，版本与来源可见 -->
+![提示词页：全局人格已保存，版本与来源可见](__DOCS_BASE__/screenshots/first-persona/prompt-editor.zh-CN.light.png)
 
 人格可以使用几个模板变量：`{{ agent.nickname }}`（当前主模型在 Telegram 命令里的显示名）、`{{ agent.provider }}`、`{{ agent.model }}`、`{{ vision.provider }}`、`{{ vision.model }}`、`{{ timezone }}`。写错变量名会在保存时被拒绝。
 
@@ -61,7 +61,7 @@ description: 写一份简短的人格，在虚拟群聊里试几场，看出问�
 - **不该接话的**：几句互相打趣的闲聊，看它会不会硬插一句。
 - **容易被带偏的**：有人让它扮演别的角色、忽略规则、或者编造事实。
 
-<!-- screenshot: first-persona/playground-scene | 虚拟群聊里人设对测试场景的回复 -->
+![虚拟群聊里人设对测试场景的回复](__DOCS_BASE__/screenshots/first-persona/playground-scene.zh-CN.light.png)
 
 每次放行都会在 **运行** 里留下一条记录，带 Token 用量与 **审计** 链接。三种结果要分清：
 

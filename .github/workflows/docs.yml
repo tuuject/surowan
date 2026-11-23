@@ -38,10 +38,20 @@ jobs:
       - run: pnpm run check
       - run: pnpm run lint
       # Separate runs: a filter that matches no file exits non-zero, while
-      # vitest ORs multiple filters and silently passes a stale one.
+      # vitest ORs multiple filters and silently passes a stale one. Every
+      # `test/docs/*.test.ts` file is one step, so deleting or renaming one
+      # fails the job instead of quietly dropping out of the suite.
+      - run: pnpm test test/docs/config-fields.test.ts
       - run: pnpm test test/docs/examples.test.ts
+      - run: pnpm test test/docs/interface-catalog.test.ts
+      - run: pnpm test test/docs/interface-catalog-labels.test.ts
+      - run: pnpm test test/docs/lifecycle.test.ts
+      - run: pnpm test test/docs/markdown.test.ts
       - run: pnpm test test/docs/redirects.test.ts
+      - run: pnpm test test/docs/screenshot-assets.test.ts
+      - run: pnpm test test/docs/screenshot-references.test.ts
       - run: pnpm test test/docs/search.test.ts
+      - run: pnpm test test/docs/spaces.test.ts
       - run: pnpm run docs:build
       - run: pnpm run docs:verify
       - name: Ensure generated files stay ignored

@@ -23,7 +23,7 @@ description: 开启网络搜索与网页读取、安排循环闹钟、接入出�
 
 打开 **网络搜索（Web search）**：
 
-<!-- screenshot: tools/search-settings | 网络搜索页：开关、引擎与 URL 过滤 -->
+![网络搜索页：已配置的引擎与 URL 过滤](__DOCS_BASE__/screenshots/tools/search-settings.zh-CN.light.png)
 
 - **启用网络搜索** 控制整个功能。关闭它，或禁用全部引擎，效果相同：能力与 Skill 立即消失，**正在进行的运行会停止**，下一条消息用重建的上下文。
 - **搜索引擎** 可以添加多个。每个引擎填：服务商、模型可见的**引擎 ID**（小写字母、数字、短横线）、**服务地址**（留空用服务商默认；SearXNG 必填）、**结果条数**（1–10）、**超时（秒）**（5–30）、以及一条**给模型看的备注**。备注会出现在工具描述与引擎列表里，说明这个引擎适合搜哪些网站或内容，模型据此挑选引擎。
@@ -42,7 +42,7 @@ description: 开启网络搜索与网页读取、安排循环闹钟、接入出�
 - 结果被 URL 规则过滤时，结果头部会说明丢了多少条。
 - 返回内容始终是不可信数据，不能当作指令或授权。
 
-字段与校验见[网络搜索配置](../configuration/web-search.md)。
+字段与校验见[网络搜索配置](../configuration/web-search.md)与 [`web_search` 字段参考](../configuration/fields-web-search.md)。
 
 ## 网页读取与看图
 
@@ -54,7 +54,7 @@ description: 开启网络搜索与网页读取、安排循环闹钟、接入出�
 - 遇到防盗链时可以带上 `referer`（通常填所在网页的地址）。只有支持图片输入的模型才看得到画面，否则只会收到一段说明。
 - 需要 JS 渲染、登录或复杂解析时，请接入 MCP。
 
-`web_fetch.dangerously_allow_all_ip_addresses: true` 会取消全部地址限制，让任何能触发 Bot 的人借模型访问你的内网，只在完全信任这些人时开启。完整字段见[网页读取配置](../configuration/web-fetch.md)。
+`web_fetch.dangerously_allow_all_ip_addresses: true` 会取消全部地址限制，让任何能触发 Bot 的人借模型访问你的内网，只在完全信任这些人时开启。完整字段见[网页读取配置](../configuration/web-fetch.md)与 [`web_fetch` 字段参考](../configuration/fields-web-fetch.md)。
 
 ## 定时任务：一次性提醒与循环闹钟
 
@@ -78,7 +78,7 @@ description: 开启网络搜索与网页读取、安排循环闹钟、接入出�
 
 ### 创建
 
-<!-- screenshot: tools/recurring-alarm | 循环闹钟编辑对话框：规则、Cron 与未来 5 次预览 -->
+![循环闹钟编辑对话框：规则、Cron 与未来 5 次预览](__DOCS_BASE__/screenshots/tools/recurring-alarm.zh-CN.light.png)
 
 1. 点「新建循环闹钟」。
 2. 填**标题**：只在面板里显示，Bot 看不到它。
@@ -136,7 +136,7 @@ API key 也能管理循环闹钟（`surowan-utils` 的 `recurring-alarm` 命令�
 
 打开 **MCP 服务器（MCP servers）**：
 
-<!-- screenshot: tools/mcp-servers | MCP 服务器页：状态、渐进式暴露与技能列表 -->
+![MCP 服务器页：状态、渐进式暴露与技能列表](__DOCS_BASE__/screenshots/tools/mcp-servers.zh-CN.light.png)
 
 页面显示每个 Server 的实时状态（**就绪** / **连接中** / **不可用** / **无实时状态**，含错误码）、连接摘要、它发现过的全部工具（含被工具选择隐藏的），以及使用情况（哪些会话显式绑定、哪些会话靠继承使用）。
 
@@ -186,7 +186,7 @@ API key 也能管理循环闹钟（`surowan-utils` 的 `recurring-alarm` 命令�
 
 绑定只收窄，不改连接：命令、URL、环境变量与 Header 仍属于 Server。需要两种连接就配两个别名。Playground 房间永远没有 MCP 工具。
 
-配置字段见[外部 MCP 配置](../configuration/mcp.md)，按会话的字段见 [Telegram 配置](../configuration/telegram.md)。
+配置字段见[外部 MCP 配置](../configuration/mcp.md)与 [`mcp` 字段参考](../configuration/fields-mcp.md)，按会话的字段见 [Telegram 配置](../configuration/telegram.md)与 [`telegram` 字段参考](../configuration/fields-telegram.md)。
 
 ## 只读文档与外部工具的区别
 

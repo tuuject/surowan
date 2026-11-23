@@ -131,7 +131,7 @@ surowan-utils decision-gate decisions --chat <会话 ID> --limit 50
 - **`mcp_required_deprecated`** 提醒配置里还留着 `mcp.servers[].required`，它已不再生效，删掉即可。
 - 启动不再等待 MCP：连不上只会让这台服务器降级，不影响 Bot 启动。工具调用失败最终落在运行详情的「工具调用」里，带 `mcp_tool_error` 或 `mcp_call_failed` 之类的错误码。
 
-<!-- screenshot: troubleshooting/mcp-degraded | 警告页列出一台降级中的 MCP 服务器及其错误码 -->
+![警告页列出一台降级中的 MCP 服务器及其错误码](__DOCS_BASE__/screenshots/troubleshooting/mcp-degraded.zh-CN.light.png)
 
 ## 群聊记忆的批次失败
 
@@ -155,9 +155,9 @@ surowan-utils decision-gate decisions --chat <会话 ID> --limit 50
 「我改了配置但行为没变」几乎都是这两种之一：
 
 - **文件改了没应用**。手改 `config.jsonc` 之后要到 **设置**（Settings）页点「应用配置文件」；页面上的「配置版本」一组会显示生效哈希、文件哈希，以及「与文件一致」还是「文件有改动」，「最近错误」给出上一次应用失败的原因。需要重启的字段在**会话**页顶部会显示「N 项设置正在等待重启」与「立即重启」。
-- **字段属于重启生效**。哪些热应用、哪些必须重启见[配置生命周期](../configuration/lifecycle.md)；热应用字段的输入框下会显示「运行中：…」，那是正在生效的旧值。
+- **字段属于重启生效**。哪些热应用、哪些必须重启见[配置生命周期](../configuration/lifecycle.md)；热应用字段的输入框下会显示「运行中：…」，那是正在生效的旧值。逐字段的类型与默认值见 [`agent`](../configuration/fields-agent.md)、[`telegram`](../configuration/fields-telegram.md)、[`vision`](../configuration/fields-vision.md) 字段参考。
 
-<!-- screenshot: troubleshooting/config-drift | 设置页显示文件哈希与生效哈希不一致、文件有改动 -->
+![设置页显示文件哈希与生效哈希不一致、文件有改动](__DOCS_BASE__/screenshots/troubleshooting/config-drift.zh-CN.light.png)
 
 **废弃字段**不再有任何效果，`check-config` 的 `warnings` 会列出路径，**警告**页同时给出 `config_fields_deprecated`。需要清理的有：`agent.memory_ttl_warning_days`、`agent.send_empty_text_fallback_enabled`（改用 `agent.send_empty_text_strategy` 的 `random_text`）、`vision.background_sticker_concurrency`，以及 `mcp.servers[].required`。
 
@@ -179,7 +179,7 @@ surowan-utils decision-gate decisions --chat <会话 ID> --limit 50
 - `failed` / `aborted` / `outcome_unknown`：看「完成原因」与「错误码」，这时可以考虑续跑。
 - 有 `send` 工具调用但失败：错误码会说明是发送规则（重复、空文本、长度、引用）、权限还是 Telegram 侧拒绝。
 
-<!-- screenshot: troubleshooting/tool-calls | 运行详情页的工具调用与 Telegram 发送结果 -->
+![运行详情页的工具调用与 Telegram 发送结果](__DOCS_BASE__/screenshots/troubleshooting/tool-calls.zh-CN.light.png)
 
 界面上看不到结论时，用脚本在命令行读同一份审计：
 
@@ -206,7 +206,7 @@ node scripts/audit.ts invocation <运行 ID>
 | `resume_agent_unconfigured` | 会话的模型配置不完整。 |
 | `resume_unsupported_host` | 虚拟群聊的失败运行走房间自己的重试，不走续跑。 |
 
-<!-- screenshot: tuning/invocation-resume | 失败运行的详情页，续跑按钮与实时刷新开关 -->
+![失败运行的详情页，续跑按钮与实时刷新开关](__DOCS_BASE__/screenshots/tuning/invocation-resume.zh-CN.light.png)
 
 续跑不是重放：重放不产生 Telegram 副作用，也不会继续这个会话的上下文，见[Invocation 预检与重放](../developer/replay.md)。
 

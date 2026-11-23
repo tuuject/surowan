@@ -79,7 +79,7 @@ docker compose exec -u surowan plasticwan node /app/src/cli.ts pairing create --
 
 登录后到 **设置 → 管理员凭据**：填新用户名（3–32 个字母、数字、点、下划线或连字符）与新密码（12–200 个字符），点 **更新凭据**。其他浏览器上的登录会同时退出。
 
-<!-- screenshot: installation/sign-in-one-time-code | 登录页的「使用一次性码登录」表单 -->
+![登录页的「使用一次性码登录」表单](__DOCS_BASE__/screenshots/installation/sign-in-one-time-code.zh-CN.light.png)
 
 ## 5. 接一个能正常回复的 Agent 模型
 
@@ -89,6 +89,8 @@ docker compose exec -u surowan plasticwan node /app/src/cli.ts pairing create --
 2. 点 **获取模型列表**，勾选要启用的模型，点创建。取不到列表时可以用 **手动添加** 按模型 ID 查询参数。
 3. 打开 **模型**，在 **主模型** 卡片里选刚加入的模型与思考强度，点右下角的 **保存**。
 4. 回到 **供应商**，点模型行的 **测试**：结果显示 **正常** 并给出模型的回复原话，就说明这个模型真的能用。
+
+![模型页：三项角色与底部保存栏](__DOCS_BASE__/screenshots/models/model-roles.zh-CN.light.png)
 
 主模型只要求能读文字；图片识别是另选的可选角色，不影响这一步。元数据补全、昵称、批量健康检查以及换模型时会发生什么，都在[接入和更换模型](models.md)。
 
@@ -106,7 +108,7 @@ docker compose exec -u surowan plasticwan node /app/src/cli.ts pairing create --
 
 `public_url` 必须是规范的 HTTPS origin：不能带路径、查询参数、用户名或片段，也不能是 IP 地址（本机开发可以用 `http://localhost`）。它是 WebAuthn 的 RP，换了域名就要重新注册通行密钥。
 
-`admin.*` 属于需要重启的字段：改完执行 `docker compose restart plasticwan`，再从配置的这个来源打开面板，在 **设置 → 通行密钥** 里 **添加通行密钥**。之后登录页会出现 **使用通行密钥登录**。
+`admin.*` 属于需要重启的字段（类型与默认值见 [`admin` 字段参考](../configuration/fields-admin.md)）：改完执行 `docker compose restart plasticwan`，再从配置的这个来源打开面板，在 **设置 → 通行密钥** 里 **添加通行密钥**。之后登录页会出现 **使用通行密钥登录**。
 
 ## 7. 可选：离线建号与恢复（需要停机）
 

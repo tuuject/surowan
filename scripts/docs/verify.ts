@@ -12,7 +12,10 @@ import { type DocsLocale, docsLocales, localeText, provenanceText } from './loca
 import { CODE_BLOCK_PATTERN } from './markdown.ts';
 import { deploymentSettings, docsRoot, exampleNames, exampleSource, repositoryRoot } from './prepare.ts';
 import { redirectRules, renderRedirects } from './redirects.ts';
+import { checkPublishedScreenshots, checkScreenshotAssets } from './screenshot-assets.ts';
+import { checkScreenshotReferences } from './screenshot-references.ts';
 import { ConfigSchema } from '../../src/platform/config/schema.ts';
+import { DOCS_SCENARIOS } from '../../apps/admin-next/docs-screenshots/scenarios.ts';
 
 const dist = resolve(docsRoot, 'dist');
 const files = (await readdir(dist, { recursive: true, withFileTypes: true }))
@@ -158,6 +161,8 @@ assert.deepEqual(
 for (const [lang, pages] of pageSets) {
   const text = locale[lang];
   const prefix = lang === 'zh' ? '' : 'en/';
+  // A locale's page set is only half the screenshot contract; the reference
+  // check below proves each image is the right locale and every scenario is used.
   const index = (await read(`${prefix}llms.txt`)).replaceAll('\r\n', '\n');
   const bundle = (await read(`${prefix}llms-full.txt`)).replaceAll('\r\n', '\n');
   for (const output of [index, bundle]) {
@@ -274,6 +279,21 @@ for (const [source, text] of [
   }
 }
 
+// The committed screenshots: complete, paired, decodable, actually used, and
+// copied byte for byte into the artifact. One report, so a broken file never
+// hides a crossed locale two pages later.
+const screenshotAssets = await checkScreenshotAssets({
+  expectedIds: DOCS_SCENARIOS.map((scenario) => scenario.id),
+});
+const screenshotReferences = await checkScreenshotReferences();
+const screenshotPublish = await checkPublishedScreenshots({ dist });
+const screenshotErrors = [
+  ...screenshotAssets.errors.map((error) => `assets: ${error}`),
+  ...screenshotReferences.errors.map((error) => `references: ${error}`),
+  ...screenshotPublish.errors.map((error) => `published: ${error}`),
+];
+assert(screenshotErrors.length === 0, `Screenshot check failed:\n${screenshotErrors.join('\n')}`);
+
 // Every old URL is redirected, and every redirect target is a page this build emitted.
 assert.equal((await read('_redirects')).replaceAll('\r\n', '\n'), renderRedirects(base), 'Redirects are stale');
 let redirectDirectory: string | undefined;
@@ -365,5 +385,5 @@ try {
   await preview.server.close();
 }
 console.log(
-  `Verified ${[...pageSets.values()].flat().length} HTML/Markdown pages in two locales, search, examples, schema, provenance, redirects and ${localPaths.size} HTTP resources (base ${base}).`,
+  `Verified ${[...pageSets.values()].flat().length} HTML/Markdown pages in two locales, ${String(screenshotAssets.scenarioCount)} screenshots (${String(screenshotReferences.referenceCount)} page references), search, examples, schema, provenance, redirects and ${String(localPaths.size)} HTTP resources (base ${base}).`,
 );

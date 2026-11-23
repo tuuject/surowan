@@ -25,7 +25,7 @@ All four are scoped to a Chat: every Forum Topic of a group shares one Memo Pad,
 
 ## Context: nothing to maintain
 
-One Conversation has exactly one continuous history for its whole life. It is never summarized; it only drops the oldest part at checkpoints, and those thresholds live under `agent.context`, described in [Agent settings](../configuration/agent.md).
+One Conversation has exactly one continuous history for its whole life. It is never summarized; it only drops the oldest part at checkpoints, and those thresholds live under `agent.context`, described in [Agent settings](../configuration/agent.md) and the [`agent` field reference](../configuration/fields-agent.md).
 
 Two practical consequences:
 
@@ -73,7 +73,7 @@ The injection details explain the occasional "why did the bot forget what I just
 
 Open **Memories**:
 
-<!-- screenshot: knowledge/memo-editor | The memo editor on the Memories page -->
+![The memo editor on the Memories page](__DOCS_BASE__/screenshots/knowledge/memo-editor.en.light.png)
 
 1. Filter by Chat and **State**: **Active**, **Expired**, **Short-term**, **Long-term**. The list shows summaries only; **View** opens the full detail.
 2. **New memo** asks for a Chat, a summary, a detail (Markdown is supported) and a **Lifetime in days**.
@@ -150,7 +150,7 @@ Group memory is shared by the Chat and its Topics; summaries and raw messages of
 
 Open **Group memory**. The top of the page is **Consolidation progress**:
 
-<!-- screenshot: knowledge/group-memory-progress | Consolidation progress at the top of the Group memory page -->
+![Consolidation progress at the top of the Group memory page](__DOCS_BASE__/screenshots/knowledge/group-memory-progress.en.light.png)
 
 One row per Chat with group memory on, showing:
 
@@ -177,7 +177,7 @@ Set it in the group-memory dialog on the **Chats** page, or in the configuration
 }
 ```
 
-<!-- screenshot: knowledge/thirty-hour-clock | The 30-hour clock setting in the group-memory dialog -->
+![The 30-hour clock setting in the group-memory dialog](__DOCS_BASE__/screenshots/knowledge/thirty-hour-clock.en.light.png)
 
 | Value | What a dated search returns |
 | --- | --- |
@@ -253,7 +253,7 @@ Generating a suggestion calls the **Tool model** (configured on **Models**, inhe
 
 The **Import** and **Export** buttons at the top of the Dictionary page handle CSV and JSONL. Import asks for a target scope, reads a file or pasted text, shows a parse preview with potential conflicts, and writes only after you confirm. Import **only creates entries**: a matching name never overwrites or updates an existing entry.
 
-<!-- screenshot: knowledge/dictionary-import | Potential conflicts in the dictionary import preview -->
+![The dictionary import preview with the parsed row, its aliases and the conflict check](__DOCS_BASE__/screenshots/knowledge/dictionary-import.en.light.png)
 
 CSV columns are `term`, `definition`, `aliases` and `enabled`. Several aliases in one cell are separated by `|`; a literal pipe inside an alias is written `\|` and a backslash `\\`. Cells containing commas, quotes or line breaks follow RFC 4180 (quote the cell, double the quotes):
 

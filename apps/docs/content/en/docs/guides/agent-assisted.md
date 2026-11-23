@@ -101,7 +101,7 @@ Create keys on the **API keys** page (`/api-keys`), which requires an administra
 | Read + paid (`read_paid`) | Adds replay, provider health checks, image generation, dictionary merge preview, Playground release and retry. No configuration or state changes. |
 | All (`all`) | Everything. Operations that change state *and* cost money (image generation, Playground release) need this mode. |
 
-<!-- screenshot: admin/api-keys | The API keys page with the four permission modes -->
+![The API keys page holding keys in three permission modes](__DOCS_BASE__/screenshots/admin/api-keys.en.light.png)
 
 The plaintext is shown once, right after creation, and can never be read again; forgetting it means using *Rotate*. To hand it to an agent:
 
@@ -151,7 +151,7 @@ Skills do not upgrade with the CLI: a skills-CLI install updates with `npx skill
 A reliable loop has five steps, and skipping one is how "the agent said it fixed it" happens:
 
 1. **Read first.** Have it run `doctor`, `config show`, `prompt get global` and `invocation get <id>`, and report conclusions together with the evidence. `models list` is a view of the current configuration, not proof that an upstream provider answers.
-2. **Propose.** Ask for the field, the old and new value, which chats are affected, whether it applies hot, and how to undo it. Field-level truth lives in the configuration reference, not in the skill.
+2. **Propose.** Ask for the field, the old and new value, which chats are affected, whether it applies hot, and how to undo it. Field-level truth lives in the [configuration reference](../configuration/fields.md), not in the skill.
 3. **You confirm.** Only the specific change you approved gets written. `--yes` is a mechanical gate, never the approval itself; `--dry-run` shows the exact request first.
 4. **Apply.** Writes go through the same endpoints and validation as the panel, so the agent can do exactly what the panel can and nothing more.
 5. **Verify.** Have it read the effective value back and cite a real invocation as evidence; "saved successfully" is not a result.
@@ -175,7 +175,7 @@ The Markdown exported from **Reviews** is written for exactly this hand-off: it 
 
 Messages, excerpts, model output and tool arguments are declared **untrusted data** inside the export; only your comments express intent. Replay really calls a model and really costs money: run the free preflight first, and replay only after you authorise the target, the count and any overrides.
 
-<!-- screenshot: tuning/review-export | The purpose selector and export confirmation dialog on the Reviews page -->
+![The purpose selector and export confirmation dialog on the Reviews page](__DOCS_BASE__/screenshots/tuning/review-export.en.light.png)
 
 ## What it should never do
 

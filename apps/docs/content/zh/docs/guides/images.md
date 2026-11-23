@@ -20,7 +20,7 @@ description: 图片理解、Sticker 与贴纸集，以及图片生成的设置�
 - **主模型支持图片输入**时，最新一个批次里收到的照片与受支持的图片文件会直接附带给主模型，顺序与消息里的 `figure_N` 一致。附件不会被保留。
 - **更早的图片**（包括前面批次的 `figure_N`）和所有 Sticker，都要模型主动调用 `read_image`，由 **Vision** 模型分析并返回文字描述。
 - 没有配置 Vision 时，`read_image` 不可用，`figure_N` 之外的历史图片和 Sticker 都看不到；Sticker 的视觉索引也会暂停（已导入的贴纸保持待处理，不累积失败）。
-- Vision 有独立的模型、思考强度、并发与每日预算（`max_tokens` 与 `max_images`），见[Vision 配置](../configuration/vision.md)。
+- Vision 有独立的模型、思考强度、并发与每日预算（`max_tokens` 与 `max_images`），见[Vision 配置](../configuration/vision.md)与 [`vision` 字段参考](../configuration/fields-vision.md)。
 
 图片不是随便能引用的：只有当前 Conversation 授权且未过期的 `img_` / `stk_` 引用可读，引用按 Conversation 隔离，过期即失效。系统不接受任意 file ID 或 Chat ID。
 
@@ -28,7 +28,7 @@ description: 图片理解、Sticker 与贴纸集，以及图片生成的设置�
 
 Bot 只会发送你允许的贴纸集里的贴纸。它们写进 `telegram.sticker_sets`，在 **贴纸集（Bot sticker sets）** 页管理，改动立即生效，无需重启。
 
-<!-- screenshot: images/sticker-sets | 贴纸集页：已配置的贴纸集与贴纸搜索索引 -->
+![贴纸集页：已配置的贴纸集与贴纸搜索索引](__DOCS_BASE__/screenshots/images/sticker-sets.zh-CN.light.png)
 
 ### 添加、编辑与删除
 
@@ -58,7 +58,7 @@ Bot 只会发送你允许的贴纸集里的贴纸。它们写进 `telegram.stick
 
 `config.jsonc` 里没有 `image` 段时图片生成处于禁用状态：Bot 照常运行，只是模型看不到生图工具，面板也不显示图片相关页面。推荐在面板 **图片设置（Image settings）** 里启用：
 
-<!-- screenshot: images/image-settings | 图片设置页：已启用、已添加模型、可以保存 -->
+![图片设置页：已启用、已添加模型、可以保存](__DOCS_BASE__/screenshots/images/image-settings.zh-CN.light.png)
 
 1. 勾选**启用图片生成**。
 2. **密钥来源**：可以选用已保存的 OpenRouter 凭据（比如 Provider 页里已经存好的那个），也可以输入新的 API 密钥。已有凭据留空即沿用。
@@ -76,7 +76,7 @@ Bot 只会发送你允许的贴纸集里的贴纸。它们写进 `telegram.stick
 - 保存时如果配置文件已在别处被修改，会提示冲突，刷新后重试。
 - 设置页显示已启用但工作台仍显示禁用时，检查日志里的 `image_service_warning`（例如凭据无法读取）；修好后在 **设置（Settings）** 应用配置。
 
-也可以直接写配置，字段说明见[图片生成配置](../configuration/image.md)：
+也可以直接写配置，字段说明见[图片生成配置](../configuration/image.md)与 [`image` 字段参考](../configuration/fields-image.md)：
 
 ```jsonc
 {
@@ -136,7 +136,7 @@ Bot 只会发送你允许的贴纸集里的贴纸。它们写进 `telegram.stick
 
 **图片生成（Image generation）** 是工作台：
 
-<!-- screenshot: images/generate-workbench | 图片生成工作台：提示词里内联了一张素材 -->
+![图片生成工作台：提示词里内联了一张素材](__DOCS_BASE__/screenshots/images/generate-workbench.zh-CN.light.png)
 
 1. 写提示词，或把素材插到光标处。参考图有三个来源：最近一排素材、**更多** 里搜索整个素材库、或在本页新上传。
 2. 点选素材会插入 `{{image:<素材 ID>}}`；紧挨文本框的「引用中的参考图」一排随文本实时增删，点移除即删掉该素材的全部引用。
@@ -146,15 +146,15 @@ Bot 只会发送你允许的贴纸集里的贴纸。它们写进 `telegram.stick
 
 **生图记录（Image generations）** 是审计列表：
 
-<!-- screenshot: images/generation-record | 一条已完成的生图记录详情 -->
+![一条已完成的生图记录详情](__DOCS_BASE__/screenshots/images/generation-record.zh-CN.light.png)
 
 点生成编号进入独立详情（也可直接打开 `/image-generations/<生成编号>`），包含状态、使用的模型、提交来源（管理员或哪个会话）、每次尝试的上游请求与用量、最终提示词、输出大图与错误信息。参考图按当时提交给模型的顺序展示并保留当时的名称，点击可看原图；素材归档后仍可查看，原图已清理时显示提示。失败的生成可以点「重试」。
 
 **生图素材（Image assets）** 是提示词素材与参考图库：
 
-<!-- screenshot: images/image-assets | 生图素材页：Agent 可用开关与 AI 提取 -->
+![生图素材页：Agent 可用开关与 AI 提取](__DOCS_BASE__/screenshots/images/image-assets.zh-CN.light.png)
 
-- 生成产物会自动进入图库；参考图可上传（单个不超过 20 MB）、编辑与归档。
+- 生成产物会自动进入图库；参考图可上传（单个不超过 20 MiB）、编辑与归档。
 - 编辑弹窗可以改名称、描述、分类与关键词（整行最长 500 字符，逗号分隔），并切换**Agent 可以使用这个素材**。
 - 该开关**默认关闭**。打开后，素材进入所有会话的素材搜索，聊天里的 Agent 就能查到并用作参考图；这是让素材跨会话可用的唯一方式。
 - **AI 提取**让工具模型看图，提议名称与关键词：结果只填充表单，点「保存」才落盘。这是一次**计费的**模型调用。工具模型不能读图时会说明原因、给出工具模型配置页的链接，并允许为这一次提取临时选一个能看图的模型（临时选择不保存）。

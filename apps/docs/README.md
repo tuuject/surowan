@@ -15,9 +15,10 @@ pnpm test test/manual-pack.test.ts
 pnpm run docs:build
 pnpm run docs:verify
 pnpm run docs:preview
+pnpm run docs:screenshots
 ```
 
-开发与预览默认监听 `127.0.0.1:5274`，不要同时占用同一端口。`docs:verify` 对已有 `dist/` 验证两种语言的内容、链接、来源提交、`llms.txt`/`llms-full.txt`、搜索索引、下载文件、旧 URL 重定向，并临时启动框架原生生产预览（回环地址、5276 起可用端口），逐个 HTTP 核对后关闭。它不调用 Bot、Doctor、Telegram 或 Provider；不存在的 Markdown 必须在 `/` 与 `/en/` 下都返回 404，不得用 SPA fallback 返回首页。
+开发与预览默认监听 `127.0.0.1:5274`，不要同时占用同一端口。`docs:verify` 对已有 `dist/` 验证两种语言的内容、链接、来源提交、`llms.txt`/`llms-full.txt`、搜索索引、下载文件、旧 URL 重定向与截图（`checkScreenshotAssets` 对场景目录清单，`checkScreenshotReferences` 对页面引用），并临时启动框架原生生产预览（回环地址、5276 起可用端口），逐个 HTTP 核对后关闭。它不调用 Bot、Doctor、Telegram 或 Provider；不存在的 Markdown 必须在 `/` 与 `/en/` 下都返回 404，不得用 SPA fallback 返回首页。
 
 Markdown、`llms.txt`、`llms-full.txt` 只有生产构建能完整验证，不能用 dev 页面代替。每次更改正文、主题或生成逻辑后重新构建再 verify。
 
@@ -44,7 +45,10 @@ content/
 2. `public/config.schema.json`、白名单示例副本与 `public/build-info.json`（提交、dirty、部署 base、两语言的站点文案）。
 3. `public/_redirects`（见下节）。
 
-旧版生成器把字段参考写在 `content/docs/reference/fields*.md`；从旧 commit 升级的 checkout 会留下这些未跟踪文件，prepare 会先删除它们（以及删空后的旧目录），避免这次的 `git status` 一直被标成 dirty。生成页由 `scripts/docs/generated-pages.ts` 的注册表声明：每个条目给一个「路径谓词」和 `render(lang)`，返回该语言的全部页面。新增一组生成页（例如接口目录）只加一个条目，prepare、Bot 手册与 `docs:verify` 自动覆盖。这些文件被 Git 忽略，不手改、不另存第二份 Schema。生成页关闭编辑链接与 Git 更新时间：2.0.22 的默认组件不识别这些 frontmatter 开关，主题以两个小包装落实，`docs:verify` 验证生成页隐藏且手写页仍有编辑链接。
+旧版生成器把字段参考写在 `content/docs/reference/fields*.md`；从旧 commit 升级的 checkout 会留下这些未跟踪文件，prepare 会先删除它们（以及删空后的旧目录），避免这次的 `git status` 一直被标成 dirty。生成页由 `scripts/docs/generated-pages.ts` 的注册表声明：每个条目给一个「路径谓词」和 `render(lang)`，返回该语言的全部页面。新增一组生成页只加一个条目，prepare、Bot 手册与 `docs:verify` 自动覆盖。当前两组：
+
+- `config-fields`：`configuration/fields.md` 索引与 `fields-<段名>.md` 分页（上文）。
+- `interface-catalog`：`developer/http/endpoints-<分组>.md`（按 Admin API 路由分组、含仅面板 Session 的路由）、`developer/mcp-tools.md` 与 `developer/cli-commands.md`。三者与面板、`surowan-utils`、MCP 共用 `packages/admin-surface` 的同一张接口表，`test/docs/interface-catalog.test.ts` 逐条核对路由、权限与两种语言的一致性。界面文案在 `scripts/docs/interface-catalog/text-*.ts`，新增一组只加 `TEXT` 条目。这些文件被 Git 忽略，不手改、不另存第二份 Schema。生成页关闭编辑链接与 Git 更新时间：2.0.22 的默认组件不识别这些 frontmatter 开关，主题以两个小包装落实，`docs:verify` 验证生成页隐藏且手写页仍有编辑链接。
 
 Schema 字段表只描述类型与显式约束，不推导运行时默认值。字段、权限、热更新、迁移、用户可见行为改变时，同一变更更新相关手写指南和测试。
 
@@ -60,26 +64,33 @@ Schema 字段表只描述类型与显式约束，不推导运行时默认值。�
 
 ## 截图约定
 
-截图按场景 id 存放，同一场景两种语言各一张浅色、桌面尺寸的图：
+截图按场景 id 存放，同一场景两种语言各一张浅色、桌面尺寸的图，`content/public/screenshots/manifest.json` 记录每个场景的目标状态、语言与使用它的页面：
 
 ```text
 content/public/screenshots/<id>.<locale>.light.png
+content/public/screenshots/manifest.json
 locale ∈ { zh-CN, en }
 ```
 
-编写正文时先写占位注释（此时页面文字本身必须完整，不依赖图片）：
+场景清单在 `apps/admin-next/docs-screenshots/scenarios.ts`（id 即文件名主干），流水线细节见 [apps/admin-next/docs-screenshots/README.md](../admin-next/docs-screenshots/README.md)：
 
-```md
-<!-- screenshot: installation/sign-in-one-time-code | 服务器一次性码登录表单 -->
-```
-
-替换为图片时用公开资源前缀：
+1. `pnpm run docs:screenshots` 构建 Admin Panel，用 Playwright 从真实面板按场景点击、输入、保存后截图，两种语言各一遍。图先写进 `apps/admin-next/.docs-shots-staging/`，通过 `checkScreenshotAssets`（两语言成对、目录里没有多余文件、真正可解码的 PNG、id 都在场景清单里）才替换 `content/public/screenshots/`；失败、被杀或只跑单个场景的运行不会动已提交的图片。
+2. 跑完必须人工看图（语言对不对、是不是要展示的状态、有没有不该出现的真实数据），确认后再提交 PNG 与 manifest。重新生成的图不会逐字节一致（面板会打印实时时间与随机前缀），因此不做像素比对。
+3. 页面用公开资源前缀引用，中文页引 `*.zh-CN.light.png`，英文页引 `*.en.light.png`，alt 写该语言的操作目的：
 
 ```md
 ![服务器一次性码登录表单](__DOCS_BASE__/screenshots/installation/sign-in-one-time-code.zh-CN.light.png)
 ```
 
 这种写法已在 `DOCS_BASE_PATH=/` 与 `/surowan/` 两种构建下实测。生产只跑根路径构建，`replaceRules` 加 base 后 Rspress 能在 `content/public` 下找到文件，**根路径的原生 dead-image 检查保持开启**，缺图直接构建失败；只有用于子路径验证的构建（base 不是 `/`）无法在 `content/public` 下解析带 base 的路径，这时 `rspress.config.ts` 才对 `${base}screenshots/` 放行，改由 `docs:verify` 按渲染后的 `src` 在 `dist/` 里逐个核对。**不要**改写成相对路径（如 `../../../public/screenshots/…`）：Rspress 会把小图内联成 `data:` URL 写进页面 Markdown 与 `llms-full.txt`。
+
+新增页面时先写占位注释（此时页面文字本身必须完整，不依赖图片），等有截图后再换成图片：
+
+```md
+<!-- screenshot: installation/sign-in-one-time-code | 服务器一次性码登录表单 -->
+```
+
+`docs:verify` 双向检查截图：每个页面引用必须是本语言的 `*.light.png`、id 在 manifest 里、文件真实存在，且不能残留占位符；每个场景又必须在两种语言里各被至少一页引用（`checkScreenshotReferences`，`test/docs/screenshot-references.test.ts` 覆盖同一批规则）。alt 不能为空：离线手册把图片换成 `(Screenshot: <alt>)`，空的 alt 会让那一步在图里失传。
 
 ## 镜像内置的英文手册
 

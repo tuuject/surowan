@@ -1,100 +1,73 @@
 # Product knowledge source ledger
 
-This ledger supports local maintenance of `src/platform/product-knowledge.ts`; it is not injected into the bot prompt. Product facts come only from the user manuals and their public examples. The index uses short English summaries plus Chinese self-ignore intent labels to keep useful detail compact.
+This ledger supports local maintenance of `src/platform/prompts/2-product-knowledge.md`; it is not injected into the bot prompt. Product facts come only from the user manuals and their public examples. The index uses short English summaries plus Chinese self-ignore intent labels to keep useful detail compact.
 
 ## Coverage
 
-Read **31 authored manual pages in full**, all **6 navigation files**, and **3 public example sources** (40 content sources total). The generated field reference was produced by `pnpm run docs:prepare` for this refresh and read as a generated route, not as authored evidence. The manual packer emitted 34 documents plus the generated root index (35 Markdown files under `src/manual/`). The website landing page is read for discovery but is replaced by the generated packed index.
+The manuals were reorganized after the previous bake: there is now one tree per language (`apps/docs/content/{zh,en}/docs/`) and the manual packs **only `en`**. This bake therefore re-read the English tree and re-mapped every source; the previous table's pre-reorganization paths (`start/`, `configure/`, `operations/`, `reference/`) are gone, and their content now lives in `guides/`, `configuration/` and `developer/`.
 
-The table records the bake that preceded the bilingual reorganization, so its source paths are relative to the pre-reorganization `apps/docs/content/docs/`. The current sources live under `apps/docs/content/en/docs/`; the old-to-new mapping is in the design document. Except for the landing page, the same paths were packed manual paths at the time.
+| Source read | How it was read | Facts selected / routing role |
+| --- | --- | --- |
+| `index.md` (site landing) | in full | Task index and the three doc parts; not linked from the baked index (the pack replaces it with the generated root index). |
+| `guides/index.md` | in full | Product identity (persona-agnostic Harness server), Telegram as the only real platform, the no-Telegram Admin Panel + Playground path, the first-run order. |
+| `guides/installation.md` | in full | Docker or host install, one-time-code sign-in from the server, credentials step, first Agent model, `admin.public_url`/passkey note, offline `admin-account`. |
+| `guides/first-persona.md` | in full | Two prompt layers, template variables, version history, Playground rehearsal, "a persona grants nothing". |
+| `guides/first-bot.md` | in full | Token → Keychain entry, connection states, Telegram privacy mode, allowlist (`/allowlist` as the only outside-allowlist command), `/help`, first exchange, silence triage order. |
+| `guides/models.md` | in full | Providers vs Models split, metadata lookup and models.dev fallback, nickname, three roles, model-switch stop dialog, health check, `/status` and `/effort` display. |
+| `guides/playground.md` | in full | Rooms, Hold/Release, run states, retry vs Resume, room image switch, room exclusions (no gate, no participation, no MCP). |
+| `guides/admin.md` | in full | Seven nav groups, remote access and `public_url`, no web sign-up, one-time codes, lockout, passkeys, `admin-account`, Keychain page, API-key modes, Tool sessions refresh, languages/RTL. |
+| `guides/chats.md` | in full | Allowlist scope, Topics, per-Chat model/effort, instructions file, timezone, ignore list and self-service commands, active hours, attention window, `ask_only`, proactive replies, per-Chat gate override, MCP binding, removal vs deletion. |
+| `guides/tuning.md` | in full | Evidence surfaces, entry gate (modes, bypass list, fail-open, budget), batch timing fields and cross-field rules, harness groups, proactive formula, Reviews export, Resume conditions. |
+| `guides/knowledge.md` | in full | Context vs Memo Pad vs group memory vs dictionary, memo lifetimes and injection, consolidation lanes and progress, 30-hour clock, dictionary scope/matching/injection/import. |
+| `guides/tools.md` | in full | Web search settings and providers, `web_fetch` limits and image fetching, alarm vs recurring alarm, recurring alarm rules/cron/targets/exemptions, MCP page, progressive exposure, MCP skills, hot application and degradation, System Skills boundary. |
+| `guides/images.md` | in full | Direct vs on-demand vision, sticker sets and index, image settings, workbench and `{{image:…}}`, records, asset library (Agent-visible toggle, AI extraction), original-file sends, retention/backup/cost. |
+| `guides/maintenance.md` | in full | Image tags, upgrade steps, automatic migrations, deprecated fields, retention sweep contents, backup contents (`VACUUM INTO` + `.images/`), restore checklist. |
+| `guides/troubleshooting.md` | in full | `check-config` error shapes, permissions, secret failures per section, panel/pairing codes, model/image faults, gate and MCP diagnosis, group-memory failure reasons, drift. |
+| `guides/agent-assisted.md` | in part (1–120 plus the API key and MCP sections) | Three ways in, pairing and signature rules, four API-key modes and their writes, MCP entry. Not read: the bundled-skill installation tail. |
+| `configuration/index.md` | in full | Required vs optional sections, strict JSONC, minimal file, examples are not defaults. |
+| `configuration/agent.md` | in full | Identity triple, global token budget, send guards, Context retention fields, concurrency/rate limits, deprecated `agent.*` fields. |
+| `configuration/lifecycle.md` | in full | Three layers, absent vs null, defaults sources, inheritance table, explicit apply, partial apply, the behaviour matrix (hot vs restart), Keychain rotation, deprecated fields. |
+| `configuration/providers.md` | in full | Built-in vs custom providers, four API kinds, model entry fields, nickname, compat, tool-schema reduction, references and hot application. |
+| `configuration/telegram.md` | in part (token through sticker sets, MCP bindings, other switches, effect summary) | Optional section and three connection states, batch timing and cross-field rules, chat/Topic ranges, admins, participation, proactive replies, entry gate, group memory, sticker sets, restart fields. |
+| `configuration/mcp.md` | in part (status/hot, exposure, skills, limits, deprecated `required`) | Background connect and degraded state, presentation-only fields, progressive gateway, skill limits, `required` deprecation. |
+| `configuration/storage.md` | in part (retention and paths) | `online_days` is hot for the next sweep; what is kept. |
+| `configuration/vision.md` | in part (model pair, `thinking_level`) | Vision enables only with both `provider` and `model`; optional section. |
+| `developer/http/index.md` | in full | Three credentials, session cookie, bearer modes and grants, paired-client signature rules, the four permission modes, the session-only boundary. |
+| `developer/mcp-server.md` | in part (tools, arguments, permissions, exclusions, resources and skills, results) | One tool per panel operation, confirmations, excluded account/credential routes, published skill resources, result and error shape. |
+| `developer/telegram-commands.md` | in part (recognition, tiers, `/help` inventory, error replies) | Command recognition rules, the three permission tiers, the command list, deterministic replies. |
+| `developer/service-cli.md` | in part (command table, exit codes) | Which subcommands exist, which may run alongside `serve`, which need the service stopped. |
+| `developer/client-cli.md` | in part (dedicated commands, generic panel commands) | `surowan-utils` credential kinds and command inventory. |
+| `developer/extensions.md` | in part (1–40) | System Skills sources, the `read`/`execute` boundary, the no-marketplace statement. |
 
-| Source read | Facts selected / routing role |
-| --- | --- |
-| `index.md` | Product identity, supported Telegram surfaces, task discovery; no link to this landing page in the baked index. |
-| `start/quick-start.md` | Setup route; Telegram optional with a Playground trial path; Surowan name with Surowan distribution/repository naming. |
-| `start/installation.md` | Host/Docker deployment route; Telegram token optional, other runtime requirements remain in manual. |
-| `start/agent-assisted.md` | External coding-agent deployment route. |
-| `configure/config-file.md` | Explicit application/no watcher, hot application versus restart, saved versus running configuration. |
-| `configure/telegram.md` | Optional Telegram section and disabled state; member commands, configured administrators, allowlist, Topic scope, self-ignore persistence and limitations, sending guards. |
-| `configure/models.md` | Explicit model registration, input capabilities, Tool Model route. |
-| `configure/admin.md` | Required admin section with enabled defaulting to true, disabled-panel plus disabled-Telegram startup rule, panel tasks, Passkey prerequisite, API-key limits, replay costs/limits, admin-account. |
-| `configure/admin-harness-tuning.md` | Harness ranges and hot application of Agent fields; Admin page route. |
-| `configure/admin-developer.md` | Optional Developer payload and CoT switches; audit retention route. |
-| `configure/admin-prompts.md` | Two Prompt layers, version history, conflict handling and next-run application. |
-| `configure/admin-api-keys.md` | API-key creation/revocation, one-time plaintext, restricted read/replay scope. |
-| `configure/admin-invocation-replay.md` | CLI/API-only replay, paid model calls, temporary model/prompt overrides, sliced replay. |
-| `guides/personality.md` | Global/Chat prompts, relative paths, next-run Context rebuild, `/model` reload. |
-| `guides/participation.md` | Trigger versus reply, group windows, overrides, Topic isolation, non-triggering edits/stickers. |
-| `guides/proactive-replies.md` | Per-Chat probability gate, pity counter, direct-trigger bypass, persistence. |
-| `guides/entry-gate.md` | Optional decision-model gate before group runs: shadow versus enforce, bypass list, fail-open and the doctor probe, proactive-sampling and daily-budget relations, hot application, Admin routes. |
-| `guides/playground.md` | Playground rooms as the no-Telegram trial path, Hold/Release, real model calls, image switch, data boundary. |
-| `guides/per-chat.md` | Chat model overrides, Topic inheritance, `/status`. |
-| `guides/memory.md` | TTL facts, Conversation isolation, manual review for lasting knowledge. |
-| `guides/dictionary.md` | Scope and write boundaries, terminology versus memory, literal matching, injection/import/merge routes. |
-| `guides/images.md` | Optional generation versus understanding, current-conversation references, Admin routes and application; this page is not in guides navigation but is linked and packed. |
-| `guides/extensions.md` | Alarm, web_fetch limitations, MCP, read-only System Skills and bundled manual scope. |
-| `guides/budgets.md` | Agent versus background Vision budgets, no automatic Context summaries, sleep and Alarm exemption. |
-| `operations/upgrade.md` | Upgrade route; required-admin migration note and optional Telegram; detailed tag and migration instructions left in manual. |
-| `operations/backup-restore.md` | No restore command, separate config/Prompt/secrets backups; full isolation workflow left in manual. |
-| `operations/troubleshooting.md` | Silence versus non-trigger, audit-led troubleshooting, image understanding route, panel startup check. |
-| `reference/config.md` | Configuration semantics route: optional Telegram, required Admin, scope and lifecycle cross-check. |
-| `reference/cli.md` | Service CLI versus surowan-utils command inventory, doctor disabled-Telegram behavior, costs and interaction requirements. |
-| `reference/cli-surowan-utils.md` | External Admin API client: login/doctor, read-only inspection and Invocation routes. |
-| `reference/cli-surowan-utils-reference.md` | Client option, response and failure boundaries. |
-| `reference/cli-surowan-utils-skill.md` | External Agent Skill installation and preflight rule. |
+Navigation read: `_nav.json`, `docs/_meta.json`, `guides/_meta.json`, `configuration/_meta.json`, `developer/_meta.json`, `developer/http/_meta.json`.
 
-Navigation read: `_meta.json`, `start/_meta.json`, `configure/_meta.json`, `guides/_meta.json`, `operations/_meta.json`, `reference/_meta.json`.
+Public example sources are **routed, not copied**: `apps/docs/examples/config.example.jsonc` → `examples/config.example.jsonc.md`, `apps/docs/examples/config.minimal.example.jsonc` → `examples/config.minimal.example.jsonc.md`, `apps/docs/examples/system-prompt.example.md` → `examples/system-prompt.example.md`, `docker-compose.yml` (the docs' shared Compose template) → `examples/docker-compose.yml.md`. Sample quotas, model ids, timezones and prompts stay out of the index.
 
-Public example sources read and their packed routes:
-
-| Source | Packed path |
-| --- | --- |
-| `apps/docs/examples/config.example.jsonc` | `examples/config.example.jsonc.md` |
-| `apps/docs/examples/system-prompt.example.md` | `examples/system-prompt.example.md` |
-| `docker-compose.yml` (the docs' shared Compose example) | `examples/docker-compose.yml.md` |
-
-The examples are routed, not copied: sample quotas, model IDs, timezone and prompts do not become universal product defaults. `reference/fields.md` is a generated route listed in navigation and handled explicitly by the manual packer; no unobserved field limits were extracted from it.
-
-Packaging-only reads: `scripts/manual-prepare.ts` established root-index replacement, unlisted-page inclusion and example wrapping; `scripts/docs/prepare.ts` established generated reference/example locations. `src/platform/doc-spaces.ts` established the logical path shape. These files and the repository's AGENTS.md supplied development/path constraints, not product behavior evidence.
+Packaging reads only: `scripts/manual-prepare.ts` (packed paths, generated pages, example wrapping, image → `(Screenshot: …)`), `scripts/docs/prepare.ts` (generated field and catalog pages). Neither is evidence for product behaviour.
 
 ## Selection and omissions
 
-Every runtime bullet has a packed source link. Command discovery and role/scope limits take priority over numerical ranges and UI detail. The documented Bot command inventory is `/whoami`, `/ignoreme`, `/unignoreme`, `/pause`, `/resume`, `/model`, `/cut_topic`, `/allowlist`, and `/status`. The service CLI inventory is `serve`, `check-config`, `doctor`, `backup`, `configure`, and `admin-account`.
+The refresh fixes the two facts the reorganization called out as stale and adds the features documented since:
 
-The refresh adds three product facts from the reviewed manuals: Telegram is optional and its disabled state still provides the Admin Panel and Playground rooms; the `admin` section is required with `enabled` defaulting to true; the local admin entry is `admin-account` (create or reset the sole account, sessions always revoked, passkeys kept unless revoked). Doctor's Telegram probe is reported as skipped without a token.
+- **API keys can write configuration.** The old index said keys only inspect and replay. The four modes (`read`, `read_write`, `read_paid`, `all`) each grant what they name, so `read_write`/`all` may write configuration, Chats and prompts; only account, passkey, API-key and Keychain management plus `/api/live/*` are session-only.
+- **Removing a Chat is hot.** The old index put "deleted Chats" under restart. `configuration/lifecycle.md` and `guides/chats.md` both make config removal hot (runs stop, data stays); a Chat's `topic_ids` and `timezone`, `admin.*` and process paths are the restart cases. The index now also states that the panel's *delete* is the data-destroying action, with `chat_delete_pending`/`chat_still_authorized`.
+- **Added**: entry gate (shadow/enforce, bypass list, fail-open, budget position, enforce stopping proactive sampling); adaptive batches (`bucket_bump_seconds`/`bucket_max_seconds` with the `idle_grace_seconds` rule); `/ask`, `/help`, `ask_only`; the full command tiers including `/effort` and `/rebuild_context`; recurring alarms; outbound MCP page, progressive `mcp` gateway, `mcp-skill://` skills, `required` deprecation; Models/Providers split with nicknames; 30-hour clock for group memory; image asset Agent visibility and AI extraction; `web_fetch` opening JPEG/PNG/WebP up to 20 MiB; Keychain rotation as a hot change; the panel/`Playground` still working without Telegram; retention sweep contents.
 
-Natural-language phrases for ignore/restore are author-selected intent synonyms of the documented effects; the index explicitly distinguishes them from executable command aliases. Surowan is normalized from the repository/image naming used in setup/deployment manuals; the docs spell the display name as Surowan / 塑料碗 rather than explicitly presenting a three-name alias declaration.
+Command discovery and role/scope boundaries outrank numeric ranges. The documented Bot command inventory is `/whoami`, `/ignoreme`, `/unignoreme`, `/pause`, `/resume`, `/model`, `/effort`, `/cut_topic`, `/rebuild_context`, `/allowlist`, `/ask`, `/help`, `/status`; the service CLI inventory is `serve`, `check-config`, `doctor`, `backup`, `configure`, `admin-account`, `pairing`, `clients`.
 
-Omitted from runtime text: detailed API flags/error codes, credential-storage implementation, Passkey recovery steps, release tags, environment-specific installation commands, exact budget/sleep numbers, image model metadata, dictionary matching normalization details, backup copy/isolation procedures, startup command replay rules, and full examples. The linked pages retain those details. No runtime grounding rules, hashes, source inventories, bake timestamps, or reports were added.
+Natural-language ignore/restore phrases are author-selected intent synonyms of the documented effects, not executable aliases; the index says so. Omitted from runtime text: every numeric default, field ranges, API flags and error-code tables, the panel's full page list, installation commands, model ids and prices, the Reviews draft format, backup/restore steps, MCP skill sizes and the signature string. The linked pages carry them.
 
 ## Source gaps and conflicts
 
-- **Command syntax is incomplete.** Telegram configuration names `/pause`, `/resume`, `/model`, `/cut_topic`, `/allowlist` and their `telegram.admins` access rule. It does not document full argument syntax, pause/resume scope, or cut-topic effects. Personality separately documents `/model` reload. The index lists supported names/access and that reload fact, without invented syntax or effects. `/status` is documented only as showing the effective Chat model; its privilege is not given. `/help`, `/start`, and a generic `/ignore` command are not documented and were not added from source code.
-- **New Chat application conflicts within per-chat.** `guides/per-chat.md` “用 Admin Panel 编辑” step 3 says adding/deleting Chat requires restart; its “何时生效” section says new Chat hot applies immediately. Telegram, Admin, config-file, config reference and troubleshooting corroborate the latter. The index follows the dedicated lifecycle sections and consensus: add hot applies; delete/Topic changes need restart.
-- **Deployment landing page is stale.** `index.md` says Docker's main path builds from a selected commit, while quick-start, installation and upgrade describe GHCR prebuilt images. The index routes to dedicated deployment pages without baking a disputed default installation command.
-- **CLI Skill path prose disagrees with its examples.** `reference/cli.md` mentions `agents/skills/surowan-utils/` in prose but `.agents/skills/surowan-utils/` in copy examples. Local Skill installation paths are omitted from runtime knowledge.
-- **Image guide is unlisted; configuration summary is not exhaustive.** `guides/images.md` is absent from guides navigation, while Admin links it and the packer includes unlisted Markdown. `reference/config.md`'s top-level summary omits the image section. The dedicated image guide plus public config example support optional image generation and hot application; absence from summaries is not treated as absence of the feature.
-- **Generated field reference not inspected.** The checkout had neither `reference/fields.md` nor prepared `src/manual/`. Its logical path is established by navigation/packer only. No generated schema constraints were inferred or copied from implementation.
-- **Plugin introduction is incomplete.** Extensions introduces web_fetch and Alarm, whereas separate image/dictionary guides document other capabilities. The index describes those capabilities from their dedicated guides and avoids claiming an exhaustive plugin registry.
+- **No conflicts found between the two locales** for the facts baked here. Where the Chinese page adds a panel label, the fact still matches the English page.
+- **Panel page count is documentation-level, not product behaviour.** `guides/admin.md` says "seven groups and thirty-two pages"; the index repeats the group concept only, because the page count is UI surface rather than product identity.
+- **`/status` privilege.** Earlier bakes recorded "access level undocumented". `developer/telegram-commands.md` now lists `/status` in the "anyone" tier, so the index says anyone.
+- **`/effort` and `/rebuild_context` argument syntax** is not spelled out for every command; the index lists names and tiers only, as before.
+- **Rollout advice stays in the guide.** The entry gate's observe-then-enforce order, thresholds and model default are not baked; the index says "run `doctor` after enabling" because a broken key fails open silently.
+- **Group memory and image budget wording.** The index names the exemption (alarm and recurring-alarm receipts) and the separation (background Vision, decision requests) without numbers.
 
 ## Handoff evidence
 
-The refresh imported the actual TypeScript constant, packed the current manual with `pnpm run manual:prepare`, and checked every link target in the index against `src/manual/`: 37 links, 25 unique paths, all present. Measured index: 6923 characters, 6997 UTF-8 bytes, GC-style estimate 1731 tokens (4 characters per token); no tokenizer was re-run and no project dependency was added. The generated field page is packaged and reachable; no additional field constraints were baked from it.
+Refreshed with `pnpm run manual:prepare` output present, so every link could be checked against the packed tree: **39 links, 29 unique paths, all present** under `src/manual/`. Measured index after this bake: 9554 characters, 9630 UTF-8 bytes, GC-style estimate **2417 tokens** (4 characters per token). The previous bake measured 8916 characters / 8994 bytes / 2259 tokens; the growth is the entry gate, adaptive batches, `/ask`-only, recurring alarms, progressive MCP, asset visibility, the corrected API-key and Chat-removal facts, and the extra manual routes. The skill's 2000-token aim is **not** met — it was not met before either — so the partition stays above it until something is removed rather than reworded.
 
-`pnpm run docs:build` and `pnpm run docs:verify` passed for the changed manuals. The earlier five one-shot model grounding probes were not re-run in this refresh; runtime grounding behavior is unchanged and remains an integration-owner check. The previous probes and their limitations are recorded in agent-doc/product-knowledge.md. Skill frontmatter validation was not re-run separately; `pnpm run lint` and `pnpm run check` cover the repository files.
-
-Two scoped three-page authoring probes ran with and without the Skill. Both retained documented commands and disclosed gaps/conflicts; only the Skill runs included natural-language intent labels. Length estimates were unreliable: the first Skill probe exceeded its smaller 3000-byte limit, and a revised reminder still did not reliably keep that textual probe under budget. Accept only measured output. These probes do not establish a general success rate or production-model behavior.
-
-An independent source-comparison pass checked each of 19 runtime bullets against its cited manual pages and marked all supported. This is model-assisted evidence, not proof beyond the source excerpts; the explicit gaps and conflicts above remain relevant.
-
-## Ask refresh scope
-
-Re-read configure/telegram.md and guides/participation.md for /ask, ignored-member exception and ask-only inheritance. Other entries retain the previous bake; no full rebake performed. New facts route to these two manual pages.
-
-## Entry gate refresh scope
-
-Read guides/entry-gate.md in full, plus the sentences linking to it from guides/proactive-replies.md, guides/participation.md and configure/telegram.md, and guides/_meta.json for its navigation slot. One bullet was added after Participation; every clause in it traces to that guide. Other entries retain the previous bake and the coverage counts above were not recomputed; no full rebake performed.
-
-Omitted from the bullet and left to the guide: field ranges and defaults, the default model and endpoint, the threshold value, the concurrency limit, the remaining bypass cases (startup catch-up, panel-resumed Invocations, paused or sleeping Chats), key reference forms and the rollout steps.
-
-Measured after this refresh with `pnpm run manual:prepare` output present: 8916 characters, 8994 UTF-8 bytes, GC-style estimate 2259 tokens (8213 characters and 8289 bytes before); no tokenizer was run. All 40 links (27 unique paths) resolve under `src/manual/`. The model grounding probes were not re-run.
+`test/manual-pack.test.ts` re-checks the baked routes against a fresh pack and the model-token budget test of the field pages. `pnpm run lint`, `pnpm run check`, `pnpm test test/docs`, `pnpm test test/manual-pack.test.ts`, `pnpm run docs:build` and `pnpm run docs:verify` were run for this change; the five model grounding probes were **not** re-run, so runtime grounding behaviour is unchanged and remains an integration-owner check. No tokenizer dependency was added; the GC estimate is not a model-token measurement.

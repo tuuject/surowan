@@ -30,7 +30,7 @@ The built-in prompt sets no reply threshold and does not average out your tone: 
 
 The change takes effect from the **next run**; runs already in flight keep the version they started with. **Version history** records every save (source: panel, external, rollback), lets you compare any two versions and restore an old one — restoring never deletes history.
 
-<!-- screenshot: first-persona/prompt-editor | The Prompts page with a saved global persona, its version and source visible -->
+![The Prompts page with a saved global persona, its version and source visible](__DOCS_BASE__/screenshots/first-persona/prompt-editor.en.light.png)
 
 A persona may use a few template variables: `{{ agent.nickname }}` (how the current Agent model is shown in Telegram commands), `{{ agent.provider }}`, `{{ agent.model }}`, `{{ vision.provider }}`, `{{ vision.model }}` and `{{ timezone }}`. An unknown variable name is rejected when you save.
 
@@ -61,7 +61,7 @@ Three kinds of scene are worth rehearsing:
 - **It should stay out**: a few jokes back and forth — watch whether it forces itself in.
 - **It should not be derailed**: someone tells it to play another character, ignore the rules or invent facts.
 
-<!-- screenshot: first-persona/playground-scene | The persona answering a test scene in the Playground -->
+![The persona answering a test scene in the Playground](__DOCS_BASE__/screenshots/first-persona/playground-scene.en.light.png)
 
 Every release leaves a **Runs** entry with token usage and an **Audit** link. Three outcomes are different things:
 

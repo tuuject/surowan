@@ -1,10 +1,11 @@
 import { mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
-import { dirname, join, posix, relative, resolve, sep } from 'node:path';
+import { dirname, join, relative, resolve, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { BUNDLED_MANUAL_DIR } from '../src/adapters/local-monolith/doc-spaces.ts';
 import { DOC_INDEX_PATH, resolveDocPath } from '../src/platform/doc-spaces.ts';
 import { FIELDS_INDEX_PAGE, isConfigFieldSectionPage } from './docs/config-fields/index.ts';
 import { isGeneratedPage, renderGeneratedPages } from './docs/generated-pages.ts';
+import { packedExamplePath, rewritePublicLinks } from './docs/manual-links.ts';
 import { docsRoot, exampleNames, exampleSource, repositoryRoot } from './docs/prepare.ts';
 
 /**
@@ -13,15 +14,6 @@ import { docsRoot, exampleNames, exampleSource, repositoryRoot } from './docs/pr
  * every page.
  */
 export const manualContentRoot = resolve(docsRoot, 'content/en/docs');
-
-/** Prefix the site build swaps for its public base path; the runtime has no site to link to. */
-const PUBLIC_LINK_PATTERN = /\[([^\]]*)\]\(__DOCS_BASE__\/([^)\s]*)\)/g;
-/**
- * Images exist only on the published site (screenshots are shipped per locale),
- * and the offline manual is text-only, so every inline image keeps its caption.
- * Matching any destination also covers a link title and repo-relative paths.
- */
-const MARKDOWN_IMAGE_PATTERN = /!\[([^\]]*)\]\([^)]*\)/g;
 
 type ExampleName = (typeof exampleNames)[number];
 
@@ -237,7 +229,7 @@ async function readPage(
   const content = generatedPages.get(path);
   if (content !== undefined) {
     // Regenerated from the ConfigSchema the runtime validates: a Docker build
-    // context has no docs:prepare output to copy.
+    // context has no scripts/docs/prepare.ts output to copy.
     return { path, content: rewritePublicLinks(content, path), ...parseFrontmatter(content, path) };
   }
   if (isGeneratedPage(path)) {
@@ -247,10 +239,6 @@ async function readPage(
     throw new Error(`Manual page listed in navigation does not exist: ${path}`);
   });
   return { path, content: rewritePublicLinks(text, path), ...parseFrontmatter(text, path) };
-}
-
-function examplePath(name: ExampleName): string {
-  return `examples/${name.endsWith('.md') ? name : `${name}.md`}`;
 }
 
 /** One downloadable example as a Markdown page that quotes the file verbatim. */
@@ -269,29 +257,7 @@ async function readExample(name: ExampleName): Promise<PackedPage> {
     fence,
     '',
   ].join('\n');
-  return { path: examplePath(name), title: `Example file ${name}`, description, content };
-}
-
-/**
- * Rewrites what only resolves on the published site. Examples point at their
- * packed pages, every inline image becomes its caption, and other public
- * resources (JSON Schema, llms.txt) keep their label but lose the link, since the
- * runtime cannot serve them.
- */
-function rewritePublicLinks(text: string, pagePath: string): string {
-  const rewritten = text
-    .replace(MARKDOWN_IMAGE_PATTERN, (_image, alt: string) => (alt.trim() ? `(Screenshot: ${alt})` : '(Screenshot)'))
-    .replace(PUBLIC_LINK_PATTERN, (_link, label: string, target: string) => {
-      const example = exampleNames.find((name) => target === `examples/${name}`);
-      if (example === undefined) {
-        return label;
-      }
-      return `[${label}](${posix.relative(posix.dirname(pagePath), examplePath(example))})`;
-    });
-  if (rewritten.includes('__DOCS_BASE__')) {
-    throw new Error(`Manual page has a public-resource reference the pack cannot rewrite: ${pagePath}`);
-  }
-  return rewritten;
+  return { path: packedExamplePath(name), title: `Example file ${name}`, description, content };
 }
 
 /** Markdown sources absent from navigation, which the pack still ships and indexes. */
@@ -299,7 +265,7 @@ async function listUnlistedPages(contentRoot: string, listed: ReadonlySet<string
   const files = (await readdir(contentRoot, { recursive: true, withFileTypes: true }))
     .filter((entry) => entry.isFile() && entry.name.endsWith('.md'))
     .map((entry) => relative(contentRoot, join(entry.parentPath, entry.name)).split(sep).join('/'));
-  // Generated pages left on disk by docs:prepare are packed fresh from the registry, never from disk.
+  // Generated pages left on disk by scripts/docs/prepare.ts are packed fresh from the registry, never from disk.
   return files
     .filter((path) => path !== 'index.md' && !listed.has(path) && !isGeneratedPage(path))
     .sort((left, right) => left.localeCompare(right));

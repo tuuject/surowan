@@ -45,7 +45,7 @@ One tool per Admin Panel operation, named `surowan_<panel command>`: anything th
 surowan_harness_update — Save changed tuning fields; null removes an optional field (PUT /api/harness; write permission)
 ```
 
-The catalog is generated from the endpoint table in `packages/admin-surface`, which the panel, `surowan-utils` and MCP all share, so the three cannot drift apart. The route list itself lives in [HTTP API conventions](http/index.md).
+The catalog is generated from the endpoint table in `packages/admin-surface`, which the panel, `surowan-utils` and MCP all share, so the three cannot drift apart. The generated [MCP tool catalog](mcp-tools.md) lists every tool with its route and the permission it needs; the route list itself lives in [HTTP API conventions](http/index.md).
 
 ### Arguments
 

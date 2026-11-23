@@ -1,15 +1,14 @@
 /**
- * The screenshot scenarios (plan §5, rows 1-39): epic B1 owns the first 15,
- * epic B2 the rest.
+ * The screenshot scenarios (plan §5, rows 1-39).
  *
  * One entry per screenshot id: the id is the file name stem and the reason a
- * doc placeholder can point at a stable asset. The manifest is generated from
- * this catalog, so adding a scenario to epic B2 means adding a row here and a
+ * doc page can embed a stable asset. The manifest is generated from this
+ * catalog, so adding a scenario means adding a row here and a
  * `captureScreenshot(page, locale, '<id>')` call in the matching spec.
  *
- * `pages` lists the (future) doc pages that embed the screenshot, relative to
- * `apps/docs/content/<locale>/docs/`; it is reviewer metadata, not a build
- * input — epic G turns the placeholders into images and checks the pairing.
+ * `pages` lists the doc pages that embed the screenshot, relative to
+ * `apps/docs/content/<locale>/docs/`. It is reviewer metadata, not a build
+ * input: `scripts/docs/screenshot-references.ts` enforces the real pairing.
  */
 export interface DocsScenario {
   readonly id: string;

@@ -180,6 +180,55 @@ test('public download links point at the packed examples or lose their link', as
   );
 });
 
+test('image syntax inside code samples stays verbatim', async () => {
+  const contentRoot = await tempRoot('surowan-manual-content-');
+  await writeFile(join(contentRoot, '_meta.json'), JSON.stringify(['guide']));
+  await writeFile(
+    join(contentRoot, 'guide.md'),
+    [
+      '---',
+      'title: Guide',
+      'description: Guide page',
+      '---',
+      '',
+      '# Guide',
+      '',
+      '真实截图：![截图说明](__DOCS_BASE__/screenshots/admin/navigation.en.light.png)',
+      '',
+      '行内代码 `![截图说明](screenshots/local.png)` 是语法示例。',
+      '',
+      '```md',
+      '![截图说明](screenshots/local.png)',
+      '```',
+      '',
+      '半开围栏也按原文保留：',
+      '',
+      '~~~~',
+      '![截图说明](screenshots/local.png)',
+      '~~~',
+      '~~~~',
+      '',
+      '````md',
+      '```',
+      '![截图说明](screenshots/local.png)',
+      '```',
+      '````',
+      '',
+    ].join('\n'),
+  );
+  const outDir = await tempRoot();
+  await packManual({ outDir, contentRoot });
+  const packed = await readFile(join(outDir, 'guide.md'), 'utf8');
+  // A real image is still replaced by its caption...
+  expect(packed).toContain('真实截图：(Screenshot: 截图说明)');
+  // ...but a code sample that explains the syntax keeps it, so the reader can copy it.
+  expect(packed).toContain('行内代码 `![截图说明](screenshots/local.png)` 是语法示例。');
+  // Four code samples: the inline span, a fenced block, a tilde block and a
+  // four-backtick block that contains a three-backtick one.
+  expect(packed.split('![截图说明](screenshots/local.png)')).toHaveLength(5);
+  expect(packed).not.toContain('__DOCS_BASE__');
+});
+
 test('the packed manual is readable through the document spaces contract', async () => {
   const outDir = await tempRoot();
   const result = await packManual({ outDir });

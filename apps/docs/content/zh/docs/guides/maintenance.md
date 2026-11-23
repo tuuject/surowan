@@ -179,4 +179,4 @@ Docker 演练要另建 Compose 项目（不同的 `-p` 与端口），把配置�
 - **备份文件比数据库小很多？** 正常：`VACUUM INTO` 会压掉空闲页与 WAL。
 - **能不能只回滚镜像？** 可以，但数据库迁移不回退；需要回到升级前状态就用升级前的备份。
 
-相关页面：[数据路径与保留](../configuration/storage.md)、[配置生命周期](../configuration/lifecycle.md)、[密钥与路径](../configuration/secrets.md)、[管理面板、密钥与访问安全](admin.md)、[排查启动失败和不回复](troubleshooting.md)
+相关页面：[数据路径与保留](../configuration/storage.md)、[`retention` 字段参考](../configuration/fields-retention.md)、[`paths` 字段参考](../configuration/fields-paths.md)、[配置生命周期](../configuration/lifecycle.md)、[密钥与路径](../configuration/secrets.md)、[管理面板、密钥与访问安全](admin.md)、[排查启动失败和不回复](troubleshooting.md)

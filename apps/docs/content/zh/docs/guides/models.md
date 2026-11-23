@@ -41,7 +41,7 @@ description: 在供应商页接入服务并拉取模型，在模型页分配主�
 
 镜像与内网部署可以换一个目录源：**开发者** 页底部的 **模型参数来源** 写入 `models_dev.api_url`，留空就是默认的 `https://models.dev/api.json`。它接受不带凭据与 `#` 片段的 HTTP(S) 地址，镜像必须返回同样的 JSON；保存后下一次查询就使用它，不需要重启。字段语义见[模型元数据目录](../configuration/models-dev.md)。
 
-<!-- screenshot: models/providers-list | 供应商页：一个已拉取模型的供应商 -->
+![供应商页：一个已拉取模型的供应商](__DOCS_BASE__/screenshots/models/providers-list.zh-CN.light.png)
 
 ## 4. 分配三项工作
 
@@ -75,19 +75,19 @@ description: 在供应商页接入服务并拉取模型，在模型页分配主�
 
 供应商或模型刚改过却还没应用时，健康检查会直接拒绝（提示先应用连接或模型定义），避免测的不是运行中的那一份。
 
-<!-- screenshot: models/provider-health-check | 健康检查结果：状态、耗时与模型回复原文 -->
+![健康检查结果：状态、耗时与模型回复原文](__DOCS_BASE__/screenshots/models/provider-health-check.zh-CN.light.png)
 
 ## 6. 字段参考
 
 面板只覆盖日常操作；精确字段、默认值与生效方式在这些页面：
 
-- [Provider 与模型定义](../configuration/providers.md)：`kind`、`base_url`、`api`、`api_key`、`nickname`、`thinking_levels`、成本
-- [模型元数据目录](../configuration/models-dev.md)：`models_dev.api_url`
-- [Agent 配置](../configuration/agent.md)：主模型三元组与预算
-- [Vision 配置](../configuration/vision.md)：图片识别模型与 `thinking_level`
-- [Tool Model 配置](../configuration/tool-model.md)：辅助任务模型
+- [Provider 与模型定义](../configuration/providers.md)：`kind`、`base_url`、`api`、`api_key`、`nickname`、`thinking_levels`、成本；逐字段见 [`providers` 字段参考](../configuration/fields-providers.md)
+- [模型元数据目录](../configuration/models-dev.md)：`models_dev.api_url`，逐字段见 [`models_dev` 字段参考](../configuration/fields-models-dev.md)
+- [Agent 配置](../configuration/agent.md)：主模型三元组与预算，逐字段见 [`agent` 字段参考](../configuration/fields-agent.md)
+- [Vision 配置](../configuration/vision.md)：图片识别模型与 `thinking_level`，逐字段见 [`vision` 字段参考](../configuration/fields-vision.md)
+- [Tool Model 配置](../configuration/tool-model.md)：辅助任务模型，逐字段见 [`tool_model` 字段参考](../configuration/fields-tool-model.md)
 
-<!-- screenshot: models/model-roles | 模型页：三项角色与底部保存栏 -->
+![模型页：三项角色与底部保存栏](__DOCS_BASE__/screenshots/models/model-roles.zh-CN.light.png)
 
 ## 7. 常见问题
 

@@ -20,7 +20,7 @@ These two are often confused:
 - When the **main model accepts image input**, photos and supported image documents from the newest batch are attached to it directly, in the same order as the `figure_N` media lines in those messages. Attachments are not stored.
 - **Older images** (including earlier `figure_N` entries) and every sticker go through `read_image`, which asks the **Vision** model and returns a text description.
 - Without Vision, `read_image` is unavailable, so historical images and stickers cannot be inspected; the sticker visual index also pauses (imported stickers stay pending instead of accumulating failures).
-- Vision has its own model, thinking level, concurrency and daily budget (`max_tokens` and `max_images`); see [Vision settings](../configuration/vision.md).
+- Vision has its own model, thinking level, concurrency and daily budget (`max_tokens` and `max_images`); see [Vision settings](../configuration/vision.md) and the [`vision` field reference](../configuration/fields-vision.md).
 
 Images cannot be referenced freely: only `img_` / `stk_` references that this Conversation authorized and that have not expired can be read, references are isolated per Conversation, and they expire. Arbitrary file IDs or Chat IDs are never accepted.
 
@@ -28,7 +28,7 @@ Images cannot be referenced freely: only `img_` / `stk_` references that this Co
 
 The bot only sends stickers from the sets you allow. They live in `telegram.sticker_sets` and are managed on the **Bot sticker sets** page; changes apply immediately, with no restart.
 
-<!-- screenshot: images/sticker-sets | The Bot sticker sets page: configured sets and the search index -->
+![The Bot sticker sets page: configured sets and the search index](__DOCS_BASE__/screenshots/images/sticker-sets.en.light.png)
 
 ### Adding, editing, removing
 
@@ -58,7 +58,7 @@ The model sees a `<sticker_catalog>` with one line per set (alias, note, and `st
 
 Without an `image` section in `config.jsonc`, image generation is disabled: the bot runs normally, the model simply has no image tools, and the panel hides the image pages. Enabling it on the **Image settings** page is recommended:
 
-<!-- screenshot: images/image-settings | Image settings with the feature enabled and a model added -->
+![Image settings with the feature enabled and a model added](__DOCS_BASE__/screenshots/images/image-settings.en.light.png)
 
 1. Tick **Enable image generation**.
 2. **Key source**: reuse a saved OpenRouter credential (for example the one you already stored on the Providers page) or enter a new API key. Leave an existing credential empty to keep it.
@@ -76,7 +76,7 @@ A few behaviours:
 - If the configuration file changed elsewhere, saving reports a conflict; reload and try again.
 - When the settings page says enabled but the workbench still says disabled, look for `image_service_warning` in the log (an unreadable credential, for example), fix it, then apply the configuration from **Settings**.
 
-Writing the section by hand works too; fields are in [Image generation settings](../configuration/image.md):
+Writing the section by hand works too; fields are in [Image generation settings](../configuration/image.md) and the [`image` field reference](../configuration/fields-image.md):
 
 ```jsonc
 {
@@ -136,7 +136,7 @@ Telegram compresses pictures sent as photos. Only when a user explicitly asks fo
 
 **Image generation** is the workbench:
 
-<!-- screenshot: images/generate-workbench | The image workbench with an inline asset reference in the prompt -->
+![The image workbench with an inline asset reference in the prompt](__DOCS_BASE__/screenshots/images/generate-workbench.en.light.png)
 
 1. Write the prompt, or insert assets at the caret. References come from three places: the recent strip, the whole library searchable under **More**, or a new upload on this page.
 2. Picking an asset inserts `{{image:<asset id>}}`. The **Referenced images** row next to the box adds and removes entries as you type; removing one deletes every reference to that asset.
@@ -146,15 +146,15 @@ Telegram compresses pictures sent as photos. Only when a user explicitly asks fo
 
 **Image generations** is the audit list:
 
-<!-- screenshot: images/generation-record | A completed image generation record -->
+![A completed image generation record](__DOCS_BASE__/screenshots/images/generation-record.en.light.png)
 
 Clicking a generation id opens its own detail page (or navigate to `/image-generations/<id>`): status, model, submission source (an admin or a specific conversation), each attempt's upstream request and usage, the final prompt, the output images and any error. Reference images are shown in the order they were submitted, keep the name they had then, and open at full size; an archived asset is still viewable, and a cleaned-up original says so. Failed generations can be retried with **Retry**.
 
 **Image assets** holds prompt assets and the reference-image library:
 
-<!-- screenshot: images/image-assets | Image assets with the agent-visibility toggle and AI extraction -->
+![Image assets with the agent-visibility toggle and AI extraction](__DOCS_BASE__/screenshots/images/image-assets.en.light.png)
 
-- Generated pictures enter the library automatically; reference images can be uploaded (up to 20 MB each), edited and archived.
+- Generated pictures enter the library automatically; reference images can be uploaded (up to 20 MiB each), edited and archived.
 - The edit dialog changes the name, description, category and keywords (one line, up to 500 characters, comma separated) and toggles **Agent can use this asset**.
 - That toggle is **off by default**. Turning it on puts the asset into every conversation's asset search, so chat agents can find it and use it as a reference image. This is the only way to make an asset usable across conversations.
 - **Suggest with AI** asks the tool model to look at the picture and propose a name and keywords. It is a **billed** call, and it only fills the form: nothing is stored until you save. When the tool model cannot read images, the panel explains why, links to the tool model settings, and lets you pick an image-capable model for this one extraction (the choice is not saved).

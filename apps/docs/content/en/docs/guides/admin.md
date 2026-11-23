@@ -21,7 +21,7 @@ The `admin` section is required; `enabled` defaults to `true`, and only an expli
 }
 ```
 
-Every `admin.*` field needs a restart. In Docker the container must bind `0.0.0.0`, but publish the port on loopback only:
+Every `admin.*` field needs a restart; their types and defaults are in the [`admin` field reference](../configuration/fields-admin.md). In Docker the container must bind `0.0.0.0`, but publish the port on loopback only:
 
 ```yaml
     ports:
@@ -46,7 +46,7 @@ The navigation has seven groups and thirty-two pages. Find yours by the job:
 
 Day to day, **Overview**, **Tool sessions**, **Chats** and **Settings** carry most of the work; the rest is by need.
 
-<!-- screenshot: admin/navigation | The Overview page and the seven navigation groups -->
+![The Overview page and the seven navigation groups](__DOCS_BASE__/screenshots/admin/navigation.en.light.png)
 
 ## 3. Remote access
 
@@ -83,7 +83,7 @@ The JSON output carries `code` (starting with `pwp_`) and `pairing.expires_at` (
 - With the official image, the sign-in page shows the Docker command above with a copy button; a self-built image gets the generic hint.
 - Signing in changes no password and signs no existing session out.
 
-<!-- screenshot: installation/sign-in-one-time-code | The sign-in page with the one-time code form -->
+![The sign-in page with the one-time code form](__DOCS_BASE__/screenshots/installation/sign-in-one-time-code.en.light.png)
 
 ## 6. Password, lockout and passkeys
 
@@ -94,7 +94,7 @@ The JSON output carries `code` (starting with `pwp_`) and `pairing.expires_at` (
 - Deleting the **password** (passkey-only sign-in) requires at least one passkey registered for this site. It revokes every session and issues a new one to the current browser.
 - After a domain change, old passkeys stay in the list but are marked as unusable here. Removing `public_url` only disables passkeys; it does not delete them.
 
-<!-- screenshot: admin/passkeys | The passkey list with names, creation and last-use times -->
+![The passkey list with names, creation and last-use times](__DOCS_BASE__/screenshots/admin/passkeys.en.light.png)
 
 ## 7. Recovery: reset the password offline
 
@@ -124,13 +124,13 @@ No token or API key is written into the configuration: it holds `{ "jar": "name"
 - When the configuration file cannot be parsed, deletes and rotations are refused rather than trusting an incomplete reference set.
 - **No value is ever shown**: pages, lists and APIs only deal in names. `/api/keychain*` is an internal, panel-session-only API that neither API keys nor paired clients can reach.
 
-<!-- screenshot: admin/keychain | The Keychain page with entries, usage and orphan cleanup -->
+![The Keychain page with entries, usage and orphan cleanup](__DOCS_BASE__/screenshots/admin/keychain.en.light.png)
 
 ## 9. API keys
 
 The **API keys** page issues keys for scripts, evaluation tools and the MCP server: pick one of four modes (read only, read + write, read + paid, all) when creating, then change the mode, rotate or revoke. The plaintext appears once, in the creation dialog. Accounts and credentials are excluded from every mode — no key can change the administrator password, manage passkeys or manage API keys themselves. For the permission details and usage, read [Let your local agent tune Surowan](agent-assisted.md) and [HTTP API conventions](../developer/http/index.md).
 
-<!-- screenshot: admin/api-keys | The API keys page with permission modes and actions -->
+![The API keys page with permission modes and actions](__DOCS_BASE__/screenshots/admin/api-keys.en.light.png)
 
 ## 10. Tool sessions: auto refresh and auto scroll
 

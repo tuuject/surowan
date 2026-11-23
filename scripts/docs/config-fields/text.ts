@@ -10,7 +10,6 @@ export interface FieldsText {
   readonly indexDescription: string;
   readonly indexIntro: string;
   readonly sectionTitle: (section: string) => string;
-  readonly sectionHeading: (section: string) => string;
   readonly sectionDescription: (section: string) => string;
   readonly sectionIntro: string;
   /** Preamble of the index and of every section page. */
@@ -57,7 +56,6 @@ export const FIELDS_TEXT: Record<DocsLocale, FieldsText> = {
     indexDescription: '从当前源码 ConfigSchema 生成的字段类型、必填性、取值限制与默认值，按配置段分页。',
     indexIntro: '本页与各配置段的分页由同一提交的 ConfigSchema 自动生成。',
     sectionTitle: (section) => `配置字段参考：${section}`,
-    sectionHeading: (section) => `配置字段参考：\`${section}\``,
     sectionDescription: (section) => `从当前源码 ConfigSchema 生成的 ${section} 段字段类型、必填性、取值限制与默认值。`,
     sectionIntro: '本页由同一提交的 ConfigSchema 自动生成，属于[配置字段参考](fields.md)。',
     notice: [
@@ -102,7 +100,6 @@ export const FIELDS_TEXT: Record<DocsLocale, FieldsText> = {
       'Field types, required fields, value limits and defaults generated from the ConfigSchema in this commit, split by configuration section.',
     indexIntro: 'This page and the per-section pages are generated from the ConfigSchema of the same commit.',
     sectionTitle: (section) => `Configuration field reference: ${section}`,
-    sectionHeading: (section) => `Configuration field reference: \`${section}\``,
     sectionDescription: (section) =>
       `Field types, required fields, value limits and defaults of the ${section} section, generated from the ConfigSchema in this commit.`,
     sectionIntro:

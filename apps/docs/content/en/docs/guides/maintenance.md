@@ -179,4 +179,4 @@ For a Docker rehearsal, use a separate Compose project (a different `-p` and por
 - **A backup much smaller than the database?** Expected: `VACUUM INTO` drops free pages and the WAL.
 - **Can I roll back just the image?** Yes, but database migrations do not revert; to return to the pre-upgrade state, restore the pre-upgrade backup.
 
-Related pages: [Data paths and retention](../configuration/storage.md), [Configuration lifecycle](../configuration/lifecycle.md), [Secrets and paths](../configuration/secrets.md), [Admin Panel, secrets and access](admin.md), [Troubleshoot startup failures and silence](troubleshooting.md).
+Related pages: [Data paths and retention](../configuration/storage.md), the [`retention`](../configuration/fields-retention.md) and [`paths`](../configuration/fields-paths.md) field references, [Configuration lifecycle](../configuration/lifecycle.md), [Secrets and paths](../configuration/secrets.md), [Admin Panel, secrets and access](admin.md), [Troubleshoot startup failures and silence](troubleshooting.md).

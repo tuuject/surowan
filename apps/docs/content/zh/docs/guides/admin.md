@@ -21,7 +21,7 @@ description: 认识面板的 7 组导航，安全地远程访问，用一次性�
 }
 ```
 
-`admin.*` 的所有字段都需要重启才生效。Docker 部署里容器内要监听 `0.0.0.0`，但端口发布只到本机回环：
+`admin.*` 的所有字段都需要重启才生效，它们的类型与默认值见 [`admin` 字段参考](../configuration/fields-admin.md)。Docker 部署里容器内要监听 `0.0.0.0`，但端口发布只到本机回环：
 
 ```yaml
     ports:
@@ -46,7 +46,7 @@ description: 认识面板的 7 组导航，安全地远程访问，用一次性�
 
 日常最常用的是 **概览**、**运行记录**、**会话** 与 **设置**；其余页面按需进入。
 
-<!-- screenshot: admin/navigation | 概览页与侧栏的七组导航 -->
+![概览页与侧栏的七组导航](__DOCS_BASE__/screenshots/admin/navigation.zh-CN.light.png)
 
 ## 3. 远程访问
 
@@ -83,7 +83,7 @@ docker compose exec -u surowan plasticwan node /app/src/cli.ts pairing create --
 - 使用官方镜像时，登录页会直接显示上面这条 Docker 命令并带复制按钮；自建镜像只显示通用提示。
 - 登录本身不改密码，也不注销已有的 Session。
 
-<!-- screenshot: installation/sign-in-one-time-code | 登录页的「使用一次性码登录」表单 -->
+![登录页的「使用一次性码登录」表单](__DOCS_BASE__/screenshots/installation/sign-in-one-time-code.zh-CN.light.png)
 
 ## 6. 密码、锁定与通行密钥
 
@@ -94,7 +94,7 @@ docker compose exec -u surowan plasticwan node /app/src/cli.ts pairing create --
 - 反过来，**删除密码**（转为仅通行密钥登录）要求当前网站已注册至少一个通行密钥；删除后会注销全部旧 Session，并给当前浏览器签发一个新的。
 - 更换域名后旧通行密钥仍在列表中，但会标记为无法在此登录；删除 `public_url` 只是关闭通行密钥功能，不会删除已注册的凭据。
 
-<!-- screenshot: admin/passkeys | 通行密钥列表：名称、创建时间与最后使用 -->
+![通行密钥列表：名称、创建时间与最后使用](__DOCS_BASE__/screenshots/admin/passkeys.zh-CN.light.png)
 
 ## 7. 恢复：改密码与离线建号
 
@@ -124,13 +124,13 @@ docker compose run --rm plasticwan admin-account --config /config/config.jsonc -
 - 配置文件无法解析时，删除与轮换都会被拒绝，而不是按残缺的引用集合冒险。
 - **任何地方都不显示密钥的值**：页面、接口、列表都只出现名字。`/api/keychain*` 是仅面板 Session 可用的内部接口，API 密钥与配对客户端都调不到。
 
-<!-- screenshot: admin/keychain | 密钥页：条目、使用处与孤儿清理 -->
+![密钥页：条目、使用处与孤儿清理](__DOCS_BASE__/screenshots/admin/keychain.zh-CN.light.png)
 
 ## 9. API 密钥
 
 **API 密钥** 页为脚本、评估工具与 MCP Server 签发密钥：新建时四选一模式（只读、读 + 改、读 + 耗、全部），可以改模式、轮换或撤销，明文只在创建弹窗出现一次。账号与凭据整类排除在这些密钥之外——无论什么模式，都不能改管理员密码、管理通行密钥或管理 API 密钥本身。想吃透权限差异与用法，见[让你的本地 Agent 帮你调整塑料碗](agent-assisted.md)与[HTTP 公共约定](../developer/http/index.md)。
 
-<!-- screenshot: admin/api-keys | API 密钥页：权限模式与操作 -->
+![API 密钥页：权限模式与操作](__DOCS_BASE__/screenshots/admin/api-keys.zh-CN.light.png)
 
 ## 10. 运行记录：自动刷新与自动滚动
 

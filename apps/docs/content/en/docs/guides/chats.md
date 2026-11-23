@@ -7,7 +7,7 @@ description: Give each chat its own scope, model, extra instructions, timezone, 
 
 Surowan only works in the chats listed in `telegram.chats`. The global section holds the defaults; each entry under `telegram.chats[]` overrides one chat. Fields you leave out keep inheriting the global value, and fields you write apply only to that chat.
 
-Chat and Forum Topic are two different levels: a Topic inherits everything about its Chat (model, participation, MCP bindings), but **conversation context is per Chat + Topic**. Two topics in one group never see each other's conversation, while a settings change reaches all of them at once.
+Chat and Forum Topic are two different levels: a Topic inherits everything about its Chat (model, participation, MCP bindings), but **conversation context is per Chat + Topic**. Two topics in one group never see each other's conversation, while a settings change reaches all of them at once. Which fields a `telegram.chats[]` entry may set, with their types and defaults, is in the [`telegram` field reference](../configuration/fields-telegram.md).
 
 ## Scope: which chats are processed
 
@@ -18,7 +18,7 @@ Chat and Forum Topic are two different levels: a Topic inherits everything about
 
 Add a chat with *Add Chat* on the **Chats** page: a Telegram Chat ID and an optional list of Topic IDs is all it needs. Adding a chat is hot — it works as soon as you save.
 
-<!-- screenshot: first-bot/chat-allowlist | The Chats page listing an allowed chat and its topic scope -->
+![The Chats page listing an allowed chat and its topic scope](__DOCS_BASE__/screenshots/first-bot/chat-allowlist.en.light.png)
 
 ## What the Chats page does
 
@@ -119,7 +119,7 @@ Outside the schedule only four kinds of message open or refresh the window: `/as
 
 *Edit active hours* in the panel offers four modes: *No schedule restriction* (drop this chat's periods), *Custom periods* (per weekday and time), *No active periods* (ordinary messages never wake the bot; mentions, replies and keywords do), and *Only /ask*. The dialog also tells you which keywords and attention window are kept.
 
-<!-- screenshot: chats/active-hours-ask-only | A chat's active-hours dialog including the "Only /ask" option -->
+![A chat's active-hours dialog including the "Only /ask" option](__DOCS_BASE__/screenshots/chats/active-hours-ask-only.en.light.png)
 
 ## `/ask`-only mode
 
@@ -155,7 +155,7 @@ Proactive replies are a per-chat probability gate in front of ordinary group mes
 
 Only ordinary group messages are sampled; mentions, replies, keywords, `/ask` and commands are exempt. Counters are per chat, shared by its Forum Topics and stored in the database. Private chats cannot configure proactive replies — `check-config` rejects it. The formula and how to verify it are in [Tune behaviour and cost](tuning.md).
 
-<!-- screenshot: chats/proactive-reply | A chat's proactive reply chance dialog -->
+![A chat's proactive reply chance dialog](__DOCS_BASE__/screenshots/chats/proactive-reply.en.light.png)
 
 ## Entry gate override per chat
 
@@ -168,7 +168,7 @@ The entry gate reads the global `telegram.decision_gate` by default. For a diffe
 
 Saving applies hot. The global section must already carry `api_key`, otherwise turning *enabled* on for the chat is rejected by `check-config`. Field meanings and the observe-then-enforce order are in [Tune behaviour and cost](tuning.md).
 
-<!-- screenshot: chats/entry-gate-override | A chat's entry gate override dialog with per-field switches -->
+![A chat's entry gate override dialog with per-field switches](__DOCS_BASE__/screenshots/chats/entry-gate-override.en.light.png)
 
 ## MCP bindings and tool narrowing
 
@@ -182,7 +182,7 @@ A binding can only narrow. The selected tools must be tools the server already e
 
 Bindings are hot: narrowing stops the affected runs and resumes them, while adding a server or widening a tool list does not interrupt anything. Server-side fields, `exposure` and `skills` are documented in [External MCP settings](../configuration/mcp.md).
 
-<!-- screenshot: chats/mcp-binding | A chat's MCP server binding dialog with explicit bindings and narrowed tools -->
+![A chat's MCP server binding dialog with explicit bindings and narrowed tools](__DOCS_BASE__/screenshots/chats/mcp-binding.en.light.png)
 
 ## Quick links
 

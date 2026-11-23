@@ -103,7 +103,7 @@ For `invocation list`, carry the first page's `as_of` back as `--as-of` and the 
 
 ## Generic panel commands
 
-Every panel operation is one command; the arguments, method and path come from the same endpoint table the server uses:
+Every panel operation is one command; the arguments, method and path come from the same endpoint table the server uses. The generated [client CLI command catalog](cli-commands.md) lists them all with method, route, permission and confirmation:
 
 ```bash
 surowan-utils harness show --json

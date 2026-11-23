@@ -131,7 +131,7 @@ surowan-utils decision-gate decisions --chat <chat ID> --limit 50
 - **`mcp_required_deprecated`** says a `mcp.servers[].required` remains in the file. It no longer does anything; delete it.
 - Startup no longer waits for MCP: an unreachable server only degrades itself and never keeps the bot from starting. A failing tool call lands in *Tool calls* on the invocation detail, with codes such as `mcp_tool_error` or `mcp_call_failed`.
 
-<!-- screenshot: troubleshooting/mcp-degraded | The Warnings page listing a degraded MCP server and its error code -->
+![The Warnings page listing a degraded MCP server and its error code](__DOCS_BASE__/screenshots/troubleshooting/mcp-degraded.en.light.png)
 
 ## Group memory batch failures
 
@@ -155,9 +155,9 @@ A failure never loses messages: the lane returns to idle with a backoff and retr
 "I changed the configuration and nothing happened" is almost always one of these:
 
 - **The file was never applied.** After a hand edit, press *Apply config file* on **Settings**. The *Config file* group shows the active hash, the file hash and whether the file matches the running configuration, and *Last error* explains the last failed apply. Fields that need a restart produce a *N settings are waiting for a restart* banner with *Restart now* at the top of **Chats**.
-- **The field only applies after a restart.** Which fields are hot and which are not is in [Configuration lifecycle](../configuration/lifecycle.md); hot fields show *Running: …* under the input when the running value differs.
+- **The field only applies after a restart.** Which fields are hot and which are not is in [Configuration lifecycle](../configuration/lifecycle.md); hot fields show *Running: …* under the input when the running value differs. Field types and defaults are in the [`agent`](../configuration/fields-agent.md), [`telegram`](../configuration/fields-telegram.md) and [`vision`](../configuration/fields-vision.md) field references.
 
-<!-- screenshot: troubleshooting/config-drift | The Settings page showing a file hash that differs from the active hash -->
+![The Settings page showing a file hash that differs from the active hash](__DOCS_BASE__/screenshots/troubleshooting/config-drift.en.light.png)
 
 **Deprecated fields** have no effect at all. `check-config` lists their paths in `warnings` and the Warnings page reports `config_fields_deprecated`. To clean up: `agent.memory_ttl_warning_days`, `agent.send_empty_text_fallback_enabled` (use `agent.send_empty_text_strategy: "random_text"` instead), `vision.background_sticker_concurrency`, and `mcp.servers[].required`.
 
@@ -179,7 +179,7 @@ On the detail page:
 - `failed`, `aborted` or `outcome_unknown`: read *Completion reason* and *Error code*; this is the case where resume may help.
 - A `send` tool call that failed carries the reason: a send rule (duplicate, empty text, length, reply target), a permission, or a Telegram-side rejection.
 
-<!-- screenshot: troubleshooting/tool-calls | An invocation detail showing tool calls and the Telegram send result -->
+![An invocation detail showing tool calls and the Telegram send result](__DOCS_BASE__/screenshots/troubleshooting/tool-calls.en.light.png)
 
 When the panel does not answer the question, read the same audit from a shell:
 
@@ -206,7 +206,7 @@ Refusals name the reason directly:
 | `resume_agent_unconfigured` | The chat's model configuration is incomplete. |
 | `resume_unsupported_host` | Playground failures retry through the room's own retry, not resume. |
 
-<!-- screenshot: tuning/invocation-resume | A failed run's detail page with the Resume button and the auto-refresh controls -->
+![A failed run's detail page with the Resume button and the auto-refresh controls](__DOCS_BASE__/screenshots/tuning/invocation-resume.en.light.png)
 
 Resume is not replay: replay produces no Telegram side effects and does not continue the conversation's context. See [Invocation preflight and replay](../developer/replay.md).
 

@@ -7,7 +7,7 @@ description: 按会话设置允许范围、模型、附加指令、时区、忽�
 
 塑料碗只在 `telegram.chats` 列出的会话里工作。全局段是默认值，`telegram.chats[]` 的每一项是某个会话的覆盖：没写的字段继续继承全局，写了的字段只在那个会话生效。
 
-Chat 与 Forum Topic 是两个层次：Topic 继承所属 Chat 的全部设置（模型、参与策略、MCP 绑定都一样），但**对话上下文按 Chat + Topic 分开**。所以同一个群里不同话题的聊天互不可见，设置却改一处就一起变。
+Chat 与 Forum Topic 是两个层次：Topic 继承所属 Chat 的全部设置（模型、参与策略、MCP 绑定都一样），但**对话上下文按 Chat + Topic 分开**。所以同一个群里不同话题的聊天互不可见，设置却改一处就一起变。`telegram.chats[]` 每一项允许写哪些字段、各自的类型与默认值，见 [`telegram` 字段参考](../configuration/fields-telegram.md)。
 
 ## 允许范围：哪些会话会被处理
 
@@ -18,7 +18,7 @@ Chat 与 Forum Topic 是两个层次：Topic 继承所属 Chat 的全部设置�
 
 在面板 **会话**（Chats）页点「添加会话」，填 Telegram 会话 ID 和需要的话题 ID 列表即可。面板里新增会话是热更新的，保存后立即生效。
 
-<!-- screenshot: first-bot/chat-allowlist | 会话页列出允许的会话及其话题范围 -->
+![会话页列出允许的会话及其话题范围](__DOCS_BASE__/screenshots/first-bot/chat-allowlist.zh-CN.light.png)
 
 ## 会话页能改什么
 
@@ -119,7 +119,7 @@ Chat 与 Forum Topic 是两个层次：Topic 继承所属 Chat 的全部设置�
 
 面板里点「编辑活跃时间」可以选四种模式：「不限制活跃时间」（移除本会话的时段设置）、「自定义活跃时段」（按时段与星期生效）、「无固定活跃时段」（普通消息不会唤起，只有 @、回复或关键词可以）、「仅 /ask 唤起」。对话框同时显示关键词与注意力窗口的保留情况。
 
-<!-- screenshot: chats/active-hours-ask-only | 会话的活跃时间对话框，含「仅 /ask 唤起」选项 -->
+![会话的活跃时间对话框，含「仅 /ask 唤起」选项](__DOCS_BASE__/screenshots/chats/active-hours-ask-only.zh-CN.light.png)
 
 ## 仅 /ask 唤起
 
@@ -155,7 +155,7 @@ Chat 与 Forum Topic 是两个层次：Topic 继承所属 Chat 的全部设置�
 
 只有普通群消息经过抽样；@、回复、关键词、`/ask` 和命令都不受影响。计数按会话隔离，Forum Topic 共享，存在数据库里。私聊不能配置主动回复，`check-config` 会直接拒绝。概率怎么算、怎么验证，见[按表现和费用调优](tuning.md)。
 
-<!-- screenshot: chats/proactive-reply | 会话的主动回复概率对话框 -->
+![会话的主动回复概率对话框](__DOCS_BASE__/screenshots/chats/proactive-reply.zh-CN.light.png)
 
 ## 每个会话的入场闸门覆盖
 
@@ -168,7 +168,7 @@ Chat 与 Forum Topic 是两个层次：Topic 继承所属 Chat 的全部设置�
 
 保存后热应用。全局段必须已经写了 `api_key`，否则把会话的「启用」打开会被 `check-config` 拒绝。字段含义与观察顺序见[按表现和费用调优](tuning.md)。
 
-<!-- screenshot: chats/entry-gate-override | 会话的入场闸门覆盖对话框，含逐字段开关 -->
+![会话的入场闸门覆盖对话框，含逐字段开关](__DOCS_BASE__/screenshots/chats/entry-gate-override.zh-CN.light.png)
 
 ## MCP 绑定与工具收窄
 
@@ -182,7 +182,7 @@ Chat 与 Forum Topic 是两个层次：Topic 继承所属 Chat 的全部设置�
 
 绑定是热更新的：收窄会让受影响的会话停跑并自动续跑，新增服务器或放宽工具不会打断正在跑的运行。`mcp.servers[]` 的字段与 `exposure`、`skills` 等选项见[外部 MCP 配置](../configuration/mcp.md)。
 
-<!-- screenshot: chats/mcp-binding | 会话的 MCP 服务器绑定对话框，含显式绑定与工具收窄 -->
+![会话的 MCP 服务器绑定对话框，含显式绑定与工具收窄](__DOCS_BASE__/screenshots/chats/mcp-binding.zh-CN.light.png)
 
 ## 快捷跳转
 

@@ -25,7 +25,7 @@ description: 区分连续上下文、Memo Pad、群聊记忆与辞典，并维�
 
 ## 连续上下文：不需要手工维护
 
-一个 Conversation 在整个生命周期里只有一份连续历史。它不做摘要，只按 checkpoint 丢弃最旧的部分，具体阈值属于 `agent.context`，见[Agent 配置](../configuration/agent.md)。
+一个 Conversation 在整个生命周期里只有一份连续历史。它不做摘要，只按 checkpoint 丢弃最旧的部分，具体阈值属于 `agent.context`，见[Agent 配置](../configuration/agent.md)与 [`agent` 字段参考](../configuration/fields-agent.md)。
 
 由此有两条实用结论：
 
@@ -73,7 +73,7 @@ description: 区分连续上下文、Memo Pad、群聊记忆与辞典，并维�
 
 打开 **记忆（Memories）**：
 
-<!-- screenshot: knowledge/memo-editor | 记忆页的备忘录编辑对话框 -->
+![记忆页的备忘录编辑对话框](__DOCS_BASE__/screenshots/knowledge/memo-editor.zh-CN.light.png)
 
 1. 按会话与**状态**筛选：**生效中**、**已过期**、**短期**、**长期**。列表只显示摘要，点「查看」看详情全文。
 2. **新建备忘录**：选择会话、填写摘要与详情（支持 Markdown）、填写**有效期（天）**。
@@ -150,7 +150,7 @@ description: 区分连续上下文、Memo Pad、群聊记忆与辞典，并维�
 
 打开 **群聊记忆（Group memory）**，顶部是「整理进度」：
 
-<!-- screenshot: knowledge/group-memory-progress | 群聊记忆页顶部的整理进度 -->
+![群聊记忆页顶部的整理进度](__DOCS_BASE__/screenshots/knowledge/group-memory-progress.zh-CN.light.png)
 
 每个开启群聊记忆的群一行，显示：
 
@@ -177,7 +177,7 @@ description: 区分连续上下文、Memo Pad、群聊记忆与辞典，并维�
 }
 ```
 
-<!-- screenshot: knowledge/thirty-hour-clock | 群聊记忆对话框里的 30 小时制设置 -->
+![群聊记忆对话框里的 30 小时制设置](__DOCS_BASE__/screenshots/knowledge/thirty-hour-clock.zh-CN.light.png)
 
 | 取值 | 搜索某个日期时返回 |
 | --- | --- |
@@ -253,7 +253,7 @@ description: 区分连续上下文、Memo Pad、群聊记忆与辞典，并维�
 
 在辞典页顶部使用「导入」与「导出」，支持 CSV 和 JSONL。导入时选择目标作用域、读取文件或粘贴内容、查看解析预览与潜在冲突，确认后才写入。导入**只创建新词条**，不会因为同名而覆盖或更新已有词条。
 
-<!-- screenshot: knowledge/dictionary-import | 辞典导入预览中的潜在冲突 -->
+![辞典导入预览：解析出的词条、别名与冲突检查](__DOCS_BASE__/screenshots/knowledge/dictionary-import.zh-CN.light.png)
 
 CSV 的列是 `term`、`definition`、`aliases`、`enabled`。多个别名在一个单元格里用 `|` 分隔；别名中的竖线写 `\|`，反斜杠写 `\\`。包含逗号、引号或换行的单元格按 RFC 4180 加引号，其中的引号写两次：
 

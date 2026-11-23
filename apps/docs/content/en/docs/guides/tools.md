@@ -23,7 +23,7 @@ It is **off by default**. Once enabled, the `web_search` capability and its Skil
 
 Open **Web search**:
 
-<!-- screenshot: tools/search-settings | Web search with the switch, engines and URL filters -->
+![Web search with a configured engine and URL filters](__DOCS_BASE__/screenshots/tools/search-settings.en.light.png)
 
 - **Enable web search** controls the whole feature. Turning it off — or disabling every engine — has the same effect: the capability and Skill disappear at once, **running invocations stop**, and the next message starts on a rebuilt Context.
 - **Search engines** holds any number of engines. Each one needs a provider, a model-visible **Engine id** (lowercase letters, digits, dashes), an **Endpoint** (empty means the provider default; SearXNG requires one), **Results** (1–10), **Timeout (s)** (5–30) and a **Note for the model**. The note appears in the tool description and the engine list to say which sites or material that engine suits; the model picks engines by it.
@@ -42,7 +42,7 @@ Saving takes effect immediately. Changing the provider, the key or the search pa
 - When results are dropped by URL rules, the result header says how many.
 - Results are untrusted data and never count as instructions or authorization.
 
-Fields and validation are in [Web search settings](../configuration/web-search.md).
+Fields and validation are in [Web search settings](../configuration/web-search.md) and the [`web_search` field reference](../configuration/fields-web-search.md).
 
 ## Page fetching and images
 
@@ -54,7 +54,7 @@ Fields and validation are in [Web search settings](../configuration/web-search.m
 - Hotlink protection is handled with `referer` (usually the page URL). Only a model that accepts image input sees the picture; otherwise it receives an explanation.
 - Anything needing JavaScript rendering, a login or heavy parsing belongs behind MCP.
 
-`web_fetch.dangerously_allow_all_ip_addresses: true` removes every address restriction, letting anyone who can trigger the bot reach your internal network through the model. Enable it only when you fully trust those people. Full fields are in [Web fetch settings](../configuration/web-fetch.md).
+`web_fetch.dangerously_allow_all_ip_addresses: true` removes every address restriction, letting anyone who can trigger the bot reach your internal network through the model. Enable it only when you fully trust those people. Full fields are in [Web fetch settings](../configuration/web-fetch.md) and the [`web_fetch` field reference](../configuration/fields-web-fetch.md).
 
 ## Scheduled work: alarms and recurring alarms
 
@@ -78,7 +78,7 @@ Only admins can create or change them, on the **Recurring alarms** page. Group m
 
 ### Creating one
 
-<!-- screenshot: tools/recurring-alarm | The recurring alarm dialog with rules, cron and the next five runs -->
+![The recurring alarm dialog with rules, cron and the next five runs](__DOCS_BASE__/screenshots/tools/recurring-alarm.en.light.png)
 
 1. Choose **New recurring alarm**.
 2. Fill in the **Title**. It is only shown in the panel; the bot never sees it.
@@ -136,7 +136,7 @@ Outbound MCP lets the bot call tools on external MCP servers. A server is config
 
 Open **MCP servers**:
 
-<!-- screenshot: tools/mcp-servers | MCP servers with state, progressive exposure and skills -->
+![MCP servers with state, progressive exposure and skills](__DOCS_BASE__/screenshots/tools/mcp-servers.en.light.png)
 
 The page lists each server's live state (**Ready** / **Connecting** / **Degraded** / **No live state**, with an error code), a connection summary, every tool it has advertised (including those hidden by its tool selection), and **Used by**: which Chats bind it explicitly and which inherit it.
 
@@ -186,7 +186,7 @@ Per-Chat binding lives behind the **MCP servers** entry on each row of the **Cha
 
 A binding only narrows; it never changes the connection. Command, URL, environment and headers stay with the server, so two connections mean two aliases. Playground rooms never have MCP tools.
 
-Fields are in [External MCP settings](../configuration/mcp.md), and the per-Chat shape is in [Telegram settings](../configuration/telegram.md).
+Fields are in [External MCP settings](../configuration/mcp.md) and the [`mcp` field reference](../configuration/fields-mcp.md), and the per-Chat shape is in [Telegram settings](../configuration/telegram.md) and the [`telegram` field reference](../configuration/fields-telegram.md).
 
 ## Read-only documentation versus external tools
 

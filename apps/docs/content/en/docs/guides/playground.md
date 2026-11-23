@@ -26,7 +26,7 @@ Rooms have no "send and it runs" mode: new messages wait in the hold queue and s
 - Input is admitted in arrival order; a room runs one invocation at a time, and a later batch waits for the one in flight.
 - The room header shows the revision, the hold state and how many messages wait; `queued` and `running` below it count the queue and the active run.
 
-<!-- screenshot: playground/hold-pending | The Playground with messages held and not yet run -->
+![The Playground with messages held and not yet run](__DOCS_BASE__/screenshots/playground/hold-pending.en.light.png)
 
 ## 3. Read the timeline and the runs
 
@@ -40,7 +40,7 @@ Three outcomes are different things:
 - **Deliberate silence**: the run ends but says it finished without posting anything. That is the model's decision, not a failure.
 - **A failure or abort**: expand the run for the error. `Outcome unknown` means a process interruption left the result unclear — check the timeline and audit before retrying blindly.
 
-<!-- screenshot: playground/release-result | After a release: room output, run state and the audit entry -->
+![After a release: room output, run state and the audit entry](__DOCS_BASE__/screenshots/playground/release-result.en.light.png)
 
 ## 4. Retry, and how it differs from Resume
 
@@ -76,7 +76,7 @@ A room runs a deliberately narrowed profile, separate from Telegram's:
 - A room has its own Memo entries and image assets, isolated from every Telegram chat; deleting the room deletes them.
 - Room model usage goes into the separate `playground` usage scope, so it does not consume a Telegram chat's daily budget, while the same configured limits still apply.
 
-Room messages, runs and audit data follow `retention.online_days`; local image assets are kept through backups. Details are in [Upgrade, back up and restore](maintenance.md) and [Data paths and retention](../configuration/storage.md).
+Room messages, runs and audit data follow `retention.online_days`; local image assets are kept through backups. Details are in [Upgrade, back up and restore](maintenance.md), [Data paths and retention](../configuration/storage.md) and the [`retention` field reference](../configuration/fields-retention.md).
 
 ## 8. Common misunderstandings
 
