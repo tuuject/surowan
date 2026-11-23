@@ -32,7 +32,7 @@ description: data_dir、timezone、数据库/缓存/备份路径，retention 三
 | `data_dir` | 必填。图片归档与素材数据的基础目录：`<data_dir>/images` 下是生图原图，另有 `playground/`（虚拟群聊素材）与 `memo-blobs/`（Memo 图片）。 |
 | `timezone` | 必填，IANA 时区名（如 `Asia/Shanghai`），加载时用 `Intl` 校验。Chat 没写自己的 `timezone` 时用它，影响活跃时段、群聊记忆的日期边界、循环闹钟的默认时区、提示词里的时区变量与面板的时间显示。 |
 
-路径按**进程工作目录**解析，不是按配置文件所在目录解析。容器里通常写 `/data` 这种绝对路径；相对路径可行但容易踩到启动目录，不建议。
+路径按**进程工作目录**解析，不是按配置文件所在目录解析。容器里通常写 `/data` 这种绝对路径，相对路径可行但容易踩到启动目录，不建议。
 
 ## paths
 
@@ -42,7 +42,7 @@ description: data_dir、timezone、数据库/缓存/备份路径，retention 三
 | `paths.media_cache` | 图片转换用的临时目录：媒体需要转码时在这里建临时子目录，用完即删。停在服务时可以清空。 |
 | `paths.backups` | `backup` 命令写备份的目录（不存在会以 `0700` 创建）。 |
 
-Prompt 文件（`agent.system_prompt_file`、`chats[].instructions_file`）是例外：它们相对于配置文件所在目录解析，见[密钥与路径](secrets.md)。
+Prompt 文件（`agent.system_prompt_file`、`chats[].instructions_file`）是例外，它们相对于配置文件所在目录解析，见[密钥与路径](secrets.md)。
 
 ## retention
 
@@ -57,7 +57,7 @@ Prompt 文件（`agent.system_prompt_file`、`chats[].instructions_file`）是�
 | 字段 | 生效方式 |
 | --- | --- |
 | `data_dir`、`timezone`、`paths.database`、`paths.media_cache` | 重启 |
-| `retention.online_days` | 热更新——下一次清理（最长 24 小时后）就用新值 |
+| `retention.online_days` | 热更新，下一次清理（最长 24 小时后）就用新值 |
 | `retention.warning_read_days` | 重启 |
 | `paths.backups`、`retention.backup_copies` | 不影响运行中的服务，下一次 `backup` 读取 |
 
@@ -65,24 +65,24 @@ Prompt 文件（`agent.system_prompt_file`、`chats[].instructions_file`）是�
 
 保留清理只有两个触发点：
 
-1. **`serve`**：启动时跑一次（在调度器开始工作之前，所以升级后第一次启动能安静地吃掉一大堆积压），然后每 24 小时一次。每次运行都读当前的 `retention.online_days`，所以热更新过的值会落到下一次清理。清理失败只记一条 `retention_cleanup_failed` 日志，定时器继续跑；进程不因此退出。
+1. **`serve`**：启动时跑一次（在调度器开始工作之前，所以升级后第一次启动能安静地吃掉一大堆积压），然后每 24 小时一次。每次运行都读当前的 `retention.online_days`，所以热更新过的值会落到下一次清理。清理失败只记一条 `retention_cleanup_failed` 日志，定时器继续跑，进程不因此退出。
 2. **`backup`**：在拷出 SQLite 之前先跑同一次清理，所以备份里不会带着已经超出保留窗口的审计数据。
 
-事件类警告（`warnings`）另有一个小时级的清理线程，只删「已读且超过 `warning_read_days`」的行；未读警告不会自动消失。
+事件类警告（`warnings`）另有一个小时级的清理线程，只删「已读且超过 `warning_read_days`」的行，未读警告不会自动消失。
 
 ### 会被清理
 
 超出 `online_days` 的：
 
-- 已经结束的 Invocation（`completed`、`failed`、`aborted`、`outcome_unknown`、`skipped_budget`）及其级联的 Agent transcript、模型调用、工具调用与发送记录；正在运行的、排队中的、以及被别的运行续跑的行不动；
-- Bucket（含被合并或过期的），以及不再被引用的发送者行；
-- 后台图片分析的缓存、没有挂到 Invocation 上的模型调用、群聊记忆的整理批次；
+- 已经结束的 Invocation（`completed`、`failed`、`aborted`、`outcome_unknown`、`skipped_budget`）及其级联的 Agent transcript、模型调用、工具调用与发送记录，正在运行的、排队中的、以及被别的运行续跑的行不动。
+- Bucket（含被合并或过期的），以及不再被引用的发送者行。
+- 后台图片分析的缓存、没有挂到 Invocation 上的模型调用、群聊记忆的整理批次。
 - 已结束且回执已处理的长任务、循环闹钟的历史触发记录、`daily_usage` 的旧日期。
 
 还有一些行按各自的期限或窗口单独清理：
 
-- Memo 条目（`expires_at` 到期即删，与保留窗口无关）、`conversation_attention`、`context_refs`，以及过期的一次性 nonce 与会话；
-- 已使用、已取消或已过期的一次性配对码：它还要再等超过保留窗口才会被删；
+- Memo 条目（`expires_at` 到期即删，与保留窗口无关）、`conversation_attention`、`context_refs`，以及过期的一次性 nonce 与会话。
+- 已使用、已取消或已过期的一次性配对码，它还要再等超过保留窗口才会被删。
 - 虚拟群聊里仍被 Hold 但消息已超保留期的输入（标记为 `expired`，不静默删除请求键）。
 
 ### 永远不会被这两个窗口清理
@@ -100,8 +100,8 @@ Prompt 文件（`agent.system_prompt_file`、`chats[].instructions_file`）是�
 <paths.backups>/surowan-<时间戳>-<uuid>.images/     ← <data_dir>/images 的拷贝
 ```
 
-- `.images` 目录是把备份文件名的 `.sqlite` 换成 `.images`；`<data_dir>/images` 不存在就跳过，拷贝失败只记日志、不影响 SQLite 备份的有效性。
-- 两个快照之间没有跨存储的原子性：SQLite 快照之后提交的行，可能引用的是拷贝之前或之后那一版图片文件。恢复时把 `.images` 放回 `<data_dir>/images` 即可配套使用。
+- `.images` 目录是把备份文件名的 `.sqlite` 换成 `.images`，`<data_dir>/images` 不存在就跳过，拷贝失败只记日志、不影响 SQLite 备份的有效性。
+- 两个快照之间没有跨存储的原子性，SQLite 快照之后提交的行，可能引用的是拷贝之前或之后那一版图片文件。恢复时把 `.images` 放回 `<data_dir>/images` 即可配套使用。
 - 轮换按修改时间保留最新的 `retention.backup_copies` 个 `.sqlite`，并顺手删掉属于被轮换掉那些备份的 `.images/` 目录。升级前自动生成的 `pre-migration-*.sqlite` 只在同类文件之间轮换，但下一次 `backup` 的轮换不区分文件名，所以旧副本可能被一起清掉。
 - 配置文件、Prompt、密钥**不在数据库里**，必须单独备份。
 
@@ -126,4 +126,4 @@ Prompt 文件（`agent.system_prompt_file`、`chats[].instructions_file`）是�
 - `history_messages`、Context 的裁剪与 GC 是另一套机制，见 [Agent 配置](agent.md)。
 - 面板「设置」页显示生效哈希与「需要重启」清单，见[配置生命周期](lifecycle.md)。
 
-字段类型与范围见[保留字段参考](fields-retention.md)与[路径字段参考](fields-paths.md)；`data_dir`、`timezone`、`version` 这些标量在[配置字段参考](fields.md)里。
+字段类型与范围见[保留字段参考](fields-retention.md)与[路径字段参考](fields-paths.md)，`data_dir`、`timezone`、`version` 这些标量在[配置字段参考](fields.md)里。

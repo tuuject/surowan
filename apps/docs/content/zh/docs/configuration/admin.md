@@ -34,11 +34,11 @@ description: admin 段的监听地址、端口、会话有效期、静态目录�
 
 ### public_url 的限制
 
-它不是一个自由填写的链接，而是一个**被校验的 origin**：
+这个字段填写的是**被校验的 origin**（不能写任意链接）：
 
-- 必须是 `https://`，或者本机调试时的 `http://localhost`；
-- 不能是 IP 字面量（IPv4、IPv6 都不行），`localhost` 例外；
-- 不能带用户名、密码、路径、查询参数或 `#` 片段；`https://panel.example.com` 与带尾斜杠的写法都接受。
+- 必须是 `https://`，或者本机调试时的 `http://localhost`。
+- 不能是 IP 字面量（IPv4、IPv6 都不行），`localhost` 例外。
+- 不能带用户名、密码、路径、查询参数或 `#` 片段，`https://panel.example.com` 与带尾斜杠的写法都接受。
 
 它一旦写上，就同时决定三件事：
 
@@ -46,19 +46,19 @@ description: admin 段的监听地址、端口、会话有效期、静态目录�
 2. **浏览器写请求的来源**：面板的写操作要求 `Origin` 与它完全一致，所以只能从这一个地址打开面板来改配置（没写 `public_url` 时退化为「同主机即可」）。
 3. **配对输出的面板地址**：服务器上用 `pairing create --web` 生成一次性登录码时，给出的链接就是它（没写时是 `http://127.0.0.1:<port>/`）。
 
-没写 `public_url` 就没有 Passkey：Passkey 相关接口直接返回 `passkeys_disabled`，只能用密码登录。
+没写 `public_url` 就没有 Passkey，Passkey 相关接口直接返回 `passkeys_disabled`，只能用密码登录。
 
 ## 生效方式
 
-**整段都要重启**：`admin` 不在热更新白名单里，改完要在「设置」页应用配置文件，然后重启进程（部署带 supervisor 时面板会给出「立即重启」）。监听端口、会话有效期、静态目录和 Passkey 依赖方都在进程启动时固定下来。
+**整段都要重启**，`admin` 不在热更新白名单里，改完要在「设置」页应用配置文件，然后重启进程（部署带 supervisor 时面板会给出「立即重启」）。监听端口、会话有效期、静态目录和 Passkey 依赖方都在进程启动时固定下来。
 
-`enabled: false` 是一个真正的「无面板」模式：面板服务不启动，进程只靠 Telegram 工作。所以有一个硬性检查——面板关闭且 Telegram 也没配置（无 token 或 token 为空）时，`serve` 直接拒绝启动，因为那样没有任何入口。
+`enabled: false` 是真正的「无面板」模式，面板服务不启动，进程只靠 Telegram 工作。为此运行时会做硬性检查，面板关闭且 Telegram 也没配置（无 token 或 token 为空）时，`serve` 直接拒绝启动，因为那样没有任何入口。
 
 ## 首次登录
 
 面板没有网页建号入口。第一个管理员只能来自服务器：
 
-- `pairing create --web`：生成一次性登录码，并在没有账号时自动建一个无密码的 `admin`，登录后再补设密码；
+- `pairing create --web`：生成一次性登录码，并在没有账号时自动建一个无密码的 `admin`，登录后再补设密码。
 - `admin-account`：离线创建或重置账号，需要面板进程没在跑。
 
 一次性码的用途分 `client` 与 `web` 两种，两个领取端点各认自己那种，不能互相串用。细节见[管理面板、密钥与访问安全](../guides/admin.md)与[服务端 CLI](../developer/service-cli.md)。

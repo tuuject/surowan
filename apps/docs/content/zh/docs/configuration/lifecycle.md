@@ -5,7 +5,7 @@ description: 缺省与 null、全局到 Chat 的继承、文件与运行快照�
 
 # 配置生命周期
 
-配置文件只是「想要的状态」。进程启动时读一次，之后只有在显式应用时才会重新读；每次应用都会把文件里的变更分成三类：能立刻生效的、必须重启才生效的、以及 `serve` 根本不读的。这一页说明这套规则，字段本身的类型与默认值见[配置字段参考](fields.md)。
+配置文件只是「想要的状态」。进程启动时读一次，之后只有在显式应用时才会重新读。每次应用都会把文件里的变更分成三类：能立刻生效的、必须重启才生效的、以及 `serve` 根本不读的。这一页说明这套规则，字段本身的类型与默认值见[配置字段参考](fields.md)。
 
 ## 三个层次
 
@@ -21,17 +21,17 @@ description: 缺省与 null、全局到 Chat 的继承、文件与运行快照�
 
 ## 缺省与 null
 
-- 可选段整段省略就是「没配置」：`telegram` 省略即停用 Telegram；`vision` 省略即没有视觉模型；`image` 省略即图片生成禁用。
-- `agent` 与 `vision` 除了省略，还可以写 `null`，与省略等价。`agent: {}` 也合法：其余字段都走默认值，但模型三元组（`provider`/`model`/`thinking_level`）仍不完整，于是不会发起任何 Invocation。
-- 段存在时，段内必填字段仍然必填。比如写了 `telegram` 就必须写 `process_bot_messages`、`bucket_window_seconds` 和 `chats`；`token` 是例外，可以省略。
-- 省略字段不等于没有行为：大多数字段有默认值，见下节。
+- 可选段整段省略就是「没配置」：`telegram` 省略即停用 Telegram，`vision` 省略即没有视觉模型，`image` 省略即图片生成禁用。
+- `agent` 与 `vision` 除了省略，还可以写 `null`，与省略等价。`agent: {}` 也合法，其余字段都走默认值，但模型三元组（`provider`/`model`/`thinking_level`）仍不完整，于是不会发起任何 Invocation。
+- 段存在时，段内必填字段仍然必填。比如写了 `telegram` 就必须写 `process_bot_messages`、`bucket_window_seconds` 和 `chats`，`token` 是例外，可以省略。
+- 省略字段不等于没有行为，大多数字段有默认值，见下节。
 
 ## 默认值从哪来
 
 默认值有两个来源，生成页把它们分开标注：
 
 - **Schema 声明默认**：Schema 节点上的 `default`，目前只出现在少数布尔字段上（例如 `developer.record_model_payloads`）。
-- **运行时默认**：省略字段时解析代码实际使用的值，来自 `AGENT_DEFAULTS`、`VISION_DEFAULTS`、`TELEGRAM_DEFAULTS`、`DECISION_GATE_DEFAULTS`、`PROACTIVE_REPLY_DEFAULTS` 等常量。是否生效取决于解析范围：`agent` 与 `vision` 段由解析函数逐字段补齐，所以运行时消费者读到的永远是具体值；`telegram` 段内的必填字段（如 `bucket_window_seconds`）只在整段缺失时才有默认值，段存在时没有「省略」这一说。
+- **运行时默认**：省略字段时解析代码实际使用的值，来自 `AGENT_DEFAULTS`、`VISION_DEFAULTS`、`TELEGRAM_DEFAULTS`、`DECISION_GATE_DEFAULTS`、`PROACTIVE_REPLY_DEFAULTS` 等常量。是否生效取决于解析范围：`agent` 与 `vision` 段由解析函数逐字段补齐，所以运行时消费者读到的永远是具体值。`telegram` 段内的必填字段（如 `bucket_window_seconds`）只在整段缺失时才有默认值，段存在时没有「省略」这一说。
 
 没有一个统一默认值的字段（例如 `vision.thinking_level` 由所选模型决定，`tool_model` 省略时继承全局 Agent）不会在生成页里写默认值，规则写在对应的人工说明页。
 
@@ -55,27 +55,27 @@ description: 缺省与 null、全局到 Chat 的继承、文件与运行快照�
 手改文件本身不产生任何效果。把它交给运行中的进程有三种方式：
 
 1. 面板「设置」页的「应用配置文件」按钮（对应 `POST /api/config/apply`）。
-2. 面板里任何写配置的保存操作：Providers、Models、Prompts、Chats、Harness tuning、Telegram 设置等页面都是「先写文件，再应用」；只写数据库的设置（记忆、辞典、闹钟等）与配置无关。
+2. 面板里任何写配置的保存操作：Providers、Models、Prompts、Chats、Harness tuning、Telegram 设置等页面都是「先写文件，再应用」，只写数据库的设置（记忆、辞典、闹钟等）与配置无关。
 3. Telegram 命令：`/model`、`/effort`、`/ignoreme`、`/unignoreme`、`/allowlist` 写入文件后同样会应用一次。
 
-启动时读一次文件；`serve` 之后不会再看磁盘。所以「保存成功」与「已生效」是两件事，面板用生效哈希与文件哈希区分它们。
+启动时读一次文件，`serve` 之后不会再看磁盘。所以「保存成功」与「已生效」是两件事，面板用生效哈希与文件哈希区分它们。
 
 ## 部分应用与待重启
 
 一次应用是「文件里的热字段 + 运行快照里仍生效的重启字段」拼成的候选配置：
 
 - 热字段立刻生效，并出现在结果的 `applied` 列表里。
-- 重启字段保留运行快照里的旧值，写进 `restartRequired` 列表；面板显示「需要重启」，重启后才会一起生效。
-- `paths.backups` 与 `retention.backup_copies` 属于第三类：`serve` 不读它们，下一次 `backup` 才用新值，面板显示「不影响运行中的服务」。
+- 重启字段保留运行快照里的旧值，写进 `restartRequired` 列表，面板显示「需要重启」，重启后才会一起生效。
+- `paths.backups` 与 `retention.backup_copies` 属于第三类，`serve` 不读它们，下一次 `backup` 才用新值，面板显示「不影响运行中的服务」。
 - 待重启状态不会因为之后只改热字段而清空。把待重启字段改回原值再应用，待重启列表才会消失。
 
-候选配置会再校验一次。文件本身合法、但与仍在运行的重启字段组合起来不合法时，应用失败并返回 `candidate_invalid`，错误里列出待重启路径；文件留在磁盘上，重启后与那些字段一起生效。
+候选配置会再校验一次。文件本身合法、但与仍在运行的重启字段组合起来不合法时，应用失败并返回 `candidate_invalid`，错误里列出待重启路径，文件留在磁盘上，重启后与那些字段一起生效。
 
-每次成功应用都写一条 `config_reloaded` 日志，带 `generation`、`active_hash`、`file_hash`、`applied`、`restart_required`、`outside_serve`；失败写 `config_reload_failed`，带错误码与脱敏后的错误信息。失败码有 `config_invalid`（文件本身不合法）、`candidate_invalid`（与待重启字段冲突）、`model_unusable`（模型缺失或不可用）、`secret_unresolved`（新增或连接字段变化的 Provider 无法解析 SecretRef）、`publish_incomplete`（配置已发布，但发布钩子失败，再应用一次会重试）。
+每次成功应用都写一条 `config_reloaded` 日志，带 `generation`、`active_hash`、`file_hash`、`applied`、`restart_required`、`outside_serve`，失败写 `config_reload_failed`，带错误码与脱敏后的错误信息。失败码有 `config_invalid`（文件本身不合法）、`candidate_invalid`（与待重启字段冲突）、`model_unusable`（模型缺失或不可用）、`secret_unresolved`（新增或连接字段变化的 Provider 无法解析 SecretRef）、`publish_incomplete`（配置已发布，但发布钩子失败，再应用一次会重试）。
 
 ## 行为矩阵
 
-下表是代表性的变更。`hot` 表示下一次显式应用就生效，`restart` 表示写进文件但要重启，`outside_serve` 表示只有 `backup` 读；`test/docs/lifecycle.test.ts` 用真实的配置差异计算逐行校验这些结论。
+下表是代表性的变更。`hot` 表示下一次显式应用就生效，`restart` 表示写进文件但要重启，`outside_serve` 表示只有 `backup` 读。`test/docs/lifecycle.test.ts` 用真实的配置差异计算逐行校验这些结论。
 
 | 变更 | 生效方式 | 说明 |
 | --- | --- | --- |
@@ -118,8 +118,8 @@ description: 缺省与 null、全局到 Chat 的继承、文件与运行快照�
 
 三个兼容字段（`agent.memory_ttl_warning_days`、`agent.send_empty_text_fallback_enabled`、`vision.background_sticker_concurrency`）与 `mcp.servers[].required` 仍被 Schema 接受，但运行时完全不读：
 
-- 加载时会有一条警告：`check-config` 的 `warnings` 与 `serve` 的 `config_warnings` 日志都会列出字段路径。
+- 加载时会有一条警告，`check-config` 的 `warnings` 与 `serve` 的 `config_warnings` 日志都会列出字段路径。
 - 面板「警告」页把它们作为常态警告持续显示，直到从文件里删除。
-- 增删改这些字段按热应用处理：不需要重启，唯一变化是警告随之出现或消失。
+- 增删改这些字段按热应用处理，不需要重启，唯一变化是警告随之出现或消失。
 
 完整清单与替代写法见[配置字段参考的废弃字段表](fields.md)。

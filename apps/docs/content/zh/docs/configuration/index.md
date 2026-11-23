@@ -7,7 +7,7 @@ description: 配置文件放哪、严格 JSONC 接受什么、哪些段必填、
 
 这一页解决「文件本身」的问题：位置、格式、必填段、校验方式和下载。某个字段的确切类型与默认值看[配置字段参考](fields.md)，改动怎么生效看[配置生命周期](lifecycle.md)。
 
-管理面板的 Providers、Models、Prompts、Chats、Harness tuning、Telegram、Developer 等页面保存时，写的就是这份文件；手改文件则是另一种入口，两者不冲突。
+管理面板的 Providers、Models、Prompts、Chats、Harness tuning、Telegram、Developer 等页面保存时，写的就是这份文件，手改文件则是另一种入口，两者不冲突。
 
 ## 文件在哪
 
@@ -19,9 +19,9 @@ node src/cli.ts serve --config /path/to/config.jsonc
 
 Docker 模板把宿主机的 `./config` 挂到容器的 `/config`，所以容器内的配置文件是 `/config/config.jsonc`，`key.json` 与 Prompt 文件也放在同一个目录。
 
-- 配置哈希是文件原始字节与所有 Prompt 文件内容的 SHA-256；`check-config` 输出、`serve_started` 日志与审计里的 `config_hash` 都是这个值。
-- 手改文件不会被自动读取：没有文件监视器，改完要么在面板「设置」页点「应用配置文件」，要么重启进程，见[配置生命周期](lifecycle.md)。
-- 非 Windows 系统上，`serve`、`doctor` 与每一次面板写入都要求配置文件权限为 `0600`、其父目录为 `0700`；`check-config` 只做内容校验，不检查权限。
+- 配置哈希是文件原始字节与所有 Prompt 文件内容的 SHA-256，`check-config` 输出、`serve_started` 日志与审计里的 `config_hash` 都是这个值。
+- 手改文件不会被自动读取，没有文件监视器，改完要么在面板「设置」页点「应用配置文件」，要么重启进程，见[配置生命周期](lifecycle.md)。
+- 非 Windows 系统上，`serve`、`doctor` 与每一次面板写入都要求配置文件权限为 `0600`、其父目录为 `0700`，`check-config` 只做内容校验，不检查权限。
 
 ## 严格 JSONC
 
@@ -37,12 +37,12 @@ Docker 模板把宿主机的 `./config` 挂到容器的 `/config`，所以容器
 根对象只有这些字段必填：
 
 - `version`（`1`）、`data_dir`、`timezone`。
-- `providers`：可以为空对象 `{}`；模型可以之后在面板里添加。
+- `providers`：可以为空对象 `{}`，模型可以之后在面板里添加。
 - `retention`：`online_days`、`backup_copies`。
 - `paths`：`database`、`media_cache`、`backups`。
-- `admin`：整段必填；`host`、`port`、`session_ttl_hours` 必填，`enabled` 可省略（缺省 `true`）。
+- `admin`：整段必填，`host`、`port`、`session_ttl_hours` 必填，`enabled` 可省略（缺省 `true`）。
 
-其余顶层段全部可选，省略即对应功能关闭或使用默认值。Telegram 整段可省略；`telegram` 段存在时，段内的 `process_bot_messages`、`bucket_window_seconds`、`chats` 必填，`token` 仍可省略（省略即停用 Telegram）。
+其余顶层段全部可选，省略即对应功能关闭或使用默认值。Telegram 整段可省略。`telegram` 段存在时，段内的 `process_bot_messages`、`bucket_window_seconds`、`chats` 必填，`token` 仍可省略（省略即停用 Telegram）。
 
 最小可运行配置（只开管理面板，不接 Telegram，模型留到面板里加）：
 
@@ -62,9 +62,9 @@ Docker 模板把宿主机的 `./config` 挂到容器的 `/config`，所以容器
 }
 ```
 
-这份文件能直接 `serve` 起来：面板可用、虚拟群聊可用，但因为没有任何 Agent 模型，Bot 不会运行。首次登录见[安装与首次登录](../guides/installation.md)。
+这份文件能直接 `serve` 起来，面板可用、虚拟群聊可用，但因为没有任何 Agent 模型，Bot 不会运行。首次登录见[安装与首次登录](../guides/installation.md)。
 
-[下载最小示例](__DOCS_BASE__/examples/config.minimal.example.jsonc)；需要 Telegram、Provider、Vision、图片生成等完整写法时用[完整示例](__DOCS_BASE__/examples/config.example.jsonc)。
+[下载最小示例](__DOCS_BASE__/examples/config.minimal.example.jsonc)，需要 Telegram、Provider、Vision、图片生成等完整写法时用[完整示例](__DOCS_BASE__/examples/config.example.jsonc)。
 
 ## 全部顶层段
 
@@ -97,7 +97,7 @@ Docker 模板把宿主机的 `./config` 挂到容器的 `/config`，所以容器
 
 - `agent.daily_budget.max_tokens` 的运行时默认是 `1000000000`，完整示例写的是 `300000`（一个刻意保守的推荐值）。
 - `agent.context.idle_grace_seconds` 的运行时默认是 `0`（一次批次一次运行），完整示例写的是 `30`。
-- `telegram.bucket_bump_seconds` 的运行时默认是 `0`；`telegram.bucket_max_seconds` 的默认等于 `bucket_window_seconds`，而不是常量 15。
+- `telegram.bucket_bump_seconds` 的运行时默认是 `0`，`telegram.bucket_max_seconds` 的默认等于 `bucket_window_seconds`，而不是常量 15。
 - `telegram.decision_gate` 关闭时的阈值默认 `0.57`、模型默认 `typesafe/jev-1.14`，这不是推荐值，改模型或改提问后需要重新观察。
 
 逐字段的取值、默认与废弃标注看[配置字段参考](fields.md)与各段的分页。
@@ -112,6 +112,6 @@ node src/cli.ts check-config --config /path/to/config.jsonc
 
 成功时输出一行 JSON，含 `status`、`config_hash`、`warnings` 与 `image_enabled`。`warnings` 里能看到「Agent 三元组不全」「Vision 未配置」「`image` 段被剥离」「使用了已废弃字段」这类不阻止启动的问题。失败时向 stderr 输出一行带 `status: "error"` 与 `error` 的 JSON，并以退出码 1 结束，报错会指出具体的字段路径。
 
-`check-config` 只读文件，不解析 SecretRef、不连接 Provider/Telegram、不检查权限，所以它通过不代表运行时一定可用；真实连通性用 `doctor`，见[排查启动失败和不回复](../guides/troubleshooting.md)。
+`check-config` 只读文件，不解析 SecretRef、不连接 Provider/Telegram、不检查权限，所以它通过不代表运行时一定可用，真实连通性用 `doctor`，见[排查启动失败和不回复](../guides/troubleshooting.md)。
 
 需要机器可读的字段约束时直接下载 [JSON Schema](__DOCS_BASE__/config.schema.json)，它与本页、各段字段页来自同一份 `ConfigSchema`。

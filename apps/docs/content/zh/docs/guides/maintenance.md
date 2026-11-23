@@ -5,9 +5,9 @@ description: 升级版本、迁移密钥与数据、理解保留清理，并按�
 
 # 升级、备份与恢复
 
-升级、备份与恢复是三件不同的事：升级会改动代码、配置格式与数据库结构；备份决定你能不能回到升级前的状态；恢复必须在一个与生产隔离的环境里验证过才算数。
+升级、备份与恢复是三件不同的事。升级会改动代码、配置格式与数据库结构，备份决定你能不能回到升级前的状态，恢复则必须在一个与生产隔离的环境里验证过才算数。
 
-一条贯穿全文的规则：**同一个数据目录只能有一个 `serve` 进程**。`check-config`、`doctor`、`backup` 这类一次性命令不启动 `serve`，可以和运行中的容器共存；但绝不要用 `docker compose run` 再起一个 `serve`。
+一条贯穿全文的规则：**同一个数据目录只能有一个 `serve` 进程**。`check-config`、`doctor`、`backup` 这类一次性命令不启动 `serve`，可以和运行中的容器共存，但绝不要用 `docker compose run` 再起一个 `serve`。
 
 ## 升级
 
@@ -30,7 +30,7 @@ CI 在推送 `main` 分支与 `v*` tag 时自动发布镜像到 `ghcr.io/tuuject
 
 ### 步骤
 
-1. 先做一次备份（见下文），并确认配置、Prompt 与 `key.json` 有自己的备份策略——它们不在数据库里。
+1. 先做一次备份（见下文），并确认配置、Prompt 与 `key.json` 有自己的备份策略，因为它们不在数据库里。
 2. 拉取目标镜像：
 
    ```bash
@@ -53,7 +53,7 @@ CI 在推送 `main` 分支与 `v*` tag 时自动发布镜像到 `ghcr.io/tuuject
 
 升级时有三类东西会自己变，不需要你手工跑迁移脚本：
 
-- **数据库结构**：`serve` 启动时按 `schema_migrations` 应用待执行的迁移。数据库文件已存在且有迁移要跑时，会先在 `paths.backups` 里写一份 `pre-migration-<时间>-<uuid>.sqlite` 副本，再应用；这些副本按 `retention.backup_copies` 轮换，但只在这些副本之间轮换，不会删掉普通的 `surowan-*.sqlite` 备份或它们的 `.images` 快照。`check-config` 与 `backup` 不跑迁移。
+- **数据库结构**：`serve` 启动时按 `schema_migrations` 应用待执行的迁移。数据库文件已存在且有迁移要跑时，会先在 `paths.backups` 里写一份 `pre-migration-<时间>-<uuid>.sqlite` 副本再应用。这些副本按 `retention.backup_copies` 轮换，但只在这些副本之间轮换，不会删掉普通的 `surowan-*.sqlite` 备份或它们的 `.images` 快照。`check-config` 与 `backup` 不跑迁移。
 - **Keychain 格式**：旧版 `key.json` 是单层 `{ "名字": "值" }`，新版是 `{ "version": 1, "entries": { … } }`。`serve`、`doctor` 与 `configure` 会就地、幂等地把它转成新格式，每个条目保留名字并补上 `created_at`。已经迁移过的文件不会再动。如果某个命令提示「key jar 仍是旧格式」，跑一次 `serve` 或 `configure` 即可。
 - **配置默认值**：缺省值与继承关系随版本演进，运行时的实际值以当前版本为准。不要从示例反推默认值。
 
@@ -68,15 +68,15 @@ CI 在推送 `main` 分支与 `v*` tag 时自动发布镜像到 `ghcr.io/tuuject
 | `vision.background_sticker_concurrency` | 无（直接删除） |
 | `mcp.servers[].required` | 无（直接删除；启动不再等待或依赖 MCP） |
 
-它们出现时，`check-config` 的 `warnings`、`serve` 启动日志的 `config_warnings` 事件与**警告（Warnings）** 页都会列出字段路径，提示删除。建议照做：留着不会报错，但会一直挂着一条常态警告。
+它们出现时，`check-config` 的 `warnings`、`serve` 启动日志的 `config_warnings` 事件与**警告（Warnings）** 页都会列出字段路径，提示删除。建议照做，留着不会报错，但会一直挂着一条常态警告。
 
 ### 配置格式变化
 
-很久以前的配置可能缺 `admin` 段：管理面板现在是必填项，`check-config` 会直接报错。补上 `host`、`port` 与 `session_ttl_hours` 即可，`enabled` 可以省略（默认 `true`）。`telegram` 则相反，已从必填改为可选：整段删掉后服务仍然启动，只是不连 Bot。
+很久以前的配置可能缺 `admin` 段。管理面板现在是必填项，`check-config` 会直接报错。补上 `host`、`port` 与 `session_ttl_hours` 即可，`enabled` 可以省略（默认 `true`）。`telegram` 则相反，已从必填改为可选，整段删掉后服务仍然启动，只是不连 Bot。
 
 ### 回滚
 
-回滚镜像本身是安全的：把 compose 的 `image:` 指回上一个标签（或仍在最近 20 个之内的 `0.0.0-next-*`）后 `docker compose up -d`。
+回滚镜像本身是安全的，把 compose 的 `image:` 指回上一个标签（或仍在最近 20 个之内的 `0.0.0-next-*`）后 `docker compose up -d`。
 
 但**数据库迁移不可自动降级**。迁移过的 SQLite 要用升级前的备份恢复，这正是升级前先备份的原因。版本不匹配时先在隔离环境演练，不要在唯一副本上试。
 
@@ -118,7 +118,7 @@ node src/cli.ts backup --config /path/to/config.jsonc
 
 产物是 `paths.backups` 下的 `surowan-<时间>-<uuid>.sqlite`，以及配套的 `surowan-<时间>-<uuid>.images/` 目录：
 
-- `.images/` 是 `<data_dir>/images` 的完整拷贝，包含生图原图与 Memo Blob。目录不存在时跳过；拷贝失败只记日志，不影响 SQLite 备份的有效性。
+- `.images/` 是 `<data_dir>/images` 的完整拷贝，包含生图原图与 Memo Blob。目录不存在时跳过，拷贝失败只记日志，不影响 SQLite 备份的有效性。
 - 两个快照之间**没有跨库原子性**：恢复后个别最新记录可能引用尚未拷入的图片文件。
 - 图片目录可能很大，确认 `paths.backups` 所在磁盘放得下。
 
@@ -135,12 +135,12 @@ node src/cli.ts backup --config /path/to/config.jsonc
 
 ## 恢复
 
-恢复没有专门的命令：把备份文件放回原位，让 `serve` 打开它。
+恢复没有专门的命令，把备份文件放回原位，让 `serve` 打开它。
 
 ### 检查清单
 
 1. **停止**正在使用目标数据目录的服务。两个进程写同一个 SQLite 会出问题。
-2. 保留原始目录的只读副本；不要直接覆盖唯一副本。
+2. 保留原始目录的只读副本，不要直接覆盖唯一副本。
 3. 准备一个**新建且为空**的隔离目录，复制 `config/` 与 Prompt 文件进去，然后编辑这份配置：
    - `data_dir`、`paths.database`、`paths.media_cache`、`paths.backups` 全部指向隔离目录内。
    - Prompt 的相对路径以配置目录为基准，所以放在新配置旁边即可。
@@ -161,7 +161,7 @@ node src/cli.ts backup --config /path/to/config.jsonc
    ```
 
    校验成功**不证明**数据目录隔离或备份完整。
-7. 只有得到许可后才启动隔离服务，验证审计与一条受控消息。**同一个 Telegram Token 只能有一个轮询实例**；数据目录不同也不能与原 Bot 同时轮询。
+7. 只有得到许可后才启动隔离服务，验证审计与一条受控消息。**同一个 Telegram Token 只能有一个轮询实例**，数据目录不同也不能与原 Bot 同时轮询。
 
 Docker 演练要另建 Compose 项目（不同的 `-p` 与端口），把配置与数据卷绑定到**新的宿主机目录**。不要复用生产 Compose 的 `./data`，也不要因为改了配置副本就以为卷已经隔离。
 
@@ -177,6 +177,6 @@ Docker 演练要另建 Compose 项目（不同的 `-p` 与端口），把配置�
 - **升级后一直报配置错误？** 先看 `check-config` 的 `warnings`：废弃字段与缺失的必填段都会在这里出现。
 - **设置页显示已启用，但某个功能仍不可用？** 看启动日志里的 `*_warning` 事件（例如 `image_service_warning`），修好后在 **设置（Settings）** 应用配置。
 - **备份文件比数据库小很多？** 正常：`VACUUM INTO` 会压掉空闲页与 WAL。
-- **能不能只回滚镜像？** 可以，但数据库迁移不回退；需要回到升级前状态就用升级前的备份。
+- **能不能只回滚镜像？** 可以，但数据库迁移不回退，需要回到升级前状态就用升级前的备份。
 
 相关页面：[数据路径与保留](../configuration/storage.md)、[`retention` 字段参考](../configuration/fields-retention.md)、[`paths` 字段参考](../configuration/fields-paths.md)、[配置生命周期](../configuration/lifecycle.md)、[密钥与路径](../configuration/secrets.md)、[管理面板、密钥与访问安全](admin.md)、[排查启动失败和不回复](troubleshooting.md)

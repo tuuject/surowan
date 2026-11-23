@@ -5,7 +5,7 @@ description: image 段的凭据、模型目录与能力声明，域校验失败�
 
 # 图片生成配置
 
-`image` 段定义生图模型目录，以及这些模型使用的上游凭据。没有这一段，图片生成就是关闭的：模型看不到 `image_generate`、`list_image_models`、`search_image_assets`，面板也提交不了生成。
+`image` 段定义生图模型目录，以及这些模型使用的上游凭据。没有这一段，图片生成就是关闭的，模型看不到 `image_generate`、`list_image_models`、`search_image_assets`，面板也提交不了生成。
 
 生图走内置的 OpenRouter adapter 直连上游，不经过 `providers` 里的聊天模型连接。`credentials` 里的密钥就是上游服务（如 OpenRouter）的密钥，和聊天模型的密钥互不相干。
 
@@ -13,19 +13,19 @@ description: image 段的凭据、模型目录与能力声明，域校验失败�
 
 一段配置要真正变成「可用」，需要同时满足：
 
-1. `image` 段存在，并且通过 Schema 的结构校验；
-2. 每个 `credentials` 里的 SecretRef 都能解析出非空值；
+1. `image` 段存在，并且通过 Schema 的结构校验。
+2. 每个 `credentials` 里的 SecretRef 都能解析出非空值。
 3. 每个模型都通过 image-service 的领域校验（下列枚举、唯一性、凭据引用都存在）。
 
-三条都满足后：Telegram 会话直接可用；虚拟群聊里该房间还要管理员打开「图片生成」开关（默认关闭，真实计费），因为同一进程可能同时服务两种宿主。
+三条都满足后，Telegram 会话直接可用，虚拟群聊里该房间还要管理员打开「图片生成」开关（默认关闭，真实计费），因为同一进程可能同时服务两种宿主。
 
 ## 生效方式
 
 `image` 段整体是热更新，启用、禁用、换模型、换凭据都不需要重启：
 
-- 每次应用配置都会重新解析凭据、重新校验模型，然后**原子替换**整份图片快照；不会有半新半旧的状态被读到。
+- 每次应用配置都会重新解析凭据、重新校验模型，然后**原子替换**整份图片快照，不会有半新半旧的状态被读到。
 - 快照的版本号覆盖模型与**已解析的凭据值**，所以即使在 keychain 里原地轮换密钥、配置文件一字未改，下一次应用也会发布新快照。
-- 运行中的 Invocation 保留它开始时那一套能力；下一次 Invocation 用新快照。
+- 运行中的 Invocation 保留它开始时那一套能力，下一次 Invocation 用新快照。
 
 ## 字段
 
@@ -54,10 +54,10 @@ description: image 段的凭据、模型目录与能力声明，域校验失败�
 
 - **结构不合法**（缺字段、类型不对、枚举外取值、条目名不合规）：加载时**剔除整段并记一条警告**，进程照常启动，只是图片生成关闭。警告文本是 `image generation disabled: the "image" section is invalid and was ignored (...)`，在 `config_warnings` 日志里能看到。改好或删掉这段就会恢复。
 - **结构合法但领域不合法**（重复的模型 ID、`credentialRef` 指向不存在的条目、`imageInput: false` 却声明了参考图上限、比例或清晰度不在枚举内、`provider` 不是 `openrouter`）：
-  - 启动时：记 `image_service_warning` 日志，图片生成保持关闭，Bot 照常运行；
+  - 启动时：记 `image_service_warning` 日志，图片生成保持关闭，Bot 照常运行。
   - 面板应用配置时：整个应用失败（`config_invalid` 或 `secret_unresolved`），旧配置与旧快照继续生效。
 
-换句话说：`image` 段写坏了永远不会让服务起不来。
+`image` 段写坏了永远不会让服务起不来。
 
 ## 一个最小例子
 
@@ -89,13 +89,13 @@ description: image 段的凭据、模型目录与能力声明，域校验失败�
 }
 ```
 
-只配一个模型时，模型提交生成可以省略 `model_id`；配了多个就必须自己选。
+只配一个模型时，模型提交生成可以省略 `model_id`，配了多个就必须自己选。
 
 ## 与其他段的关系
 
 - 密钥引用写法、`key.json` 与轮换：见[密钥与路径](secrets.md)。
 - 想少花生图的钱、或让模型别乱画：见[看图、Sticker 与图片生成](../guides/images.md)。
-- `image` 不是 `vision`：`vision` 负责「看懂图」，`image` 负责「画图」。两者可以只配一个。
-- 配置面板里对应的页面是「图片设置」；工作台、记录与素材分别是「图片生成」「生图记录」「生图素材」。
+- `image` 不是 `vision`，`vision` 负责「看懂图」，`image` 负责「画图」。两者可以只配一个。
+- 配置面板里对应的页面是「图片设置」，工作台、记录与素材分别是「图片生成」「生图记录」「生图素材」。
 
 字段类型、取值范围与必填性见[图片字段参考](fields-image.md)。

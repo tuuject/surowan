@@ -26,7 +26,7 @@ surowan-utils invocation replay 12345 --json        # 计费
 | 计费 | 是，按当前模型 | 是，按当时模型 |
 | 入口 | CLI / HTTP / MCP | 面板、`POST /api/invocations/:id/resume`、MCP 的 `surowan_invocation_resume` |
 
-续跑只能用于同一个 Conversation 里最新的 `failed` / `aborted` / `outcome_unknown` 运行，而且可能重复已经发出的内容——因为它是真发。重放永远不会发消息，所以你可以随便跑，代价只有钱。
+续跑只能用于同一个 Conversation 里最新的 `failed` / `aborted` / `outcome_unknown` 运行，而且可能重复已经发出的内容，因为它是真发。重放永远不会发消息，所以你可以随便跑，代价只有钱。
 
 ## 预检
 
@@ -43,7 +43,7 @@ surowan-utils invocation replay 12345 --json        # 计费
 会拒绝的情况（错误码即 `reason`）：
 
 - `replay_source_unfinished`：源运行还没结束。
-- `replay_host_unsupported`：重放只支持配置驱动的宿主，目前即 Telegram；Playground 房间的运行不能重放。
+- `replay_host_unsupported`：重放只支持配置驱动的宿主，目前即 Telegram，Playground 房间的运行不能重放。
 - `replay_chat_unconfigured` / `replay_topic_unconfigured`：源 Chat 或 Topic 已不在当前配置里。
 - `replay_model_unavailable`：当前 Chat 的 Agent 模型没配置或未注册。
 - `replay_model_pair_required`、`replay_thinking_level_invalid`、`replay_thinking_level_unsupported`、`unknown_provider`、`unknown_model`、`not_text_capable`：模型覆盖不合法。
@@ -56,10 +56,10 @@ surowan-utils invocation replay 12345 --json        # 计费
 默认场景等于「该 Invocation 的开场批次被冻结时，模型应该看到的输入」：
 
 - 开场批次（冻结的 `new` 快照）。后续 attach 进来的批次、后来的编辑、Bot 后来的回复都不进入。
-- 当时可证明已经存在的历史：冻结的历史优先，其余按源运行创建时间之前的修订与到达时间取；当前历史条数上限、`/cut_topic` 与 Chat/Topic 允许范围**仍然生效**。
+- 当时可证明已经存在的历史：冻结的历史优先，其余按源运行创建时间之前的修订与到达时间取，当前历史条数上限、`/cut_topic` 与 Chat/Topic 允许范围**仍然生效**。
 - 缺失的修订只计数（`omitted_messages`），不会用后来的编辑顶替。
 
-运行时状态块只带 `current_time`（默认是开场冻结时间），不读 Memo Pad、贴纸目录或任务回执。当前模型支持图片输入时，本次场景授权的、仍然保留的 Photo、Sticker 与图片 Document 会拿到**场景内**的引用；读图只把图片规范化后交给模型，不走生产 Vision，也不写分析缓存。
+运行时状态块只带 `current_time`（默认是开场冻结时间），不读 Memo Pad、贴纸目录或任务回执。当前模型支持图片输入时，本次场景授权的、仍然保留的 Photo、Sticker 与图片 Document 会拿到**场景内**的引用，读图只把图片规范化后交给模型，不走生产 Vision，也不写分析缓存。
 
 ## Prompt 覆盖
 
@@ -71,9 +71,9 @@ surowan-utils invocation replay 12345 --group-prompt group.txt --json
 printf '%s' '临时替换的 global prompt' | surowan-utils invocation replay 12345 --global-prompt - --json
 ```
 
-- 每层最多 65,536 字符；global 去空白后不能为空，group 允许空内容以显式清空。
+- 每层最多 65,536 字符，global 去空白后不能为空，group 允许空内容以显式清空。
 - 两个 `-` 不能同时从标准输入读。
-- 内容按当前模板白名单校验；预检报告 `prompt_overrides_available: false` 时，CLI 直接以 `replay_prompt_parts_unavailable` 结束，不发 POST。
+- 内容按当前模板白名单校验，预检报告 `prompt_overrides_available: false` 时，CLI 直接以 `replay_prompt_parts_unavailable` 结束，不发 POST。
 - 覆盖只影响这一次运行，不写回配置。`invocation prompts <id>` 返回的是**当前**生效的两层 Prompt（`source: active`），不是历史记录。
 
 ## 模型与思考强度覆盖
@@ -83,8 +83,8 @@ surowan-utils invocation preflight 12345 --provider openrouter --model deepseek/
 surowan-utils invocation replay 12345 --provider openrouter --model deepseek/deepseek-v4-flash-0731 --thinking-level high --json
 ```
 
-- `--provider` 与 `--model` 必须成对；`--thinking-level` 取 `off`/`minimal`/`low`/`medium`/`high`/`xhigh`/`max`，可以单独使用（只临时改强度，模型沿用当前 Chat 配置）。
-- 给了模型对却没给强度时，用该模型支持的最弱一档（非推理模型为 `off`）；请求它不支持的档位会被服务端拒绝。
+- `--provider` 与 `--model` 必须成对，`--thinking-level` 取 `off`/`minimal`/`low`/`medium`/`high`/`xhigh`/`max`，可以单独使用（只临时改强度，模型沿用当前 Chat 配置）。
+- 给了模型对却没给强度时，用该模型支持的最弱一档（非推理模型为 `off`），请求它不支持的档位会被服务端拒绝。
 - 预检与重放必须使用同一个选择，否则你看到的场景和实际跑的模型不一致。
 - 覆盖不修改配置、Context、审计或预算，但会改变 Prompt 变量、图片能力、上下文预算、工具 Schema、Provider 连接与真实费用。返回的 `model` 与 `fidelity.model_selection`（`current_chat_config` / `temporary_override`）可以核对实际用的是哪一个。
 
@@ -94,12 +94,12 @@ surowan-utils invocation replay 12345 --provider openrouter --model deepseek/dee
 
 给出 `--before-send <telegram_sends 内部 ID>` 后，重放不再重建整个开场批次，而是只取某次成功 Bot 发言之前的一小段公开输入：
 
-- 窗口严格位于**上一条 Bot 发言之后、目标发言之前**（两端不含）。目标必须是本 Invocation 的成功发送；上一条 Bot 发言可以来自同一 Conversation 的另一次 Invocation；没有上一条时从保留输入的开头开始。
-- 只包含冻结且已注入的公开消息。目标发言之前已注入的批次会被拍平后一次性灌入，不按 Bucket 或历史节奏等待（模型并发与网络延迟仍可能造成等待）；注入时间必须严格早于发送请求开始时间，同毫秒无法证明先后时保守省略。
-- 不读更早历史，也不读历史的 reasoning、工具结果或 system prompt。原 Bot 回答不进入模型，只留在审计里作对照；回复引用不能跨出窗口。
+- 窗口严格位于**上一条 Bot 发言之后、目标发言之前**（两端不含）。目标必须是本 Invocation 的成功发送。上一条 Bot 发言可以来自同一 Conversation 的另一次 Invocation，没有上一条时从保留输入的开头开始。
+- 只包含冻结且已注入的公开消息。目标发言之前已注入的批次会被拍平后一次性灌入，不按 Bucket 或历史节奏等待（模型并发与网络延迟仍可能造成等待）。注入时间必须严格早于发送请求开始时间，同毫秒无法证明先后时保守省略。
+- 不读更早历史，也不读历史的 reasoning、工具结果或 system prompt。原 Bot 回答不进入模型，只留在审计里作对照，回复引用不能跨出窗口。
 - 返回 `scene.slice = { before_send_id, before_message_id, after_bot_message_id }`，`history_count` 为 0，`cutoff_at` 是那次发送**请求的开始时间**，不是交付完成时间。
-- 窗口内没有新的公开消息 → `replay_slice_empty`；目标不是本 Invocation 的成功发送 → `replay_slice_target_invalid`。
-- 切片重放同样真实计费，命令行必须显式加 `--confirm-paid`；缺失时在读取 stdin、发预检或发 POST 之前就以 `confirm_paid_required`（退出码 2）拒绝。免费的预检不接受这个确认参数，但预检与重放必须用同一个 `--before-send`。
+- 窗口内没有新的公开消息 → `replay_slice_empty`，目标不是本 Invocation 的成功发送 → `replay_slice_target_invalid`。
+- 切片重放同样真实计费，命令行必须显式加 `--confirm-paid`，缺失时在读取 stdin、发预检或发 POST 之前就以 `confirm_paid_required`（退出码 2）拒绝。免费的预检不接受这个确认参数，但预检与重放必须用同一个 `--before-send`。
 
 不知道用哪个 ID 时先搜索：
 
@@ -129,11 +129,11 @@ surowan-utils invocation list --search '关键词' --at '2026-09-10 07:59' --jso
 
 再补充几点：
 
-- `send` 会校验当前参数、文字长度限制与场景内的回复目标，但**没有**真实发送限流、Sticker 世界状态与生图资产检查；合成发送成功不等于生产发送成功。
+- `send` 会校验当前参数、文字长度限制与场景内的回复目标，但**没有**真实发送限流、Sticker 世界状态与生图资产检查，合成发送成功不等于生产发送成功。
 - 场景时间默认是开场冻结时间，切片模式取目标发送请求的开始时间。不恢复当时的 Memo Pad、任务回执、全局睡眠状态或发送提醒。
-- 同一次只能跑一个重放：并发请求得到 `replay_busy`（HTTP 429）。单次运行上限是 128 次工具调用、240 秒墙钟时间、20 轮（且不超过当前 `turns_per_injection`），`trace` 最多 1 MiB；超限会以明确的 `error` 结束。
+- 同一次只能跑一个重放，并发请求得到 `replay_busy`（HTTP 429）。单次运行上限是 128 次工具调用、240 秒墙钟时间、20 轮（且不超过当前 `turns_per_injection`），`trace` 最多 1 MiB，超限会以明确的 `error` 结束。
 - 重放里的模型请求不自动重试。模型选择不发言（输出里没有 `send`）也是正常结果：`responded: false`、`send_count: 0`。
-- `error` 非空表示重放没有正常完成，但完整结构仍会返回；CLI 会先打印结果再以 `replay_failed`（退出码 1）结束。CLI 侧的请求超时默认 300 秒。
+- `error` 非空表示重放没有正常完成，但完整结构仍会返回，CLI 会先打印结果再以 `replay_failed`（退出码 1）结束。CLI 侧的请求超时默认 300 秒。
 
 ## 结果里有什么
 
@@ -143,7 +143,7 @@ surowan-utils invocation list --search '关键词' --at '2026-09-10 07:59' --jso
 
 ## 使用建议
 
-- 先 `preflight`，再 `replay`；不可重放时不要重试，原因码是稳定的。
+- 先 `preflight`，再 `replay`，不可重放时不要重试，原因码是稳定的。
 - 一次只改一个变量：要么换 Prompt 层，要么换模型，否则说不清差异来自哪里。
-- 重放是评估工具，不是修数据工具：想改生产状态，用面板、[配置与闸门接口](http/configuration.md) 或续跑。
-- 把重放授权当单独授权：允许查询不等于允许重放，尤其当 Agent 自己决定跑几次时。
+- 重放是评估工具，不是修数据工具，想改生产状态，用面板、[配置与闸门接口](http/configuration.md) 或续跑。
+- 把重放授权当单独授权，允许查询不等于允许重放，尤其当 Agent 自己决定跑几次时。
