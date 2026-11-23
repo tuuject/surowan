@@ -17,11 +17,13 @@ description: 按你要完成的任务选入口：第一次部署、接模型和�
 
 **刚拿到一台机器**
 
-1. [安装与首次登录](guides/installation.md)：Docker 起来、一次性码登录、接一个能用的模型。
+1. [安装与首次登录](guides/installation.md)：Docker 起来、配 HTTPS 反代、一次性码登录、接一个能用的模型（想直接交给 Coding Agent 通过 SSH 一条龙部署，看[AI 帮我部署](guides/ai-deploy.md)）。
 2. [你的第一个人设](guides/first-persona.md)：写人格，在虚拟群聊里试。
 3. [你的第一只 Bot](guides/first-bot.md)：建 Telegram Bot，允许一个群，完成第一次真实对话。
 
 **已经在运行**
+
+- 让本地 Agent 装好 CLI 和 Skill 帮你调优：[与 Agent 配合使用](guides/agent-assisted.md)
 
 - 换模型或调整思考强度：[接入和更换模型](guides/models.md)
 - 太吵、太慢、太贵：[按表现和费用调优](guides/tuning.md)

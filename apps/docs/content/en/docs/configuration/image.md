@@ -94,7 +94,7 @@ With a single model the agent may omit `model_id`; with several it has to choose
 ## Interactions
 
 - Secret reference syntax, `key.json` and rotation: [Secrets and paths](secrets.md).
-- Spending less on images, or keeping the agent from drawing at all: [Images, stickers and image generation](../guides/images.md).
+- Spending less on images, or keeping the agent from drawing at all: [Image generation](../guides/image-generation.md).
 - `image` is not `vision`: `vision` reads pictures, `image` draws them. Configuring only one is fine.
 - The panel page is **Image settings**; the workbench, history and library are **Image generation**, **Image generations** and **Image assets**.
 

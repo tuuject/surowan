@@ -236,7 +236,7 @@ The invocation detail page and the **Reviews** page (`/reviews`) let you annotat
 
 ![The purpose selector and export confirmation dialog on the Reviews page](__DOCS_BASE__/screenshots/tuning/review-export.en.light.png)
 
-How to hand that file to a local agent, and what it checks first, is in [Let your local agent tune Surowan](agent-assisted.md).
+How to hand that file to a local agent, and what it checks first, is in [Working with coding agents](agent-assisted.md).
 
 ## Resume a failed run
 

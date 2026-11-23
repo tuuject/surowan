@@ -1,13 +1,34 @@
 ---
-title: 让你的本地 Agent 帮你调整塑料碗
-description: 用一次性配对、API 密钥或 MCP Server 让本机 Coding Agent 安全地读写塑料碗，安装配套 Skill，并按「先读、再提案、确认后改、改后核对」协作。
+title: 与 Agent 配合使用
+description: 一句话让本地 Coding Agent 装好 surowan-utils CLI 与配套 Skill，用一次性配对、API 密钥或 MCP Server 安全读写塑料碗，并按「先读、再提案、确认后改、改后核对」协作。
 ---
 
-# 让你的本地 Agent 帮你调整塑料碗
+# 与 Agent 配合使用
 
-Claude Code、Codex 这类本地 Coding Agent 很适合干调优的脏活，比如翻几十条运行记录、对比两次运行的提示词，或把「为什么它不回复」追到某一行审计。前提是让它**看得到**塑料碗，同时**拿不到**你的长期密码。
+Claude Code、Codex、OpenCode 这类本地 Coding Agent 很适合干调优的脏活，比如翻几十条运行记录、对比两次运行的提示词，或把「为什么它不回复」追到某一行审计。前提是让它**看得到**塑料碗，同时**拿不到**你的长期密码。
 
-本页讲三件事：用什么凭据让它连进来、怎么装配套的 Agent Skill、以及它动手时你应该盯住什么。
+:::tip 服务器还没部署？
+如果你刚拿到一台空 VPS、希望让 Agent 通过 SSH 帮你把服务端先跑起来，请先看[AI 帮我部署](ai-deploy.md)。
+:::
+
+本页先给一句能让 Agent 自己把 CLI 和 Skill 装好的提示词，再展开说明三种接入凭据、手工步骤与协作时的安全边界。
+
+## 一句话让 Agent 装好 CLI 与 Skill
+
+不需要自己查包名和参数，把下面这句话直接发给你的本机 Coding Agent（把面板地址和可选的 SSH 主机换成你自己的）：
+
+```text
+请帮我在本机配置塑料碗（Surowan）的 CLI 和 Agent Skill：
+1. 检查本机 Node.js 版本是否 >= 24，然后全局安装 @tuuject/surowan-utils（npm install -g @tuuject/surowan-utils）。
+2. 运行 npx skills add tuuject/surowan --skill surowan-utils 安装 CLI Skill（如果本环境也用 MCP，再一并装 --skill surowan-mcp）。
+3. 运行 surowan-utils auth init --json 初始化本机客户端密钥。
+4. 引导我完成与面板 <https://panel.example.com> 的连接（如果我可以让你通过 SSH 登录服务器 <user@vps>，按 SSH 一次性配对流程在容器/服务器上生成 read_write 模式的配对码并领取；否则告诉我怎么在面板创建 API 密钥并通过 --api-key-stdin 写入，不要让我把密钥明文贴在聊天里）。
+5. 最后运行 surowan-utils doctor --json 验证连通并回报当前权限模式。
+```
+
+等它装完后**重开一次 Agent 会话**，确认新装的 `surowan-utils`（或 `surowan-mcp`）Skill 已经被加载，之后就可以直接让它查运行记录、审计问题或提出配置改动方案。
+
+下面分步拆解这几条路径的具体原理与手工命令。
 
 ## 三条入口怎么选
 

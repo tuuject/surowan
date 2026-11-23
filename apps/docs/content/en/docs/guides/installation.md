@@ -1,11 +1,15 @@
 ---
 title: Install and sign in
-description: Start Surowan with Docker Compose, sign in with a one-time code from the server, and connect an Agent model that replies.
+description: Start Surowan with Docker Compose, set up an HTTPS reverse proxy with Nginx, Caddy or Apache httpd, sign in with a one-time code, and connect an Agent model that replies.
 ---
 
 # Install and sign in
 
 This page takes a fresh machine to "signed in, with a working Agent model". The persona and Telegram come in the next two pages.
+
+:::tip Want your local coding agent to deploy over SSH for you?
+If you have a fresh VPS with a `root` account and password, follow [Deploy with an AI agent](ai-deploy.md) to hand the entire setup to your agent.
+:::
 
 **You need**: a machine that stays online, Docker with Docker Compose, and a model service's API key and endpoint. The Telegram bot can wait.
 
@@ -94,9 +98,9 @@ Then go to **Settings → Admin credentials**: pick a new username (3–32 lette
 
 The Agent model only needs text input; Vision is a separate, optional role and not part of this step. Metadata completion, nicknames, batch health checks and what a model switch does are all in [Connect and switch models](models.md).
 
-## 6. Optional: a public address and passkeys
+## 6. Optional: public address, HTTPS reverse proxy and passkeys
 
-While the panel binds loopback, remote access is an SSH tunnel or a reverse proxy you manage. Passkeys need a fixed origin:
+The panel serves plain HTTP and should stay bound to loopback (`127.0.0.1:8787`). Remote access goes through an SSH tunnel or an HTTPS reverse proxy you manage. For public HTTPS access and passkeys, give the panel a fixed origin:
 
 ```jsonc
 {
@@ -106,9 +110,112 @@ While the panel binds loopback, remote access is an SSH tunnel or a reverse prox
 }
 ```
 
-`public_url` must be a canonical HTTPS origin: no path, query, credentials or fragment, and no IP address (use `http://localhost` for local work). It is the WebAuthn relying party, so a new domain means registering new passkeys.
+`public_url` must be a canonical HTTPS origin: no path, query, credentials or fragment, and no IP address (use `http://localhost` for local work). Do not mount the panel under a subpath such as `/panel/`; the static UI, `/api` and `/mcp` all assume the site root. It is the WebAuthn relying party, so a new domain means registering new passkeys.
 
-`admin.*` fields need a restart (types and defaults: [`admin` field reference](../configuration/fields-admin.md)): run `docker compose restart plasticwan`, open the panel from exactly that origin, and use **Settings → Passkeys → Add passkey**. The sign-in page then offers **Sign in with a passkey**.
+Your reverse proxy needs three things:
+
+1. **Higher request body limit**: image upload routes accept up to 30 MB, so raise the proxy body cap to about 35 MB.
+2. **Unbuffered, long-lived `/api/live/` streams**: live refresh on the Invocations pages uses Server-Sent Events (SSE) with a 15-second server heartbeat. Disable proxy buffering and allow a long read timeout on `/api/live/`.
+3. **Preserve `Host` and HTTPS scheme headers**: browser requests must match `admin.public_url`, and the session cookie automatically sets `Secure` over HTTPS.
+
+All three examples below assume Surowan is published on `127.0.0.1:8787` and served at `panel.example.com` (replace the domain and certificate paths with your own).
+
+### Caddy (automatic HTTPS)
+
+Caddy obtains and renews Let's Encrypt certificates automatically. Save this to `/etc/caddy/Caddyfile` and reload Caddy:
+
+```text
+panel.example.com {
+	reverse_proxy 127.0.0.1:8787 {
+		# Flush SSE streams such as /api/live/* immediately without buffering
+		flush_interval -1
+	}
+}
+```
+
+### Nginx
+
+Prepare your TLS certificate first (for example with Certbot under `/etc/letsencrypt/live/panel.example.com/`). Save to `/etc/nginx/sites-available/surowan.conf`, enable the site, and run `nginx -t && systemctl reload nginx`:
+
+```nginx
+server {
+    listen 80;
+    listen [::]:80;
+    server_name panel.example.com;
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
+    server_name panel.example.com;
+
+    ssl_certificate     /etc/letsencrypt/live/panel.example.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/panel.example.com/privkey.pem;
+
+    # Image upload endpoints accept up to 30 MB; leave headroom
+    client_max_body_size 35m;
+
+    # SSE live streams (Invocations auto-refresh): disable buffering and keep open
+    location /api/live/ {
+        proxy_pass http://127.0.0.1:8787;
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_cache off;
+        proxy_read_timeout 1h;
+    }
+
+    location / {
+        proxy_pass http://127.0.0.1:8787;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 120s;
+    }
+}
+```
+
+### Apache httpd
+
+Enable the required modules first (on Debian/Ubuntu: `a2enmod ssl proxy proxy_http headers`), save the virtual host configuration, and reload Apache:
+
+```apache
+<VirtualHost *:80>
+    ServerName panel.example.com
+    Redirect permanent / https://panel.example.com/
+</VirtualHost>
+
+<VirtualHost *:443>
+    ServerName panel.example.com
+
+    SSLEngine on
+    SSLCertificateFile    /etc/letsencrypt/live/panel.example.com/fullchain.pem
+    SSLCertificateKeyFile /etc/letsencrypt/live/panel.example.com/privkey.pem
+
+    # Headroom above the 30 MB image upload cap (~35 MiB)
+    LimitRequestBody 36700160
+
+    ProxyPreserveHost On
+    ProxyRequests Off
+    RequestHeader set X-Forwarded-Proto "https"
+
+    # SSE live streams: flush chunks immediately and allow long-lived connections
+    ProxyPass        /api/live/ http://127.0.0.1:8787/api/live/ flushpackets=on timeout=3600
+    ProxyPassReverse /api/live/ http://127.0.0.1:8787/api/live/
+
+    ProxyPass        / http://127.0.0.1:8787/ timeout=120
+    ProxyPassReverse / http://127.0.0.1:8787/
+</VirtualHost>
+```
+
+`admin.*` fields need a restart (types and defaults: [`admin` field reference](../configuration/fields-admin.md)): run `docker compose restart plasticwan`, open the panel from exactly that HTTPS origin, and use **Settings → Passkeys → Add passkey**. The sign-in page then offers **Sign in with a passkey**. Because every proxied client shares the loopback TCP peer address used for password brute-force throttling, registering a passkey early keeps failed stranger logins from locking you out of password sign-in.
 
 ## 7. Optional: offline account reset (service stopped)
 

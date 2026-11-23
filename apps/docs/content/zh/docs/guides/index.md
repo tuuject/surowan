@@ -19,8 +19,8 @@ description: 塑料碗适合谁、第一次按什么顺序做，以及已经在�
 
 | 你的状态 | 从这里开始 |
 | --- | --- |
-| 还没有部署 | [安装与首次登录](installation.md) |
-| 已经跑起来了，想调行为或边界 | [接入和更换模型](models.md)、[按表现和费用调优](tuning.md)、[为不同群和话题设置边界](chats.md) |
+| 还没有部署 | [安装与首次登录](installation.md) 或 [AI 帮我部署](ai-deploy.md) |
+| 已经跑起来了，想调行为或边界 | [接入和更换模型](models.md)、[按表现和费用调优](tuning.md)、[与 Agent 配合使用](agent-assisted.md)、[为不同群和话题设置边界](chats.md) |
 | 起不来、面板打不开、Bot 不回复 | [排查启动失败和不回复](troubleshooting.md) |
 
 ## 第一次的顺序

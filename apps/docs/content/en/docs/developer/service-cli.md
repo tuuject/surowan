@@ -150,7 +150,7 @@ Both forms print the same structure: `status`, `code` (the one-time `pwp_` plain
 
 `pairing list` shows only codes that are still pending, unused and unexpired, and never echoes the plaintext. `pairing cancel <id>` and `clients revoke <id>` take decimal `pairing` / `client` row IDs.
 
-`clients list` returns every identity, revoked ones included, with `last_used_at` updated on each successful signature. A revocation applies to the next request; revoking twice is an error. The signature protocol itself is in [HTTP API conventions](http/index.md); the operator walkthrough is in [Let your local agent tune Surowan](../guides/agent-assisted.md).
+`clients list` returns every identity, revoked ones included, with `last_used_at` updated on each successful signature. A revocation applies to the next request; revoking twice is an error. The signature protocol itself is in [HTTP API conventions](http/index.md); the operator walkthrough is in [Working with coding agents](../guides/agent-assisted.md).
 
 ## Docker forms
 

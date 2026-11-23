@@ -196,50 +196,50 @@ export const DOCS_SCENARIOS: readonly DocsScenario[] = [
     description: 'Image settings page with generation enabled and a model configured.',
     target:
       'A taller frame holds the enable switch with its credential row and the saved model card, with nothing unsaved.',
-    pages: ['guides/images'],
+    pages: ['guides/image-generation'],
   },
   {
     id: 'images/generate-workbench',
     description: 'Image generation workbench with an inline reference and a prompt asset.',
     target:
       'The editor holds a typed {{image:…}} token and the prompt asset is attached through its tag; the resolved prompt expands both.',
-    pages: ['guides/images'],
+    pages: ['guides/image-generation'],
   },
   {
     id: 'images/generation-record',
     description: 'A completed image generation record with its output and reference image.',
     target: 'A run that finished through the real worker: status, resolved prompt and the generated picture.',
-    pages: ['guides/images'],
+    pages: ['guides/image-generation'],
   },
   {
     id: 'images/image-assets',
     description: 'Image assets: the reference-image tab with the Agent-visible toggle.',
     target: 'An uploaded reference image with its name and the Agent-visible switch.',
-    pages: ['guides/images'],
+    pages: ['guides/image-generation'],
   },
   {
     id: 'images/sticker-sets',
     description: 'Bot sticker sets: the configured set and its search index.',
     target: 'The seeded mascot set with its sync state and the indexed sticker with its description.',
-    pages: ['guides/images'],
+    pages: ['guides/stickers'],
   },
   {
     id: 'tools/search-settings',
     description: 'Web search settings with one configured engine.',
     target: 'An engine added through the dialog with a note and a URL filter, saved and read back.',
-    pages: ['guides/tools'],
+    pages: ['guides/web-search'],
   },
   {
     id: 'tools/recurring-alarm',
     description: 'Recurring alarms: the rule form and its next-run preview.',
     target: 'A weekly alarm whose rules are filled in and whose preview lists the next five runs.',
-    pages: ['guides/tools'],
+    pages: ['guides/recurring-alarms'],
   },
   {
     id: 'tools/mcp-servers',
     description: 'MCP servers page with a ready server, a degraded one and progressive exposure.',
     target: 'The stdio fixture connected with progressive exposure and skills, the HTTP endpoint degraded.',
-    pages: ['guides/tools'],
+    pages: ['guides/mcp'],
   },
   {
     id: 'troubleshooting/config-drift',

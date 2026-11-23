@@ -1,11 +1,15 @@
 ---
 title: 安装与首次登录
-description: 用 Docker Compose 启动塑料碗，在服务器上生成一次性码登录面板，再接上一个能正常回复的 Agent 模型。
+description: 用 Docker Compose 启动塑料碗，配置 Nginx、Caddy 或 Apache httpd 的 HTTPS 反向代理，用一次性码登录面板，再接上一个能正常回复的 Agent 模型。
 ---
 
 # 安装与首次登录
 
 这一页把一台空机器带到「面板已登录、Agent 有可用模型」。人格与 Telegram 在接下来的两页。
+
+:::tip 想让本机 Coding Agent 通过 SSH 一条龙装好？
+如果你刚拿到一台带 `root` 账号和密码的新 VPS，可以直接照着[AI 帮我部署](ai-deploy.md)把整套流程交给 Agent 执行。
+:::
 
 **需要准备**：一台长期在线的机器、Docker 与 Docker Compose、一个模型服务的 API Key 与接口地址。Telegram Bot 可以稍后再建。
 
@@ -94,9 +98,9 @@ docker compose exec -u surowan plasticwan node /app/src/cli.ts pairing create --
 
 主模型只要求能读文字，图片识别是另选的可选角色，不影响这一步。元数据补全、昵称、批量健康检查以及换模型时会发生什么，都在[接入和更换模型](models.md)。
 
-## 6. 可选：公网地址与通行密钥
+## 6. 可选：公网地址、HTTPS 反向代理与通行密钥
 
-面板只监听本机回环时，远程访问靠 SSH 隧道或你自己管理的反向代理。要让通行密钥（Passkey）可用，需要给它一个固定来源：
+面板本身只提供明文 HTTP 且建议只监听本机回环（`127.0.0.1:8787`），远程访问靠 SSH 隧道或你自己管理的 HTTPS 反向代理。要从公网安全访问并启用通行密钥（Passkey），需要给面板配一个固定来源：
 
 ```jsonc
 {
@@ -106,9 +110,112 @@ docker compose exec -u surowan plasticwan node /app/src/cli.ts pairing create --
 }
 ```
 
-`public_url` 必须是规范的 HTTPS origin，不能带路径、查询参数、用户名或片段，也不能是 IP 地址（本机开发可以用 `http://localhost`）。它是 WebAuthn 的 RP，换了域名就要重新注册通行密钥。
+`public_url` 必须是规范的 HTTPS origin，不能带路径、查询参数、用户名或片段，也不能是 IP 地址（本机开发可以用 `http://localhost`）。不要把面板挂在站点子目录（例如 `/panel/`）下，面板静态页、`/api` 与 `/mcp` 都假定位于根路径。它是 WebAuthn 的 RP，换了域名就要重新注册通行密钥。
 
-`admin.*` 属于需要重启的字段（类型与默认值见 [`admin` 字段参考](../configuration/fields-admin.md)）。改完执行 `docker compose restart plasticwan`，再从配置的这个来源打开面板，在 **设置 → 通行密钥** 里 **添加通行密钥**。之后登录页会出现 **使用通行密钥登录**。
+反向代理需要同时满足三项约定：
+
+1. **放宽请求体上限**：图片上传等接口最大接受 30 MB，建议把代理上限设为 35 MB 左右。
+2. **不对 `/api/live/` 缓冲并拉长超时**：运行记录的自动刷新走 Server-Sent Events（SSE），服务端每 15 秒发一次心跳，代理不能把流攒在缓冲区里，也不要在几十秒后切断长连接。
+3. **透传原始 `Host` 与 HTTPS 协议头**：确保浏览器访问的来源与 `admin.public_url` 完全一致，登录 Cookie 会自动附带 `Secure` 标记。
+
+下面三份示例均假设塑料碗发布在 `127.0.0.1:8787`，域名为 `panel.example.com`（请替换成你自己的域名与证书路径）。
+
+### Caddy（自动 HTTPS）
+
+Caddy 会自动向 Let's Encrypt 申请并续期证书，配置最短。写入 `/etc/caddy/Caddyfile` 后重载 Caddy 即可：
+
+```text
+panel.example.com {
+	reverse_proxy 127.0.0.1:8787 {
+		# 对 /api/live/* 等 SSE 实时流即时刷新，不攒缓冲
+		flush_interval -1
+	}
+}
+```
+
+### Nginx
+
+需要先准备好 TLS 证书（例如用 Certbot 签发到 `/etc/letsencrypt/live/panel.example.com/`）。写入 `/etc/nginx/sites-available/surowan.conf`、启用站点后执行 `nginx -t && systemctl reload nginx`：
+
+```nginx
+server {
+    listen 80;
+    listen [::]:80;
+    server_name panel.example.com;
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
+    server_name panel.example.com;
+
+    ssl_certificate     /etc/letsencrypt/live/panel.example.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/panel.example.com/privkey.pem;
+
+    # 图片上传接口最大接受 30 MB，略留余量
+    client_max_body_size 35m;
+
+    # SSE 实时流（运行记录自动刷新）：关闭缓冲并拉长读超时
+    location /api/live/ {
+        proxy_pass http://127.0.0.1:8787;
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_cache off;
+        proxy_read_timeout 1h;
+    }
+
+    location / {
+        proxy_pass http://127.0.0.1:8787;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 120s;
+    }
+}
+```
+
+### Apache httpd
+
+先启用所需模块（Debian / Ubuntu 可执行 `a2enmod ssl proxy proxy_http headers`），再将以下虚拟主机保存为站点配置并重载 Apache：
+
+```apache
+<VirtualHost *:80>
+    ServerName panel.example.com
+    Redirect permanent / https://panel.example.com/
+</VirtualHost>
+
+<VirtualHost *:443>
+    ServerName panel.example.com
+
+    SSLEngine on
+    SSLCertificateFile    /etc/letsencrypt/live/panel.example.com/fullchain.pem
+    SSLCertificateKeyFile /etc/letsencrypt/live/panel.example.com/privkey.pem
+
+    # 覆盖最大 30 MB 图片上传（约 35 MiB）
+    LimitRequestBody 36700160
+
+    ProxyPreserveHost On
+    ProxyRequests Off
+    RequestHeader set X-Forwarded-Proto "https"
+
+    # SSE 实时流：即时刷新数据块并拉长超时
+    ProxyPass        /api/live/ http://127.0.0.1:8787/api/live/ flushpackets=on timeout=3600
+    ProxyPassReverse /api/live/ http://127.0.0.1:8787/api/live/
+
+    ProxyPass        / http://127.0.0.1:8787/ timeout=120
+    ProxyPassReverse / http://127.0.0.1:8787/
+</VirtualHost>
+```
+
+`admin.*` 属于需要重启的字段（类型与默认值见 [`admin` 字段参考](../configuration/fields-admin.md)）。改完 `public_url` 后执行 `docker compose restart plasticwan`，再从配置的这个 HTTPS 来源打开面板，在 **设置 → 通行密钥** 里 **添加通行密钥**。之后登录页会出现 **使用通行密钥登录**。反向代理后所有访客共享回环地址，密码防暴力破解按 TCP 来源地址计数，建议尽快注册通行密钥避免被他人误触发密码锁定。
 
 ## 7. 可选：离线建号与恢复（需要停机）
 

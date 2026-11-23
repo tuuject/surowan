@@ -58,13 +58,13 @@ Each room has its own **Image generation** switch, off by default. Turning it on
 
 - The switch does not check the global image configuration: with no valid `image` section, turning it on still produces no images.
 - Turning it off only blocks new submissions; generations already accepted finish and their receipts still return to the room.
-- It has nothing to do with cost outside the room; the image setup itself is in [Images, stickers and image generation](images.md).
+- It has nothing to do with cost outside the room; the image setup itself is in [Image generation](image-generation.md).
 
 ## 6. A trial target for recurring alarms
 
 The **Recurring alarms** target list includes every Playground room (shown as `Room: <name>`). To check what a periodic prompt does without letting it speak in a real group on the first try, point the alarm at a room, watch a few firings, then move it to a real chat.
 
-Rules, cron and Run now are in [Search, scheduled tasks and external tools](tools.md); a saved alarm's target cannot change, so a different target means a new alarm.
+Rules, cron and Run now are in [Scheduled tasks and recurring alarms](recurring-alarms.md); a saved alarm's target cannot change, so a different target means a new alarm.
 
 ## 7. What does not apply in a room
 

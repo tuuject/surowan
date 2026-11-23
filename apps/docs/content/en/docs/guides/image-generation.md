@@ -1,62 +1,15 @@
 ---
-title: Images, stickers and image generation
-description: Image understanding, stickers and sticker sets, plus image generation settings, the workbench, records and assets.
+title: Image generation
+description: Enable and configure image generation models, draw or request original files in chat, use the workbench, records and asset library, and understand backups and billing.
 ---
 
-# Images, stickers and image generation
+# Image generation
 
-Image behaviour splits into three independent paths. Telling them apart first keeps the rest of the settings in the right place:
+Image generation is an optional capability separate from [Image understanding](vision.md), powered by an upstream image provider (the built-in OpenRouter adapter).
 
-| Path | Model used | Configured in |
-| --- | --- | --- |
-| Direct vision: images in new messages are attached to the main model | The **Agent** model (it must accept image input) | The model's capabilities in `providers`, see [Agent settings](../configuration/agent.md) |
-| On-demand vision: older images and stickers are described by `read_image` | The **Vision** model (it may differ from the main model) | [Vision settings](../configuration/vision.md) |
-| Drawing and editing | The upstream image provider (the built-in OpenRouter adapter) | **Image settings**, or the `image` section |
+## Enabling and configuring
 
-## Direct vision versus the Vision model
-
-These two are often confused:
-
-- When the **main model accepts image input**, photos and supported image documents from the newest batch are attached to it directly, in the same order as the `figure_N` media lines in those messages. Attachments are not stored.
-- **Older images** (including earlier `figure_N` entries) and every sticker go through `read_image`, which asks the **Vision** model and returns a text description.
-- Without Vision, `read_image` is unavailable, so historical images and stickers cannot be inspected; the sticker visual index also pauses (imported stickers stay pending instead of accumulating failures).
-- Vision has its own model, thinking level, concurrency and daily budget (`max_tokens` and `max_images`); see [Vision settings](../configuration/vision.md) and the [`vision` field reference](../configuration/fields-vision.md).
-
-Images cannot be referenced freely: only `img_` / `stk_` references that this Conversation authorized and that have not expired can be read, references are isolated per Conversation, and they expire. Arbitrary file IDs or Chat IDs are never accepted.
-
-## Stickers and sticker sets
-
-The bot only sends stickers from the sets you allow. They live in `telegram.sticker_sets` and are managed on the **Bot sticker sets** page; changes apply immediately, with no restart.
-
-![The Bot sticker sets page: configured sets and the search index](__DOCS_BASE__/screenshots/images/sticker-sets.en.light.png)
-
-### Adding, editing, removing
-
-1. Choose **Add sticker set** and fill in the **Telegram sticker set**: the set name (letters, digits, underscores) or a `https://t.me/addstickers/…` share link.
-2. Give it an **Alias**: it must start with a letter, may contain letters, digits, `_` and `-`, and is at most 64 characters.
-3. Optionally add a **Note** (up to 500 characters): guidance written for the model, such as "use when teasing a friend; avoid in serious topics". The model sees each set's alias and note when choosing stickers.
-4. After saving, the bot downloads the stickers from Telegram in the background and indexes them one by one; the page shows sync and index progress. **Indexing requires a configured Vision model.**
-
-Rules that catch people out:
-
-- **The Telegram set a row points at never changes.** To use a different set, remove this one and add the other.
-- Editing only changes the alias and the note. Renaming or re-noting does not stop a reply in progress; the new text reaches the next batch.
-- Adding or removing a set stops running replies so the next one sees the new list immediately.
-- Removing only stops the bot from using those stickers. **The index is kept**, so adding the same set again needs no re-analysis.
-
-### Index state
-
-Below the sets, **Sticker search index** filters by set and index state (pending / failed / indexed) and searches descriptions or emoji. Each row shows the description, the model used, the failure count, the next retry, the update time and the analysis version. Failures retry with backoff (up to 6 hours), so "1 failure" is usually transient.
-
-### How the model picks a sticker
-
-The model sees a `<sticker_catalog>` with one line per set (alias, note, and `sticker id: emoji` entries). Emoji is only a coarse hint: to actually use a sticker it must call `search_stickers` (either checking candidate ids or searching semantically), receive an `stk_` reference, and send it with `send` and `kind: sticker`. Sticker references expire after a while.
-
-## Image generation
-
-### Enabling and configuring
-
-Without an `image` section in `config.jsonc`, image generation is disabled: the bot runs normally, the model simply has no image tools, and the panel hides the image pages. Enabling it on the **Image settings** page is recommended:
+Without an `image` section in `config.jsonc`, image generation is disabled: the bot runs normally, the model simply has no image tools, and the panel hides the image pages. Enabling it on the **Media → Image settings** page is recommended:
 
 ![Image settings with the feature enabled and a model added](__DOCS_BASE__/screenshots/images/image-settings.en.light.png)
 
@@ -103,7 +56,7 @@ Writing the section by hand works too; fields are in [Image generation settings]
 }
 ```
 
-### Generating in chat
+## Generating in chat
 
 Once enabled, just ask in the conversation: "draw a neon street in the rain", or "repaint that photo as a watercolour". The model's actual flow is:
 
@@ -121,18 +74,18 @@ Boundaries worth knowing:
 - A failed generation is explained in the model's own words; it does not retry in a loop, and there is no hidden image channel that bypasses `send`.
 - Disabling image generation removes the capability from the model and the panel immediately; re-enabling restores it immediately.
 
-### Original files
+## Original files
 
 Telegram compresses pictures sent as photos. Only when a user explicitly asks for "the original" or "as a file" does the model switch to `send` with `kind: file`:
 
 - Pictures the bot generated: the original files produced by the image service. Replying "send the original" to that picture sends every original of that delivery.
-- Other pictures in the conversation: the copy Telegram stored. An ordinary photo was already compressed when it was uploaded, so sending it as a file cannot recover more quality; a picture received as a file is forwarded unchanged.
-- Stickers are not supported, and the reason is stated.
 - If the original has been cleaned up, the model says it is unavailable instead of substituting the compressed copy.
 - A file send does not count as an image delivery, so it does not affect the duplicate-delivery rule.
 - Playground rooms have no file messages, so this does not work there.
 
-### The three panel pages
+For ordinary chat photos and stickers, see [Image understanding](vision.md#original-files).
+
+## The three panel pages
 
 **Image generation** is the workbench:
 
@@ -165,6 +118,6 @@ Clicking a generation id opens its own detail page (or navigate to `/image-gener
 
 - Generation records and asset rows are cleaned up by `retention.online_days`; original files are removed with the data directory.
 - `backup` snapshots the SQLite database and copies `<data_dir>/images` into a `.images/` directory next to the backup file, so a restore puts both back together. See [Upgrade, back up and restore](maintenance.md).
-- Cost has three separate places: each generation is billed by the upstream provider at its own prices (locally there is no extra quota, only the "at most 3 submissions per invocation" gate); **Suggest with AI** and dictionary merge spend Tool model tokens; **Vision** has its own daily budget (`vision.daily_budget`).
+- Each generation is billed by the upstream provider at its own prices (locally there is no extra quota, only the "at most 3 submissions per invocation" gate); **Suggest with AI** spends Tool model tokens.
 
-Related pages: [Image generation settings](../configuration/image.md), [Vision settings](../configuration/vision.md), [Model metadata catalog](../configuration/models-dev.md), [Upgrade, back up and restore](maintenance.md), [Try personas and tools in the Playground](playground.md).
+Related pages: [Image understanding](vision.md), [Stickers and sticker sets](stickers.md), [Image generation settings](../configuration/image.md), [Model metadata catalog](../configuration/models-dev.md), [Upgrade, back up and restore](maintenance.md), [Try personas and tools in the Playground](playground.md).

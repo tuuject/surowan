@@ -128,7 +128,7 @@ docker compose run --rm plasticwan admin-account --config /config/config.jsonc -
 
 ## 9. API 密钥
 
-**API 密钥** 页为脚本、评估工具与 MCP Server 签发密钥：新建时四选一模式（只读、读 + 改、读 + 耗、全部），可以改模式、轮换或撤销，明文只在创建弹窗出现一次。账号与凭据整类排除在这些密钥之外，无论什么模式都不能改管理员密码、管理通行密钥或管理 API 密钥本身。想吃透权限差异与用法，见[让你的本地 Agent 帮你调整塑料碗](agent-assisted.md)与[HTTP 公共约定](../developer/http/index.md)。
+**API 密钥** 页为脚本、评估工具与 MCP Server 签发密钥：新建时四选一模式（只读、读 + 改、读 + 耗、全部），可以改模式、轮换或撤销，明文只在创建弹窗出现一次。账号与凭据整类排除在这些密钥之外，无论什么模式都不能改管理员密码、管理通行密钥或管理 API 密钥本身。想吃透权限差异与用法，见[与 Agent 配合使用](agent-assisted.md)与[HTTP 公共约定](../developer/http/index.md)。
 
 ![API 密钥页：权限模式与操作](__DOCS_BASE__/screenshots/admin/api-keys.zh-CN.light.png)
 

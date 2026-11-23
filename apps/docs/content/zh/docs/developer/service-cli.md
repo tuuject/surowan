@@ -150,7 +150,7 @@ node src/cli.ts clients revoke 7 --config /path/to/config.jsonc
 
 `pairing list` 只列仍可用、未使用、未过期的码，不回显明文。`pairing cancel <id>` 与 `clients revoke <id>` 的 id 是十进制 `pairing` / `client` 行 ID。
 
-`clients list` 返回全部身份（含已撤销），`last_used_at` 在每次成功签名时更新。撤销对下一次请求立即生效，重复撤销报错。完整签名协议见 [HTTP 公共约定](http/index.md)，操作流程见[让本地 Agent 帮你调整塑料碗](../guides/agent-assisted.md)。
+`clients list` 返回全部身份（含已撤销），`last_used_at` 在每次成功签名时更新。撤销对下一次请求立即生效，重复撤销报错。完整签名协议见 [HTTP 公共约定](http/index.md)，操作流程见[与 Agent 配合使用](../guides/agent-assisted.md)。
 
 ## Docker 写法
 

@@ -54,6 +54,7 @@ The panel can add, edit and remove servers over HTTP. For a stdio server the con
 - `command` is an argv array: the first item is the program, spawned directly with `shell: false`. No shell means no quoting puzzles, and also no pipes or globs.
 - `env` values are SecretRefs, merged over a default environment for the child process.
 - Here `payload_max_bytes` bounds the transport's read buffer for one incoming message.
+- Because `command` executes an arbitrary binary on the host (or inside the container), the panel and HTTP API intentionally refuse to create or change stdio connection fields; edit `config.jsonc` directly on the server. See [Configuring stdio MCP servers](../guides/mcp.md#configuring-stdio-mcp-servers) for the walkthrough, Docker notes and security rationale.
 
 ### Streamable HTTP
 
@@ -195,7 +196,7 @@ This gives `issues` progressive exposure and a description, then lets `-10012345
 
 ## Interactions
 
-- The server page, per-chat bindings and troubleshooting: [Search, scheduled tasks and external tools](../guides/tools.md) and [Set boundaries per chat and topic](../guides/chats.md).
+- The server page, per-chat bindings and troubleshooting: [Connect MCP servers](../guides/mcp.md) and [Set boundaries per chat and topic](../guides/chats.md).
 - Secret references and Keychain rotation: [Secrets and paths](secrets.md).
 - The full chat field list: [Telegram settings](telegram.md).
 

@@ -1,13 +1,34 @@
 ---
-title: Let your local agent tune Surowan
-description: Connect a local coding agent through one-time pairing, an API key or the MCP server, install the bundled skills, and work in a read-propose-confirm-apply-verify loop.
+title: Working with coding agents
+description: Have your local coding agent install the surowan-utils CLI and skills in one sentence, connect through one-time pairing, an API key or MCP, and work in a read-propose-confirm-apply-verify loop.
 ---
 
-# Let your local agent tune Surowan
+# Working with coding agents
 
-A local coding agent — Claude Code, Codex, anything similar — is good at the tedious half of tuning: reading dozens of invocations, diffing two prompts, tracing "why did it not answer" to one audit row. The point is to let it *see* Surowan without giving it your long-lived password.
+A local coding agent — Claude Code, Codex, OpenCode, or similar — is good at the tedious half of tuning: reading dozens of invocations, diffing two prompts, tracing "why did it not answer" to one audit row. The point is to let it *see* Surowan without giving it your long-lived password.
 
-This page covers three things: which credential lets it in, how to install the bundled agent skills, and what to keep an eye on while it works.
+:::tip Server not deployed yet?
+If you have a fresh VPS and want your agent to deploy the server itself over SSH first, start with [Deploy with an AI agent](ai-deploy.md).
+:::
+
+Start with the one-sentence setup prompt below to have your agent install the CLI and skills for you, then read on for the three credential paths, manual commands and safety boundaries.
+
+## Set up the CLI and skills in one sentence
+
+You do not have to look up package names or flags yourself. Paste this to your local coding agent and replace the placeholders:
+
+```text
+Please set up the Surowan CLI and agent skills on this machine:
+1. Check that Node.js is >= 24, then install @tuuject/surowan-utils globally (`npm install -g @tuuject/surowan-utils`).
+2. Install the CLI skill with `npx skills add tuuject/surowan --skill surowan-utils` (and add `--skill surowan-mcp` too if this agent uses MCP).
+3. Run `surowan-utils auth init --json` to initialize the local client signing key.
+4. Connect to my panel at <https://panel.example.com> (if you can SSH into <user@vps>, use one-time SSH pairing to mint a `read_write` pairing code on the server and claim it; otherwise walk me through creating an API key in the panel and saving it via `--api-key-stdin` without pasting the plaintext key into chat).
+5. Verify with `surowan-utils doctor --json` and report the active permission mode.
+```
+
+Start a **fresh agent session** after installation so the newly added `surowan-utils` (or `surowan-mcp`) skill is loaded, then ask it to inspect invocations or propose changes.
+
+The sections below explain each connection method and the manual commands behind it.
 
 ## Three ways in
 

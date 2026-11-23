@@ -128,7 +128,7 @@ No token or API key is written into the configuration: it holds `{ "jar": "name"
 
 ## 9. API keys
 
-The **API keys** page issues keys for scripts, evaluation tools and the MCP server: pick one of four modes (read only, read + write, read + paid, all) when creating, then change the mode, rotate or revoke. The plaintext appears once, in the creation dialog. Accounts and credentials are excluded from every mode — no key can change the administrator password, manage passkeys or manage API keys themselves. For the permission details and usage, read [Let your local agent tune Surowan](agent-assisted.md) and [HTTP API conventions](../developer/http/index.md).
+The **API keys** page issues keys for scripts, evaluation tools and the MCP server: pick one of four modes (read only, read + write, read + paid, all) when creating, then change the mode, rotate or revoke. The plaintext appears once, in the creation dialog. Accounts and credentials are excluded from every mode — no key can change the administrator password, manage passkeys or manage API keys themselves. For the permission details and usage, read [Working with coding agents](agent-assisted.md) and [HTTP API conventions](../developer/http/index.md).
 
 ![The API keys page with permission modes and actions](__DOCS_BASE__/screenshots/admin/api-keys.en.light.png)
 

@@ -1,6 +1,7 @@
 [
   "index",
   "installation",
+  "ai-deploy",
   "first-persona",
   "first-bot",
   "tuning",
@@ -9,8 +10,12 @@
   "playground",
   "chats",
   "knowledge",
-  "images",
-  "tools",
+  "vision",
+  "stickers",
+  "image-generation",
+  "web-search",
+  "recurring-alarms",
+  "mcp",
   "admin",
   "maintenance",
   "troubleshooting"

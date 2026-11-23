@@ -238,7 +238,7 @@ n >= hard_pity ? 100% : min(100%, base_probability + (n - 1) × increment)
 
 ![批改页的导出用途选择与导出确认弹窗](__DOCS_BASE__/screenshots/tuning/review-export.zh-CN.light.png)
 
-导出的 Markdown 怎么交给本地 Agent、以及 Agent 会先做哪些只读检查，见[让你的本地 Agent 帮你调整塑料碗](agent-assisted.md)。
+导出的 Markdown 怎么交给本地 Agent、以及 Agent 会先做哪些只读检查，见[与 Agent 配合使用](agent-assisted.md)。
 
 ## 续跑失败的运行（Resume）
 

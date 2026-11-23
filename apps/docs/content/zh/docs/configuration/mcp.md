@@ -54,6 +54,7 @@ description: 出站 MCP 的两种传输、工具 allowlist 与策略、上限、
 - `command` 是 argv 数组，第一项是程序，直接 `spawn`（`shell: false`），不经过 shell，所以不用写引号转义，也不会有管道和通配符。
 - `env` 的值是 SecretRef，与一份默认环境变量合并后交给子进程。
 - `payload_max_bytes` 在这里是传输层单条消息的读缓冲上限。
+- 因为 `command` 会在宿主机（或容器）上执行任意程序，面板与 HTTP API 刻意拒绝新建或修改 stdio 连接字段，只能在服务器上直接编辑 `config.jsonc`。完整步骤、Docker 内运行说明与安全原因见[配置 stdio MCP 服务器](../guides/mcp.md#配置-stdio-mcp-服务器)。
 
 ### Streamable HTTP
 
@@ -195,7 +196,7 @@ description: 出站 MCP 的两种传输、工具 allowlist 与策略、上限、
 
 ## 与其他段的关系
 
-- 服务器页面、按群绑定与排障：见[开启搜索、定时任务与外部工具](../guides/tools.md)和[为不同群和话题设置边界](../guides/chats.md)。
+- 服务器页面、按群绑定与排障：见[接入 MCP 服务器](../guides/mcp.md)和[为不同群和话题设置边界](../guides/chats.md)。
 - 密钥引用与 keychain 轮换：见[密钥与路径](secrets.md)。
 - 群字段的完整说明：见 [Telegram 配置](telegram.md)。
 

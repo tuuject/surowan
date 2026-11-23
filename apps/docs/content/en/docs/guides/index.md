@@ -19,8 +19,8 @@ Telegram is the only real platform for now. Without it, the Admin Panel and the 
 
 | Your situation | Start at |
 | --- | --- |
-| Not deployed yet | [Install and sign in](installation.md) |
-| Running, and you want different behaviour or boundaries | [Connect and switch models](models.md), [Tune behaviour and cost](tuning.md), [Set boundaries per chat and topic](chats.md) |
+| Not deployed yet | [Install and sign in](installation.md) or [Deploy with an AI agent](ai-deploy.md) |
+| Running, and you want different behaviour or boundaries | [Connect and switch models](models.md), [Tune behaviour and cost](tuning.md), [Working with coding agents](agent-assisted.md), [Set boundaries per chat and topic](chats.md) |
 | It will not start, the panel will not open, the bot stays silent | [Troubleshoot startup failures and silence](troubleshooting.md) |
 
 ## The order for the first time

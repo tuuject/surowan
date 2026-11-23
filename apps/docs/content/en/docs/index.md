@@ -17,11 +17,13 @@ The docs come in three parts. Pick by the question you have:
 
 **Starting from a fresh machine**
 
-1. [Install and sign in](guides/installation.md): bring Docker up, sign in with a one-time code, connect a working model.
+1. [Install and sign in](guides/installation.md): bring Docker up, configure an HTTPS reverse proxy, sign in with a one-time code, connect a working model (or hand the whole VPS setup to your coding agent over SSH in [Deploy with an AI agent](guides/ai-deploy.md)).
 2. [Your first persona](guides/first-persona.md): write the persona, try it in the Playground.
 3. [Your first bot](guides/first-bot.md): create the Telegram bot, allow one chat, have the first real exchange.
 
 **Already running**
+
+- Install the CLI and skills and tune with your coding agent: [Working with coding agents](guides/agent-assisted.md)
 
 - Switch models or adjust thinking effort: [Connect and switch models](guides/models.md)
 - Too chatty, too slow, too expensive: [Tune behaviour and cost](guides/tuning.md)

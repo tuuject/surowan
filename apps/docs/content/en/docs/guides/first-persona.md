@@ -79,7 +79,7 @@ Classifying the problem before rewriting beats blind editing:
 | Sounds like support, loves summaries | Add counter-examples to the voice part: no preamble, no bullet lists |
 | Forgets a rule it just followed | Put the rule in one short sentence near the top; add one rule at a time |
 | Wrong language, drifts into English | State the language explicitly and give one example sentence |
-| Invents facts | Add "say when you are unsure"; for outside information it needs tools, see [Search, scheduled tasks and external tools](tools.md) |
+| Invents facts | Add "say when you are unsure"; for outside information it needs tools, see [Web search and page fetching](web-search.md) or [Connect MCP servers](mcp.md) |
 
 Save in **Prompts**, add a few more messages to the same room, release again. The room keeps the earlier context, so the second round looks more like carrying on a conversation.
 
