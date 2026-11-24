@@ -1,12 +1,12 @@
 [
-  "index",
-  "audit",
-  "configuration",
-  "data",
-  "playground-images",
-  "endpoints-audit",
-  "endpoints-configuration",
-  "endpoints-data",
-  "endpoints-playground-images",
-  "endpoints-session"
+  { "type": "file", "name": "index", "label": "公共约定" },
+  { "type": "file", "name": "audit", "label": "审计与续跑" },
+  { "type": "file", "name": "configuration", "label": "配置与工具" },
+  { "type": "file", "name": "data", "label": "知识与闹钟" },
+  { "type": "file", "name": "playground-images", "label": "虚拟群聊与图片" },
+  { "type": "file", "name": "endpoints-audit", "label": "目录：审计与续跑" },
+  { "type": "file", "name": "endpoints-configuration", "label": "目录：配置与工具" },
+  { "type": "file", "name": "endpoints-data", "label": "目录：知识与闹钟" },
+  { "type": "file", "name": "endpoints-playground-images", "label": "目录：虚拟群聊与图片" },
+  { "type": "file", "name": "endpoints-session", "label": "目录：Session 与凭据" }
 ]

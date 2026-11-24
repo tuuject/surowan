@@ -1,12 +1,18 @@
 [
   {
-    "text": "快速开始",
-    "link": "/docs/guides/installation"
+    "text": "用户手册",
+    "link": "/docs/guides/",
+    "activeMatch": "/docs/guides/"
   },
   {
-    "text": "文档",
-    "link": "/docs/",
-    "activeMatch": "/docs/"
+    "text": "配置参考",
+    "link": "/docs/configuration/",
+    "activeMatch": "/docs/configuration/"
+  },
+  {
+    "text": "开发者参考",
+    "link": "/docs/developer/",
+    "activeMatch": "/docs/developer/"
   },
   {
     "text": "GitHub",

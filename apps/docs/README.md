@@ -32,7 +32,7 @@ content/
 ```
 
 - 路径映射：`content/zh/docs/guides/installation.md` → `/docs/guides/installation`；`content/en/docs/…` → `/en/docs/…`。站点首页分别对应 `/` 与 `/en/`。
-- **每个页面都必须在两个语言目录下同时存在，相对路径完全一致。** `docs:verify` 会比较两侧的页面集合，缺一篇即失败。两侧的 `_meta.json` 可以有不同的 label，但目录结构与侧栏顺序相同；`_nav.json` 里的链接按本语言写相对站点路径（`/docs/…`），Rspress 会自动加上 `/en` 前缀。
+- **每个页面都必须在两个语言目录下同时存在，相对路径完全一致。** `docs:verify` 会比较两侧的页面集合，缺一篇即失败。两侧的 `_meta.json` 可以有不同的 `label`（侧栏用简短标签，页面正文保留完整 `title`/H1），目录结构与侧栏顺序相同；`_nav.json` 将顶部导航拆为「用户手册 / 配置参考 / 开发者参考」（英文为 `User manual / Configuration / Developer`），链接按本语言写相对站点路径（`/docs/…`），`scripts/docs/navigation.ts` 按 `docs/_meta.json` 的一级目录为三块各自生成独立侧栏并加上 `/en` 前缀。
 - 每页写 `title`、`description` 与一个 H1（与 `title` 相同），页面间用相对 `.md` 链接，公开下载与截图用 `__DOCS_BASE__/文件名`。Rspress `replaceRules` 为后者加部署 base，确保 HTML、单页 Markdown 与合并的 `llms-full.txt` 都可用；新增下载须列入精确 dead-link 例外，由 `docs:verify` 检查真实产物。导航由 `_nav.json` / `_meta.json` 维护，支持一层嵌套目录（`developer/http/`）。
 - 产品名与文案：中文正文用「塑料碗」，英文正文用 "Surowan"；站点标题与描述按语言写在 `scripts/docs/locales.ts`，经 `public/build-info.json` 交给 `rspress.config.ts`、主题与 `docs:verify`，三处不会各写一份。
 - 页面与 llms 共享完整 Git SHA；未提交修改明确标为本地预览（`VersionNotice`，中英文文案同样来自 `locales.ts`）。

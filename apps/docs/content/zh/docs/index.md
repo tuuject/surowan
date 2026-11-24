@@ -9,8 +9,8 @@ description: 按你要完成的任务选入口：第一次部署、接模型和�
 
 | 分类 | 什么时候看 | 入口 |
 | --- | --- | --- |
-| **指南** | 想完成一件事：部署、写人设、接 Telegram、调优、修问题 | [指南](guides/index.md) |
-| **配置文件参考** | 想手改 `config.jsonc`，或查某个字段的含义、默认值和生效方式 | [配置文件入门](configuration/index.md) |
+| **用户手册** | 想完成一件事：部署、写人设、接 Telegram、调优、修问题 | [用户手册](guides/index.md) |
+| **配置参考** | 想手改 `config.jsonc`，或查某个字段的含义、默认值和生效方式 | [配置文件入门](configuration/index.md) |
 | **开发者参考** | 写脚本或工具，调用 HTTP 接口、MCP Server 或两套 CLI | [开发者参考](developer/index.md) |
 
 ## 常见任务

@@ -6,7 +6,10 @@ import { DOC_INDEX_PATH, resolveDocPath } from '../src/platform/doc-spaces.ts';
 import { FIELDS_INDEX_PAGE, isConfigFieldSectionPage } from './docs/config-fields/index.ts';
 import { isGeneratedPage, renderGeneratedPages } from './docs/generated-pages.ts';
 import { packedExamplePath, rewritePublicLinks } from './docs/manual-links.ts';
+import { isChildSegment, readMetaEntries } from './docs/navigation.ts';
 import { docsRoot, exampleNames, exampleSource, repositoryRoot } from './docs/prepare.ts';
+
+export { isChildSegment };
 
 /**
  * The docs site publishes zh (root) and en (`/en/`); the agent manual packs only
@@ -26,14 +29,6 @@ const EXAMPLE_DESCRIPTIONS: Record<ExampleName, { readonly language: string; rea
   'system-prompt.example.md': { language: 'markdown', description: 'The persona prompt example, verbatim.' },
   'docker-compose.yml': { language: 'yaml', description: 'The Docker Compose deployment template, verbatim.' },
 };
-
-interface NavDirectory {
-  readonly type: 'dir';
-  readonly name: string;
-  readonly label: string;
-}
-
-type NavEntry = string | NavDirectory;
 
 interface PackedPage {
   readonly path: string;
@@ -88,13 +83,14 @@ export async function packManual(options: {
   const packed = new Set<string>();
   const rootPages: PackedPage[] = [];
   const sections: PackedSection[] = [];
-  for (const entry of await readNavigation(contentRoot)) {
-    if (typeof entry === 'string') {
+  for (const entry of readMetaEntries(contentRoot)) {
+    if (typeof entry === 'string' || entry.type === 'file') {
+      const name = typeof entry === 'string' ? entry : entry.name;
       // The pack generates its own root index; the site's landing page is navigation for humans.
-      if (entry === 'index') {
+      if (name === 'index') {
         continue;
       }
-      const page = await readPage(contentRoot, `${entry}.md`, generatedPages);
+      const page = await readPage(contentRoot, `${name}.md`, generatedPages);
       rootPages.push(page);
       packed.add(page.path);
       continue;
@@ -145,13 +141,14 @@ async function packSection(
   packed: Set<string>,
 ): Promise<PackedSection> {
   const blocks: PackedBlock[] = [];
-  for (const entry of await readNavigation(join(contentRoot, directory))) {
-    if (typeof entry !== 'string') {
+  for (const entry of readMetaEntries(join(contentRoot, directory))) {
+    if (typeof entry !== 'string' && entry.type === 'dir') {
       const child = await packSection(contentRoot, `${directory}/${entry.name}`, entry.label, generatedPages, packed);
       blocks.push({ kind: 'group', label: child.label, blocks: child.blocks });
       continue;
     }
-    const path = `${directory}/${entry}.md`;
+    const name = typeof entry === 'string' ? entry : entry.name;
+    const path = `${directory}/${name}.md`;
     blocks.push({ kind: 'page', page: await readPage(contentRoot, path, generatedPages) });
     packed.add(path);
     // The sidebar lists only the generated reference index; its section pages follow it.
@@ -165,59 +162,6 @@ async function packSection(
     }
   }
   return { label, blocks };
-}
-
-async function readNavigation(directory: string): Promise<readonly NavEntry[]> {
-  const path = join(directory, '_meta.json');
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(await readFile(path, 'utf8'));
-  } catch {
-    throw new Error(`Documentation navigation is missing or invalid: ${path}`);
-  }
-  if (!Array.isArray(parsed)) {
-    throw new Error(`Documentation navigation is not an array: ${path}`);
-  }
-  for (const entry of parsed) {
-    if (typeof entry === 'string') {
-      if (entry.length === 0) {
-        throw new Error(`Documentation navigation contains an empty entry: ${path}`);
-      }
-      continue;
-    }
-    if (!isNavDirectory(entry)) {
-      throw new Error(`Documentation navigation contains an unsupported entry: ${path}`);
-    }
-    if (!isChildSegment(entry.name)) {
-      throw new Error(`Documentation navigation directory must name a single child segment: ${entry.name} (${path})`);
-    }
-  }
-  const navigation: readonly NavEntry[] = parsed;
-  return navigation;
-}
-
-/**
- * A navigation directory names exactly one child of the directory that lists it.
- * `.`/`..` and names with a separator would make the walk climb out of the tree.
- */
-export function isChildSegment(name: string): boolean {
-  return name.length > 0 && name !== '.' && name !== '..' && !name.includes('/') && !name.includes('\\');
-}
-
-/** Type guard: keeps the navigation contract checked before any entry is treated as a directory. */
-function isNavDirectory(entry: unknown): entry is NavDirectory {
-  return (
-    typeof entry === 'object' &&
-    entry !== null &&
-    'type' in entry &&
-    entry.type === 'dir' &&
-    'name' in entry &&
-    typeof entry.name === 'string' &&
-    entry.name.length > 0 &&
-    'label' in entry &&
-    typeof entry.label === 'string' &&
-    entry.label.length > 0
-  );
 }
 
 async function readPage(

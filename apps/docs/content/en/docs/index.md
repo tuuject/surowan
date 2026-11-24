@@ -9,7 +9,7 @@ The docs come in three parts. Pick by the question you have:
 
 | Part | When to read it | Start at |
 | --- | --- | --- |
-| **Guides** | You want to finish something: deploy, write a persona, connect Telegram, tune it, fix it | [Guides](guides/index.md) |
+| **User manual** | You want to finish something: deploy, write a persona, connect Telegram, tune it, fix it | [User manual](guides/index.md) |
 | **Configuration reference** | You want to edit `config.jsonc` by hand, or look up what a field means, defaults to and how it takes effect | [Configuration file basics](configuration/index.md) |
 | **Developer reference** | You are writing a script or tool against the HTTP API, the MCP server or the two CLIs | [Developer reference](developer/index.md) |
 

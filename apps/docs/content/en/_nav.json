@@ -1,12 +1,18 @@
 [
   {
-    "text": "Get started",
-    "link": "/docs/guides/installation"
+    "text": "User manual",
+    "link": "/docs/guides/",
+    "activeMatch": "/docs/guides/"
   },
   {
-    "text": "Docs",
-    "link": "/docs/",
-    "activeMatch": "/docs/"
+    "text": "Configuration",
+    "link": "/docs/configuration/",
+    "activeMatch": "/docs/configuration/"
+  },
+  {
+    "text": "Developer",
+    "link": "/docs/developer/",
+    "activeMatch": "/docs/developer/"
   },
   {
     "text": "GitHub",

@@ -1,17 +1,17 @@
 [
-  "index",
+  { "type": "file", "name": "index", "label": "选择接口" },
   {
     "type": "dir",
     "name": "http",
     "label": "HTTP 接口",
     "collapsible": false
   },
-  "mcp-server",
-  "service-cli",
-  "client-cli",
-  "replay",
-  "telegram-commands",
-  "extensions",
-  "mcp-tools",
-  "cli-commands"
+  { "type": "file", "name": "mcp-server", "label": "MCP Server" },
+  { "type": "file", "name": "service-cli", "label": "服务端 CLI" },
+  { "type": "file", "name": "client-cli", "label": "客户端 CLI" },
+  { "type": "file", "name": "replay", "label": "预检与重放" },
+  { "type": "file", "name": "telegram-commands", "label": "Telegram 命令" },
+  { "type": "file", "name": "extensions", "label": "扩展与宿主" },
+  { "type": "file", "name": "mcp-tools", "label": "MCP 工具目录" },
+  { "type": "file", "name": "cli-commands", "label": "CLI 命令目录" }
 ]

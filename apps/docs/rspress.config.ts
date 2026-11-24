@@ -1,8 +1,10 @@
 import { createRequire } from 'node:module';
 import { dirname, resolve } from 'node:path';
 import { defineConfig, normalizeHref } from '@rspress/core';
+import { loadLocaleNavigation } from '../../scripts/docs/navigation.ts';
 import buildInfo from './content/public/build-info.json';
 
+const contentRoot = resolve(import.meta.dirname, 'content');
 const repository = 'https://github.com/tuuject/surowan';
 const commitUrl = `${repository}/commit/${buildInfo.commit}`;
 
@@ -26,7 +28,7 @@ function localeText(lang: string): (typeof buildInfo.locale)['zh'] {
 const provenance = (lang: string): string => localeText(lang).provenance;
 
 export default defineConfig({
-  root: resolve(import.meta.dirname, 'content'),
+  root: contentRoot,
   outDir: 'dist',
   // No site-wide `title`: Rspress then uses each locale's own title for the
   // document title and the navbar wordmark (塑料碗 / Surowan).
@@ -58,6 +60,15 @@ export default defineConfig({
   llms: {
     llmsTxt: ({ lang, sections }) => {
       const text = localeText(lang);
+      // `/docs/index.md` sits above the three top-nav sections, so Rspress puts it in
+      // `Others`; place it first under a localized overview heading instead.
+      const overviewTitle = lang === 'en' ? 'Overview' : '总览';
+      const ordered = [
+        ...sections
+          .filter((section) => section.title === 'Others')
+          .map((section) => ({ ...section, title: overviewTitle })),
+        ...sections.filter((section) => section.title !== 'Others'),
+      ];
       return [
         `# ${text.title}`,
         '',
@@ -68,7 +79,7 @@ export default defineConfig({
         '',
         ...text.llmsNotes,
         '',
-        ...sections.flatMap((section) => [
+        ...ordered.flatMap((section) => [
           `## ${section.title}`,
           '',
           ...section.pages.map((page) => `- [${page.title}](${page.link}): ${page.description ?? ''}`),
@@ -124,6 +135,7 @@ export default defineConfig({
       label: buildInfo.locale[lang].label,
       title: buildInfo.locale[lang].title,
       description: buildInfo.locale[lang].description,
+      ...loadLocaleNavigation(contentRoot, lang),
     })),
     lastUpdated: true,
     editLink: { docRepoBaseUrl: `${repository}/tree/main/apps/docs/content` },

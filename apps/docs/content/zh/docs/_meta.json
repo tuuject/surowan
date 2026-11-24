@@ -3,13 +3,13 @@
   {
     "type": "dir",
     "name": "guides",
-    "label": "指南",
+    "label": "用户手册",
     "collapsible": false
   },
   {
     "type": "dir",
     "name": "configuration",
-    "label": "配置文件参考",
+    "label": "配置参考",
     "collapsible": false
   },
   {
