@@ -46,7 +46,7 @@ export async function fetchWithRedirects(
   }
 }
 
-function parseUrl(input: string): URL {
+export function parseUrl(input: string): URL {
   let url: URL;
   try {
     url = new URL(input);
