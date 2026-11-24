@@ -31,7 +31,7 @@ Without a Vision model configured, visual indexing pauses automatically and impo
 
 ## How the model picks a sticker
 
-The model sees a `<sticker_catalog>` with one line per set (alias, note, and `sticker id: emoji` entries). Emoji is only a coarse hint: to actually use a sticker it must call `search_stickers` (either checking candidate ids or searching semantically), receive an `stk_` reference, and send it with `send` and `kind: sticker`. Sticker references expire after a while.
+The model sees each set's nickname and note, plus the emoji of every sticker. Emoji is only a coarse hint: to actually send a sticker the model first calls `search_stickers` (checking candidates, or searching by meaning) and then sends it with `send`, so a tool session usually shows a `search_stickers` call before a sticker goes out. A sticker found this way has to be looked up again after a while before it can be sent.
 
 Whether a lone sticker sent in a group wakes the bot is controlled by `telegram.sticker_trigger_enabled`; see [Telegram settings](../configuration/telegram.md).
 

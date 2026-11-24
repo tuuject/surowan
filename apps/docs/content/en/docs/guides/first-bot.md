@@ -54,7 +54,7 @@ Two methods, same effect: the chat is written into `telegram.chats` and applied 
 /allowlist
 ```
 
-It appends the current chat to the allowlist and hot-applies it, so no chat ID is needed. `/allowlist` is the only command that runs in a chat the allowlist does not name yet, and only a Bot admin can use it.
+It adds the current chat to the allowlist right away, so no chat ID is needed. `/allowlist` is the only command that runs in a chat the allowlist does not name yet, and only a Bot admin can use it.
 
 Don't know your numeric user ID yet? Surowan cannot show it before any chat is allowed (`/whoami` only works where the bot answers), so message any Telegram ID lookup bot (such as @userinfobot) once to get it.
 
@@ -77,7 +77,7 @@ In the chat you just allowed, send:
 /help
 ```
 
-The bot lists the commands you can use there, one per line, based on your permissions in that chat. Commands are answered by the runtime directly: they never reach the model and never become chat history. In a chat that is not on the allowlist, `/help` gets no reply at all — if nothing comes back, go back to step 4.
+The bot lists the commands you can use there, one per line, based on your permissions in that chat. Commands are answered by Surowan itself: they never reach the model and never become chat history. In a chat that is not on the allowlist, `/help` gets no reply at all — if nothing comes back, go back to step 4.
 
 ## 6. The first real exchange
 

@@ -56,7 +56,7 @@ Start by lowering the *minimum wait* (5 seconds, for example), then decide wheth
 - **Context and history**: `agent.history_messages` sets how much earlier conversation each run carries, and `agent.context` decides when history is dropped, how long references live and how many contexts stay in memory. Shrinking them is the most direct saving, at the price of a shorter memory.
 - **Rate limits do not save money**: `agent.rate_limits` caps send frequency and turns per injection. It stops a runaway conversation, it does not reduce model calls that already happened.
 
-Two kinds of receipt deliberately skip the budget: alarm and recurring-alarm completions are delivered with a budget and sleep exemption. That is a designed exception, not a metering bug.
+Two kinds of run deliberately skip the budget: when an alarm or a recurring alarm comes due, it does not count against the daily budget and still runs while the bot sleeps. That is a designed exception, not a metering bug.
 
 ## It does not join in
 
@@ -102,19 +102,19 @@ The example above behaves like this: a lone message reaches the model after 5 se
 
 ![The Message batches group on the Telegram settings page, with the three timing fields and the save button](__DOCS_BASE__/screenshots/tuning/bucket-timing.en.light.png)
 
-Three cross-field rules are enforced by the server:
+Three rules are checked when you save:
 
 - `bucket_max_seconds` must not be smaller than `bucket_window_seconds`.
 - `agent.context.idle_grace_seconds` is either 0 (long-lived invocations off) or at least `bucket_max_seconds`. Raising the maximum wait to 60 seconds therefore requires the idle grace to be 0 or at least 60.
 - `agent.context.max_wall_clock_seconds` must be larger than `idle_grace_seconds`.
 
-All three are hot. Saving them in the *Message batches* group of the **Telegram** page applies immediately without a restart; hand edits apply when you press *Apply config file* in **Settings**. New timings only affect batches that start collecting afterwards — a batch already collecting keeps the timing it opened with.
+Saving them in the *Message batches* group of the **Telegram** page applies immediately; hand edits apply when you press *Apply config file* in **Settings**. Neither needs a restart. New timings only affect batches that start collecting afterwards — a batch already collecting keeps the timing it opened with.
 
 Only messages that could have triggered the bot extend a batch. Other bots, join/leave service messages and a sticker on its own (unless sticker triggering is enabled) join the batch without pushing it later.
 
 ## The entry gate (Decisions)
 
-Before a due batch turns into an invocation, a small decision model reads it and answers whether the bot would want to reply. The gate does not replace the persona: what to say is still the main model's job, and the gate only keeps obviously unnecessary batches away from it.
+Before a finished batch is handed to the main model, a small decision model reads it and answers whether the bot would want to reply. The gate does not replace the persona: what to say is still the main model's job, and the gate only keeps obviously unnecessary batches away from it.
 
 It is off by default, and while off the behaviour is exactly as if it did not exist. Once enabled there are two modes: `shadow` (*Record only* in the panel) records decisions without changing scheduling; `enforce` (*Enforce*) withholds a rejected batch.
 
@@ -154,7 +154,7 @@ The request carries exactly one question, and the messages travel in `state`: `p
 
 ### What enforcement changes
 
-- A rejected batch ends as `skipped_budget` with error code `decision_gate_dropped`. Its messages, revisions and batch membership stay, and they remain part of the history the model sees later.
+- A rejected batch ends as `skipped_budget` with error code `decision_gate_dropped`. Its messages all stay, and they remain part of the history the model sees later.
 - That chat **stops sampling proactive replies**. Proactive replies hand out chances with a pity counter, and a batch that is sampled in and then dropped would burn the counter for nothing; `shadow` does not change sampling.
 - Decision tokens and cost are recorded on the decision row and stay outside the daily budget.
 - Each decision is one row: mode, model, threshold, history and pending counts, `state`, `outcome`, `applied`, probability, tokens, cost, duration and error code. A `state` of `stale` means the verdict was discarded because the batch grew — not a failure.
@@ -165,9 +165,9 @@ None of these send a decision request or write a row:
 
 - The batch contains `/ask`, a direct mention, a reply to the bot's own message, or a trigger keyword. One is enough for the whole batch.
 - Private chats: there is no group batch to judge, and configuring `decision_gate` on a private chat is rejected by `check-config`.
-- Startup catch-up batches.
-- Work that never goes through batch settlement: long-task completion receipts, administrator recurring alarms, resuming a run from the panel, Playground release and retry. They create invocations directly, so the gate is never asked.
-- Chats that are paused, removed from the configuration, missing a complete model setting, or sleeping — those gates run first.
+- Messages caught up after a restart, which arrived while the service was down.
+- Runs that are not started by a group batch: notifications from background tasks (an alarm coming due, an image generation finishing), administrator recurring alarms, resuming a run from the panel, Playground release and retry.
+- Chats that are paused, removed from the configuration, missing a complete model setting, or sleeping — none of these start a run in the first place.
 - Chats in `/ask`-only mode: their only entry is a direct trigger, so no request is ever made.
 
 ### Every failure admits the batch
@@ -185,7 +185,7 @@ The gate exists to save money, not to withhold messages, so every error leans to
 
 `enabled: true` — globally or through any chat override — requires the global `api_key` to be present. `check-config` only checks for the field, it does not resolve the reference, so a broken reference neither fails the load nor makes any noise: the gate quietly admits everything. Run `doctor` once after enabling it. With the gate on, `doctor` resolves the credential and sends one minimal request, fails loudly when that does not work, and never prints the value.
 
-Every field (including `api_key`, `base_url` and `model`) is hot: saving applies to the next decision. Per-chat overrides, the rule that private chats cannot configure one, and the per-field switches in the panel are covered in [Set boundaries per chat and topic](chats.md).
+Every field (including `api_key`, `base_url` and `model`) applies from the next decision after you save. Per-chat overrides, the rule that private chats cannot configure one, and the per-field switches in the panel are covered in [Set boundaries per chat and topic](chats.md).
 
 ## Harness tuning: budgets and send protection
 
@@ -201,7 +201,7 @@ Every field (including `api_key`, `base_url` and `model`) is hot: saving applies
 
 Several values can change at once. *Save and apply* writes them back and applies, *Discard changes* restores the file's values, and only the fields you really changed are written — comments and formatting survive. Out-of-range values are flagged in place; rules that need more than one field (retained sends target below the maximum, idle grace covering the longest batch wait) are checked on the server, and a failure leaves the file untouched and explains why.
 
-How it takes effect: the daily budget applies from the next model call, so lowering it constrains a run that is already going; every other field is hot and needs no restart, and is read wherever it is used — new history size applies to runs created afterwards, new rate limits to sends afterwards.
+How it takes effect: the daily budget applies from the next model call, so lowering it constrains a run that is already going; every other field also applies as soon as you save — new history size applies to runs created afterwards, new rate limits to sends afterwards.
 
 ## Proactive reply chance
 
@@ -216,7 +216,7 @@ n >= hard_pity ? 100% : min(100%, base_probability + (n - 1) × increment)
 With the defaults (`base_probability` 0.2, `increment` 0.1, `hard_pity` 8) that is 20%, 30%, 40% … and a guaranteed hit on attempt 8.
 
 - **Exempt messages**: direct mentions, replies to the bot's own messages, trigger keywords, Telegram commands and `/ask`. Any direct cue lets the whole batch through, without increasing or resetting the counter.
-- **Counters are per chat**, shared by all Forum Topics of that chat, stored in the database and surviving restarts.
+- **Counters are per chat**, shared by all Forum Topics of that chat, and survive restarts.
 - **Changing a parameter resets the counter**: when `base_probability`, `increment` or `hard_pity` changes, the next sample clears that chat's counter so old progress cannot trigger the guarantee immediately. Turning the feature off and on again, or restarting, does not.
 - **A missed batch** still stores its messages; it just ends as `proactive_reply_skipped` without an invocation.
 
@@ -226,7 +226,7 @@ There are two places in the panel: global defaults in the *Proactive replies* gr
 
 The invocation detail page and the **Reviews** page (`/reviews`) let you annotate the audit trail directly — "this line was too long", "it should not have replied here" — and export a Markdown prompt with full instructions for a local coding agent.
 
-- **Browser-local only.** The draft lives in `localStorage` under `surowan-admin-review`; it is never uploaded to the server and never written to the database. If the browser blocks local storage or runs out of space, the content survives only in the open tab.
+- **Browser-local only.** The draft is kept in this browser only; it is never uploaded to the server, so another browser or device will not show it. If the browser blocks local storage or runs out of space, the content survives only in the open tab.
 - **What you can annotate.** On the *Overview* timeline every event card except the queued/started/finished markers (incoming and history messages, model calls, tool calls including `send`, private assistant text and tool results) takes a comment, and the summary card takes one overall comment. Each comment holds up to 4,000 characters, and saving captures an excerpt of up to 280 characters from the event.
 - **Cross-tab sync.** With several detail pages and the Reviews page open, a save, edit or delete in one tab reaches the others.
 - **Two purposes.** *Tune this bot* writes for whoever runs this bot: the exported prompt asks the agent to trace each comment to the persona prompt, the chat prompt, harness settings, the model or the dictionary and memory, and to change things only after you approve each item. *Developer feedback* writes for Surowan developers: the agent must not touch the running configuration, only locate defects in the built-in system prompt, tool definitions or runtime behaviour and report them by impact.
@@ -250,7 +250,7 @@ Resume is available only when (`resume_*` error codes otherwise, and the button 
 - the bot is not sleeping, and Telegram is connected;
 - it is not a Playground room, which retries through its own release ledger.
 
-If the failed batch already reached the context, the new run opens with an empty batch (otherwise the messages would be injected twice) and the prompt explains why; if it never got in, the frozen snapshot is copied instead.
+A resume never makes the model read the same batch twice: if the failed batch already reached the conversation context, the new run simply continues from there and is told it is a resume; if it never got in, that batch is handed to the model again as it was.
 
 Resume really spends money and really may send, so for API-key callers it is `write+paid`: only a key in `all` mode can call it. Replay is a different tool — it produces no Telegram side effects, see [Invocation preflight and replay](../developer/replay.md).
 
@@ -265,4 +265,4 @@ After each change, compare the same kind of evidence instead of checking that sa
 - **Overview daily usage**: token and invocation trends over 7 or 30 days. After lowering the budget, confirm the bot did not go quiet for hours because it slept.
 - **Review comments**: writing down what was wrong is more reliable than remembering it, and an agent receives exactly the same facts.
 
-Configuration drift is a different kind of evidence: the *Config file* group on **Settings** shows the active hash, the file hash, and whether the file matches the running configuration; *Last error* explains a failed apply. Which fields apply hot and which need a restart is in [Configuration lifecycle](../configuration/lifecycle.md).
+Configuration drift is a different kind of evidence: the *Config file* group on **Settings** shows the active hash, the file hash, and whether the file matches the running configuration; *Last error* explains a failed apply. Which fields only apply after a restart is in [Configuration lifecycle](../configuration/lifecycle.md).

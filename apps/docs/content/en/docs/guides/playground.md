@@ -5,7 +5,7 @@ description: Create a room, hold messages, release them into a real run, and tel
 
 # Try personas and tools in the Playground
 
-The Playground is the panel's built-in sandbox. What you type in a room goes through the same scheduler, runtime and model configuration as a real chat, but every output stays in the room and never reaches Telegram. It is the place to try a persona, watch replies and find out whether the model speaks at all, without touching a real chat.
+The Playground is the panel's built-in sandbox. What you type in a room is handled exactly like a real chat, with the same model configuration, but every output stays in the room and never reaches Telegram. It is the place to try a persona, watch replies and find out whether the model speaks at all, without touching a real chat.
 
 A room is not a mock: releasing messages really calls the model, and really costs money. If you want to save spend, do not release.
 
@@ -23,7 +23,7 @@ Rooms have no "send and it runs" mode: new messages wait in the hold queue and s
 
 - **Release N**: seals the pending messages into one batch and queues exactly one real run for it. With nothing pending, releasing only turns the hold off and runs nothing.
 - **Hold new messages**: turns the hold back on, so later input queues again.
-- Input is admitted in arrival order; a room runs one invocation at a time, and a later batch waits for the one in flight.
+- Input is handled in arrival order; a room runs one invocation at a time, and a later batch waits for the one in flight.
 - The room header shows the revision, the hold state and how many messages wait; `queued` and `running` below it count the queue and the active run.
 
 ![The Playground with messages held and not yet run](__DOCS_BASE__/screenshots/playground/hold-pending.en.light.png)
@@ -47,7 +47,7 @@ Three outcomes are different things:
 A failed or aborted run offers **Retry this run**, on narrow conditions:
 
 - Only `failed` or `aborted` attempts can be retried; `outcome unknown`, completed and queued ones are refused.
-- That attempt must have had **zero side effects**: no message sent, no tool call, no model call and no injected context.
+- That attempt must have had **zero side effects**: no message sent, no tool call, no model call, and nothing written into the conversation context yet.
 - It is refused when the room already has a later release, so the order cannot be scrambled.
 
 The page states the reason when a retry is refused. A failed run in a real chat is a different mechanism: **Resume** in the invocation detail continues the latest failed run of one conversation (including an aborted one or one with an unknown outcome). Do not mix them up — a room retry means "this attempt never started", while Resume means "this attempt really ran, and continues from where it stopped".
@@ -68,13 +68,13 @@ Rules, cron and Run now are in [Scheduled tasks and recurring alarms](recurring-
 
 ## 7. What does not apply in a room
 
-A room runs a deliberately narrowed profile, separate from Telegram's:
+A room deliberately has fewer features, and does not read Telegram's settings:
 
 - **No entry gate**: its settings come from `telegram.*`; rooms are unaffected and produce no gate decisions.
 - **No active hours, `/ask`-only or proactive-reply sampling**: those are Telegram participation settings.
-- **No stickers, alarms, dictionary writes or MCP tools**: the room's skill list omits them.
+- **No stickers, alarms, dictionary writes or MCP tools**: rooms do not have them.
 - A room has its own Memo entries and image assets, isolated from every Telegram chat; deleting the room deletes them.
-- Room model usage goes into the separate `playground` usage scope, so it does not consume a Telegram chat's daily budget, while the same configured limits still apply.
+- Room model usage is counted separately, so it does not consume a Telegram chat's daily budget, while the same configured limits still apply.
 
 Room messages, runs and audit data follow `retention.online_days`; local image assets are kept through backups. Details are in [Upgrade, back up and restore](maintenance.md), [Data paths and retention](../configuration/storage.md) and the [`retention` field reference](../configuration/fields-retention.md).
 

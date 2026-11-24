@@ -21,8 +21,8 @@ node src/cli.ts check-config --config /path/to/config.jsonc
 
 两类错误要分开看：
 
-- **结构错误**以 `Invalid config:` 开头并带字段路径，例如 `Invalid config: /telegram: …`，来自 Schema：字段名拼错、类型不对、枚举值不在列表里、必填段缺失。
-- **跨字段与语义错误**是一句完整的话，必须靠代码判断。常见的几条原文如下：
+- **结构错误**以 `Invalid config:` 开头并带字段路径，例如 `Invalid config: /telegram: …`，是字段本身写得不对：字段名拼错、类型不对、枚举值不在列表里、必填段缺失。
+- **跨字段与语义错误**是一句完整的话，说的是几个字段合在一起不成立。常见的几条原文如下：
   - `telegram.bucket_max_seconds must be at least telegram.bucket_window_seconds`
   - `agent.context.idle_grace_seconds must be 0 (long-lived invocations off) or at least telegram.bucket_max_seconds (which defaults to telegram.bucket_window_seconds)`
   - `agent.context.retained_sends_target must be smaller than retained_sends_max`
@@ -54,7 +54,7 @@ node src/cli.ts check-config --config /path/to/config.jsonc
 ### 端口、锁与第二个进程
 
 - 同一个 `data_dir` 只能有一个 `serve`。第二个进程会报 `Another serve process holds <data_dir>/serve.lock with PID <pid>`。本地替换实例时才用 `--takeover`。
-- 单实例锁由进程持有在 `serve.lock.sqlite` 上，进程退出（含容器重建）时由内核释放。`serve.lock` 只是记录 PID 的说明文件，残留的 `serve.lock` 不会阻止下次启动，不需要手工删除。
+- 进程退出（含容器重建）时锁会自动释放。`serve.lock` 只是记录 PID 的说明文件，残留的 `serve.lock` 不会阻止下次启动，不需要手工删除。
 - 面板端口被占用会直接表现为启动失败。`admin.host` 是 `127.0.0.1` 时外部访问不到，需要放反向代理或者改绑定地址。
 
 ## 面板打不开或登录不了
@@ -127,7 +127,7 @@ surowan-utils decision-gate decisions --chat <会话 ID> --limit 50
 ## 外部 MCP：降级与缺描述
 
 - **警告**页的 `mcp_server_unavailable` 列出降级中的服务器、`error_code` 与下次重连时间。`error_code` 常见的几种：`initialization_failed`（握手或工具发现失败）、`transport_error`（连接中断）、`payload_limit`（请求或结果超过配置上限）、`redirect_rejected`（HTTP 传输不接受重定向）、`reconnect_failed`（重连失败）。服务器会自动重连，不需要重启服务。
-- **`mcp_description_missing`** 只出现在 `exposure: progressive` 又没写 `description` 的服务器上，网关只能拿几个工具名兜底，模型很难判断它有什么用。补一句描述即可，或者在 **MCP 服务器**（MCP servers）页用工具模型起草一份草稿。
+- **`mcp_description_missing`** 只出现在 `exposure: progressive` 又没写 `description` 的服务器上，模型只能看到几个工具名，很难判断它有什么用。补一句描述即可，或者在 **MCP 服务器**（MCP servers）页用工具模型起草一份草稿。
 - **`mcp_required_deprecated`** 提醒配置里还留着 `mcp.servers[].required`，它已不再生效，删掉即可。
 - 启动不再等待 MCP，连不上只会让这台服务器降级，不影响 Bot 启动。工具调用失败最终落在运行详情的「工具调用」里，带 `mcp_tool_error` 或 `mcp_call_failed` 之类的错误码。
 
@@ -139,7 +139,7 @@ surowan-utils decision-gate decisions --chat <会话 ID> --limit 50
 
 | 原因 | 错误码 | 含义 |
 | --- | --- | --- |
-| 模型输出不合格 | `group_memory_invalid_output` | 输出没通过事件 Schema 与批次内 message-id 校验；模型会被要求修正一次，仍不合格才算失败。 |
+| 模型输出不合格 | `group_memory_invalid_output` | 输出格式不对，或引用了这一批之外的消息；模型会被要求修正一次，仍不合格才算失败。 |
 | 输出被截断 | `group_memory_length` | 一次输出没写完，撞到输出上限。 |
 | 模型调用失败 | `group_memory_error` | 上游报错。 |
 | 工具模型不可用 | `tool_model_unavailable`、`group_memory_unavailable` | `tool_model` 没配好、模型不可用，或批次里没有一条消息能塞进模型窗口。 |
@@ -155,7 +155,7 @@ surowan-utils decision-gate decisions --chat <会话 ID> --limit 50
 「我改了配置但行为没变」几乎都是这两种之一：
 
 - **文件改了没应用**。手改 `config.jsonc` 之后要到 **设置**（Settings）页点「应用配置文件」。页面上的「配置版本」一组会显示生效哈希、文件哈希，以及「与文件一致」还是「文件有改动」，「最近错误」给出上一次应用失败的原因。需要重启的字段在**会话**页顶部会显示「N 项设置正在等待重启」与「立即重启」。
-- **字段属于重启生效**。哪些热应用、哪些必须重启见[配置生命周期](../configuration/lifecycle.md)。热应用字段的输入框下会显示「运行中：…」，那是正在生效的旧值。逐字段的类型与默认值见 [`agent`](../configuration/fields-agent.md)、[`telegram`](../configuration/fields-telegram.md)、[`vision`](../configuration/fields-vision.md) 字段参考。
+- **字段属于重启生效**。哪些字段必须重启见[配置生命周期](../configuration/lifecycle.md)。输入框下如果显示「运行中：…」，说明保存的值还没生效，那是仍在运行的旧值。逐字段的类型与默认值见 [`agent`](../configuration/fields-agent.md)、[`telegram`](../configuration/fields-telegram.md)、[`vision`](../configuration/fields-vision.md) 字段参考。
 
 ![设置页显示文件哈希与生效哈希不一致、文件有改动](__DOCS_BASE__/screenshots/troubleshooting/config-drift.zh-CN.light.png)
 

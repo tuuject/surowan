@@ -11,7 +11,7 @@ description: 分清主模型直接看图、Vision 模型按需看图与图片生
 | --- | --- | --- |
 | 直接看图：新消息里的图片附带给主模型 | **Agent** 模型（必须支持图片输入） | [Agent 配置](../configuration/agent.md) 的 `providers` 模型能力 |
 | 按需看图：更早的图片、Sticker 由 `read_image` 分析成文字描述 | **Vision** 模型（可与主模型不同） | [Vision 配置](../configuration/vision.md) |
-| 画图与改图 | 生图上游服务（内置 OpenRouter adapter） | [图片生成](image-generation.md) 或 `image` 段 |
+| 画图与改图 | OpenRouter 上的生图模型 | [图片生成](image-generation.md) 或 `image` 段 |
 
 如果已经分清链路、准备配置贴纸或开启画图，可以直接看[Sticker 与贴纸集](stickers.md)和[图片生成](image-generation.md)。
 
@@ -19,16 +19,16 @@ description: 分清主模型直接看图、Vision 模型按需看图与图片生
 
 这两件事经常被混为一谈：
 
-- **主模型支持图片输入**时，最新一个批次里收到的照片与受支持的图片文件会直接附带给主模型，顺序与消息里的 `figure_N` 一致。附件不会被保留。
-- **更早的图片**（包括前面批次的 `figure_N`）和所有 Sticker，都要模型主动调用 `read_image`，由 **Vision** 模型分析并返回文字描述。
-- 没有配置 Vision 时，`read_image` 不可用，`figure_N` 之外的历史图片和 Sticker 都看不到，Sticker 的视觉索引也会暂停（已导入的贴纸保持待处理，不累积失败）。
+- **主模型支持图片输入**时，最新一个批次里收到的照片与受支持的图片文件会直接附带给主模型。这些图片只附带这一次，不会留在之后的上下文里。
+- **更早的图片**和所有 Sticker，都要模型主动调用 `read_image`，由 **Vision** 模型分析并返回文字描述。
+- 没有配置 Vision 时，`read_image` 不可用，历史图片和 Sticker 都看不到，Sticker 的视觉索引也会暂停（已导入的贴纸保持待处理，不累积失败）。
 - Vision 有独立的模型、思考强度、并发与每日预算（`max_tokens` 与 `max_images`），见[Vision 配置](../configuration/vision.md)与 [`vision` 字段参考](../configuration/fields-vision.md)。
 
-## 图片引用的授权与隔离
+## 模型能看到哪些图片
 
-图片不是随便能引用的，只有当前 Conversation 授权且未过期的 `img_` / `stk_` 引用可读，引用按 Conversation 隔离，过期即失效。系统不接受任意 file ID 或 Chat ID。
+模型只能看当前对话里出现过、而且还没过期的图片与贴纸。不同会话之间、同一个群的不同话题之间互相看不到，模型也不能凭文件 ID 或会话 ID 去读别处的图片。
 
-在网页读取里遇到的图片也遵守同样的会话隔离与 TTL 边界（单张上限 20 MiB，支持 JPEG / PNG / WebP），见[网络搜索与网页读取](web-search.md#网页读取与看图)。
+在网页读取里遇到的图片也遵守同样的隔离与过期规则（单张上限 20 MiB，支持 JPEG / PNG / WebP），见[网络搜索与网页读取](web-search.md#网页读取与看图)。
 
 ## 要原图或以文件发送
 

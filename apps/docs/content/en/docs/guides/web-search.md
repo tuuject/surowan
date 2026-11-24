@@ -10,13 +10,13 @@ This page covers two paired web capabilities:
 - **Web search (`web_search`)**: the model looks up sources when it does not know a URL, receiving titles, URLs and short snippets.
 - **Page fetching (`web_fetch`)**: fetches one page body or image by URL when a snippet is not enough.
 
-Both happen inside existing tool boundaries: capability switches, timeouts, size limits and auditing still apply, and no configuration grants the model new authority.
+Both are subject to their feature switches, timeouts and size limits, and are audited; no configuration grants the model new authority.
 
 ## Web search
 
 Web search lets the model look for sources when it does not know a URL, receiving titles, URLs and short snippets, then read the pages that matter with `web_fetch`. The search itself never fetches page bodies, so it costs very little context.
 
-It is **off by default**. Once enabled, the `web_search` capability and its Skill appear in the model's index.
+It is **off by default**. Only once it is enabled can the model see and use `web_search`.
 
 ### Configuring it in the panel
 
@@ -24,19 +24,19 @@ Open **Bot → Web search**:
 
 ![Web search with a configured engine and URL filters](__DOCS_BASE__/screenshots/tools/search-settings.en.light.png)
 
-- **Enable web search** controls the whole feature. Turning it off — or disabling every engine — has the same effect: the capability and Skill disappear at once, **running invocations stop**, and the next message starts on a rebuilt Context.
+- **Enable web search** controls the whole feature. Turning it off — or disabling every engine — has the same effect: the model loses search at once, **running invocations stop**, and the next message starts on a rebuilt Context.
 - **Search engines** holds any number of engines. Each one needs a provider, a model-visible **Engine id** (lowercase letters, digits, dashes), an **Endpoint** (empty means the provider default; SearXNG requires one), **Results** (1–10), **Timeout (s)** (5–30) and a **Note for the model**. The note appears in the tool description and the engine list to say which sites or material that engine suits; the model picks engines by it.
 - **Credential** chooses where the key comes from: keep the configured key, enter a new one, or use an existing Keychain entry. A new key is stored in `key.json` next to the configuration under the engine id, and the panel and the configuration only ever show whether it is configured. Removing an engine does **not** clean up its credential; unused entries are removed on the **Keychain** page.
 - **URL filters** drop results you do not want. One regular expression per line (**RE2 syntax**: no lookarounds such as `(?=…)` and no backreferences), for example `csdn` to drop every `blog.csdn.net` result. **Test URLs** previews which rules match a pasted URL and sends no request at all.
 
-Providers come from built-in plugins: `tavily`, `brave`, `exa`, `firecrawl`, `deepseek`, `searxng` and `youcom`. An unregistered provider is rejected. All but SearXNG have a default endpoint that `endpoint` can override, for example a gateway that speaks the same protocol.
+The supported providers are `tavily`, `brave`, `exa`, `firecrawl`, `deepseek`, `searxng` and `youcom`; any other provider is rejected. All but SearXNG have a default endpoint that `endpoint` can override, for example a gateway that speaks the same protocol.
 
-Saving takes effect immediately. Changing the provider, the key or the search parameters does **not** interrupt a running invocation: each request freezes its engine, endpoint, key, count and timeout when it starts, so in-flight searches finish on the old configuration and the next one uses the new. Only the transition from available to unavailable stops runs.
+Saving takes effect immediately. Changing the provider, the key or the search parameters does **not** interrupt a running invocation: a search already under way finishes on the old settings and the next one uses the new. Only the transition from available to unavailable stops runs.
 
 ### How the model uses it
 
 - The model sees the engines and their notes, and may name an `engine` or leave it out.
-- For anything time-sensitive, the Skill asks the model to put the current year, or the period you mentioned, into the query; otherwise engines tend to rank old pages first.
+- For anything time-sensitive, the model is told to put the current year, or the period you mentioned, into the query; otherwise engines tend to rank old pages first.
 - Failures are **not** retried automatically. Authentication, quota, rate limit, upstream errors, rejected requests, redirects, timeouts, oversized responses and network errors are reported separately.
 - When results are dropped by URL rules, the result header says how many.
 - Results are untrusted data and never count as instructions or authorization.

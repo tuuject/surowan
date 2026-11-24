@@ -194,7 +194,7 @@ and do not read llms-full.txt in full.
 A reliable loop has five steps, and skipping one is how "the agent said it fixed it" happens:
 
 1. **Read first.** Have it run `doctor`, `config show`, `prompt get global` and `invocation get <id>`, and report conclusions together with the evidence. `models list` is a view of the current configuration, not proof that an upstream provider answers.
-2. **Propose.** Ask for the field, the old and new value, which chats are affected, whether it applies hot, and how to undo it. Field-level truth lives in the [configuration reference](../configuration/fields.md), not in the skill.
+2. **Propose.** Ask for the field, the old and new value, which chats are affected, whether it needs a restart, and how to undo it. Field-level truth lives in the [configuration reference](../configuration/fields.md), not in the skill.
 3. **You confirm.** Only the specific change you approved gets written. `--yes` is a mechanical gate, never the approval itself; `--dry-run` shows the exact request first.
 4. **Apply.** Writes go through the same endpoints and validation as the panel, so the agent can do exactly what the panel can and nothing more.
 5. **Verify.** Have it read the effective value back and cite a real invocation as evidence; "saved successfully" is not a result.

@@ -21,8 +21,8 @@ It reads the file only: no secret resolution, no network. Success prints `{"stat
 
 Two kinds of error, and they read differently:
 
-- **Shape errors** start with `Invalid config:` plus a field path, such as `Invalid config: /telegram: …`, and come from the schema: misspelled field, wrong type, a value outside an enum, a required section missing.
-- **Cross-field and semantic errors** are full sentences that only code can judge. The common ones, verbatim:
+- **Shape errors** start with `Invalid config:` plus a field path, such as `Invalid config: /telegram: …`, and mean a field itself is wrong: misspelled field, wrong type, a value outside an enum, a required section missing.
+- **Cross-field and semantic errors** are full sentences about fields that do not work together. The common ones, verbatim:
   - `telegram.bucket_max_seconds must be at least telegram.bucket_window_seconds`
   - `agent.context.idle_grace_seconds must be 0 (long-lived invocations off) or at least telegram.bucket_max_seconds (which defaults to telegram.bucket_window_seconds)`
   - `agent.context.retained_sends_target must be smaller than retained_sends_max`
@@ -54,7 +54,7 @@ The configuration stores references (`{ "jar": "<entry>" }`, `env` or `command`)
 ### Ports, locks and a second process
 
 - One `serve` per `data_dir`. A second one fails with `Another serve process holds <data_dir>/serve.lock with PID <pid>`. Use `--takeover` only when you are deliberately replacing a local instance.
-- The single-instance lock lives on `serve.lock.sqlite` and is released by the kernel when the process exits, container rebuilds included. `serve.lock` is only a human-readable PID file; a leftover one never blocks startup and must not be deleted by hand.
+- The lock is released automatically when the process exits, container rebuilds included. `serve.lock` is only a human-readable PID file; a leftover one never blocks startup and must not be deleted by hand.
 - An occupied panel port shows up as a startup failure. With `admin.host` set to `127.0.0.1`, the outside world cannot reach the panel at all — put a reverse proxy in front of it or change the bind address.
 
 ## The panel is unreachable or sign-in fails
@@ -127,7 +127,7 @@ surowan-utils decision-gate decisions --chat <chat ID> --limit 50
 ## Outbound MCP: degraded and missing descriptions
 
 - The `mcp_server_unavailable` warning lists the degraded servers with an `error_code` and the next reconnect time. Common codes: `initialization_failed` (handshake or tool discovery failed), `transport_error` (connection dropped), `payload_limit` (request or result exceeded the configured limit), `redirect_rejected` (the HTTP transport does not follow redirects) and `reconnect_failed`. Servers reconnect on their own; no restart is needed.
-- **`mcp_description_missing`** only appears on servers with `exposure: progressive` and no `description`: the gateway can only fall back to a few tool names, so the model has little idea what the server is for. Add one sentence, or draft it with the tool model on **MCP servers**.
+- **`mcp_description_missing`** only appears on servers with `exposure: progressive` and no `description`: the model only gets a few tool names, so it has little idea what the server is for. Add one sentence, or draft it with the tool model on **MCP servers**.
 - **`mcp_required_deprecated`** says a `mcp.servers[].required` remains in the file. It no longer does anything; delete it.
 - Startup no longer waits for MCP: an unreachable server only degrades itself and never keeps the bot from starting. A failing tool call lands in *Tool calls* on the invocation detail, with codes such as `mcp_tool_error` or `mcp_call_failed`.
 
@@ -139,7 +139,7 @@ Consolidation progress on **Group memory** shows the problem directly: a lane in
 
 | Reason | Error code | Meaning |
 | --- | --- | --- |
-| Invalid model output | `group_memory_invalid_output` | The reply failed the event schema and message-id validation. The model is asked to repair it once; failing that, the batch fails. |
+| Invalid model output | `group_memory_invalid_output` | The reply was malformed, or referred to messages outside this batch. The model is asked to repair it once; failing that, the batch fails. |
 | Output truncated | `group_memory_length` | A reply hit the output limit before it finished. |
 | Model error | `group_memory_error` | The upstream call failed. |
 | Tool model unavailable | `tool_model_unavailable`, `group_memory_unavailable` | `tool_model` is incomplete, the model is unusable, or no message in the batch fits the model window. |
@@ -155,7 +155,7 @@ A failure never loses messages: the lane returns to idle with a backoff and retr
 "I changed the configuration and nothing happened" is almost always one of these:
 
 - **The file was never applied.** After a hand edit, press *Apply config file* on **Settings**. The *Config file* group shows the active hash, the file hash and whether the file matches the running configuration, and *Last error* explains the last failed apply. Fields that need a restart produce a *N settings are waiting for a restart* banner with *Restart now* at the top of **Chats**.
-- **The field only applies after a restart.** Which fields are hot and which are not is in [Configuration lifecycle](../configuration/lifecycle.md); hot fields show *Running: …* under the input when the running value differs. Field types and defaults are in the [`agent`](../configuration/fields-agent.md), [`telegram`](../configuration/fields-telegram.md) and [`vision`](../configuration/fields-vision.md) field references.
+- **The field only applies after a restart.** Which fields need a restart is in [Configuration lifecycle](../configuration/lifecycle.md); when *Running: …* appears under an input, the saved value is not in effect yet and that is the value still running. Field types and defaults are in the [`agent`](../configuration/fields-agent.md), [`telegram`](../configuration/fields-telegram.md) and [`vision`](../configuration/fields-vision.md) field references.
 
 ![The Settings page showing a file hash that differs from the active hash](__DOCS_BASE__/screenshots/troubleshooting/config-drift.en.light.png)
 

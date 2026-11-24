@@ -87,7 +87,7 @@ Save in **Prompts**, add a few more messages to the same room, release again. Th
 
 - No persona library or character cards: a persona is one prompt file that you write, edit and version.
 - No one-click persona switch: there is one global persona, plus per-chat extra instructions under the **Prompts** chat scope.
-- A persona grants nothing: it cannot widen tool access, budgets or send limits, and cannot override runtime checks.
+- A persona grants nothing: it cannot widen tool access, budgets or send limits, and cannot override Surowan's own checks.
 
 ## 7. Next
 

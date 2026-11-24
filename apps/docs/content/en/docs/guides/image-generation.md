@@ -5,7 +5,7 @@ description: Enable and configure image generation models, draw or request origi
 
 # Image generation
 
-Image generation is an optional capability separate from [Image understanding](vision.md), powered by an upstream image provider (the built-in OpenRouter adapter).
+Image generation is an optional capability separate from [Image understanding](vision.md), currently provided through image models on OpenRouter.
 
 ## Enabling and configuring
 
@@ -19,13 +19,12 @@ Without an `image` section in `config.jsonc`, image generation is disabled: the 
 4. Every model card has a **Usage & prompt notes** field (up to 1000 characters) for the styles and prompt conventions this model suits. It is guidance for the chat agent, **never sent upstream**. Leave it empty for no preference, and never put a key in it.
 5. Choose **Save and apply**. It takes effect immediately, with no restart.
 
-Capabilities are the intersection of the chosen provider's metadata and what this project supports. Models that require a reference image, or that only output SVG, cannot be added yet, and the page says why. A failed catalogue fetch never clears the models you already configured.
+What a model can actually do (ratios, quality tiers and so on) is limited to what the chosen provider advertises and what Surowan supports. Models that require a reference image, or that only output SVG, cannot be added yet, and the page says why. A failed catalogue fetch never clears the models you already configured.
 
 A few behaviours:
 
 - API key plaintext goes only into the **Keychain** (`key.json`) next to the configuration; `config.jsonc` keeps a credential reference.
 - Turning the switch off deletes the whole `image` section, but the Keychain entry stays until you remove it on the **Keychain** page.
-- Every change to `image` is hot-applied, including enabling and disabling.
 - If the configuration file changed elsewhere, saving reports a conflict; reload and try again.
 - When the settings page says enabled but the workbench still says disabled, look for `image_service_warning` in the log (an unreadable credential, for example), fix it, then apply the configuration from **Settings**.
 
@@ -62,16 +61,16 @@ Once enabled, just ask in the conversation: "draw a neon street in the rain", or
 
 1. `list_image_models` to read the current model catalogue (capabilities and notes), plus `search_image_assets` when a known character, style or motif is involved. Neither call costs anything.
 2. `image_generate` to submit the intent: prompt, model, aspect ratio, quality, output count and optional reference images. It returns a generation id right away.
-3. Generation runs in the background (usually seconds to tens of seconds); when it finishes, a task receipt is injected into the conversation.
+3. Generation runs in the background (usually seconds to tens of seconds); when it finishes, the model is notified.
 4. The model delivers the generation's undelivered outputs with `send` and `kind: image`: a single picture is sent as a photo, several become an album, with an optional caption.
 
 Boundaries worth knowing:
 
 - **Reference images come from exactly two channels**: `img_` references visible in this conversation, or library assets promoted with "the agent may use this asset". The second channel is judged by text only (name, description, category, keywords) because the model never sees the picture. Cross-conversation, expired or invented references are refused, and every submission re-checks that the asset is still visible and not archived.
-- **At most 3 generations per invocation.** Replaying the same tool call (a resumed run, for example) returns the existing generation without billing again; clicking Generate again, or having the model submit again, creates a new billed generation.
+- **At most 3 generations per invocation.** Resuming a failed run does not redo a generation it already submitted, and does not bill again; clicking Generate again, or having the model submit again, creates a new billed generation.
 - **Delivered pictures are not re-delivered by default**: the same output of the same generation is not sent twice because of a repeated call or a late receipt.
 - **Asking for the original file** is covered below.
-- A failed generation is explained in the model's own words; it does not retry in a loop, and there is no hidden image channel that bypasses `send`.
+- A failed generation is explained in the model's own words; it does not retry in a loop.
 - Disabling image generation removes the capability from the model and the panel immediately; re-enabling restores it immediately.
 
 ## Original files
@@ -116,7 +115,7 @@ Clicking a generation id opens its own detail page (or navigate to `/image-gener
 
 ## Retention, backup and cost
 
-- Generation records and asset rows are cleaned up by `retention.online_days`; original files are removed with the data directory.
+- Generation records and asset records are cleaned up by `retention.online_days`; original files are removed with the data directory.
 - `backup` snapshots the SQLite database and copies `<data_dir>/images` into a `.images/` directory next to the backup file, so a restore puts both back together. See [Upgrade, back up and restore](maintenance.md).
 - Each generation is billed by the upstream provider at its own prices (locally there is no extra quota, only the "at most 3 submissions per invocation" gate); **Suggest with AI** spends Tool model tokens.
 

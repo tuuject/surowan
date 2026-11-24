@@ -1,13 +1,13 @@
 ---
 title: Connect MCP servers
-description: Add HTTP MCP servers in the Admin Panel, configure stdio MCP servers in config.jsonc and understand the security boundary, plus progressive exposure, skills, hot apply and per-chat bindings.
+description: Add HTTP MCP servers in the Admin Panel, configure stdio MCP servers in config.jsonc and understand the security boundary, plus progressive exposure, skills, how changes take effect and per-chat bindings.
 ---
 
 # Connect MCP servers
 
 Outbound MCP lets the bot call tools on external MCP servers. A server is configured explicitly by an admin, over stdio (a command on the host) or Streamable HTTP, and the model stays inside the servers and tools allowed there.
 
-Every call happens inside existing tool boundaries: allowlists, read-only policies, timeouts, size limits and auditing still apply, and no configuration grants the model new authority.
+Every call is subject to allowlists, read-only policies, timeouts and size limits, and is audited; no configuration grants the model new authority.
 
 ## Adding and managing HTTP MCP servers in the panel
 
@@ -17,7 +17,7 @@ Open **Bot → MCP servers**:
 
 The page lists each server's live state (**Ready** / **Connecting** / **Degraded** / **No live state**, with an error code), a connection summary, every tool it has advertised (including those hidden by its tool selection), and **Used by**: which Chats bind it explicitly and which inherit it.
 
-Adding a remote **Streamable HTTP** MCP server takes five steps and applies hot with no restart:
+Adding a remote **Streamable HTTP** MCP server takes five steps and needs no restart:
 
 1. Choose **Add server**.
 2. Fill in the connection fields:
@@ -66,10 +66,10 @@ A `stdio` MCP server spawns a local child process inside Surowan's runtime envir
 }
 ```
 
-- `command` is an argv array passed straight to `spawn` (`shell: false`): no shell runs, so pipes, redirects and globs are not interpreted.
+- `command` is an argument array — the program first, then its arguments one by one. No shell runs, so pipes, redirects and globs are not interpreted.
 - Every `env` value is a SecretRef (such as `{ "jar": "..." }` or `{ "env": "..." }`), merged onto a restricted base environment for the child process.
 - **Docker note**: the official image ships with **Node.js 24 (including `npx`) and Python 3**, and preconfigures npm's cache on the writable `/data/.npm-cache` volume, so `npx -y <package>` MCP servers work out of the box inside the container. To expose a host directory to a stdio server, bind-mount it in `docker-compose.yml` (prefer `:ro` when read-only) and pass the container path in `command`. If a server needs a runtime not bundled in the image (such as `uvx` or a custom binary), extend the official `Dockerfile` or run Surowan directly on the host.
-3. Validate the file offline with `check-config`, then apply it hot from **Settings** (or `POST /api/config/apply`) without restarting. Once applied, the stdio server appears on **MCP servers**, where you can still edit its tool selection, limits, policies, exposure, description and skills switch.
+3. Validate the file offline with `check-config`, then apply it from **Settings** (or `POST /api/config/apply`) without restarting. Once applied, the stdio server appears on **MCP servers**, where you can still edit its tool selection, limits, policies, exposure, description and skills switch.
 
 ## Why stdio MCP servers cannot be configured in the panel
 
@@ -104,11 +104,11 @@ Each server has a **Skills for the model** switch, on when omitted. Turning it o
 
 Startup **never** waits for a server or fails because of one: every server connects in the background, and an unreachable or invalid instance is shown as **Degraded** and retried with backoff without disturbing other servers, startup or the current apply.
 
-Only **Ready** servers hand their tools to the model: while a server is unreachable its tools disappear from the next run's registry and come back automatically once it recovers. During that time the **Warnings** page reports `mcp_server_unavailable` (Connecting does not warn).
+Only **Ready** servers hand their tools to the model: while a server is unreachable the model stops seeing its tools from the next run on, and they come back automatically once it recovers. During that time the **Warnings** page reports `mcp_server_unavailable` (Connecting does not warn).
 
-## Hot application and per-Chat binding
+## How changes take effect, and per-Chat binding
 
-`mcp.servers` and each Chat's `mcp` are both hot-applied, with no restart: after you apply the configuration from **Settings**, or after any panel save, added servers are connected, removed ones are closed, changed ones are replaced, and untouched ones stay connected.
+Changes to `mcp.servers` and to each Chat's `mcp` need no restart: after you apply the configuration from **Settings**, or after any panel save, added servers are connected, removed ones are closed, changed ones are replaced, and untouched ones stay connected.
 
 Changing which tools a Chat may use (removing a binding, changing the tool list or a policy, or changing a server it reaches) **stops that Chat's running invocations, rebuilds their Context and then resumes each of them once**: the model sees the current history, is told that the operator changed the MCP configuration, and receives the names of MCP tools whose outcome is unknown, so it does not repeat side effects. Merely adding servers or widening a tool list does not interrupt running conversations. Changing only the exposure or description neither reconnects a server nor interrupts anything; it applies to the next run.
 
@@ -126,10 +126,10 @@ Fields are in [External MCP settings](../configuration/mcp.md) and the [`mcp` fi
 
 "Extensions" has strict boundaries here; do not mix them up:
 
-- **System Skills** are **read-only** Markdown documentation shipped with the release. The system prompt carries only the index; the model reads `system:///skills/<name>/SKILL.md` with `read` and then calls internal capabilities through `execute`. A Skill is a manual, not a permission file: it cannot bypass tool schemas, reference validation, allowlists, budgets or send rules.
-- **Built-in plugins** (page fetching, web search and its seven providers, image generation, alarms, the dictionary) are compiled into the release. Configuration is the only way to enable or tune them, and they may declare dependencies and extension points, but there is no plugin marketplace.
+- **System Skills** are **read-only** documentation shipped with the release that teaches the model how to use built-in features; the model reads one only when it needs it. A Skill is a manual, not a permission file: it cannot bypass tool restrictions, allowlists, budgets or send rules.
+- **Built-in plugins** (page fetching, web search and its seven providers, image generation, alarms, the dictionary) ship with the release. Configuration is the only way to enable or tune them, and there is no plugin marketplace.
 - **Outbound MCP** is the only external tool source an admin can add, and it must be configured explicitly, then passes through allowlists, read-only policies, timeouts and size limits.
-- There is currently **no** way to upload a Skill, hot-install a plugin or reach a third-party marketplace.
+- There is currently **no** way to upload a Skill, install your own plugin or reach a third-party marketplace.
 
 ## Common mistakes
 

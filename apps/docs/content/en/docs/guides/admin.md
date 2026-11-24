@@ -5,7 +5,7 @@ description: Learn the panel's seven navigation groups, expose it safely, sign i
 
 # Admin Panel, secrets and access
 
-The Admin Panel runs in the same process as `serve`. It is where you watch runs, change configuration and manage secrets. It is not this static documentation site, and it should never face the public internet directly.
+The Admin Panel starts together with the service. It is where you watch runs, change configuration and manage secrets. It is not this static documentation site, and it should never face the public internet directly.
 
 ## 1. Open it
 
@@ -119,10 +119,10 @@ No token or API key is written into the configuration: it holds `{ "jar": "name"
 
 - The list shows **Name**, **Created** and **Used by** (paths derived from the configuration file). An entry the running configuration still uses after the file changed is marked as running-only; one nothing references is **Unused**.
 - **New entry** takes a name (1–64 letters, digits, `_` or `-`) and a value. You can create a secret before anything refers to it.
-- **Rotate** replaces the value in place and keeps the creation time, then triggers one apply, so every connection using it — MCP servers included — picks up the new value; running sessions finish on the snapshot they started with.
+- **Rotate** replaces the value in place and keeps the creation time, and takes effect at once: every connection using it — MCP servers included — picks up the new value, while runs already in progress finish on the old one.
 - **Delete** only works for an entry nothing references. **Purge orphans** lists the names it will delete, and the server removes only those that are still orphans at confirmation time.
 - When the configuration file cannot be parsed, deletes and rotations are refused rather than trusting an incomplete reference set.
-- **No value is ever shown**: pages, lists and APIs only deal in names. `/api/keychain*` is an internal, panel-session-only API that neither API keys nor paired clients can reach.
+- **No value is ever shown**: pages, lists and APIs only deal in names. Managing the Keychain requires a browser session in the panel; neither API keys nor paired clients can reach it.
 
 ![The Keychain page with entries, usage and orphan cleanup](__DOCS_BASE__/screenshots/admin/keychain.en.light.png)
 
@@ -134,11 +134,11 @@ The **API keys** page issues keys for scripts, evaluation tools and the MCP serv
 
 ## 10. Tool sessions: auto refresh and auto scroll
 
-The **Tool sessions** list and detail follow the server's change stream: **Auto refresh** is on by default (the switch sits at the top of the list and the bottom of the detail), so a running invocation keeps showing new tool calls, model calls and send states in place. The detail also has **Auto scroll to bottom**, off by default: turn it on and every new event scrolls the page down. Both choices are stored in this browser and are independent.
+The **Tool sessions** list and detail refresh on their own: **Auto refresh** is on by default (the switch sits at the top of the list and the bottom of the detail), so a running invocation keeps showing new tool calls, model calls and send states in place. The detail also has **Auto scroll to bottom**, off by default: turn it on and every new event scrolls the page down. Both choices are stored in this browser and are independent.
 
 ## 11. Panel languages and preferences
 
-The panel speaks English, 中文, Deutsch and العربية. The header's language menu lists each in its own name with a check on the current one; **Panel preferences** offers the same choice. Switching is immediate and needs no refresh; the choice is stored in the browser (`admin-language`). Until you pick one, the browser language decides: `zh`, `de` and `ar` prefixes map to Chinese, German and Arabic, everything else to English.
+The panel speaks English, 中文, Deutsch and العربية. The header's language menu lists each in its own name with a check on the current one; **Panel preferences** offers the same choice. Switching is immediate and needs no refresh; the choice is stored in this browser. Until you pick one, the browser language decides: `zh`, `de` and `ar` prefixes map to Chinese, German and Arabic, everything else to English.
 
 Arabic is a real right-to-left layout: navigation moves to the right and the page flips, while technical strings — model IDs, API keys, URLs, timestamps — stay left-to-right so what you copy equals what is stored.
 

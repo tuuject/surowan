@@ -18,14 +18,14 @@ All four are scoped to a Chat: every Forum Topic of a group shares one Memo Pad,
 
 | Layer | Written by | How it reaches the conversation | Where in the panel |
 | --- | --- | --- | --- |
-| Context | The real messages of each batch, plus runtime-injected state blocks | Attached to every run automatically | **Contexts**, read-only |
-| Memo Pad | The model, through `execute` with `add_memo` / `update_memo` / `delete_memo`; an admin can also edit entries in the panel | Short-term entries are injected; long-term entries need the model to call `search_memory` | **Memories** |
-| Group memory | A background "sleeping" pass, using the Tool model | On demand: `search_group_memory`, then `read_group_messages` for the raw messages | **Group memory** |
+| Context | The real chat messages, plus status information Surowan adds | Attached to every run automatically | **Contexts**, read-only |
+| Memo Pad | The model, with `add_memo` / `update_memo` / `delete_memo`; an admin can also edit entries in the panel | Short-term entries are injected; long-term entries need the model to call `search_memory` | **Memories** |
+| Group memory | A background pass once the group goes quiet, using the Tool model | On demand: `search_group_memory`, then `read_group_messages` for the raw messages | **Group memory** |
 | Dictionary | Admins, or the model for **this group's** entries | Injected automatically according to the injection mode, or looked up with `lookup_dictionary` | **Dictionary** |
 
 ## Context: nothing to maintain
 
-One Conversation has exactly one continuous history for its whole life. It is never summarized; it only drops the oldest part at checkpoints, and those thresholds live under `agent.context`, described in [Agent settings](../configuration/agent.md) and the [`agent` field reference](../configuration/fields-agent.md).
+One Conversation has exactly one continuous history for its whole life. It is never summarized; it only drops the oldest part when it grows too long, and those thresholds live under `agent.context`, described in [Agent settings](../configuration/agent.md) and the [`agent` field reference](../configuration/fields-agent.md).
 
 Two practical consequences:
 
@@ -50,24 +50,24 @@ The writer decides the lifetime, and the lifetime decides how the entry comes ba
 
 The injection details explain the occasional "why did the bot forget what I just told it":
 
-- Valid short-term entries enter `<memo_list>` in creation order, under a budget of roughly 10% of the context window. When that is not enough, the oldest entries are hidden and the number hidden is stated, so the model can search for them.
-- The full list is only re-sent on the first batch, after a Context rebuild, or when the batch that carried the previous list has been collected away. Other changes arrive as a `<memo_updates>` delta after the messages. When nothing changed, nothing is sent.
+- Valid short-term entries are listed for the model in creation order, within roughly 10% of the context window. When that is not enough, the oldest entries are hidden and the number hidden is stated, so the model can search for them.
+- The full list is not repeated every time. It reappears only at the start of a conversation, after a Context rebuild, or once the previous copy has been dropped with old history; otherwise the model is only told what was added, changed or removed, and nothing is sent when nothing changed.
 
 ### How the model reads and writes
 
-- `search_memory` and `read_memory` are primitives, available directly. Search matches summary and detail text case-insensitively; with several keywords at least half must match, and you can filter by creation time.
-- `add_memo`, `update_memo`, `delete_memo` and `save_memo_image` are internal capabilities, called through `execute`.
+- `search_memory` and `read_memory` are tools the model calls directly. Search matches summary and detail text case-insensitively; with several keywords at least half must match, and you can filter by creation time.
+- `add_memo`, `update_memo`, `delete_memo` and `save_memo_image` show up in tool sessions as an `execute` tool call.
 - An update must be preceded by `read_memory` of the current revision. If the entry changed after that read (in the panel too), the write is refused and must be re-read. Deleting does not require a prior read.
-- Entries are validated against the Chat, and writes re-check that the Chat is still configured. A write in flight when the Chat is removed is refused.
+- The model can only read and write the current Chat's entries. Once the Chat is removed from the configuration, writes are refused.
 
 ### Image attachments
 
-`save_memo_image` copies one image visible in the conversation into a Blob owned by this Chat and returns a `pwblob://` URI, which the model then writes into the detail. Worth knowing:
+`save_memo_image` saves a copy of one image visible in the conversation as an attachment owned by this Chat; the model then writes it (a `pwblob://` address) into the detail. Worth knowing:
 
 - One image is at most 10 MiB, deduplicated by content within the Chat.
-- Blobs belong to the Chat, not to an entry. A file is deleted only when no detail references it any more, and blobs saved within the last 10 minutes are never swept, so the two-step "save image, then write the detail" flow has a window.
-- The original conversation reference expires with the Context; the Blob does not.
-- The panel reads these images through a controlled byte endpoint that requires an authenticated caller. HTML inside a detail is never executed.
+- Attachments belong to the Chat, not to an entry. One is deleted only when no entry's detail references it any more.
+- The image in the chat stops being readable by the model after a while; the saved attachment does not.
+- Viewing these images in the panel requires being signed in. HTML inside a detail is never executed.
 
 ### Maintaining entries in the panel
 
@@ -126,10 +126,10 @@ When a pass may run:
 
 A pass is skipped, and simply tries again later, when:
 
-- Another run is queued or running for that Chat, or a message batch is still collecting (the live lane never races a reply in progress).
+- Another run is queued or running for that Chat, or a message batch is still collecting (consolidation never competes with a reply in progress).
 - Someone ran `/pause` in the group; `/resume` continues, and the backlog built up during the pause is consolidated.
 - The installation is in a global `zzz` sleep: background consolidation is a paid model call and does not start.
-- The Tool model cannot be resolved (not configured, and no global Agent model to inherit).
+- No Tool model is available (not configured, and no global Agent model to inherit).
 
 ### Two lanes and failure handling
 
@@ -231,7 +231,7 @@ Configure it in the **Automatic injection** area of the **Dictionary** page (the
 Injection details:
 
 - The injected block is trimmed to the context budget left after the messages were selected, so new messages always win over a preload.
-- An entry that is still carried in the retained Context (same id and revision) is not injected twice. It becomes injectable again once that part of the Context is collected, or when the entry changes and gets a new revision.
+- An entry that is still in the Context is not injected twice. It is injected again once that part of the Context has been dropped, or after the entry changes.
 - The dictionary has no separate token budget; it is bounded by the model's context window.
 - Disabling an entry stops future lookups and injections. An explanation already written into retained history stays there.
 

@@ -11,7 +11,7 @@ Image behaviour splits into three independent paths. Telling them apart first ke
 | --- | --- | --- |
 | Direct vision: images in new messages are attached to the main model | The **Agent** model (it must accept image input) | The model's capabilities in `providers`, see [Agent settings](../configuration/agent.md) |
 | On-demand vision: older images and stickers are described by `read_image` | The **Vision** model (it may differ from the main model) | [Vision settings](../configuration/vision.md) |
-| Drawing and editing | The upstream image provider (the built-in OpenRouter adapter) | [Image generation](image-generation.md), or the `image` section |
+| Drawing and editing | Image models on OpenRouter | [Image generation](image-generation.md), or the `image` section |
 
 If you already know which path you need, jump straight to [Stickers and sticker sets](stickers.md) or [Image generation](image-generation.md).
 
@@ -19,16 +19,16 @@ If you already know which path you need, jump straight to [Stickers and sticker 
 
 These two are often confused:
 
-- When the **main model accepts image input**, photos and supported image documents from the newest batch are attached to it directly, in the same order as the `figure_N` media lines in those messages. Attachments are not stored.
-- **Older images** (including earlier `figure_N` entries) and every sticker go through `read_image`, which asks the **Vision** model and returns a text description.
+- When the **main model accepts image input**, photos and supported image documents from the newest batch are attached to it directly. They are attached this once only and do not stay in later context.
+- **Older images** and every sticker go through `read_image`, which asks the **Vision** model and returns a text description.
 - Without Vision, `read_image` is unavailable, so historical images and stickers cannot be inspected; the sticker visual index also pauses (imported stickers stay pending instead of accumulating failures).
 - Vision has its own model, thinking level, concurrency and daily budget (`max_tokens` and `max_images`); see [Vision settings](../configuration/vision.md) and the [`vision` field reference](../configuration/fields-vision.md).
 
-## Reference authorization and isolation
+## Which images the model can see
 
-Images cannot be referenced freely: only `img_` / `stk_` references that this Conversation authorized and that have not expired can be read, references are isolated per Conversation, and they expire. Arbitrary file IDs or Chat IDs are never accepted.
+The model can only look at images and stickers that appeared in the current conversation and have not expired. Different chats, and different topics of one group, cannot see each other's images, and the model cannot read an image elsewhere by file ID or chat ID.
 
-Images fetched during page reading follow the same per-conversation isolation and TTL rules (up to 20 MiB each for JPEG, PNG and WebP); see [Web search and page fetching](web-search.md#page-fetching-and-images).
+Images fetched during page reading follow the same isolation and expiry rules (up to 20 MiB each for JPEG, PNG and WebP); see [Web search and page fetching](web-search.md#page-fetching-and-images).
 
 ## Original files
 

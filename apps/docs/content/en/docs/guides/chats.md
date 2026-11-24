@@ -16,7 +16,7 @@ Chat and Forum Topic are two different levels: a Topic inherits everything about
 - Chat IDs are unique and non-zero: positive for private chats, negative for groups and supergroups.
 - Extra instructions, model overrides, participation, the ignore list, group memory and MCP bindings all belong to the Chat and are shared by its Topics. Only the conversation context and the attention window are per Topic.
 
-Add a chat with *Add Chat* on the **Chats** page: a Telegram Chat ID and an optional list of Topic IDs is all it needs. Adding a chat is hot — it works as soon as you save.
+Add a chat with *Add Chat* on the **Chats** page: a Telegram Chat ID and an optional list of Topic IDs is all it needs, and it works as soon as you save.
 
 ![The Chats page listing an allowed chat and its topic scope](__DOCS_BASE__/screenshots/first-bot/chat-allowlist.en.light.png)
 
@@ -78,7 +78,7 @@ A chat's `timezone` decides which local time its active hours are read in; witho
 
 ## Ignore list and self-service commands
 
-`ignored_user_ids` lists the members this chat no longer reacts to. Their ordinary messages, edits and other commands never reach the model, though the messages are still stored and the update audit still records them. Only `/ask`, `/help` and the two self-service commands below are exempt.
+`ignored_user_ids` lists the members this chat no longer reacts to. Their ordinary messages, edits and other commands never reach the model and are not stored as chat history. Only `/ask`, `/help` and the two self-service commands below are exempt.
 
 Members can add and remove themselves without an administrator:
 
@@ -88,7 +88,7 @@ Members can add and remove themselves without an administrator:
 | `/unignoreme` | Removes it again; works while ignored too. |
 | `/ask <question>` | Any member can call the bot explicitly, including ignored members. |
 
-These commands only change the sender, apply to every Topic of the chat, never touch other chats, and are written back to `config.jsonc`, so they survive a restart. Anonymous identities cannot use the self-service ones. Administrators can edit `ignored_user_ids` directly; the field is hot.
+These commands only change the sender, apply to every Topic of the chat, never touch other chats, and are written back to `config.jsonc`, so they survive a restart. Anonymous identities cannot use the self-service ones. Administrators can edit `ignored_user_ids` directly, and the change applies immediately.
 
 ## Active hours and the attention window
 
@@ -115,7 +115,7 @@ By default a listed group chat opens a message batch for any triggerable message
 - The two levels merge differently: `active_windows` is **replaced wholesale** (a chat's own list wins, and an empty array means no schedule at all), while `trigger_keywords` is **appended** to the global list (`[]` adds nothing).
 - The attention window is timed per Chat + Topic, and its length comes from `attention_window_seconds`, 300 seconds by default.
 
-Outside the schedule only four kinds of message open or refresh the window: `/ask`, a direct mention, a reply to one of the bot's own messages, and a trigger keyword. Windows are not recorded during active hours, so the schedule ends exactly on time instead of lingering for one more window.
+Outside the schedule only four kinds of message open or refresh the window: `/ask`, a direct mention, a reply to one of the bot's own messages, and a trigger keyword. No attention window is opened during active hours, so the schedule ends exactly on time instead of lingering for one more window.
 
 *Edit active hours* in the panel offers four modes: *No schedule restriction* (drop this chat's periods), *Custom periods* (per weekday and time), *No active periods* (ordinary messages never wake the bot; mentions, replies and keywords do), and *Only /ask*. The dialog also tells you which keywords and attention window are kept.
 
@@ -126,7 +126,7 @@ Outside the schedule only four kinds of message open or refresh the window: `/as
 With `telegram.participation.ask_only` or the per-chat field set to `true`, only `/ask` can wake the bot: ordinary messages, mentions, replies, keywords, stickers and other bots' messages all fail to open a batch.
 
 - It is off by default. The chat value overrides the global one, and an explicit `false` opts a chat out of a global on.
-- A batch opened in this mode collects for 0 seconds, does not adopt other bots' messages, and leaves no attention window.
+- In this mode `/ask` is handled at once without waiting to collect a batch, takes no other bots' messages along, and leaves no attention window.
 - Messages are still stored and are visible as history on the next wake-up, and group memory keeps consolidating them. Active hours, keywords and the attention window are inert here, so there is no need to delete them.
 - Private chats are unaffected: every message there is addressed to the bot anyway.
 
@@ -143,7 +143,7 @@ With `telegram.participation.ask_only` or the per-chat field set to `true`, only
 }
 ```
 
-The field is hot. A member sends `/ask <question>` and writes the whole question in one message; only that message enters the batch. Pause and sleep still apply, and the model still decides whether to answer.
+It takes effect as soon as you save. A member sends `/ask <question>` and writes the whole question in one message; only that message enters the batch. Pause and sleep still apply, and the model still decides whether to answer.
 
 ## Proactive replies per chat
 
@@ -153,7 +153,7 @@ Proactive replies are a per-chat probability gate in front of ordinary group mes
 - **Turn proactive replies off**: only messages addressed to the bot trigger it here.
 - **Use custom values**: its own chance on the first try, increase per miss, and maximum consecutive tries (entered as percentages).
 
-Only ordinary group messages are sampled; mentions, replies, keywords, `/ask` and commands are exempt. Counters are per chat, shared by its Forum Topics and stored in the database. Private chats cannot configure proactive replies — `check-config` rejects it. The formula and how to verify it are in [Tune behaviour and cost](tuning.md).
+Only ordinary group messages are sampled; mentions, replies, keywords, `/ask` and commands are exempt. Counters are per chat, shared by its Forum Topics, and survive restarts. Private chats cannot configure proactive replies — `check-config` rejects it. The formula and how to verify it are in [Tune behaviour and cost](tuning.md).
 
 ![A chat's proactive reply chance dialog](__DOCS_BASE__/screenshots/chats/proactive-reply.en.light.png)
 
@@ -166,7 +166,7 @@ The entry gate reads the global `telegram.decision_gate` by default. For a diffe
 - Connection settings (model, address, key, timeout) exist only globally — a chat cannot point the gate at another endpoint or credential.
 - **A private chat cannot configure the gate**, and there is no menu entry for it: a private chat is a direct conversation, not a batch of group messages.
 
-Saving applies hot. The global section must already carry `api_key`, otherwise turning *enabled* on for the chat is rejected by `check-config`. Field meanings and the observe-then-enforce order are in [Tune behaviour and cost](tuning.md).
+Saving applies immediately. The global section must already carry `api_key`, otherwise turning *enabled* on for the chat is rejected by `check-config`. Field meanings and the observe-then-enforce order are in [Tune behaviour and cost](tuning.md).
 
 ![A chat's entry gate override dialog with per-field switches](__DOCS_BASE__/screenshots/chats/entry-gate-override.en.light.png)
 
@@ -180,7 +180,7 @@ By default every chat reaches every configured outbound MCP server, using the se
 
 A binding can only narrow. The selected tools must be tools the server already exposes; when the server allows all tools, its tool list is only known after it connects, so the panel can edit just the saved selection. Every explicit tool must resolve a policy (its own override, an entry on the server, or the server's default policy), otherwise `check-config` rejects it.
 
-Bindings are hot: narrowing stops the affected runs and resumes them, while adding a server or widening a tool list does not interrupt anything. Server-side fields, `exposure` and `skills` are documented in [External MCP settings](../configuration/mcp.md).
+Bindings apply as soon as you save: narrowing stops the affected runs and resumes them, while adding a server or widening a tool list does not interrupt anything. Server-side fields, `exposure` and `skills` are documented in [External MCP settings](../configuration/mcp.md).
 
 ![A chat's MCP server binding dialog with explicit bindings and narrowed tools](__DOCS_BASE__/screenshots/chats/mcp-binding.en.light.png)
 
@@ -192,16 +192,16 @@ Bindings are hot: narrowing stops the affected runs and resumes them, while addi
 
 Both stop the bot from handling the chat, but the data story is completely different:
 
-- **Removing it from the configuration** (hand edit or a file write through the API) is hot. Once the chat disappears from the active configuration its runs are stopped and new messages are refused, but stored messages, contexts, memory entries, images and audit **all stay**. Add it back and everything is as it was.
+- **Removing it from the configuration** (hand edit or a file write through the API) needs no restart once the configuration is applied. After the chat disappears from the configuration its runs are stopped and new messages are refused, but stored messages, contexts, memory entries, images and audit **all stay**. Add it back and everything is as it was.
 - **Removing it in the panel** (*Remove* → *Remove Chat*) first removes it from the configuration, then stops and waits for its running invocations to settle, and then deletes its memory entries, images and stored messages. That cannot be undone.
 
 The panel delete also has two explicit "not deleted" answers, both of which keep the data:
 
 - `chat_delete_pending`: the configuration is updated but work is still stopping. Reload and delete again.
-- `chat_still_authorized`: a stored migration record links this ID to another chat ID that is still configured, so it may still be reachable and the data was retained.
+- `chat_still_authorized`: this group changed its ID at some point (for example when it became a supergroup) and its other ID is still configured, so the bot may still be serving it and the data was retained.
 
 ## Confirm a change took effect
 
 - The *Status* column on **Chats** says *Active*, *Changes pending*, *Addition pending* or *Removal pending* per chat.
 - Changes that need a restart (the topic scope, for instance) show a banner at the top of the page with *N settings are waiting for a restart* and *Restart now*; a deployment that cannot restart from the panel says so instead. What needs a restart and what does not is in [Configuration lifecycle](../configuration/lifecycle.md).
-- For details, read the runtime: `/status` shows the model in effect for the chat, `/effort` shows the effort levels the current model accepts and the level this chat overrides, and *Model calls* on an invocation shows the provider, model and effort that run actually used.
+- For details, check what is actually running: `/status` shows the model in effect for the chat, `/effort` shows the effort levels the current model accepts and the level this chat overrides, and *Model calls* on an invocation shows the provider, model and effort that run actually used.

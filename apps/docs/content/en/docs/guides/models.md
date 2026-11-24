@@ -22,7 +22,7 @@ Every model row on Providers also has a **Use as** group (Agent / Vision / Tool)
    - **Connection**: choose **Built-in provider** (endpoint and API format are preset; pick the service) or **Custom endpoint** (enter the URL yourself, for relays or your own gateway).
    - **API key**: paste the key. **Custom headers** are only needed when the provider explicitly asks for them.
    - **Models**: **Fetch models** and tick the ones to enable. Models the listing does not return can be **Add manually** by ID.
-2. Only ticked (or manually confirmed) models are written to the configuration. Everything else the provider lists does not exist for the runtime.
+2. Only ticked (or manually confirmed) models are written to the configuration. Everything else the provider lists is unavailable to the bot.
 3. Creating a provider applies immediately. Select it to change the URL, API format, key or headers; **after changing the base URL you must re-enter the API key and every header value in the same save**, so an old secret is never sent to a new address.
 4. Deleting a provider or model that still fills a role is refused: reassign the role or untick it first.
 
@@ -70,7 +70,7 @@ Select a provider on **Providers** and press **Test** on a model row. To test se
 - The only prompt is `reply with extract content: ok`; each check waits at most 30 seconds and never retries.
 - **OK**: the model finished normally with non-empty text, and the row shows **Model reply** with the model's own words. It need not echo `ok`; any normal answer passes.
 - **Failed**: the request failed, timed out, returned nothing or did not finish normally; expand the row for the error and any partial text.
-- **First response** is when the adapter saw the HTTP response headers — not the first generated token, and not the total time. When the adapter cannot observe it, it shows **unavailable**.
+- **First response** is when the provider's HTTP response headers arrived — not the first generated token, and not the total time. When that cannot be measured, it shows **unavailable**.
 - Results live only on the page: refreshing or leaving clears them, and leaving cancels checks that have not started. Usage is recorded as a `doctor` diagnostic call in the audit.
 
 If the provider or model was edited but not applied, the health check refuses outright, so you never test something other than the running configuration.

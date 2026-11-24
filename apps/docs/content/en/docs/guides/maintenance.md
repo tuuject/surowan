@@ -53,7 +53,7 @@ CI publishes to `ghcr.io/tuuject/surowan` when `main` or a `v*` tag is pushed:
 
 Three things change on their own; there is no migration script to run by hand.
 
-- **Database schema**: `serve` applies pending migrations from `schema_migrations` at startup. When the database file already exists and migrations are pending, it first writes `pre-migration-<time>-<uuid>.sqlite` into `paths.backups`, then applies them. Those copies rotate against `retention.backup_copies`, but only among themselves, so an automatic upgrade step never deletes a regular `surowan-*.sqlite` backup or its `.images` snapshot. `check-config` and `backup` do not run migrations.
+- **Database schema**: `serve` applies pending migrations at startup. When the database file already exists and migrations are pending, it first writes `pre-migration-<time>-<uuid>.sqlite` into `paths.backups`, then applies them. Those copies rotate against `retention.backup_copies`, but only among themselves, so an automatic upgrade step never deletes a regular `surowan-*.sqlite` backup or its `.images` snapshot. `check-config` and `backup` do not run migrations.
 - **Keychain format**: the old `key.json` was a flat `{ "name": "value" }` map; the current one is `{ "version": 1, "entries": { … } }`. `serve`, `doctor` and `configure` migrate it in place and idempotently, keeping every name and adding `created_at`. An already-migrated file is left alone. If a command says the key jar still uses the old format, run `serve` or `configure` once.
 - **Configuration defaults**: defaults and inheritance evolve between versions, and the running values are whatever the current version resolves. Never infer a default from an example.
 
@@ -82,29 +82,29 @@ Rolling back the image is safe: point compose's `image:` at the previous tag (or
 
 ## Retention cleanup
 
-`serve` runs one cleanup at startup (before the Scheduler may launch work, so the first run after an upgrade cannot be overtaken by a large backlog) and then **every 24 hours**. Each pass reads the published configuration, so a change to `retention.online_days` is **hot-applied** and the next pass uses the new window with no restart.
+`serve` runs one cleanup at startup (before it starts handling messages) and then **every 24 hours**. A change to `retention.online_days` needs no restart: the next pass uses the new window.
 
-The window is `retention.online_days` (the project is designed around 30 days; there is no default in the code). A pass removes:
+The window is `retention.online_days` (required, with no default; 30 days is the recommended value). A pass removes:
 
-- Finished **tool sessions (Invocations)**, their tool calls and host send rows, older than the window.
-- Finished **message batches (Buckets)**, older than the window.
-- Expired daily usage counters, finished group-memory consolidation batch rows, handled long tasks and recurring alarm firing records.
-- Expired **short-term Memo Pad entries**, expired Context references and expired attention windows.
-- Expired cached image analyses and sender rows nothing references any more.
-- One-time codes that were used, cancelled or expired, and expired pairing nonces, older than the window.
+- Finished **tool sessions**, their tool calls and send records, older than the window.
+- Finished **message batches**, older than the window.
+- Expired daily usage counters, finished group-memory consolidation batch records, handled background tasks (alarms and the like) and recurring alarm firing records.
+- Expired **short-term Memo Pad entries**, plus temporary records such as expired references and attention windows.
+- Expired cached image analyses and sender records nothing references any more.
+- One-time codes that were used, cancelled or expired, and expired replay-protection records for client requests, older than the window.
 
 It deliberately never removes:
 
-- Chat messages, their revisions, media and **Conversation Context**: those only disappear with the Chat or an explicit truncation.
+- Chat messages, their edit history, media and the **conversation context**: those only disappear with the Chat or an explicit truncation.
 - Group-memory event summaries.
-- Raw updates.
+- The raw updates received from Telegram.
 - Admin accounts, Passkeys, API keys and paired client identities: those only disappear when explicitly revoked.
 
 Disk usage therefore grows with conversation volume, and `online_days` is not "how long chat history is kept". `backup` runs the same cleanup before it takes its snapshot.
 
 ## Backing up
 
-`backup` does four things: run the retention cleanup, take a consistent SQLite snapshot with `VACUUM INTO`, snapshot the image directory alongside it, and rotate old backups according to `retention.backup_copies`.
+`backup` does four things: run the retention cleanup, take a consistent SQLite snapshot, snapshot the image directory alongside it, and rotate old backups according to `retention.backup_copies`.
 
 ```bash
 docker compose run --rm plasticwan backup --config /config/config.jsonc
@@ -119,7 +119,7 @@ node src/cli.ts backup --config /path/to/config.jsonc
 The output is `surowan-<time>-<uuid>.sqlite` under `paths.backups`, plus a matching `surowan-<time>-<uuid>.images/` directory:
 
 - `.images/` is a full copy of `<data_dir>/images`, including original generated pictures and Memo blobs. A missing directory is skipped; a failed copy is only logged and does not invalidate the SQLite snapshot.
-- The two snapshots have **no cross-store atomicity**: after a restore, a few of the newest rows may reference image files that were not copied yet.
+- The database snapshot and the image copy are **not taken at the same instant**: after a restore, a few of the newest rows may reference image files that were not copied yet.
 - The image directory can be large, so make sure `paths.backups` has room.
 
 `backup` does **not** include the following, which need their own protected copy:
@@ -176,7 +176,7 @@ For a Docker rehearsal, use a separate Compose project (a different `-p` and por
 
 - **Configuration errors after an upgrade?** Read `check-config`'s `warnings` first: deprecated fields and missing required sections both show up there.
 - **A feature still looks unavailable although the settings page says enabled?** Look for `*_warning` startup events (for example `image_service_warning`), fix the cause, then apply the configuration from **Settings**.
-- **A backup much smaller than the database?** Expected: `VACUUM INTO` drops free pages and the WAL.
+- **A backup much smaller than the database?** Expected: a backup leaves out the free space inside the database file.
 - **Can I roll back just the image?** Yes, but database migrations do not revert; to return to the pre-upgrade state, restore the pre-upgrade backup.
 
 Related pages: [Data paths and retention](../configuration/storage.md), the [`retention`](../configuration/fields-retention.md) and [`paths`](../configuration/fields-paths.md) field references, [Configuration lifecycle](../configuration/lifecycle.md), [Secrets and paths](../configuration/secrets.md), [Admin Panel, secrets and access](admin.md), [Troubleshoot startup failures and silence](troubleshooting.md).

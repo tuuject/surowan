@@ -31,7 +31,7 @@ Bot 只会发送你允许的贴纸集里的贴纸。它们写进 `telegram.stick
 
 ## 模型怎么选贴纸
 
-模型看到的是一个 `<sticker_catalog>`，每个贴纸集一行（别名、备注、`贴纸 ID: emoji` 条目）。emoji 只是粗略提示，要真正使用某张贴纸，模型必须先调用 `search_stickers`（可以按 ID 检查候选，也可以按语义搜索），拿到 `stk_` 引用，再用 `send` 的 `kind: sticker` 发送。贴纸引用在一段时间后失效。
+模型能看到每个贴纸集的昵称、备注，以及每张贴纸对应的 emoji。emoji 只是粗略提示，要真正发某张贴纸，模型会先用 `search_stickers` 查看候选（也可以按语义搜索），再用 `send` 发出，所以运行记录里发贴纸之前通常有一次 `search_stickers`。查到的贴纸过一段时间要重新查才能发。
 
 如果群里有人单独发了一张贴纸，是否因此触发 Bot 参与由 `telegram.sticker_trigger_enabled` 控制，见 [Telegram 配置](../configuration/telegram.md)。
 

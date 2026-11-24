@@ -17,7 +17,7 @@ Scheduled work in Surowan comes in two distinct forms — do not confuse them:
 
 ## One-off alarms
 
-An alarm creates a persistent task. When it comes due, a completion receipt is produced: if the conversation already has a run that can take an injection, the receipt is injected as its own block after the current tool chain; otherwise a new run starts when one can. The model decides whether to follow up with `send`; nothing is pre-written. It is not a general background worker. Each invocation may create at most 3 alarms.
+An alarm is stored durably and survives a restart. When it comes due: if the bot is already running in that conversation, the alarm is handed to it once its current step finishes; otherwise a new run starts when one can. The model decides on the spot whether and what to say; nothing is pre-written. Each invocation may create at most 3 alarms.
 
 You can inspect pending, fired or cancelled alarms under **Data → Alarms**, and cancel pending ones manually.
 
@@ -57,9 +57,9 @@ Details:
 
 ### What happens when it fires
 
-- If the bot is already running in that conversation, the task joins after the current tool chain; otherwise a new run starts.
+- If the bot is already running in that conversation, the task is handed over once its current step finishes; otherwise a new run starts.
 - It **does not consume the daily token budget** and runs even while the bot is in its sleep window. Playground rooms behave the same way.
-- The prompt arrives as the trusted `<admin_scheduled_task>` block, with the planned time and how many missed occurrences were folded in.
+- The model receives your prompt together with the planned time and how many missed occurrences were folded in (in a run's frozen context it is the `<admin_scheduled_task>` block).
 - As always, a message only appears in the chat if the model actually calls the send tool.
 
 An occurrence is skipped — the alarm stays and fires again next time — when:
@@ -70,7 +70,7 @@ An occurrence is skipped — the alarm stays and fires again next time — when:
 
 ### Running once, editing, deleting
 
-- **Run now** on a row executes the saved prompt immediately, which is useful while tuning it. It goes through exactly the same path and the bot sees the same content; it does not change the schedule and works even while the alarm is disabled. It is refused while a previous run is still undelivered.
+- **Run now** on a row executes the saved prompt immediately, which is useful while tuning it. It behaves exactly like a scheduled run and the bot sees the same content; it does not change the schedule and works even while the alarm is disabled. It is refused while a previous run is still undelivered.
 - Editing the schedule or time zone recomputes the next run from now; editing only the prompt affects later runs. The row switch disables and enables an alarm: a disabled alarm keeps its schedule but never fires, and an occurrence that has not started delivering is cancelled.
 - Deleting removes the schedule and its run history, and also cancels an undelivered occurrence.
 - **Details** shows the **Recent runs**: planned time, source (Scheduled or Manual), result, who ran it, and the invocation that handled it.

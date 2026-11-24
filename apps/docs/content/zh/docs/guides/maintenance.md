@@ -53,7 +53,7 @@ CI 在推送 `main` 分支与 `v*` tag 时自动发布镜像到 `ghcr.io/tuuject
 
 升级时有三类东西会自己变，不需要你手工跑迁移脚本：
 
-- **数据库结构**：`serve` 启动时按 `schema_migrations` 应用待执行的迁移。数据库文件已存在且有迁移要跑时，会先在 `paths.backups` 里写一份 `pre-migration-<时间>-<uuid>.sqlite` 副本再应用。这些副本按 `retention.backup_copies` 轮换，但只在这些副本之间轮换，不会删掉普通的 `surowan-*.sqlite` 备份或它们的 `.images` 快照。`check-config` 与 `backup` 不跑迁移。
+- **数据库结构**：`serve` 启动时自动应用还没执行的迁移。数据库文件已存在且有迁移要跑时，会先在 `paths.backups` 里写一份 `pre-migration-<时间>-<uuid>.sqlite` 副本再应用。这些副本按 `retention.backup_copies` 轮换，但只在这些副本之间轮换，不会删掉普通的 `surowan-*.sqlite` 备份或它们的 `.images` 快照。`check-config` 与 `backup` 不跑迁移。
 - **Keychain 格式**：旧版 `key.json` 是单层 `{ "名字": "值" }`，新版是 `{ "version": 1, "entries": { … } }`。`serve`、`doctor` 与 `configure` 会就地、幂等地把它转成新格式，每个条目保留名字并补上 `created_at`。已经迁移过的文件不会再动。如果某个命令提示「key jar 仍是旧格式」，跑一次 `serve` 或 `configure` 即可。
 - **配置默认值**：缺省值与继承关系随版本演进，运行时的实际值以当前版本为准。不要从示例反推默认值。
 
@@ -82,29 +82,29 @@ CI 在推送 `main` 分支与 `v*` tag 时自动发布镜像到 `ghcr.io/tuuject
 
 ## 保留清理
 
-`serve` 在启动时执行一次保留清理（在 Scheduler 启动之前，这样升级后的第一次运行不会被积压的历史数据抢跑），之后**每 24 小时**再执行一次。每一轮都读当前已发布的配置，所以 `retention.online_days` 的修改**热应用**，下一轮就按新窗口清理，不需要重启。
+`serve` 在启动时执行一次保留清理（在开始处理消息之前），之后**每 24 小时**再执行一次。`retention.online_days` 改完不需要重启，下一轮清理就按新窗口进行。
 
-清理窗口是 `retention.online_days`（项目按 30 天设计，代码里没有默认值）。清理的对象：
+清理窗口是 `retention.online_days`（必填，没有默认值，建议 30 天）。清理的对象：
 
-- 已经结束、且早于窗口的**运行记录（Invocation）**、它们的工具调用与发送记录。
-- 已经结束、早于窗口的**消息批次（Bucket）**。
-- 过期的一次性记账（`daily_usage`）、已结束的群聊记忆整理批次记录、已处理完的长时间任务与循环闹钟触发记录。
-- 过期的 **Memo Pad 短期条目**、过期的上下文引用与会话注意力窗口。
-- 过期的图片分析缓存，以及不再被引用的发送者行。
-- 已用掉或已作废、早于窗口的一次性登录码与已过期的配对 nonce。
+- 已经结束、且早于窗口的**运行记录**、它们的工具调用与发送记录。
+- 已经结束、早于窗口的**消息批次**。
+- 过期的每日用量统计、已结束的群聊记忆整理批次记录、已处理完的后台任务（提醒等）与循环闹钟触发记录。
+- 过期的 **Memo Pad 短期条目**，以及已过期的引用、注意力窗口这类临时记录。
+- 过期的图片分析缓存，以及不再有任何消息关联的发送者信息。
+- 已用掉或已作废、早于窗口的一次性登录码与配对码，以及过期的客户端请求防重放记录。
 
 **不清理**的对象（这是有意设计）：
 
-- 聊天消息、消息修订、Media 与**Conversation Context**：它们只随 Chat 删除或显式截断消失。
+- 聊天消息、消息的编辑历史、媒体与**对话上下文**：它们只随 Chat 删除或显式截断消失。
 - 群聊记忆的事件摘要。
-- 原始 Update。
+- Telegram 推送过来的原始更新记录。
 - 管理员账号、Passkey、API key 与已配对的客户端身份：它们只在显式撤销时删除。
 
 所以磁盘占用会随聊天量增长，`online_days` 并不是「聊天记录保留天数」。`backup` 在创建 SQLite 备份前会执行同一个清理。
 
 ## 备份
 
-`backup` 做四件事：执行保留清理、用 `VACUUM INTO` 生成一致的 SQLite 快照、把图片目录一起快照、按 `retention.backup_copies` 轮换旧备份。
+`backup` 做四件事：执行保留清理、生成一份一致的 SQLite 快照、把图片目录一起快照、按 `retention.backup_copies` 轮换旧备份。
 
 ```bash
 docker compose run --rm plasticwan backup --config /config/config.jsonc
@@ -119,7 +119,7 @@ node src/cli.ts backup --config /path/to/config.jsonc
 产物是 `paths.backups` 下的 `surowan-<时间>-<uuid>.sqlite`，以及配套的 `surowan-<时间>-<uuid>.images/` 目录：
 
 - `.images/` 是 `<data_dir>/images` 的完整拷贝，包含生图原图与 Memo Blob。目录不存在时跳过，拷贝失败只记日志，不影响 SQLite 备份的有效性。
-- 两个快照之间**没有跨库原子性**：恢复后个别最新记录可能引用尚未拷入的图片文件。
+- 数据库快照和图片拷贝**不是同一瞬间完成的**：恢复后个别最新记录可能引用尚未拷入的图片文件。
 - 图片目录可能很大，确认 `paths.backups` 所在磁盘放得下。
 
 `backup` **不包含**这些内容，必须另外备份并妥善保护：
@@ -176,7 +176,7 @@ Docker 演练要另建 Compose 项目（不同的 `-p` 与端口），把配置�
 
 - **升级后一直报配置错误？** 先看 `check-config` 的 `warnings`：废弃字段与缺失的必填段都会在这里出现。
 - **设置页显示已启用，但某个功能仍不可用？** 看启动日志里的 `*_warning` 事件（例如 `image_service_warning`），修好后在 **设置（Settings）** 应用配置。
-- **备份文件比数据库小很多？** 正常：`VACUUM INTO` 会压掉空闲页与 WAL。
+- **备份文件比数据库小很多？** 正常：备份会去掉数据库文件里的空闲空间。
 - **能不能只回滚镜像？** 可以，但数据库迁移不回退，需要回到升级前状态就用升级前的备份。
 
 相关页面：[数据路径与保留](../configuration/storage.md)、[`retention` 字段参考](../configuration/fields-retention.md)、[`paths` 字段参考](../configuration/fields-paths.md)、[配置生命周期](../configuration/lifecycle.md)、[密钥与路径](../configuration/secrets.md)、[管理面板、密钥与访问安全](admin.md)、[排查启动失败和不回复](troubleshooting.md)
