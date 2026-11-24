@@ -22,10 +22,12 @@ Please deploy Surowan on my fresh VPS over SSH end to end:
 - Panel domain: <panel.example.com> (if none yet, replace with "no domain yet, loopback only")
 - Reverse proxy preference: Caddy (automatic HTTPS; or switch to Nginx / Apache httpd)
 
+Before you start, read the docs index at https://surowan.com/en/llms.txt and the "Install and sign in" page at https://surowan.com/en/docs/guides/installation.md. Take commands, download URLs, paths and configuration fields from the docs, not from memory.
+
 Follow these steps in order and report briefly after each milestone:
 1. Set up SSH key authentication first (check my local ~/.ssh public key and install it into /root/.ssh/authorized_keys). Never write the root password into scripts, command history or config files.
 2. Check the OS and install Docker Engine plus the Docker Compose plugin. If configuring a firewall, allow only SSH and 80/443 (when a domain is used); never expose port 8787 publicly.
-3. Create /srv/surowan/config and /srv/surowan/data, then download the official docker-compose.yml and minimal config.minimal.example.jsonc (saving it as /srv/surowan/config/config.jsonc).
+3. Create /srv/surowan/config and /srv/surowan/data, then download the official docker-compose.yml (https://surowan.com/examples/docker-compose.yml) and the minimal configuration (https://surowan.com/examples/config.minimal.example.jsonc, saved as /srv/surowan/config/config.jsonc).
 4. Uncomment "127.0.0.1:8787:8787" in docker-compose.yml. If I gave a domain, set admin.public_url in config/config.jsonc to that https:// origin and configure the HTTPS reverse proxy (raise the body limit to at least 35 MB, disable buffering on /api/live/, and extend the stream read timeout).
 5. Start the stack (`docker compose up -d`) and verify `admin_started` appears in the logs with no startup errors.
 6. Mint the first web sign-in code as the non-root container user:
@@ -35,8 +37,8 @@ Follow these steps in order and report briefly after each milestone:
 Boundaries: do not set an administrator password for me, and do not ask for my model API keys or Telegram bot token — I will enter them in the panel myself.
 ```
 
-:::tip Share the public template links with the agent
-Sending the links to the [Compose template](__DOCS_BASE__/examples/docker-compose.yml), the [minimal configuration](__DOCS_BASE__/examples/config.minimal.example.jsonc) and the reverse-proxy examples in [Install and sign in](installation.md) alongside the prompt prevents guesswork on file paths and fields.
+:::tip Let the agent read the docs instead of guessing
+The URLs in the prompt are meant for the agent: every page on this site has a Markdown version (append `.md` to the page URL), and [`llms.txt`](__DOCS_BASE__/en/llms.txt) lists every page with its Markdown URL. An agent whose fetch tool sends `Accept: text/markdown` gets Markdown from the ordinary page URL too, so the commands, reverse-proxy examples and fields it reads are the same ones you see here. The [Compose template](__DOCS_BASE__/examples/docker-compose.yml) and the [minimal configuration](__DOCS_BASE__/examples/config.minimal.example.jsonc) are raw downloads. More options in [Working with coding agents](agent-assisted.md#let-your-agent-read-these-docs).
 :::
 
 ## 2. Handling the initial root password safely

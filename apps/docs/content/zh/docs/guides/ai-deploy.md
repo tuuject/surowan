@@ -22,10 +22,12 @@ description: 刚拿到一台带 root 账号和密码的 VPS，用一段提示词
 - 面板域名：<panel.example.com>（如暂无域名，改为「暂不配域名，仅用回环端口」）
 - 反向代理偏好：Caddy（自动 HTTPS；也可换为 Nginx 或 Apache httpd）
 
+开始前先读文档索引 https://surowan.com/llms.txt 和「安装与首次登录」页 https://surowan.com/docs/guides/installation.md。命令、路径和配置字段以文档为准，下载地址也从文档里取，不要凭记忆猜。
+
 请按以下顺序执行，并在关键节点简短汇报结果：
 1. 先建立 SSH 密钥登录（检查我本机 ~/.ssh 公钥并协助写入服务器 /root/.ssh/authorized_keys），不要把 root 密码写进任何脚本、命令历史或配置文件。
 2. 检查系统并安装 Docker Engine 与 Docker Compose 插件；配置防火墙时仅放行 SSH 和 80/443（有域名时），不要把 8787 暴露到公网。
-3. 创建 /srv/surowan/config 与 /srv/surowan/data，下载官方的 docker-compose.yml 与最小配置 config.minimal.example.jsonc（保存为 /srv/surowan/config/config.jsonc）。
+3. 创建 /srv/surowan/config 与 /srv/surowan/data，下载官方的 docker-compose.yml（https://surowan.com/examples/docker-compose.yml）与最小配置（https://surowan.com/examples/config.minimal.example.jsonc，保存为 /srv/surowan/config/config.jsonc）。
 4. 取消 docker-compose.yml 里 "127.0.0.1:8787:8787" 的注释；如果我提供了域名，把 config/config.jsonc 里的 admin.public_url 设为对应的 https:// 域名，并配置 HTTPS 反向代理（确保放宽请求体上限至 35MB，并对 /api/live/ 关闭代理缓冲且拉长超时）。
 5. 启动服务（docker compose up -d），查看日志确认出现 admin_started 且没有启动错误。
 6. 用非 root 容器用户生成首次 Web 登录一次性码：
@@ -35,8 +37,8 @@ description: 刚拿到一台带 root 账号和密码的 VPS，用一段提示词
 安全边界：不要替我设置管理员密码，也不要向我索要模型 API Key 或 Telegram Token，这些由我登录后在面板内填写。
 ```
 
-:::tip 给 Agent 参考两份公开文件
-你可以顺便把本站的 [Compose 模板](__DOCS_BASE__/examples/docker-compose.yml)、[最小配置](__DOCS_BASE__/examples/config.minimal.example.jsonc) 以及 [安装与首次登录](installation.md) 里的反代示例链接一并发给 Agent，减少它猜路径或写错字段的概率。
+:::tip 让 Agent 读文档，而不是凭记忆
+提示词里的地址都是给 Agent 读的。本站每一页都有 Markdown 版（页面地址后加 `.md`），[`llms.txt`](__DOCS_BASE__/llms.txt) 列出全站页面和它们的 Markdown 地址。如果 Agent 的抓取工具会声明 `Accept: text/markdown`，它打开普通页面地址也会直接拿到 Markdown，读到的命令、反代示例和字段与你在网页上看到的是同一份。[Compose 模板](__DOCS_BASE__/examples/docker-compose.yml)和[最小配置](__DOCS_BASE__/examples/config.minimal.example.jsonc)是可直接下载的原始文件。其他读法见[与本地 Agent 配合使用](agent-assisted.md#让-agent-读本站文档)。
 :::
 
 ## 2. 怎么处理 VPS 的初始 root 密码

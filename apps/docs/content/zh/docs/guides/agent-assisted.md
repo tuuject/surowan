@@ -167,6 +167,27 @@ CLI 会问装到哪些 Agent，也可以用 `-a codex` 直接指定，Codex 等�
 
 Skill 不会随 CLI 自动升级。用 skills CLI 装的运行 `npx skills update <name>`，手工复制的是本地副本，升级时要一起同步。宿主本身仍须允许命令执行和访问你的面板地址，装 Skill 不会授予任何权限。
 
+## 让 Agent 读本站文档
+
+Skill 只教 Agent 怎么操作，字段含义、默认行为和排查步骤写在本站文档里。本站为 Agent 准备了几种不用解析 HTML 的读法：
+
+| 读法 | 地址 | 适合 |
+| --- | --- | --- |
+| 索引 | [`/llms.txt`](__DOCS_BASE__/llms.txt)（英文版 `/en/llms.txt`） | 先读这个。它按导航列出每一页的标题、一句话简介和 Markdown 地址，Agent 据此挑要读的页 |
+| 单页 Markdown | 页面地址后加 `.md`，例如 `/docs/guides/installation.md`，目录页是 `…/index.md` | 按需读一两页。正文、表格和代码块与网页一致，页间链接也是 `.md` 地址 |
+| 全量合集 | [`/llms-full.txt`](__DOCS_BASE__/llms-full.txt)（英文版 `/en/llms-full.txt`） | 一种语言的全部页面合成一个文件，有几百 KB。只适合一次性放进长上下文，或用来离线检索，不要每次任务都整份读 |
+
+普通页面地址也能直接给出 Markdown。请求头 `Accept` 里 `text/markdown` 的权重（q 值）不低于 `text/html` 时（例如 `Accept: text/markdown, text/html;q=0.9`），`https://surowan.com/docs/guides/installation` 这样的地址返回 Markdown（`Content-Type: text/markdown`），浏览器照常拿到网页。所以，只要 Agent 的抓取工具会声明 Markdown，直接贴页面地址就行。不确定它会不会声明，就给 `.md` 地址。手动转交时，每页标题旁的 **复制 Markdown** 按钮复制整页内容，下拉菜单里的 **复制 Markdown 链接** 复制该页的 `.md` 地址。
+
+每份 Markdown 和 `llms.txt` 开头都标着文档对应的源码提交。文档随最新代码更新。如果你运行的是旧版本，先让 Agent 比对版本，两者行为不一致时以你实际运行的版本为准。
+
+可以这样交代：
+
+```text
+先读 https://surowan.com/llms.txt，按我的问题挑最相关的两三页读它们的 Markdown 版，
+回答时附上依据的页面地址。不要整份读 llms-full.txt。
+```
+
 ## 推荐的协作流程
 
 一个可靠的调优循环是五步，缺一步就容易变成「Agent 说自己改好了」：

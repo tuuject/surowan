@@ -167,6 +167,28 @@ How the two differ:
 
 Skills do not upgrade with the CLI: a skills-CLI install updates with `npx skills update <name>`, while a manual copy is a local snapshot you have to refresh. The host still has to allow command execution and network access to your panel — installing a skill grants no permission by itself.
 
+## Let your agent read these docs
+
+The skills teach the agent how to operate Surowan; what fields mean, what the defaults do and how to troubleshoot live in these docs. The site offers a few ways to read them without parsing HTML:
+
+| Format | Where | Use it for |
+| --- | --- | --- |
+| Index | [`/en/llms.txt`](__DOCS_BASE__/en/llms.txt) (Chinese: `/llms.txt`) | Read this first. It lists every page in navigation order with its title, a one-line summary and its Markdown URL, so the agent can pick what to read |
+| One page as Markdown | Append `.md` to the page URL, for example `/en/docs/guides/installation.md`; a section index is `…/index.md` | Reading one or two pages on demand. Text, tables and code blocks match the web page, and links between pages point at `.md` URLs |
+| Everything in one file | [`/en/llms-full.txt`](__DOCS_BASE__/en/llms-full.txt) (Chinese: `/llms-full.txt`) | Every page of one language concatenated, several hundred KB. Only for loading into a long context once or for offline search; do not read it whole on every task |
+
+Ordinary page URLs serve Markdown as well: when the request's `Accept` header ranks `text/markdown` at least as high as `text/html` (for example `Accept: text/markdown, text/html;q=0.9`), a URL such as `https://surowan.com/en/docs/guides/installation` returns Markdown (`Content-Type: text/markdown`) while browsers keep getting the web page. An agent whose fetch tool advertises Markdown can be handed the plain page link; if you are not sure it does, give it the `.md` URL. To pass a page along by hand, the **Copy Markdown** button next to each page title copies the whole page, and **Copy Markdown link** in its menu copies the page's `.md` URL.
+
+Every Markdown file and `llms.txt` starts with the source commit the docs were built from. The docs follow the latest code, so when you run an older release, have the agent compare versions first and trust the version you actually run when they disagree.
+
+You can phrase it like this:
+
+```text
+Read https://surowan.com/en/llms.txt first, pick the two or three pages most relevant
+to my question and read their Markdown versions. Cite the page URLs you relied on,
+and do not read llms-full.txt in full.
+```
+
 ## The workflow that works
 
 A reliable loop has five steps, and skipping one is how "the agent said it fixed it" happens:

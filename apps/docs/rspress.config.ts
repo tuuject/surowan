@@ -111,6 +111,8 @@ export default defineConfig({
         excludes: [
           'llms.txt',
           'llms-full.txt',
+          'en/llms.txt',
+          'en/llms-full.txt',
           'config.schema.json',
           'examples/config.minimal.example.jsonc',
           'examples/config.example.jsonc',
