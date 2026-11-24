@@ -72,8 +72,40 @@ DOCS_BASE_PATH=/surowan/ pnpm run docs:build && pnpm run docs:verify  # 同上�
 
 未执行：在线 Bot 上的真实 Telegram 验收，以及用新的 Tool 描述重放 Invocation 11465（重放会真实调用模型）。
 
+## 后续修正：Codex review 意见
+
+用户要求用 T3 把 PR #128 的 review 派给 Codex（`gpt-6.2-sol`，只读）。Codex 对 `origin/develop...cfdb7e9a` 的 9 个文件给出 3 条 low，没有 critical/high/medium；主会话逐条在本地复现，3 条都成立，按用户「直接修」全部修掉。
+
+### 1. 截断不留半个字符
+
+`oneLine`（`src/plugins/web-fetch/content.ts`）按 UTF-16 单元截断，截点落在代理对中间时会留下孤立的高位代理（999 个 `a` 接 `😋`，截到 1000 后末尾是 `U+D83D`，UTF-8 写入审计时变成 `U+FFFD`）。现在截断后若末位是高位代理就去掉它。旧的 title 截断本来就有这个问题，现在所有文本字段共用同一个修正。
+
+### 2. `Images:` 提示按截断后的正文决定
+
+原来提示是否包含「正文图片」看的是截断前的 Markdown：唯一的图片在 32 KiB 之后被截掉时，提示仍让模型去打开一个结果里已经不存在的链接。这个问题在本 PR 之前就有，新增的元数据行让正文空间更小，更容易触发。现在 `web-fetch.ts` 先按截断前可能出现的最长提示预留预算，截断后再用 `LINKED_IMAGE.test(cut.text)` 决定提示内容；`LINKED_IMAGE` 也改为要求完整的 `![alt](http…)`，截断留下的半截链接不算。
+
+### 3. 文档说明哪些值是推导的
+
+Skill 原文写「只有页面提供的字段才会出现」，但 Defuddle 会推导一部分：页面没写站名时 `Site` 是域名，没有 icon 链接时 `Favicon` 是 `/favicon.ico`。SKILL.md、`agent-doc/telegram-agent-flow.md` 与用户指南的「网页自带的元数据」都改了措辞；agent-doc 同时写明了提示的判定时机。
+
+### 验证
+
+先改测试再改实现：`test/web-fetch/content.test.ts` 的超长元数据用例把截点放在 emoji 中间，并断言 UTF-8 往返不变；`test/web-fetch/images.test.ts` 新增长正文用例（短页面有提示、30 段长页面图片被截掉后无提示、带 `og:image` 时只提示 `Preview image`，结果都不超过 32 KiB）。修复前这两条失败，修复后 `test/web-fetch` 21 条全部通过。
+
+```bash
+git diff --check && pnpm run lint && pnpm run check   # 通过
+node scripts/file-token-limit.ts                      # 退出码 0
+pnpm vitest run test/web-fetch                        # 21 passed
+pnpm test                                             # 482 files / 2493 tests 通过，1 条失败（见下）
+DOCS_BASE_PATH=/ 与 /surowan/ 各跑 docs:build + docs:verify   # 均通过
+pnpm run manual:prepare                               # 通过
+```
+
+完整测试第一次跑时，`test/invocations/cli-redaction.test.ts` 与 `test/cli/inspection-config-prompt.test.ts` 卡住数百秒，后台任务被时限停掉；第二次跑时 `test/pairing/pairing-flow.test.ts` 的「auth status, permissions and logout」超过 60 秒超时。这三个文件本分支都没有改，单独重跑分别为 13 条、8 条全部通过。当时机器 load average 在 9–11，同时还有其他 agent 线程在跑 e2e 服务，判断为负载导致的超时。
+
 ## 提交
 
 ```txt
 f5c87ed2 Return page metadata from web_fetch HTML conversion
+b2e40f67 Keep web_fetch metadata cuts and image hints accurate
 ```
