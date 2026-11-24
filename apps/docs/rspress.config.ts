@@ -18,7 +18,10 @@ export default defineConfig({
   siteOrigin: buildInfo.siteOrigin,
   ssg: true,
   builderConfig: {
-    server: { htmlFallback: false },
+    // Dev has no per-route HTML, so deep links need the SPA shell. Preview serves
+    // the SSG output and must 404 missing pages instead of returning the home page.
+    // The Rspress CLI sets NODE_ENV before loading this file (dev → development).
+    server: { htmlFallback: process.env.NODE_ENV === 'development' ? 'index' : false },
     resolve: {
       alias: {
         // Rspress uses Document without workers or persistence. The compact build
