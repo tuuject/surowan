@@ -119,7 +119,11 @@ locale ∈ { zh-CN, en }
 
 `.github/workflows/docs.yml` 验证根路径与 `/surowan/`，仅上传静态检查 artifact；仅在 `main` 上构建 Bot 镜像验证站点依赖隔离，不负责发布。检查 artifact 中的 `docs.example.com` 是测试域名，不能直接当生产部署。
 
-生产站点 `https://surowan.com` 由 Cloudflare Workers Builds 发布：连接本仓库的 `main` 分支，根目录 `/`，Worker 为纯静态资源（无脚本），配置见 [`wrangler.jsonc`](wrangler.jsonc)。缺失路径走 `404-page`（最近的 `404.html` + 404 状态），不使用 SPA fallback；`.html` 深链按默认 `auto-trailing-slash` 重定向到无扩展名路径；`_redirects` 提供旧 URL 跳转。Dashboard 中的构建设置：
+生产站点 `https://surowan.com` 由 Cloudflare Workers Builds 发布：连接本仓库的 `main` 分支，根目录 `/`，配置见 [`wrangler.jsonc`](wrangler.jsonc)。缺失路径走 `404-page`（最近的 `404.html` + 404 状态），不使用 SPA fallback；`.html` 深链按默认 `auto-trailing-slash` 重定向到无扩展名路径；`_redirects` 提供旧 URL 跳转。
+
+Worker 只有一个小脚本 [`worker.ts`](worker.ts)，负责 Markdown 内容协商：请求的 `Accept` 显式列出 `text/markdown` 且权重不低于 `text/html`（通配符不算）时，页面地址（无扩展名、`.html`、目录 `/`）改由同名 `.md` 产物响应，`Content-Type: text/markdown; charset=utf-8`；其余请求原样交给 `ASSETS` 绑定，所有经过脚本的响应都带 `Vary: Accept`。`run_worker_first` 只匹配页面路由，`/static/`、截图、示例与 `.md`/`.txt`/`.json`/`.svg`/`.png` 文件不进脚本，也就不计 Worker 请求。取 `.md` 的子请求用 `redirect: 'manual'`：绑定默认会跟随 `_redirects`，旧 URL 会在原地址直接返回新页内容；改为 manual 后旧 URL 先 301 到新地址，客户端在新地址再协商一次。`docs:verify` 用 preview 充当 `ASSETS` 驱动这个脚本，逐页核对三种地址形式协商出的字节与 `.md`/`.html` 产物一致，并覆盖 `Accept` 权重规则、`HEAD`、非页面文件与缺失页；`run_worker_first` 的匹配与绑定背后的 `_redirects` 只在 Cloudflare 上存在，改动 `wrangler.jsonc` 或 `worker.ts` 后用 `npx wrangler dev --config apps/docs/wrangler.jsonc` 对已构建的 `dist/` 实测（不把 wrangler 加进依赖）。
+
+Dashboard 中的构建设置：
 
 - Build command：`pnpm run docs:build`
 - Deploy command：`npx wrangler deploy --config apps/docs/wrangler.jsonc`（仓库根是 pnpm workspace，不指定配置时 Wrangler 拒绝在根目录自动探测）
@@ -134,6 +138,6 @@ pnpm run docs:verify
 
 PowerShell 请用 `$env:DOCS_SITE_ORIGIN` 和 `$env:DOCS_BASE_PATH`。origin 不带路径/凭据/查询；base 必须以 `/` 开头、结尾。子路径部署把 **`dist/` 的内容**挂载到该 base，不重复嵌套一层 base 目录。只上传 `dist/`，不要上传源码或 workspace。
 
-选定主机后仍须实测 `.html` 深链、`.md`/`.txt`/`.json` 的内容与 MIME、缺失 `.md` 的 404 与 `_redirects` 的实际跳转；主机行为不由本地 preview 保证。不要开启把所有请求重写到 `index.html` 的 SPA catch-all。
+选定主机后仍须实测 `.html` 深链、`.md`/`.txt`/`.json` 的内容与 MIME、缺失 `.md` 的 404 与 `_redirects` 的实际跳转；主机行为不由本地 preview 保证。`Accept: text/markdown` 内容协商依赖 Cloudflare 上的 `worker.ts`，其他主机只提供 `.md` 与 `llms*.txt` 文件本身。不要开启把所有请求重写到 `index.html` 的 SPA catch-all。
 
 真实 Docker 运行、Provider/Telegram、Doctor、迁移和恢复演练需要另行授权与隔离环境。离线示例测试和静态站检查不能代表这些链路通过。

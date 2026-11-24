@@ -9,6 +9,7 @@ import { Value } from 'typebox/value';
 
 import { isGeneratedPage } from './generated-pages.ts';
 import { type DocsLocale, docsLocales, localeText, provenanceText } from './locales.ts';
+import { verifyMarkdownNegotiation } from './markdown-negotiation.ts';
 import { CODE_BLOCK_PATTERN } from './markdown.ts';
 import { deploymentSettings, docsRoot, exampleNames, exampleSource, repositoryRoot } from './prepare.ts';
 import { redirectRules, renderRedirects } from './redirects.ts';
@@ -338,6 +339,8 @@ const { loadConfigFile } = await import(
   pathToFileURL(docsRequire.resolve('@rspress/core/dist/config/loadConfigFile.js')).href
 );
 const preview = await serve({ config: await loadConfigFile(), host: '127.0.0.1', port: 5276 });
+
+let negotiatedPages = 0;
 try {
   for (const path of [
     'llms.txt',
@@ -381,9 +384,16 @@ try {
     });
     assert.equal(missing.status, 404, `Missing Markdown under ${prefix} was rewritten instead of returning 404`);
   }
+  negotiatedPages = await verifyMarkdownNegotiation({
+    previewOrigin: preview.urls[0] ?? '',
+    origin,
+    base,
+    dist,
+    pageSets: pageSets.values(),
+  });
 } finally {
   await preview.server.close();
 }
 console.log(
-  `Verified ${[...pageSets.values()].flat().length} HTML/Markdown pages in two locales, ${String(screenshotAssets.scenarioCount)} screenshots (${String(screenshotReferences.referenceCount)} page references), search, examples, schema, provenance, redirects and ${String(localPaths.size)} HTTP resources (base ${base}).`,
+  `Verified ${[...pageSets.values()].flat().length} HTML/Markdown pages in two locales, ${String(screenshotAssets.scenarioCount)} screenshots (${String(screenshotReferences.referenceCount)} page references), search, examples, schema, provenance, redirects, ${String(localPaths.size)} HTTP resources and Markdown negotiation on ${String(negotiatedPages)} pages (base ${base}).`,
 );
