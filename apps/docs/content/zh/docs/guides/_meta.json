@@ -1,11 +1,11 @@
 [
   { "type": "file", "name": "index", "label": "开始" },
   { "type": "file", "name": "installation", "label": "安装" },
-  { "type": "file", "name": "ai-deploy", "label": "AI 部署" },
+  { "type": "file", "name": "ai-deploy", "label": "AI 辅助部署" },
   { "type": "file", "name": "first-persona", "label": "你的第一个人设" },
   { "type": "file", "name": "first-bot", "label": "你的第一只 Bot" },
   { "type": "file", "name": "tuning", "label": "调优" },
-  { "type": "file", "name": "agent-assisted", "label": "配合 Agent" },
+  { "type": "file", "name": "agent-assisted", "label": "与本地 Agent 配合使用" },
   { "type": "file", "name": "models", "label": "配置模型" },
   { "type": "file", "name": "playground", "label": "虚拟群聊" },
   { "type": "file", "name": "chats", "label": "群与话题" },

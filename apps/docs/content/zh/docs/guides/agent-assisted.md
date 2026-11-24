@@ -1,9 +1,9 @@
 ---
-title: 与 Agent 配合使用
+title: 与本地 Agent 配合使用
 description: 一句话让本地 Coding Agent 装好 surowan-utils CLI 与配套 Skill，用一次性配对、API 密钥或 MCP Server 安全读写塑料碗，并按「先读、再提案、确认后改、改后核对」协作。
 ---
 
-# 与 Agent 配合使用
+# 与本地 Agent 配合使用
 
 Claude Code、Codex、OpenCode 这类本地 Coding Agent 很适合干调优的脏活，比如翻几十条运行记录、对比两次运行的提示词，或把「为什么它不回复」追到某一行审计。前提是让它**看得到**塑料碗，同时**拿不到**你的长期密码。
 

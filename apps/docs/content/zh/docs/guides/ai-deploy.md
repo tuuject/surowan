@@ -1,5 +1,5 @@
 ---
-title: AI 帮我部署
+title: AI 辅助部署
 description: 刚拿到一台带 root 账号和密码的 VPS，用一段提示词让本机 Coding Agent 通过 SSH 完成 Docker、HTTPS 反向代理与首次登录码的一条龙部署。
 ---
 
