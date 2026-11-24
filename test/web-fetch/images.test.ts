@@ -151,6 +151,59 @@ test('web_fetch leaves out empty metadata and preview images it could not fetch'
   }
 });
 
+test('web_fetch hints at a body image only when it survives the result budget', async () => {
+  const fixed = await fixture();
+  const { store, context } = fixed;
+  try {
+    const page = (paragraphs: number, preview: boolean) =>
+      [
+        '<html><head><title>Long read</title>',
+        preview ? '<meta property="og:image" content="https://media.example/cover.png">' : '',
+        '</head><body><article><h1>Long read</h1>',
+        `<p>${'A plastic bowl is light, cheap and hard to break. '.repeat(40)}</p>`.repeat(paragraphs),
+        '<p><img src="/images/late.jpg" alt="Late picture"></p>',
+        '</article></body></html>',
+      ].join('');
+    let html = '';
+    const tool = createWebFetchTool({
+      audit: createToolAudit(store, context.invocationId),
+      invocationDeadline: Date.now() + 30_000,
+      storeImage: imageStoreFor(fixed),
+      resolveHostname: async () => [{ address: '203.0.114.10', family: 4 }],
+      requestResolved: async () => htmlResponse(html),
+    });
+    const fetchPage = async (id: string) => {
+      const result = await tool.execute(id, { url: 'https://public.example/long' });
+      return { text: result.content[0]?.type === 'text' ? result.content[0].text : '', details: result.details };
+    };
+    const hint = (sources: string) =>
+      `\nImages: ${sources}; to view one, call web_fetch with its URL and, if refused, referer: this page URL\n`;
+
+    // When it fits, the closing picture is in the body and the hint names it.
+    html = page(2, false);
+    const short = await fetchPage('web-long-short');
+    expect(short.text).toContain('![Late picture](https://public.example/images/late.jpg)');
+    expect(short.text).toContain(hint('linked as ![alt](url)'));
+
+    // Past the budget the picture is cut off, so no hint may point at it.
+    html = page(30, false);
+    const long = await fetchPage('web-long');
+    expect(long.details.truncated).toBe(true);
+    expect(Buffer.byteLength(long.text)).toBeLessThanOrEqual(32_768);
+    expect(long.text).not.toContain('![Late picture]');
+    expect(long.text).not.toContain('\nImages:');
+
+    html = page(30, true);
+    const preview = await fetchPage('web-long-preview');
+    expect(preview.details.truncated).toBe(true);
+    expect(Buffer.byteLength(preview.text)).toBeLessThanOrEqual(32_768);
+    expect(preview.text).not.toContain('![Late picture]');
+    expect(preview.text).toContain(hint('listed as Preview image'));
+  } finally {
+    store.close();
+  }
+});
+
 test('web_fetch returns an image as a stored tool image and sends the referer on every hop', async () => {
   const fixed = await fixture();
   const { store, context } = fixed;

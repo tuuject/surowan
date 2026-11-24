@@ -131,7 +131,7 @@ test('web_fetch caps oversized page metadata so the Markdown keeps the result bu
   const { store, context } = await fixture();
   try {
     const page = [
-      `<html><head><title>Huge</title><meta name="description" content="${'d'.repeat(5_000)}">`,
+      `<html><head><title>Huge</title><meta name="description" content="${'a'.repeat(999)}😋${'d'.repeat(5_000)}">`,
       `<script type="application/ld+json">{"@type":"WebPage","keywords":"${'碗'.repeat(20_000)}"}</script></head>`,
       '<body><article><h1>Huge</h1>',
       '<p>A plastic bowl is light, cheap and hard to break. This paragraph carries the article body.</p>',
@@ -146,7 +146,10 @@ test('web_fetch caps oversized page metadata so the Markdown keeps the result bu
     const result = await tool.execute('web-huge-meta', { url: 'https://public.example/huge' });
     const text = result.content[0]?.type === 'text' ? result.content[0].text : '';
     const lines = text.split('\n');
-    expect(lines.find((line) => line.startsWith('Description:'))).toBe(`Description: ${'d'.repeat(1_000)}`);
+    // The cap falls between the halves of the emoji: no half character may survive.
+    expect(lines.find((line) => line.startsWith('Description:'))).toBe(`Description: ${'a'.repeat(999)}`);
+    // A lone surrogate does not survive UTF-8, which is how the audit stores the text.
+    expect(Buffer.from(text).toString('utf8')).toBe(text);
     const schema = lines.find((line) => line.startsWith('Schema.org:')) ?? '';
     expect(schema.startsWith('Schema.org: [{"@type":"WebPage","keywords":"碗碗')).toBe(true);
     expect(schema.endsWith('碗 [truncated]')).toBe(true);

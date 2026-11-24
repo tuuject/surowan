@@ -158,16 +158,24 @@ export function createWebFetchTool(
             'Format: main content converted to Markdown; call again with raw: true for the original HTML',
             ...page.metadataLines,
           );
-          const imageSources = [
-            ...(LINKED_IMAGE.test(page.markdown) ? ['linked as ![alt](url)'] : []),
-            ...(page.previewImage === undefined ? [] : ['listed as Preview image']),
-          ];
-          if (storeImage !== undefined && imageSources.length > 0) {
-            headerLines.push(
-              `Images: ${imageSources.join(' or ')}; to view one, call web_fetch with its URL and, if refused, referer: this page URL`,
-            );
-          }
-          const cut = truncateUtf8(page.markdown, bodyBudget(headerLines));
+          // Whether the body still links a picture is known only after the cut, so the
+          // budget reserves the longest hint and the hint names what actually survived.
+          const imageHint = (bodyLinksImage: boolean): string[] => {
+            const sources = [
+              ...(bodyLinksImage ? ['linked as ![alt](url)'] : []),
+              ...(page.previewImage === undefined ? [] : ['listed as Preview image']),
+            ];
+            return storeImage === undefined || sources.length === 0
+              ? []
+              : [
+                  `Images: ${sources.join(' or ')}; to view one, call web_fetch with its URL and, if refused, referer: this page URL`,
+                ];
+          };
+          const cut = truncateUtf8(
+            page.markdown,
+            bodyBudget([...headerLines, ...imageHint(LINKED_IMAGE.test(page.markdown))]),
+          );
+          headerLines.push(...imageHint(LINKED_IMAGE.test(cut.text)));
           body = { text: cut.text, truncated: html.truncated || cut.truncated };
         } else {
           if (servedMarkdown) {

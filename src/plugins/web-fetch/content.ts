@@ -19,7 +19,8 @@ const LINE_BREAKING = /[\s\u0085]+/g;
 const JSON_LINE_BREAKING = /[\u0085\u2028\u2029]/g;
 // Inline base64 pictures cannot be fetched and would eat the whole result budget.
 const DATA_IMAGE = /!\[([^\]]*)\]\(data:[^)]*\)/g;
-export const LINKED_IMAGE = /!\[[^\]]*\]\(https?:\/\//;
+// A whole link: truncation may leave only the start of one.
+export const LINKED_IMAGE = /!\[[^\]]*\]\(https?:\/\/[^)]+\)/;
 
 /**
  * The body must arrive whole: a truncated picture is a corrupt one. The bytes
@@ -57,7 +58,7 @@ export async function storeFetchedImage(
 
 export interface ConvertedPage {
   readonly markdown: string;
-  /** The page's own metadata as `Label: value` header lines, one line each; empty fields are left out. */
+  /** Metadata Defuddle reads or infers from the page, as `Label: value` header lines; empty fields are left out. */
   readonly metadataLines: readonly string[];
   /** The page's preview picture (og:image and the like) as a link web_fetch accepts. */
   readonly previewImage: string | undefined;
@@ -102,7 +103,13 @@ export async function htmlToMarkdown(html: string, url: string): Promise<Convert
 }
 
 function oneLine(value: unknown, maxChars: number): string {
-  return typeof value === 'string' ? value.replace(LINE_BREAKING, ' ').trim().slice(0, maxChars) : '';
+  if (typeof value !== 'string') {
+    return '';
+  }
+  const cut = value.replace(LINE_BREAKING, ' ').trim().slice(0, maxChars);
+  // A cut between the halves of a surrogate pair leaves half a character, which UTF-8 turns into U+FFFD.
+  const last = cut.charCodeAt(cut.length - 1);
+  return last >= 0xd800 && last <= 0xdbff ? cut.slice(0, -1) : cut;
 }
 
 /**
