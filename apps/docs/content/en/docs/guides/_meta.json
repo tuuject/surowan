@@ -1,4 +1,5 @@
 [
+  { "type": "section-header", "label": "Get started" },
   { "type": "file", "name": "index", "label": "Start" },
   { "type": "file", "name": "installation", "label": "Install" },
   { "type": "file", "name": "ai-deploy", "label": "AI deploy" },
@@ -6,6 +7,7 @@
   { "type": "file", "name": "first-bot", "label": "Your first bot" },
   { "type": "file", "name": "tuning", "label": "Tuning" },
   { "type": "file", "name": "agent-assisted", "label": "Coding agents" },
+  { "type": "section-header", "label": "Features" },
   { "type": "file", "name": "models", "label": "Models" },
   { "type": "file", "name": "playground", "label": "Playground" },
   { "type": "file", "name": "chats", "label": "Chats & topics" },
@@ -16,6 +18,7 @@
   { "type": "file", "name": "web-search", "label": "Web search & fetch" },
   { "type": "file", "name": "recurring-alarms", "label": "Alarms" },
   { "type": "file", "name": "mcp", "label": "Using MCP" },
+  { "type": "section-header", "label": "Operations" },
   { "type": "file", "name": "admin", "label": "Panel & security" },
   { "type": "file", "name": "maintenance", "label": "Upgrade & backup" },
   { "type": "file", "name": "troubleshooting", "label": "Troubleshooting" }

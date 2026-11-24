@@ -1,4 +1,5 @@
 [
+  { "type": "section-header", "label": "起步" },
   { "type": "file", "name": "index", "label": "开始" },
   { "type": "file", "name": "installation", "label": "安装" },
   { "type": "file", "name": "ai-deploy", "label": "AI 辅助部署" },
@@ -6,6 +7,7 @@
   { "type": "file", "name": "first-bot", "label": "你的第一只 Bot" },
   { "type": "file", "name": "tuning", "label": "调优" },
   { "type": "file", "name": "agent-assisted", "label": "与本地 Agent 配合使用" },
+  { "type": "section-header", "label": "功能与特性" },
   { "type": "file", "name": "models", "label": "配置模型" },
   { "type": "file", "name": "playground", "label": "虚拟群聊" },
   { "type": "file", "name": "chats", "label": "群与话题" },
@@ -16,6 +18,7 @@
   { "type": "file", "name": "web-search", "label": "搜索与网页" },
   { "type": "file", "name": "recurring-alarms", "label": "定时与闹钟" },
   { "type": "file", "name": "mcp", "label": "使用 MCP" },
+  { "type": "section-header", "label": "运营与维护" },
   { "type": "file", "name": "admin", "label": "面板与安全" },
   { "type": "file", "name": "maintenance", "label": "升级与备份" },
   { "type": "file", "name": "troubleshooting", "label": "故障排查" }

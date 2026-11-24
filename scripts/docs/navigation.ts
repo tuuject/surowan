@@ -17,7 +17,13 @@ export interface MetaDirEntry {
   readonly collapsed?: boolean;
 }
 
-export type MetaEntry = string | MetaFileEntry | MetaDirEntry;
+/** Rspress-native label that splits one directory's sidebar into titled runs without moving pages. */
+export interface MetaSectionHeaderEntry {
+  readonly type: 'section-header';
+  readonly label: string;
+}
+
+export type MetaEntry = string | MetaFileEntry | MetaDirEntry | MetaSectionHeaderEntry;
 
 export interface DocsNavItem {
   readonly text: string;
@@ -39,7 +45,11 @@ export interface DocsSidebarGroup {
   readonly collapsed?: boolean;
 }
 
-export type DocsSidebarEntry = DocsSidebarItem | DocsSidebarGroup;
+export interface DocsSidebarSectionHeader {
+  readonly sectionHeaderText: string;
+}
+
+export type DocsSidebarEntry = DocsSidebarItem | DocsSidebarGroup | DocsSidebarSectionHeader;
 
 export interface DocsLocaleNavigation {
   readonly nav: DocsNavItem[];
@@ -88,6 +98,14 @@ function isMetaDirEntry(entry: unknown): entry is MetaDirEntry {
   );
 }
 
+function isMetaSectionHeaderEntry(entry: unknown): entry is MetaSectionHeaderEntry {
+  if (typeof entry !== 'object' || entry === null) {
+    return false;
+  }
+  const record = entry as Record<string, unknown>;
+  return record.type === 'section-header' && isNonEmptyString(record.label);
+}
+
 /** Reads and validates one `_meta.json` navigation array. */
 export function readMetaEntries(directory: string): readonly MetaEntry[] {
   const path = join(directory, '_meta.json');
@@ -134,6 +152,10 @@ export function readMetaEntries(directory: string): readonly MetaEntry[] {
         ...(entry.collapsible === undefined ? {} : { collapsible: entry.collapsible }),
         ...(entry.collapsed === undefined ? {} : { collapsed: entry.collapsed }),
       });
+      continue;
+    }
+    if (isMetaSectionHeaderEntry(entry)) {
+      entries.push({ type: 'section-header', label: entry.label });
       continue;
     }
     throw new Error(`Documentation navigation contains an unsupported entry: ${path}`);
@@ -285,6 +307,10 @@ export function loadLocaleNavigation(contentRoot: string, lang: DocsLocale): Doc
         items.push(resolveFileItem(relativeDir, entry.name, entry.label));
         continue;
       }
+      if (entry.type === 'section-header') {
+        items.push({ sectionHeaderText: entry.label });
+        continue;
+      }
       const childRelDir = relativeDir === '' ? entry.name : `${relativeDir}/${entry.name}`;
       const group: DocsSidebarGroup = {
         text: entry.label,
@@ -307,6 +333,10 @@ export function loadLocaleNavigation(contentRoot: string, lang: DocsLocale): Doc
     }
     if (entry.type === 'file') {
       overviewItems.push(resolveFileItem('', entry.name, entry.label));
+      continue;
+    }
+    if (entry.type === 'section-header') {
+      overviewItems.push({ sectionHeaderText: entry.label });
       continue;
     }
     const sectionKey = `${prefix}/docs/${entry.name}`;

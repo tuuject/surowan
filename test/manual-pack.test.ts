@@ -84,6 +84,14 @@ test('packs only the English manual into the runtime resource layout', async () 
   // `_meta.json` lists it, not after the last direct page.
   expect(index.indexOf('### HTTP API')).toBeGreaterThan(index.indexOf('(developer/index.md)'));
   expect(index.indexOf('### HTTP API')).toBeLessThan(index.indexOf('(developer/mcp-server.md)'));
+  // Guide section headers title the pages after them, in sidebar order.
+  const headings = ['### Get started', '### Features', '### Operations'].map((heading) => index.indexOf(heading));
+  expect(headings.every((position) => position > index.indexOf('## User manual'))).toBe(true);
+  expect(headings).toEqual([...headings].sort((a, b) => a - b));
+  expect(index.indexOf('(guides/installation.md)')).toBeGreaterThan(headings[0] ?? -1);
+  expect(index.indexOf('(guides/installation.md)')).toBeLessThan(headings[1] ?? -1);
+  expect(index.indexOf('(guides/models.md)')).toBeGreaterThan(headings[1] ?? -1);
+  expect(index.indexOf('(guides/troubleshooting.md)')).toBeGreaterThan(headings[2] ?? -1);
   expect(index).toContain('## Example files');
   expect(index).toContain('(examples/config.minimal.example.jsonc.md)');
 });

@@ -84,6 +84,10 @@ export async function packManual(options: {
   const rootPages: PackedPage[] = [];
   const sections: PackedSection[] = [];
   for (const entry of readMetaEntries(contentRoot)) {
+    // Root pages form one flat Overview list; a header there has nothing to title.
+    if (typeof entry !== 'string' && entry.type === 'section-header') {
+      continue;
+    }
     if (typeof entry === 'string' || entry.type === 'file') {
       const name = typeof entry === 'string' ? entry : entry.name;
       // The pack generates its own root index; the site's landing page is navigation for humans.
@@ -141,21 +145,29 @@ async function packSection(
   packed: Set<string>,
 ): Promise<PackedSection> {
   const blocks: PackedBlock[] = [];
+  // A section header titles the entries after it up to the next header, so the
+  // index groups them under that heading the way the sidebar does.
+  let current = blocks;
   for (const entry of readMetaEntries(join(contentRoot, directory))) {
+    if (typeof entry !== 'string' && entry.type === 'section-header') {
+      current = [];
+      blocks.push({ kind: 'group', label: entry.label, blocks: current });
+      continue;
+    }
     if (typeof entry !== 'string' && entry.type === 'dir') {
       const child = await packSection(contentRoot, `${directory}/${entry.name}`, entry.label, generatedPages, packed);
-      blocks.push({ kind: 'group', label: child.label, blocks: child.blocks });
+      current.push({ kind: 'group', label: child.label, blocks: child.blocks });
       continue;
     }
     const name = typeof entry === 'string' ? entry : entry.name;
     const path = `${directory}/${name}.md`;
-    blocks.push({ kind: 'page', page: await readPage(contentRoot, path, generatedPages) });
+    current.push({ kind: 'page', page: await readPage(contentRoot, path, generatedPages) });
     packed.add(path);
     // The sidebar lists only the generated reference index; its section pages follow it.
     if (path === FIELDS_INDEX_PAGE) {
       for (const sectionPath of [...generatedPages.keys()].filter(isConfigFieldSectionPage).sort()) {
         if (!packed.has(sectionPath)) {
-          blocks.push({ kind: 'page', page: await readPage(contentRoot, sectionPath, generatedPages) });
+          current.push({ kind: 'page', page: await readPage(contentRoot, sectionPath, generatedPages) });
           packed.add(sectionPath);
         }
       }

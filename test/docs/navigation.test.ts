@@ -6,6 +6,8 @@ import { docsLocales } from '../../scripts/docs/locales.ts';
 import {
   type DocsSidebarEntry,
   type DocsSidebarGroup,
+  type DocsSidebarItem,
+  type DocsSidebarSectionHeader,
   loadLocaleNavigation,
   readMetaEntries,
 } from '../../scripts/docs/navigation.ts';
@@ -32,6 +34,14 @@ function isSidebarGroup(entry: DocsSidebarEntry): entry is DocsSidebarGroup {
   return 'items' in entry;
 }
 
+function isSectionHeader(entry: DocsSidebarEntry): entry is DocsSidebarSectionHeader {
+  return 'sectionHeaderText' in entry;
+}
+
+function isSidebarItem(entry: DocsSidebarEntry): entry is DocsSidebarItem {
+  return !isSidebarGroup(entry) && !isSectionHeader(entry);
+}
+
 function collectLinks(entries: readonly DocsSidebarEntry[]): string[] {
   const links: string[] = [];
   for (const entry of entries) {
@@ -40,7 +50,7 @@ function collectLinks(entries: readonly DocsSidebarEntry[]): string[] {
         links.push(entry.link);
       }
       links.push(...collectLinks(entry.items));
-    } else {
+    } else if (isSidebarItem(entry)) {
       links.push(entry.link);
     }
   }
@@ -50,7 +60,7 @@ function collectLinks(entries: readonly DocsSidebarEntry[]): string[] {
 function collectLabels(entries: readonly DocsSidebarEntry[]): string[] {
   const labels: string[] = [];
   for (const entry of entries) {
-    labels.push(entry.text);
+    labels.push(isSectionHeader(entry) ? entry.sectionHeaderText : entry.text);
     if (isSidebarGroup(entry)) {
       labels.push(...collectLabels(entry.items));
     }
@@ -133,9 +143,7 @@ test('zh and en sidebars mirror the same route tree and carry concise labels', (
 
   // Spot-check the requested concise Chinese guide labels.
   const zhGuides = new Map(
-    (zh.sidebar['/docs/guides'] ?? [])
-      .filter((entry): entry is Exclude<DocsSidebarEntry, DocsSidebarGroup> => !isSidebarGroup(entry))
-      .map((entry) => [entry.link, entry.text]),
+    (zh.sidebar['/docs/guides'] ?? []).filter(isSidebarItem).map((entry) => [entry.link, entry.text]),
   );
   expect(zhGuides.get('/docs/guides/')).toBe('开始');
   expect(zhGuides.get('/docs/guides/installation')).toBe('安装');
@@ -157,6 +165,49 @@ test('zh and en sidebars mirror the same route tree and carry concise labels', (
     const serialized = JSON.stringify(loadLocaleNavigation(contentRoot, lang));
     expect(serialized).not.toContain(repositoryRoot);
   }
+});
+
+test('guide sidebar splits into start, features and operations sections in both locales', () => {
+  const zh = loadLocaleNavigation(contentRoot, 'zh');
+  const en = loadLocaleNavigation(contentRoot, 'en');
+  // Each section header followed by the pages it titles, as one list per section.
+  const sections = (entries: readonly DocsSidebarEntry[]): [string, string[]][] => {
+    const result: [string, string[]][] = [];
+    for (const entry of entries) {
+      if (isSectionHeader(entry)) {
+        result.push([entry.sectionHeaderText, []]);
+      } else if (isSidebarItem(entry)) {
+        const last = result[result.length - 1];
+        expect(last, `page before the first section header: ${entry.link}`).toBeDefined();
+        last?.[1].push(entry.link.replace(/^\/en/, '').replace('/docs/guides/', ''));
+      }
+    }
+    return result;
+  };
+  const start = ['', 'installation', 'ai-deploy', 'first-persona', 'first-bot', 'tuning', 'agent-assisted'];
+  const features = [
+    'models',
+    'playground',
+    'chats',
+    'knowledge',
+    'vision',
+    'stickers',
+    'image-generation',
+    'web-search',
+    'recurring-alarms',
+    'mcp',
+  ];
+  const operations = ['admin', 'maintenance', 'troubleshooting'];
+  expect(sections(zh.sidebar['/docs/guides'] ?? [])).toEqual([
+    ['起步', start],
+    ['功能与特性', features],
+    ['运营与维护', operations],
+  ]);
+  expect(sections(en.sidebar['/en/docs/guides'] ?? [])).toEqual([
+    ['Get started', start],
+    ['Features', features],
+    ['Operations', operations],
+  ]);
 });
 
 test('file entry labels override frontmatter titles while plain strings fall back to frontmatter', async () => {
@@ -195,6 +246,10 @@ test('malformed _meta.json entries and missing pages fail fast', async () => {
   const emptyLabel = await tempRoot();
   await writeFile(join(emptyLabel, '_meta.json'), JSON.stringify([{ type: 'file', name: 'guide', label: '' }]));
   expect(() => readMetaEntries(emptyLabel)).toThrow('unsupported entry');
+
+  const emptyHeader = await tempRoot();
+  await writeFile(join(emptyHeader, '_meta.json'), JSON.stringify([{ type: 'section-header', label: '' }]));
+  expect(() => readMetaEntries(emptyHeader)).toThrow('unsupported entry');
 
   const badType = await tempRoot();
   await writeFile(join(badType, '_meta.json'), JSON.stringify([{ type: 'custom-link', label: 'X', link: '/' }]));
