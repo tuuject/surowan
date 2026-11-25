@@ -48,8 +48,8 @@ description: 开启网络搜索、配置搜索引擎与 URL 过滤，以及用�
 `web_fetch` 是「按 URL 取一页」的能力，不是搜索，也不是通用 HTTP 客户端：
 
 - 只做无 Cookie、无认证 Header 的 HTTP(S) GET，不执行 JavaScript，不支持登录。内网、环回、非标准端口与不安全的重定向默认拒绝。
-- HTML 页面默认抽取正文并转成 Markdown（站点支持内容协商时优先要 Markdown，可用 `web_fetch.accept_markdown: false` 关闭），需要原始 HTML 时才显式请求。
-- 正文里的图片保留为带完整地址的 Markdown 图片链接。画面内容确实重要时，模型可以再用 `web_fetch` 打开那张图片的链接：**JPEG、PNG、WebP 会作为图片交给模型查看，单张最大 20 MiB**，GIF、AVIF 等格式不支持。
+- HTML 页面默认抽取正文并转成 Markdown（站点支持内容协商时优先要 Markdown，可用 `web_fetch.accept_markdown: false` 关闭），并在正文前单独列出从网页整理出的元数据（标题、描述、作者、发布时间、预览图、Schema.org 结构化数据等），需要原始 HTML 时才显式请求。
+- 正文里的图片保留为带完整地址的 Markdown 图片链接，预览图（`og:image`）同样给出完整地址；X 推文这类正文抽取不到配图的页面，模型也能通过预览图打开配图。画面内容确实重要时，模型可以再用 `web_fetch` 打开那张图片的链接：**JPEG、PNG、WebP 会作为图片交给模型查看，单张最大 20 MiB**，GIF、AVIF 等格式不支持。
 - 遇到防盗链时可以带上 `referer`（通常填所在网页的地址）。只有支持图片输入的模型才看得到画面，否则只会收到一段说明。
 - 需要 JS 渲染、登录或复杂解析时，请[接入 MCP 服务器](mcp.md)。
 

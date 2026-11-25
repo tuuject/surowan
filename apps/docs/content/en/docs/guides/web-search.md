@@ -48,8 +48,8 @@ Fields and validation are in [Web search settings](../configuration/web-search.m
 `web_fetch` retrieves one page by URL. It is neither a search nor a general HTTP client:
 
 - It performs an HTTP(S) GET with no cookies and no authentication headers, does not run JavaScript and cannot log in. Private and loopback addresses, nonstandard ports and unsafe redirect targets are rejected by default.
-- HTML pages return their main content as Markdown (sites that support content negotiation are asked for Markdown first; disable that with `web_fetch.accept_markdown: false`). Raw HTML is only fetched when explicitly requested.
-- Images in the body stay as Markdown image links with full addresses. When the picture itself matters, the model may fetch that image URL: **JPEG, PNG and WebP come back as an image for the model to look at, up to 20 MiB each**. GIF, AVIF and similar formats are not supported.
+- HTML pages return their main content as Markdown (sites that support content negotiation are asked for Markdown first; disable that with `web_fetch.accept_markdown: false`), preceded by a separate list of page metadata: title, description, author, publish time, preview image, Schema.org structured data and similar. Raw HTML is only fetched when explicitly requested.
+- Images in the body stay as Markdown image links with full addresses, and the preview image (`og:image`) is given as a full address too, so pages whose body yields no image, such as posts on X, can still have their picture opened. When the picture itself matters, the model may fetch that image URL: **JPEG, PNG and WebP come back as an image for the model to look at, up to 20 MiB each**. GIF, AVIF and similar formats are not supported.
 - Hotlink protection is handled with `referer` (usually the page URL). Only a model that accepts image input sees the picture; otherwise it receives an explanation.
 - Anything needing JavaScript rendering, a login or heavy parsing belongs behind an MCP server; see [Connect MCP servers](mcp.md).
 
