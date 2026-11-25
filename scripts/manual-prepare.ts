@@ -1,38 +1,34 @@
 import { mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
-import { dirname, join, posix, relative, resolve, sep } from 'node:path';
+import { dirname, join, relative, resolve, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { BUNDLED_MANUAL_DIR } from '../src/adapters/local-monolith/doc-spaces.ts';
 import { DOC_INDEX_PATH, resolveDocPath } from '../src/platform/doc-spaces.ts';
-import {
-  docsRoot,
-  exampleNames,
-  exampleSource,
-  FIELDS_INDEX_PAGE,
-  isGeneratedFieldsPage,
-  renderConfigFieldPages,
-  repositoryRoot,
-} from './docs/prepare.ts';
+import { FIELDS_INDEX_PAGE, isConfigFieldSectionPage } from './docs/config-fields/index.ts';
+import { isGeneratedPage, renderGeneratedPages } from './docs/generated-pages.ts';
+import { packedExamplePath, rewritePublicLinks } from './docs/manual-links.ts';
+import { isChildSegment, readMetaEntries } from './docs/navigation.ts';
+import { docsRoot, exampleNames, exampleSource, repositoryRoot } from './docs/prepare.ts';
 
-/** The docs site's hand-written page sources; the single source for the agent manual. */
-export const manualContentRoot = resolve(docsRoot, 'content/docs');
-/** Prefix the site build swaps for its public base path; the runtime has no site to link to. */
-const PUBLIC_LINK_PATTERN = /\[([^\]]*)\]\(__DOCS_BASE__\/([^)\s]*)\)/g;
+export { isChildSegment };
+
+/**
+ * The docs site publishes zh (root) and en (`/en/`); the agent manual packs only
+ * the English tree, so the runtime carries one manual instead of two copies of
+ * every page.
+ */
+export const manualContentRoot = resolve(docsRoot, 'content/en/docs');
 
 type ExampleName = (typeof exampleNames)[number];
 
 const EXAMPLE_DESCRIPTIONS: Record<ExampleName, { readonly language: string; readonly description: string }> = {
-  'config.example.jsonc': { language: 'jsonc', description: '完整的可运行配置样例原文。' },
-  'system-prompt.example.md': { language: 'markdown', description: '人格 Prompt 样例原文。' },
-  'docker-compose.yml': { language: 'yaml', description: 'Docker Compose 部署模板原文。' },
+  'config.minimal.example.jsonc': {
+    language: 'jsonc',
+    description: 'The smallest configuration that starts the service with the Admin Panel and no Telegram.',
+  },
+  'config.example.jsonc': { language: 'jsonc', description: 'The complete runnable configuration example, verbatim.' },
+  'system-prompt.example.md': { language: 'markdown', description: 'The persona prompt example, verbatim.' },
+  'docker-compose.yml': { language: 'yaml', description: 'The Docker Compose deployment template, verbatim.' },
 };
-
-interface NavDirectory {
-  readonly type: 'dir';
-  readonly name: string;
-  readonly label: string;
-}
-
-type NavEntry = string | NavDirectory;
 
 interface PackedPage {
   readonly path: string;
@@ -42,9 +38,17 @@ interface PackedPage {
   readonly content: string;
 }
 
+/**
+ * One index item. A navigation directory nests its pages where the parent lists
+ * it, instead of being appended after every direct page of the parent.
+ */
+type PackedBlock =
+  | { readonly kind: 'page'; readonly page: PackedPage }
+  | { readonly kind: 'group'; readonly label: string; readonly blocks: readonly PackedBlock[] };
+
 interface PackedSection {
   readonly label: string;
-  readonly pages: readonly PackedPage[];
+  readonly blocks: readonly PackedBlock[];
 }
 
 export interface ManualPackResult {
@@ -58,55 +62,56 @@ export interface ManualPackResult {
  * navigation and frontmatter, so the agent index cannot drift from the published
  * manual: a page missing from navigation, or a navigation entry without a page,
  * fails the build.
+ *
+ * Generated pages come from the registry in `scripts/docs/generated-pages.ts`,
+ * not from the sidebar: a page navigation lists is packed at that position, the
+ * configuration field sections follow their index, and every other generated
+ * page lands in "Other pages" instead of disappearing.
  */
 export async function packManual(options: {
   readonly outDir: string;
   readonly contentRoot?: string;
+  /** Overrides the generated-page registry; tests use it to prove discovery without a generator. */
+  readonly generatedPages?: ReadonlyMap<string, string>;
 }): Promise<ManualPackResult> {
   const outDir = resolve(options.outDir);
   if (outDir === repositoryRoot || repositoryRoot.startsWith(`${outDir}${sep}`)) {
     throw new Error(`Refusing to pack the manual into ${outDir}`);
   }
   const contentRoot = resolve(options.contentRoot ?? manualContentRoot);
+  const generatedPages = options.generatedPages ?? renderGeneratedPages('en');
+  const packed = new Set<string>();
   const rootPages: PackedPage[] = [];
   const sections: PackedSection[] = [];
-  const listed: string[] = [];
-  for (const entry of await readNavigation(contentRoot)) {
-    if (typeof entry === 'string') {
-      // The pack generates its own root index; the site's landing page is navigation for humans.
-      if (entry === 'index') {
-        continue;
-      }
-      const page = await readPage(contentRoot, `${entry}.md`);
-      rootPages.push(page);
-      listed.push(page.path);
+  for (const entry of readMetaEntries(contentRoot)) {
+    // Root pages form one flat Overview list; a header there has nothing to title.
+    if (typeof entry !== 'string' && entry.type === 'section-header') {
       continue;
     }
-    const pages: PackedPage[] = [];
-    for (const name of await readNavigation(join(contentRoot, entry.name))) {
-      if (typeof name !== 'string') {
-        throw new Error(`Nested navigation directory is unsupported in ${entry.name}/_meta.json`);
+    if (typeof entry === 'string' || entry.type === 'file') {
+      const name = typeof entry === 'string' ? entry : entry.name;
+      // The pack generates its own root index; the site's landing page is navigation for humans.
+      if (name === 'index') {
+        continue;
       }
-      const page = await readPage(contentRoot, `${entry.name}/${name}.md`);
-      pages.push(page);
-      listed.push(page.path);
-      // The sidebar lists only the generated reference index; its section pages follow it.
-      if (page.path === FIELDS_INDEX_PAGE) {
-        for (const path of renderConfigFieldPages().keys()) {
-          if (path !== FIELDS_INDEX_PAGE) {
-            pages.push(await readPage(contentRoot, path));
-            listed.push(path);
-          }
-        }
-      }
+      const page = await readPage(contentRoot, `${name}.md`, generatedPages);
+      rootPages.push(page);
+      packed.add(page.path);
+      continue;
     }
-    sections.push({ label: entry.label, pages });
+    sections.push(await packSection(contentRoot, entry.name, entry.label, generatedPages, packed));
   }
   // Pages the site links but does not list in its sidebar still exist and stay
   // readable, in a clearly marked section instead of being dropped from the index.
-  const unlisted: PackedPage[] = [];
-  for (const path of await listUnlistedPages(contentRoot, listed)) {
-    unlisted.push(await readPage(contentRoot, path));
+  const unlisted = new Map<string, PackedPage>();
+  for (const path of await listUnlistedPages(contentRoot, packed)) {
+    unlisted.set(path, await readPage(contentRoot, path, generatedPages));
+  }
+  // Generated pages the sidebar does not reach are still part of the registry.
+  for (const path of [...generatedPages.keys()].sort()) {
+    if (!packed.has(path)) {
+      unlisted.set(path, await readPage(contentRoot, path, generatedPages));
+    }
   }
   // The site's downloadable examples are what its deployment pages tell readers
   // to start from, so the pack ships them as readable pages instead of dead links.
@@ -114,87 +119,82 @@ export async function packManual(options: {
   for (const name of exampleNames) {
     examples.push(await readExample(name));
   }
-  const packedSections = [
+  const packedSections: PackedSection[] = [
     ...sections,
-    { label: '示例文件', pages: examples },
-    ...(unlisted.length === 0 ? [] : [{ label: '其他页面', pages: unlisted }]),
+    { label: 'Example files', blocks: examples.map(pageBlock) },
+    ...(unlisted.size === 0 ? [] : [{ label: 'Other pages', blocks: [...unlisted.values()].map(pageBlock) }]),
   ];
+  const documents = [...packedSections.flatMap((section) => flattenBlocks(section.blocks)), ...rootPages];
 
   await removeStaleDocuments(outDir);
-  for (const page of [...rootPages, ...packedSections.flatMap((section) => section.pages)]) {
+  for (const page of documents) {
     const target = join(outDir, page.path);
     await mkdir(dirname(target), { recursive: true });
     await writeFile(target, page.content);
   }
-  const documents = [...packedSections.flatMap((section) => section.pages), ...rootPages];
-  await writeFile(
-    join(outDir, DOC_INDEX_PATH),
-    renderIndex({ sections: packedSections, rootPages, total: documents.length }),
-  );
+  await writeFile(join(outDir, DOC_INDEX_PATH), renderIndex({ sections: packedSections, rootPages }));
   return { outDir, documents: documents.map((page) => page.path) };
 }
 
-async function readNavigation(directory: string): Promise<readonly NavEntry[]> {
-  const path = join(directory, '_meta.json');
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(await readFile(path, 'utf8'));
-  } catch {
-    throw new Error(`Documentation navigation is missing or invalid: ${path}`);
-  }
-  if (!Array.isArray(parsed)) {
-    throw new Error(`Documentation navigation is not an array: ${path}`);
-  }
-  for (const entry of parsed) {
-    if (typeof entry === 'string') {
-      if (entry.length === 0) {
-        throw new Error(`Documentation navigation contains an empty entry: ${path}`);
-      }
+/** One navigation directory, as blocks that keep nested directories in place. */
+async function packSection(
+  contentRoot: string,
+  directory: string,
+  label: string,
+  generatedPages: ReadonlyMap<string, string>,
+  packed: Set<string>,
+): Promise<PackedSection> {
+  const blocks: PackedBlock[] = [];
+  // A section header titles the entries after it up to the next header, so the
+  // index groups them under that heading the way the sidebar does.
+  let current = blocks;
+  for (const entry of readMetaEntries(join(contentRoot, directory))) {
+    if (typeof entry !== 'string' && entry.type === 'section-header') {
+      current = [];
+      blocks.push({ kind: 'group', label: entry.label, blocks: current });
       continue;
     }
-    if (!isNavDirectory(entry)) {
-      throw new Error(`Documentation navigation contains an unsupported entry: ${path}`);
+    if (typeof entry !== 'string' && entry.type === 'dir') {
+      const child = await packSection(contentRoot, `${directory}/${entry.name}`, entry.label, generatedPages, packed);
+      current.push({ kind: 'group', label: child.label, blocks: child.blocks });
+      continue;
+    }
+    const name = typeof entry === 'string' ? entry : entry.name;
+    const path = `${directory}/${name}.md`;
+    current.push({ kind: 'page', page: await readPage(contentRoot, path, generatedPages) });
+    packed.add(path);
+    // The sidebar lists only the generated reference index; its section pages follow it.
+    if (path === FIELDS_INDEX_PAGE) {
+      for (const sectionPath of [...generatedPages.keys()].filter(isConfigFieldSectionPage).sort()) {
+        if (!packed.has(sectionPath)) {
+          current.push({ kind: 'page', page: await readPage(contentRoot, sectionPath, generatedPages) });
+          packed.add(sectionPath);
+        }
+      }
     }
   }
-  const navigation: readonly NavEntry[] = parsed;
-  return navigation;
+  return { label, blocks };
 }
 
-/** Type guard: keeps the navigation contract checked before any entry is treated as a directory. */
-function isNavDirectory(entry: unknown): entry is NavDirectory {
-  return (
-    typeof entry === 'object' &&
-    entry !== null &&
-    'type' in entry &&
-    entry.type === 'dir' &&
-    'name' in entry &&
-    typeof entry.name === 'string' &&
-    entry.name.length > 0 &&
-    'label' in entry &&
-    typeof entry.label === 'string' &&
-    entry.label.length > 0
-  );
-}
-
-async function readPage(contentRoot: string, path: string): Promise<PackedPage> {
+async function readPage(
+  contentRoot: string,
+  path: string,
+  generatedPages: ReadonlyMap<string, string>,
+): Promise<PackedPage> {
   resolveDocPath(path);
-  if (isGeneratedFieldsPage(path)) {
+  const content = generatedPages.get(path);
+  if (content !== undefined) {
     // Regenerated from the ConfigSchema the runtime validates: a Docker build
-    // context has no docs:prepare output to copy.
-    const content = renderConfigFieldPages().get(path);
-    if (content === undefined) {
-      throw new Error(`No configuration section generates ${path}`);
-    }
+    // context has no scripts/docs/prepare.ts output to copy.
     return { path, content: rewritePublicLinks(content, path), ...parseFrontmatter(content, path) };
+  }
+  if (isGeneratedPage(path)) {
+    throw new Error(`The generated-page registry has no page for ${path}`);
   }
   const text = await readFile(resolve(contentRoot, path), 'utf8').catch(() => {
     throw new Error(`Manual page listed in navigation does not exist: ${path}`);
   });
   return { path, content: rewritePublicLinks(text, path), ...parseFrontmatter(text, path) };
-}
-
-function examplePath(name: ExampleName): string {
-  return `examples/${name.endsWith('.md') ? name : `${name}.md`}`;
 }
 
 /** One downloadable example as a Markdown page that quotes the file verbatim. */
@@ -206,43 +206,25 @@ async function readExample(name: ExampleName): Promise<PackedPage> {
   const content = [
     `# ${name}`,
     '',
-    `${description}文档站以 \`${name}\` 提供下载；下面是同一文件的原文。`,
+    `${description} The documentation site offers \`${name}\` for download; below is the same file verbatim.`,
     '',
     `${fence}${language}`,
     source.endsWith('\n') ? source.slice(0, -1) : source,
     fence,
     '',
   ].join('\n');
-  return { path: examplePath(name), title: `示例文件 ${name}`, description, content };
-}
-
-/**
- * Rewrites the site's `__DOCS_BASE__/` links, which only resolve on the
- * published site. Examples point at their packed pages; other public resources
- * (JSON Schema, llms.txt) keep their label but lose the link, since the runtime
- * cannot serve them and the `reference/fields*.md` pages already cover the schema.
- */
-function rewritePublicLinks(text: string, pagePath: string): string {
-  const rewritten = text.replace(PUBLIC_LINK_PATTERN, (_link, label: string, target: string) => {
-    const example = exampleNames.find((name) => target === `examples/${name}`);
-    if (example === undefined) {
-      return label;
-    }
-    return `[${label}](${posix.relative(posix.dirname(pagePath), examplePath(example))})`;
-  });
-  if (rewritten.includes('__DOCS_BASE__')) {
-    throw new Error(`Manual page has a public-resource reference the pack cannot rewrite: ${pagePath}`);
-  }
-  return rewritten;
+  return { path: packedExamplePath(name), title: `Example file ${name}`, description, content };
 }
 
 /** Markdown sources absent from navigation, which the pack still ships and indexes. */
-async function listUnlistedPages(contentRoot: string, listed: readonly string[]): Promise<readonly string[]> {
+async function listUnlistedPages(contentRoot: string, listed: ReadonlySet<string>): Promise<readonly string[]> {
   const files = (await readdir(contentRoot, { recursive: true, withFileTypes: true }))
     .filter((entry) => entry.isFile() && entry.name.endsWith('.md'))
     .map((entry) => relative(contentRoot, join(entry.parentPath, entry.name)).split(sep).join('/'));
-  // Generated pages left on disk by docs:prepare are packed fresh beside their index, never from disk.
-  return files.filter((path) => path !== 'index.md' && !listed.includes(path) && !isGeneratedFieldsPage(path)).sort();
+  // Generated pages left on disk by scripts/docs/prepare.ts are packed fresh from the registry, never from disk.
+  return files
+    .filter((path) => path !== 'index.md' && !listed.has(path) && !isGeneratedPage(path))
+    .sort((left, right) => left.localeCompare(right));
 }
 
 /** Removes documents left behind by a previous pack; only Markdown is generated here. */
@@ -253,6 +235,24 @@ async function removeStaleDocuments(outDir: string): Promise<void> {
       await rm(join(entry.parentPath, entry.name));
     }
   }
+}
+
+/** A frontmatter scalar: JSON quoting is decoded, a plain scalar is already the value. */
+function parseFrontmatterValue(raw: string, label: string): string {
+  const value = raw.trim();
+  if (!value.startsWith('"')) {
+    return value;
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(value);
+  } catch {
+    throw new Error(`Manual page has an invalid quoted frontmatter value: ${label}`);
+  }
+  if (typeof parsed !== 'string') {
+    throw new Error(`Manual page has a non-string frontmatter value: ${label}`);
+  }
+  return parsed;
 }
 
 function parseFrontmatter(text: string, label: string): { title: string; description: string } {
@@ -270,7 +270,7 @@ function parseFrontmatter(text: string, label: string): { title: string; descrip
     if (separator <= 0) {
       throw new Error(`Manual page has an invalid frontmatter line: ${label}`);
     }
-    fields[line.slice(0, separator).trim()] = line.slice(separator + 1).trim();
+    fields[line.slice(0, separator).trim()] = parseFrontmatterValue(line.slice(separator + 1), label);
   }
   const title = fields.title ?? '';
   const description = fields.description ?? '';
@@ -280,34 +280,66 @@ function parseFrontmatter(text: string, label: string): { title: string; descrip
   return { title, description };
 }
 
+function pageBlock(page: PackedPage): PackedBlock {
+  return { kind: 'page', page };
+}
+
+/** Every page of a block tree, in reading order. */
+function flattenBlocks(blocks: readonly PackedBlock[]): PackedPage[] {
+  return blocks.flatMap((block) => (block.kind === 'page' ? [block.page] : flattenBlocks(block.blocks)));
+}
+
 /** The compact Markdown index the document tools return; navigation order is reading order. */
 function renderIndex(options: {
   readonly sections: readonly PackedSection[];
   readonly rootPages: readonly PackedPage[];
-  readonly total: number;
 }): string {
+  const total = options.sections.reduce((count, section) => count + flattenBlocks(section.blocks).length, 0);
   const lines = [
-    '# 塑料碗用户手册',
+    '# Surowan User Manual',
     '',
-    `本索引由构建脚本从文档站的 \`_meta.json\` 导航和各页 frontmatter 生成，与当前运行版本一起发布，共 ${options.total} 篇。`,
+    `This index is generated by the build script from the documentation site's \`_meta.json\` navigation and each page's frontmatter, and ships with the running version: ${total + options.rootPages.length} pages.`,
     '',
-    '用 `read_document` 读取本空间的页面（`space: "manual"`，`path` 为相对本索引的路径）；读到相对链接时，把当前页路径作为 `base` 传入。按当前任务挑页读，不要一次读完整个手册。',
+    'Use `read_document` to read a page in this space (`space: "manual"`, `path` relative to this index). When a page links another page relatively, pass the current page path as `base`. Read only the pages the current task needs instead of the whole manual.',
     '',
-    '这些文档随运行版本发布，可能与该用户实际部署的版本不同；涉及版本差异的行为以用户实际运行的版本为准。',
+    'These documents ship with the running version and may differ from the version this user deployed; where behaviour differs, the version they run wins.',
     '',
   ];
-  const section = (label: string, pages: readonly PackedPage[]): void => {
-    lines.push(`## ${label}`, '');
-    for (const page of pages) {
-      lines.push(`- [${page.title}](${page.path}): ${page.description}`);
+  const blank = (): void => {
+    if (lines[lines.length - 1] !== '') {
+      lines.push('');
     }
-    lines.push('');
   };
-  if (options.rootPages.length > 0) {
-    section('总览', options.rootPages);
-  }
+  const blocks = (entries: readonly PackedBlock[], depth: number): void => {
+    const indent = '  '.repeat(depth - 1);
+    for (const entry of entries) {
+      if (entry.kind === 'page') {
+        lines.push(`${indent}- [${entry.page.title}](${entry.page.path}): ${entry.page.description}`);
+        continue;
+      }
+      // A nested navigation directory keeps its position and its own heading level.
+      if (flattenBlocks(entry.blocks).length === 0) {
+        continue;
+      }
+      blank();
+      lines.push(`${'#'.repeat(2 + depth)} ${entry.label}`);
+      blank();
+      blocks(entry.blocks, depth + 1);
+      blank();
+    }
+  };
+  const section = (label: string, entries: readonly PackedBlock[]): void => {
+    if (entries.length === 0) {
+      return;
+    }
+    lines.push(`## ${label}`);
+    blank();
+    blocks(entries, 1);
+    blank();
+  };
+  section('Overview', options.rootPages.map(pageBlock));
   for (const entry of options.sections) {
-    section(entry.label, entry.pages);
+    section(entry.label, entry.blocks);
   }
   return lines.join('\n');
 }

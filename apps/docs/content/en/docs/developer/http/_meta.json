@@ -1,0 +1,12 @@
+[
+  { "type": "file", "name": "index", "label": "Conventions" },
+  { "type": "file", "name": "audit", "label": "Audit & resume" },
+  { "type": "file", "name": "configuration", "label": "Config & tools" },
+  { "type": "file", "name": "data", "label": "Knowledge & alarms" },
+  { "type": "file", "name": "playground-images", "label": "Playground & images" },
+  { "type": "file", "name": "endpoints-audit", "label": "Endpoints: audit" },
+  { "type": "file", "name": "endpoints-configuration", "label": "Endpoints: config" },
+  { "type": "file", "name": "endpoints-data", "label": "Endpoints: data" },
+  { "type": "file", "name": "endpoints-playground-images", "label": "Endpoints: Playground" },
+  { "type": "file", "name": "endpoints-session", "label": "Endpoints: session" }
+]

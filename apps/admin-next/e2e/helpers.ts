@@ -31,14 +31,45 @@ process.on('exit', () => {
 });
 
 /**
+ * Options fixed when a file's server first boots. The docs screenshot suite
+ * extends the fixture with `seedLocale` (localized synthetic rows) and
+ * `passkeys` (a localhost origin with a WebAuthn RP id); the ordinary E2E
+ * suites keep the defaults, so their fixture text and mode are unchanged.
+ */
+export interface ServerOptions {
+  readonly mcpImages: boolean;
+  readonly mcpManager: boolean;
+  /** `E2E_SEED_LOCALE`: seed the docs suite's language-specific text. */
+  readonly seedLocale: string | null;
+  /** `E2E_DOCS_RUNS`: also seed the docs suite's failed and tool-using runs. */
+  readonly docsRuns: boolean;
+  /** `E2E_PASSKEYS`: bind localhost and set `admin.public_url` for real WebAuthn. */
+  readonly passkeys: boolean;
+  /** Username the fixture administrator is created with; the docs suite uses a presentable one. */
+  readonly adminUsername: string;
+}
+
+export const DEFAULT_SERVER_OPTIONS: ServerOptions = {
+  mcpImages: false,
+  mcpManager: false,
+  seedLocale: null,
+  docsRuns: false,
+  passkeys: false,
+  adminUsername: E2E_USERNAME,
+};
+
+/**
  * Every spec file runs against its own freshly seeded E2E backend (real
  * AdminServer + SqliteStore + the synthetic fixture, see `e2e/server.ts`), so
  * files share no state and can run in parallel workers in any order. Within a
  * worker, files run one after another: the first call from a new file stops
  * the previous file's server and starts a new one. The server also exits on
  * its own when its stdin closes, so a killed worker leaves nothing behind.
+ *
+ * The options only apply to the first call for a file: every later call in the
+ * same file reuses that server, so a fixture may set them once per file.
  */
-async function ensureServer(mcpImages = false, mcpManager = false): Promise<RunningServer> {
+async function ensureServer(options: ServerOptions = DEFAULT_SERVER_OPTIONS): Promise<RunningServer> {
   const file = base.info().file;
   if (current?.file === file) {
     return current;
@@ -53,7 +84,18 @@ async function ensureServer(mcpImages = false, mcpManager = false): Promise<Runn
     cwd: root,
     stdio: ['pipe', 'pipe', 'inherit'],
     windowsHide: true,
-    env: { ...process.env, E2E_MCP_IMAGES: mcpImages ? '1' : '0', E2E_MCP_MANAGER: mcpManager ? '1' : '0' },
+    env: {
+      ...process.env,
+      E2E_MCP_IMAGES: options.mcpImages ? '1' : '0',
+      E2E_MCP_MANAGER: options.mcpManager ? '1' : '0',
+      // Always explicit: a developer with `E2E_SEED_LOCALE` exported must not
+      // silently turn the ordinary E2E suites into the docs seed. The passkeys
+      // suite, by contrast, starts the server through its own inherited
+      // `E2E_PASSKEYS=1`, so that one is only added when a fixture asks for it.
+      E2E_SEED_LOCALE: options.seedLocale ?? '',
+      E2E_DOCS_RUNS: options.docsRuns ? '1' : '0',
+      ...(options.passkeys ? { E2E_PASSKEYS: '1' } : {}),
+    },
   });
   const baseURL = await waitForReady(child);
   serverCount += 1;
@@ -99,17 +141,27 @@ export async function adminBase(): Promise<string> {
   return (await ensureServer()).baseURL;
 }
 
+/**
+ * Boots this file's server with the given options, without signing in. The
+ * docs fixture calls it first for every file, so a `signedIn: false` spec (the
+ * sign-in page) still gets its locale-seeded backend, and helpers that run
+ * before any page can no longer boot the file's server with defaults.
+ */
+export async function prepareServer(options: ServerOptions = DEFAULT_SERVER_OPTIONS): Promise<string> {
+  return (await ensureServer(options)).baseURL;
+}
+
 export async function adminUrl(path: string): Promise<string> {
   return `${await adminBase()}${path}`;
 }
 
 /** Creates the E2E administrator unless the spec's server already has an account. */
-export async function ensureAdmin(baseURL?: string): Promise<void> {
+export async function ensureAdmin(baseURL?: string, username: string = E2E_USERNAME): Promise<void> {
   const base = baseURL ?? (await adminBase());
   const response = await fetch(`${base}/__e2e/ensure-admin`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ username: E2E_USERNAME, password: E2E_PASSWORD }),
+    body: JSON.stringify({ username, password: E2E_PASSWORD }),
   });
   if (!response.ok) {
     throw new Error(`E2E hook /ensure-admin failed with HTTP ${response.status}`);
@@ -133,16 +185,16 @@ export async function e2eFetch<T>(path: string, init?: RequestInit): Promise<T> 
  * the real password login; specs that change the session
  * may overwrite the file and later contexts in the same file pick that up.
  */
-export async function authStoragePath(mcpImages = false, mcpManager = false): Promise<string> {
-  const server = await ensureServer(mcpImages, mcpManager);
+export async function authStoragePath(options: ServerOptions = DEFAULT_SERVER_OPTIONS): Promise<string> {
+  const server = await ensureServer(options);
   if (server.signedIn) {
     return server.authFile;
   }
-  await ensureAdmin(server.baseURL);
+  await ensureAdmin(server.baseURL, options.adminUsername);
   const response = await fetch(`${server.baseURL}/api/auth/login`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ username: E2E_USERNAME, password: E2E_PASSWORD }),
+    body: JSON.stringify({ username: options.adminUsername, password: E2E_PASSWORD }),
   });
   const cookie = (response.headers.get('set-cookie') ?? '').split(';')[0] ?? '';
   const separator = cookie.indexOf('=');
@@ -173,15 +225,37 @@ export async function authStoragePath(mcpImages = false, mcpManager = false): Pr
  * The suite's `test`: `test.use({ signedIn: true })` gives every context and
  * request fixture of the spec a live admin session on the spec's own server.
  */
-export const test = base.extend<{ signedIn: boolean; mcpImages: boolean; mcpManager: boolean }>({
+export const test = base.extend<{
+  signedIn: boolean;
+  mcpImages: boolean;
+  mcpManager: boolean;
+  seedLocale: string | null;
+  docsRuns: boolean;
+  passkeys: boolean;
+  adminUsername: string;
+}>({
   signedIn: [false, { option: true }],
   mcpImages: [false, { option: true }],
   // The outbound MCP manager (a stdio fixture child plus a degraded HTTP
   // endpoint) runs only in the specs that assert on it, so unrelated suites
   // keep the fixture's "no connection manager" footprint.
   mcpManager: [false, { option: true }],
-  storageState: async ({ signedIn, mcpImages, mcpManager, storageState }, use) => {
-    await use(signedIn ? await authStoragePath(mcpImages, mcpManager) : storageState);
+  // Docs screenshot suite only: localized synthetic rows, passkey mode and a
+  // presentable fixture administrator name.
+  seedLocale: [null, { option: true }],
+  docsRuns: [false, { option: true }],
+  passkeys: [false, { option: true }],
+  adminUsername: [E2E_USERNAME, { option: true }],
+  storageState: async (
+    { signedIn, mcpImages, mcpManager, seedLocale, docsRuns, passkeys, adminUsername, storageState },
+    use,
+  ) => {
+    const options = { mcpImages, mcpManager, seedLocale, docsRuns, passkeys, adminUsername };
+    // The options select the server whether or not this spec wants a session:
+    // booting only for `signedIn` would leave an unsigned spec (or a helper that
+    // runs first) with the default fixture's text.
+    await prepareServer(options);
+    await use(signedIn ? await authStoragePath(options) : storageState);
   },
 });
 

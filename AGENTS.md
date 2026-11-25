@@ -128,6 +128,7 @@ pnpm run docs:dev
 pnpm run docs:build
 pnpm run docs:verify
 pnpm run docs:preview
+pnpm run docs:screenshots
 pnpm run manual:prepare
 pnpm run skills:sync
 ```

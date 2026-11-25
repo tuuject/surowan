@@ -8,6 +8,7 @@
  */
 import type { ServerType } from '@hono/node-server';
 import { startFixtureServer } from '../../../test/helpers.ts';
+import { requestedDocsSeed } from './docs-locale.ts';
 import {
   E2E_ACCEPTED_RELAY_KEYS,
   E2E_HEALTH_CHATTY_MODEL,
@@ -159,6 +160,41 @@ export function holdHealthGate(model?: string): void {
  * suggestion with no fixed prompt), so only the health prompt pays this
  * contract; the merge model's request is recorded verbatim instead.
  */
+/** The opening line of the docs image-asset extraction's system prompt, which is enough to recognise it. */
+const ASSET_EXTRACTION_PROMPT_OPENING = 'You look at one picture from a chat bot administrator';
+
+/**
+ * The image-asset extraction is a plain completion whose answer must be JSON.
+ * Only the docs suite asks the loopback upstream for it, and only there may the
+ * answer be in the documentation language, so it is handled before the health
+ * contract (which every other request on this upstream must satisfy).
+ */
+function docsAssetExtractionReply(body: Record<string, unknown>): string | null {
+  const seed = requestedDocsSeed();
+  if (seed === null) {
+    return null;
+  }
+  // Only the system message identifies the job: the user turn carries the
+  // picture and must never be able to pick an answer.
+  const messages = Array.isArray(body.messages) ? body.messages : [];
+  const system = messages
+    .filter(
+      (message) => typeof message === 'object' && message !== null && (message as { role?: unknown }).role === 'system',
+    )
+    .map((message) => JSON.stringify((message as { content?: unknown }).content ?? ''))
+    .join(' ');
+  if (!system.includes(ASSET_EXTRACTION_PROMPT_OPENING)) {
+    return null;
+  }
+  return JSON.stringify({ name: seed.images.extractedName, keywords: [...seed.images.extractedKeywords] });
+}
+
+/** The extract call streams like every other completion here; the JSON arrives as the delta. */
+function completionStream(model: string, content: string): Response {
+  const body = healthSseChunks(model, content).join('');
+  return new Response(body, { headers: { 'content-type': 'text/event-stream', 'cache-control': 'no-cache' } });
+}
+
 function validateHealthRequest(body: Record<string, unknown>): string | null {
   const model = body.model;
   if (typeof model !== 'string' || model.length === 0) {
@@ -241,6 +277,10 @@ async function handleHealthCompletions(request: Request): Promise<Response> {
     body = (await request.json()) as Record<string, unknown>;
   } catch {
     return Response.json({ error: { message: 'fixture: request body is not JSON' } }, { status: 400 });
+  }
+  const extraction = docsAssetExtractionReply(body);
+  if (extraction !== null) {
+    return completionStream(String(body.model), extraction);
   }
   const validationError = validateHealthRequest(body);
   if (validationError !== null) {

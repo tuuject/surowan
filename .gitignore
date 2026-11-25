@@ -6,15 +6,23 @@ dist/
 *.sqlite-shm
 *.sqlite-wal
 test-tmp/
+# Staged files of a docs screenshot run; only a complete run publishes them.
+apps/admin-next/.docs-shots-staging/
 dev-data/
 .env
 .env.local
 key.json
-apps/docs/content/docs/reference/fields.md
-apps/docs/content/docs/reference/fields-*.md
+# Generated for both locales by scripts/docs/prepare.ts (field reference,
+# build info, schema copy, downloadable examples and the old-URL redirects).
+apps/docs/content/*/docs/configuration/fields.md
+apps/docs/content/*/docs/configuration/fields-*.md
+apps/docs/content/*/docs/developer/http/endpoints-*.md
+apps/docs/content/*/docs/developer/mcp-tools.md
+apps/docs/content/*/docs/developer/cli-commands.md
 apps/docs/content/public/examples/
 apps/docs/content/public/config.schema.json
 apps/docs/content/public/build-info.json
+apps/docs/content/public/_redirects
 src/manual/
 /version
 .idea/

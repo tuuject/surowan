@@ -38,10 +38,10 @@ RUN pnpm --config.verify-deps-before-run=false run admin:build \
     && pnpm --config.verify-deps-before-run=false run --filter @surowan/image-service build \
     && pnpm --config.verify-deps-before-run=false run --filter @surowan/admin-surface build
 
-# Pack the user-manual Markdown the runtime serves through its document
-# capabilities. Only content/docs and the examples enter the build context (see .dockerignore);
-# the docs site itself is never built or shipped. The pack lands in src/manual,
-# which the builder stage copies into the src/ that ships.
+# Pack the English user-manual Markdown the runtime serves through its document
+# capabilities. Only content/en/docs and the examples enter the build context (see .dockerignore);
+# the docs site itself is never built or shipped, and the zh tree is never packed.
+# The pack lands in src/manual, which the builder stage copies into the src/ that ships.
 RUN node scripts/manual-prepare.ts
 
 # ── Stage 2: Target-platform production deps ────────────────────

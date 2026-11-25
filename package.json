@@ -21,6 +21,7 @@
     "admin:dev:mock": "pnpm --filter surowan-admin-next run dev:mock",
     "admin:build": "pnpm --filter surowan-admin-next run build",
     "admin:test:e2e": "pnpm --filter surowan-admin-next run test:e2e",
+    "docs:screenshots": "pnpm --filter surowan-admin-next run docs:screenshots",
     "docs:dev": "pnpm --filter surowan-docs run dev",
     "docs:build": "pnpm --filter surowan-docs run build",
     "docs:preview": "pnpm --filter surowan-docs run preview",
@@ -61,6 +62,7 @@
     "@types/better-sqlite3": "^9.6.0",
     "@types/node": "^26.6.5",
     "@types/semver": "^7.8.0",
+    "mdast-util-from-markdown": "2.0.3",
     "skills": "1.7.2",
     "typescript": "5.9.3",
     "vitest": "^5.0.3"

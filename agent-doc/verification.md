@@ -16,7 +16,7 @@ GitHub Actions 会跑同一组检查；提交前按改动范围自己跑过，�
 
 | Workflow | 触发 | 执行的验证 |
 | --- | --- | --- |
-| `.github/workflows/docs.yml` | PR、push `main`/`develop` | `pnpm install --frozen-lockfile`、`pnpm run check`、`pnpm run lint`、`pnpm test test/docs/examples.test.ts`、`pnpm test test/docs/search.test.ts`（两个文件分开各跑一次，避免 vitest OR 多个过滤器时静默放过改名后的文件）、`pnpm run docs:build`、`pnpm run docs:verify`；构建后 `git status --porcelain` 必须为空；`DOCS_BASE_PATH=/` 与 `/surowan/` 各跑一遍 |
+| `.github/workflows/docs.yml` | PR、push `main`/`develop` | `pnpm install --frozen-lockfile`、`pnpm run check`、`pnpm run lint`、`test/docs/` 下每个 `*.test.ts` 各一条 `pnpm test <文件>`（逐文件跑，避免 vitest OR 多个过滤器时静默放过改名后的文件）、`pnpm run docs:build`、`pnpm run docs:verify`；构建后 `git status --porcelain` 必须为空；`DOCS_BASE_PATH=/` 与 `/surowan/` 各跑一遍 |
 | `.github/workflows/docker.yml` 的 `verify` job | PR、push `main`/`develop`/`v*` | 全量 `pnpm test`、`pnpm run admin:build` 后全量 `pnpm run admin:test:e2e`（镜像构建见 [Docker 部署](operations.md#docker-部署)） |
 | `.github/workflows/npm.yml` | push `main` 与 `v*` tag | `pnpm run cli:check`、`pnpm test test/invocations test/cli`、`pnpm test test/npm-release.test.ts`、`scripts/npm-release.ts` 的 ref/版本校验与打包发布 |
 
@@ -45,6 +45,9 @@ pnpm test test/cli/credentials.test.ts test/cli/login.test.ts test/cli/login-htt
 pnpm test test/npm-release.test.ts
 pnpm test test/docs/examples.test.ts test/docs/search.test.ts test/docs/markdown.test.ts
 pnpm test test/docs/spaces.test.ts test/manual-pack.test.ts
+pnpm test test/docs/config-fields.test.ts test/docs/lifecycle.test.ts test/docs/redirects.test.ts
+pnpm test test/docs/interface-catalog.test.ts test/docs/interface-catalog-labels.test.ts
+pnpm test test/docs/screenshot-assets.test.ts test/docs/screenshot-references.test.ts
 pnpm test test/replay/replay.test.ts test/scene/context.test.ts test/scene/slice.test.ts test/scene/retention.test.ts test/replay/tools.test.ts test/replay/http.test.ts
 pnpm test test/skills.test.ts test/system-resources.test.ts test/plugins.test.ts
 pnpm test test/media/media.test.ts test/stickers.test.ts
@@ -158,7 +161,14 @@ pnpm test test/im test/intake test/schema/migrations-host-neutral-ids.test.ts te
 | `cli/login-http.test.ts` | 凭据文件驱动的 doctor 真实 HTTP 链路：`GET /api/invocations?limit=1` 验证连通与鉴权、成功输出 `{status:"ok",endpoint,credential_sources}` 与退出码 0、凭据值缺失或不合法退出码 2、文件校验或请求失败退出码 1、不输出 Invocation 正文、不调用模型/不发送 Telegram/不重试、鉴权仍更新 key 的 `last_used_at` |
 | `npm-release.test.ts` | main canary 版本含 run/attempt/SHA 且不同 run、retry 与 commit 互不相同、仅精确稳定 tag 进入 latest、拒绝非 push/其它仓库与非法 ref、GitHub 输出不改源码 manifest、仅独立 CLI 包公开 |
 | `docs/examples.test.ts` / `docs/search.test.ts` / `docs/markdown.test.ts` | 公开配置示例的离线语义校验、生成字段与部署 URL、已安装搜索组件的键盘回归；Markdown 检查正确区分缩进代码块与真实 H1，LF/CRLF 下不漏提取代码块 |
-| `docs/spaces.test.ts` / `manual-pack.test.ts` | 文档空间路径语法（绝对路径、`..` 越界、空段、非 Markdown 拒绝）与 `base` 链接解析（含 `#锚点` 丢弃与纯锚点链接）；真实目录读取、索引、缺失文档、符号链接逃逸（含根内链接可读）、32 KiB 截断；未安装空间与缺失索引的加载语义；两个能力经 `execute` 注册表调用并与外层审计一致（成功/`unknown_space`/`document_not_found`/`invalid_path`/`unsupported_document`）；构建产物把 `content/docs` 与 `_meta.json` 导航打包为 `src/manual`（无占位符的页面逐字节一致、`__DOCS_BASE__` 链接改写且示例原文成页、生成的字段页来自 ConfigSchema、索引完整且顺序正确、侧栏外页面进入「其他页面」、重打包清理陈旧文档、导航指向缺失页面即失败），打包结果可经 `DocSpaces` 读取且文内相对链接全部落在包内 |
+| `docs/spaces.test.ts` / `manual-pack.test.ts` | 文档空间路径语法（绝对路径、`..` 越界、空段、非 Markdown 拒绝）与 `base` 链接解析（含 `#锚点` 丢弃与纯锚点链接）；真实目录读取、索引、缺失文档、符号链接逃逸（含根内链接可读）、32 KiB 截断；未安装空间与缺失索引的加载语义；两个能力经 `execute` 注册表调用并与外层审计一致（成功/`unknown_space`/`document_not_found`/`invalid_path`/`unsupported_document`）；构建产物把 `content/en/docs` 与 `_meta.json` 导航打包为 `src/manual`（无占位符的页面逐字节一致、`__DOCS_BASE__` 链接改写且示例原文成页、截图变成 `(Screenshot: …)` 文字、生成的英文分页来自 ConfigSchema、嵌套目录成为独立小节、索引完整且顺序正确、侧栏外页面进入 "Other pages"、重打包清理陈旧文档、导航指向缺失页面即失败），打包结果可经 `DocSpaces` 读取且文内相对链接全部落在包内 |
+| `docs/config-fields.test.ts` | 生成字段参考：并集分支逐分支发布 item/数组约束、`ConfigSchema` 用到的每个关键字都渲染、`patternProperties` 键模式随条目发布、Schema 默认值与运行时默认值分别标注（含必填字段的默认值指明缺失的兄弟段）、废弃字段在索引与段页都带替代项、两种语言发布同一批段页且每页不超过单次文档读取上限 |
+| `docs/lifecycle.test.ts` | `configuration/lifecycle.md` 的热应用矩阵逐行由真实 `diffConfig` 重算：提示词文件内容算字段热更新、废弃字段在加载时只告警不失败 |
+| `docs/interface-catalog.test.ts` | 接口目录与实现一致：每个 admin-surface 命令恰好出现在一个目录页、每条路由由所属分组发布且只出现一次、目录页上的路由都是已声明命令或仅面板 Session 路由、MCP 目录就是真实工具目录且排除账号与凭据路由、CLI 目录是同一接口表的面板子集、两种语言页集合与路由数据相同（只有标签不同）、生成页注册表覆盖每个目录、输出确定（不含时钟、绝对路径与跨语言泄漏）、权限列写的是服务端实际强制的那一档 |
+| `docs/interface-catalog-labels.test.ts` | 目录页文案：Session 门之前的 `auth` 路由标为未鉴权而非面板 Session、仅程序化分发服务的路由点明凭据类别、Session 目录每行都有鉴权类别、body 列描述 HTTP 处理器的实际要求、纯文本摘要不会注入原始 HTML、每个分组在两种语言里都有标签 |
+| `docs/redirects.test.ts` | 旧字段分页的三种公开形式（无扩展名、`.html`、`.md`）在 Schema 变化后仍保留跳转；被删除的段回落到字段参考索引，索引本身仍是手写重定向 |
+| `docs/screenshot-assets.test.ts` | 截图资产：manifest 通过 Schema 与体积检查、每个场景恰好两种语言的 PNG 且目录里没有多余文件、id 与文件名符合约定、每个文件都能真正解码成 PNG；传入 `scenarios.ts` 的 id 时缺场景或多场景即失败 |
+| `docs/screenshot-references.test.ts` | 页面与截图的配对：中文页只能引 `*.zh-CN.light.png`、英文页只能引 `*.en.light.png`，id 必须是 manifest 场景且文件存在，alt 不能为空（离线手册用它作图注），不能残留 `<!-- screenshot: -->` 占位符，每个场景在两种语言里都至少被一页引用（无孤立资产）；真实页面树必须全部通过 |
 | `scene/context.test.ts` | 开场冻结快照优先、当时可证明的公开历史、spoiler 标记与线上一致（开场、回退历史、回复引用）、Markdown 正文与 Rich Message 媒体行就位与线上一致（开场、回退历史）、后续 attach/编辑/迟到消息排除、切点/Topic/字符预算、损坏身份拒绝、缺修订与媒体降级、scene-local media/reply 引用、构建全表无写入 |
 | `scene/slice.test.ts` | 切片构建：两条 Bot 消息之间的冻结输入、上一条 Bot 可来自另一次 Invocation 或不带 send 行的消息、同一秒内边界仍精确、切点继续生效、只并入注入时间严格早于发送开始的 attach 批次（同毫秒保守省略）、同一消息重复冻结取最新合格快照、渲染冻结快照而非后续编辑、reply 引用只保留切片内消息、只授权冻结 revision 且已渲染的媒体、拒绝非本 Invocation/失败/跨 Conversation 的目标发送、连续两次发送之间为空、字符预算从新到旧裁剪、构建不写库 |
 | `scene/retention.test.ts` | 真实 029→030 有数据迁移仅移除旧 replay payload，调用/工具/发送/用量/冻结快照整行保留，迁移前备份含完整旧列且 integrity check 通过，重复打开与外键检查；retention 只清理审计行，消息/Revision/Media/Context 保留 |
@@ -596,7 +606,7 @@ pnpm run check
 pnpm test
 ```
 
-- 改动 `apps/docs/`、`scripts/docs/`，或改动会进入生成文档的 `ConfigSchema` 与 `apps/docs/examples/` 示例时，额外运行 `pnpm run docs:build` 与 `pnpm run docs:verify`，并分别用 `DOCS_BASE_PATH=/` 与 `DOCS_BASE_PATH=/surowan/` 各跑一遍；构建后 `git status --porcelain` 必须为空（`apps/docs/dist/`、`apps/docs/content/docs/reference/fields.md` 与分页 `fields-*.md`、`apps/docs/content/public/`、`src/manual/` 都在 `.gitignore` 里）。
+- 改动 `apps/docs/`、`scripts/docs/`，或改动会进入生成文档的 `ConfigSchema` 与 `apps/docs/examples/` 示例时，额外运行 `pnpm run docs:build` 与 `pnpm run docs:verify`，并分别用 `DOCS_BASE_PATH=/` 与 `DOCS_BASE_PATH=/surowan/` 各跑一遍；构建后 `git status --porcelain` 必须为空（`apps/docs/dist/`、两个语言的 `apps/docs/content/*/docs/configuration/fields.md` 与分页 `fields-*.md`、`apps/docs/content/public/`、`src/manual/` 都在 `.gitignore` 里）。
 - 依赖变更同步提交 `pnpm-lock.yaml`；本地 `node_modules` 过期会表现成 `Cannot find package '<name>'`，先按 lockfile 跑 `pnpm install --frozen-lockfile`。
 - `.githooks/pre-commit`（`pnpm install` 自动启用）按暂存内容拒绝超过 5,000 token 的文件（字节 / 4 估算，约 20 KB），超限要拆分文件，不要绕过 hook。
 

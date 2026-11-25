@@ -4,7 +4,7 @@
 
 ## 准备环境
 
-先按[宿主机运行](apps/docs/content/docs/start/installation.md#宿主机运行)准备 Node.js 24+、pnpm 与媒体依赖，并完成依赖安装和本地配置。项目使用 TypeScript ESM，Node.js 直接执行 `.ts`，没有单独的编译步骤。
+先按[宿主机运行](apps/docs/content/zh/docs/guides/installation.md)准备 Node.js 24+、pnpm 与媒体依赖，并完成依赖安装和本地配置。项目使用 TypeScript ESM，Node.js 直接执行 `.ts`，没有单独的编译步骤。
 
 ## 常用命令
 

@@ -2,11 +2,27 @@
   "$schema": "https://unpkg.com/wrangler@4.151.1/config-schema.json",
   "name": "surowan",
   "compatibility_date": "2026-10-18",
-  // Static-only Worker: no script, Rspress SSG output is served as-is.
+  // Rspress SSG output is served as static assets. The script only negotiates
+  // `Accept: text/markdown` on page URLs and hands everything else back to ASSETS.
+  "main": "./worker.ts",
   "assets": {
     "directory": "./dist",
+    "binding": "ASSETS",
     // Missing pages (including .md) must 404; never fall back to index.html.
-    "not_found_handling": "404-page"
+    "not_found_handling": "404-page",
+    // Page URLs only: bundles, images, downloads and the Markdown/llms files
+    // themselves never vary by Accept and skip the script.
+    "run_worker_first": [
+      "/*",
+      "!/static/*",
+      "!/screenshots/*",
+      "!/examples/*",
+      "!/*.md",
+      "!/*.txt",
+      "!/*.json",
+      "!/*.svg",
+      "!/*.png"
+    ]
   },
   "routes": [{ "pattern": "surowan.com", "custom_domain": true }],
   "workers_dev": false

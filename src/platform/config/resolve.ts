@@ -131,6 +131,17 @@ export function resolveTelegramSection(
   };
 }
 
+/**
+ * The adaptive batch timing's optional fields as resolved when omitted.
+ * `bucket_max_seconds` is not here on purpose: it follows the configured window
+ * rather than a constant, so a configuration written before the adaptive fields
+ * existed keeps its fixed window whatever length it chose.
+ */
+export const BUCKET_TIMING_DEFAULTS = {
+  /** Each triggering message pushes the deadline to at least its arrival plus this. */
+  bucket_bump_seconds: 0,
+} as const;
+
 /** How long a host's batches collect, in seconds. */
 export interface BucketTiming {
   /**
@@ -170,7 +181,7 @@ export function resolveBucketTiming(
       return {
         windowSeconds,
         maxSeconds: config.telegram.bucket_max_seconds ?? windowSeconds,
-        bumpSeconds: config.telegram.bucket_bump_seconds ?? 0,
+        bumpSeconds: config.telegram.bucket_bump_seconds ?? BUCKET_TIMING_DEFAULTS.bucket_bump_seconds,
       };
     }
     case 'playground':

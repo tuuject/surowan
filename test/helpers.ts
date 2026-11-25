@@ -417,24 +417,26 @@ export async function writeTestConfig(
 }
 
 /** The entries `testConfigJsonc` references; a test adds its own through `entries`. */
-export const TEST_KEYCHAIN: Readonly<Record<string, string>> = {
+export const TEST_KEYCHAIN = {
   telegram: 'telegram-secret',
   agent: 'agent-secret',
   vision: 'vision-secret',
-};
+} as const satisfies Readonly<Record<string, string>>;
 
 /** Writes `key.json` in the keychain format, with the mode the file demands. */
 export async function writeTestKeychain(
   directory: string,
   entries: Readonly<Record<string, string>> = {},
+  options: { readonly replace?: boolean; readonly createdAt?: string } = {},
 ): Promise<void> {
   const path = join(directory, KEY_JAR_FILE);
-  const created = new Date(0).toISOString();
+  // `replace` writes exactly `entries`: the docs screenshot fixture names its
+  // own entries and cannot inherit the shared ones it would then show as unused.
+  const sources = options.replace === true ? entries : { ...TEST_KEYCHAIN, ...entries };
+  const created = options.createdAt ?? new Date(0).toISOString();
   const keychain = {
     version: 1,
-    entries: Object.fromEntries(
-      Object.entries({ ...TEST_KEYCHAIN, ...entries }).map(([name, value]) => [name, { value, created_at: created }]),
-    ),
+    entries: Object.fromEntries(Object.entries(sources).map(([name, value]) => [name, { value, created_at: created }])),
   };
   await writeFile(path, `${JSON.stringify(keychain, null, 2)}\n`, { mode: 0o600 });
   await chmod(path, 0o600);

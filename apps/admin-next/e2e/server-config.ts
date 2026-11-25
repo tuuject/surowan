@@ -11,7 +11,8 @@ import { join } from 'node:path';
 import { type LoadedConfig, loadConfig } from '../../../src/adapters/local-monolith/config/index.ts';
 import type { AdminConfig } from '../../../src/ingress/admin/index.ts';
 import { loadModelsDevCatalog } from '../../../src/platform/models-dev.ts';
-import { testConfigJsonc, writeTestConfig, writeTestKeychain } from '../../../test/helpers.ts';
+import { TEST_KEYCHAIN, testConfigJsonc, writeTestConfig, writeTestKeychain } from '../../../test/helpers.ts';
+import { DOCS_KEYCHAIN, DOCS_MODELS, DOCS_PROVIDERS, requestedDocsSeed } from './docs-locale.ts';
 import {
   E2E_BUILTIN_ALIAS,
   E2E_BUILTIN_PROVIDER,
@@ -39,6 +40,19 @@ export async function prepareConfig(options: {
   readonly relayPort: number;
 }): Promise<PreparedConfig> {
   const { directory, configPath, staticDir, relayPort } = options;
+  const docs = requestedDocsSeed();
+  // Keychain entry names: the docs suite's screenshots show its own names, the
+  // E2E suites keep the fixture names their assertions use.
+  const jars =
+    docs === null
+      ? { relay: 'e2e-relay', relayHeader: 'e2e-relay-header', health: 'e2e-health', mcpHeader: 'e2e-mcp-header' }
+      : {
+          relay: DOCS_KEYCHAIN.relay,
+          relayHeader: DOCS_KEYCHAIN.relayHeader,
+          health: DOCS_KEYCHAIN.health,
+          mcpHeader: DOCS_KEYCHAIN.mcpHeader,
+        };
+  const relayBaseUrl = `http://127.0.0.1:${String(relayPort)}/v1`;
   await writeTestConfig(
     directory,
     configPath,
@@ -142,19 +156,157 @@ export async function prepareConfig(options: {
             tools: '*',
             payload_max_bytes: 32_768,
             result_max_bytes: 32_768,
-            headers: { authorization: { jar: 'e2e-mcp-header' } },
+            headers: { authorization: { jar: jars.mcpHeader } },
             default_tool_policy: { read_only: true, timeout_seconds: 30 },
           },
         ],
       };
+      if (docs !== null) {
+        // The docs suite photographs the per-Chat dialogs, which exist for group
+        // Chats only; the seed adds this Chat's store row with its title.
+        config.telegram.chats.push({ id: -100_555_000_111 });
+        // Documentation screenshots run on a clean, fully loopback registry: the
+        // fake `example.test` providers would show up as broken connections, and
+        // a builtin provider could reach the real internet on a health check.
+        // These three providers answer from the local upstream and cover the
+        // Agent, Vision and Tool model roles.
+        config.providers = {
+          [DOCS_PROVIDERS.relay]: {
+            kind: 'custom',
+            base_url: relayBaseUrl,
+            api: 'openai-completions',
+            api_key: { jar: jars.relay },
+            headers: { 'x-relay-token': { jar: jars.relayHeader } },
+            models: [
+              {
+                id: DOCS_MODELS.agent,
+                name: docs.models.agent,
+                reasoning: true,
+                thinking_levels: ['low', 'medium', 'high'],
+                input: ['text', 'image'],
+                context_window: 200_000,
+                max_tokens: 32_768,
+                cost: { input: 0.5, output: 1.5, cache_read: 0.05, cache_write: 0.5 },
+              },
+              {
+                id: DOCS_MODELS.vision,
+                name: docs.models.vision,
+                reasoning: false,
+                input: ['text', 'image'],
+                context_window: 128_000,
+                max_tokens: 8_192,
+                cost: { input: 0.2, output: 0.6, cache_read: 0.02, cache_write: 0.2 },
+              },
+            ],
+          },
+          [DOCS_PROVIDERS.health]: {
+            kind: 'custom',
+            base_url: relayBaseUrl,
+            api: 'openai-completions',
+            api_key: { jar: jars.health },
+            models: [
+              {
+                id: DOCS_MODELS.health,
+                name: docs.models.health,
+                reasoning: false,
+                input: ['text'],
+                context_window: 64_000,
+                max_tokens: 4_096,
+                cost: { input: 0, output: 0, cache_read: 0, cache_write: 0 },
+              },
+            ],
+          },
+          [DOCS_PROVIDERS.tool]: {
+            kind: 'custom',
+            base_url: relayBaseUrl,
+            api: 'openai-completions',
+            api_key: { jar: jars.relay },
+            models: [
+              {
+                id: DOCS_MODELS.tool,
+                name: docs.models.tool,
+                reasoning: false,
+                // The same Tool Model serves the dictionary merge, the MCP
+                // description draft and the image-asset extraction, so it reads
+                // images as well; the loopback upstream answers all three
+                // prompt shapes (see `server-relay.ts`).
+                input: ['text', 'image'],
+                context_window: 64_000,
+                max_tokens: 4_096,
+                cost: { input: 0.1, output: 0.2, cache_read: 0, cache_write: 0 },
+              },
+            ],
+          },
+        };
+        config.agent.provider = DOCS_PROVIDERS.relay;
+        config.agent.model = DOCS_MODELS.agent;
+        if (config.vision === undefined || config.vision === null) {
+          throw new Error('The E2E fixture config has no vision block');
+        }
+        config.vision.provider = DOCS_PROVIDERS.relay;
+        config.vision.model = DOCS_MODELS.vision;
+        // Background helpers (dictionary merge, MCP description draft, image AI
+        // extraction) call the Tool Model; the loopback upstream answers each
+        // prompt shape for this one id.
+        config.tool_model = {
+          provider: DOCS_PROVIDERS.tool,
+          model: DOCS_MODELS.tool,
+          thinking_level: 'off',
+        };
+        // The image section the docs screenshots enable: one OpenRouter model
+        // behind the fixture's keychain entry. The catalog and the generation
+        // endpoint are answered in-process by `server-docs-image.ts`.
+        config.image = {
+          credentials: { openrouter: { jar: DOCS_KEYCHAIN.image } },
+          models: [
+            {
+              id: 'nano-banana',
+              name: docs.images.modelName,
+              description: docs.images.modelNotes,
+              provider: 'openrouter',
+              upstreamModel: 'google/gemini-3.1-flash-image',
+              credentialRef: 'openrouter',
+              providerTag: 'google-ai-studio',
+              capabilities: {
+                imageInput: true,
+                maxInputImages: 14,
+                maxOutputs: 1,
+                aspectRatios: ['auto', '1:1', '16:9'],
+                resolutionClasses: ['auto'],
+              },
+            },
+          ],
+        };
+      }
     }),
+    docs?.globalPrompt,
+    docs?.chatInstructions,
   );
-  await writeTestKeychain(directory, {
-    'e2e-builtin': E2E_SECRETS.builtin,
-    'e2e-relay': E2E_SECRETS.relay,
-    'e2e-relay-header': E2E_SECRETS.relayHeader,
-    'e2e-mcp-header': 'e2e-mcp-header-secret',
-  }); // `discover` and `lookup-metadata` resolve metadata against the models.dev
+  if (docs === null) {
+    await writeTestKeychain(directory, {
+      'e2e-builtin': E2E_SECRETS.builtin,
+      'e2e-relay': E2E_SECRETS.relay,
+      'e2e-relay-header': E2E_SECRETS.relayHeader,
+      'e2e-mcp-header': 'e2e-mcp-header-secret',
+    });
+  } else {
+    // The docs fixture owns its keychain: the entries the screenshots show as
+    // used, plus one deliberately unused entry (the Keychain page's orphan).
+    await writeTestKeychain(
+      directory,
+      {
+        [DOCS_KEYCHAIN.telegram]: TEST_KEYCHAIN.telegram,
+        [DOCS_KEYCHAIN.relay]: E2E_SECRETS.relay,
+        [DOCS_KEYCHAIN.relayHeader]: E2E_SECRETS.relayHeader,
+        [DOCS_KEYCHAIN.health]: E2E_SECRETS.health,
+        [DOCS_KEYCHAIN.mcpHeader]: 'e2e-mcp-header-secret',
+        [DOCS_KEYCHAIN.image]: 'docs-image-fixture-key',
+        [DOCS_KEYCHAIN.unused]: 'unused-example-key',
+      },
+      { replace: true, createdAt: '2026-09-01T08:00:00.000Z' },
+    );
+  }
+  // `discover` and `lookup-metadata` resolve metadata against the models.dev
   // catalog. Priming it with a fixture (the module's own test seam) keeps the
   // E2E server offline.
   await loadModelsDevCatalog({

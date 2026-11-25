@@ -166,7 +166,9 @@ export default function KeychainPage(): ReactElement {
     {
       key: 'actions',
       title: '',
-      width: 128,
+      // Two text labels ("Rotate", "Delete") plus their padding need the room;
+      // narrower cells hyphenated them into "Rot/ate".
+      width: 184,
       align: 'right',
       paddingBlock: 'none',
       render: (entry) => (
@@ -324,7 +326,11 @@ function RowActions({
   readonly actions: readonly { key: string; label: string; disabled: boolean; onClick: () => void }[];
 }): ReactElement {
   return (
-    <div className={css({ display: 'flex', gap: '1', justifyContent: 'flex-end' })}>
+    // A long "used by" path in a neighbouring column must not squeeze the action
+    // labels: English "Rotate"/"Delete" break mid-word once the cell narrows.
+    <div
+      className={css({ display: 'flex', gap: '1', justifyContent: 'flex-end', whiteSpace: 'nowrap', hyphens: 'none' })}
+    >
       {actions.map((action) => (
         <Button
           key={action.key}

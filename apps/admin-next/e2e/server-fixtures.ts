@@ -33,6 +33,9 @@ import { seedAdminBulkRows } from '../../../test/fixtures/admin-seed-bulk.ts';
 import { seedAdminWarnings } from '../../../test/fixtures/admin-seed-context.ts';
 import { seedAdminToolImages } from '../../../test/fixtures/admin-tool-images.ts';
 import { fauxRegistry } from '../../../test/helpers.ts';
+import { requestedDocsSeed } from './docs-locale.ts';
+import { localizeAdminSeed, normalizeDocsInstance } from './docs-locale-normalize.ts';
+import { seedDocsChat, seedDocsRuns } from './server-docs.ts';
 import {
   nudgeRoomScheduler,
   setPlaygroundModel,
@@ -56,11 +59,28 @@ export async function openFixtures(loaded: LoadedConfig, directory: string): Pro
   // must still find the open store to close.
   state.store = store;
   const seed = seedAdminFixture(store);
+  const docs = requestedDocsSeed();
   if (process.env.E2E_MCP_IMAGES === '1') {
     await seedAdminToolImages(store, loaded.config.data_dir, seed);
   }
   seedAdminBulkRows(store);
   seedAdminWarnings(store.orm);
+  if (docs !== null) {
+    // Docs screenshots get the same rows in the documentation language (after
+    // the bulk rows exist, so their senders are localized too) on a healthy
+    // instance; the shared fixture (no `E2E_SEED_LOCALE`) keeps the English
+    // placeholders and its failing rows. The docs-only rows land last: the
+    // healthy-instance normalization must not rewrite the failed run the
+    // Resume shot documents.
+    localizeAdminSeed(store, seed, docs);
+    normalizeDocsInstance(store);
+    seedDocsChat(store, docs);
+    // The failed and tool-using runs are only on screen in the specs that ask
+    // for them, so the healthy overview stays healthy everywhere else.
+    if (process.env.E2E_DOCS_RUNS === '1') {
+      seedDocsRuns(store, docs);
+    }
+  }
   // The playground specs drive the real room store: two rooms, one of them with
   // an admitted (held) message, so the timeline, the counters and the
   // per-room isolation all have something to show.
@@ -81,7 +101,18 @@ export async function openFixtures(loaded: LoadedConfig, directory: string): Pro
     models: [{ id: 'playground-model', input: ['text'], contextWindow: 200_000, maxTokens: 32_768 }],
   });
   setRoomFaux(faux);
-  setPlaygroundModel([{ text: 'room run finished without sending' }]);
+  // The bot identity and the humans in the room are localized with the rest of
+  // the docs seed, so a Chinese screenshot never shows an English member name.
+  const playground = docs?.playground ?? {
+    botName: 'Playground Bot',
+    memberName: 'Ada',
+    rooms: [
+      { title: 'E2E Room', message: 'first room message' },
+      { title: 'E2E Second Room', message: 'second room message' },
+    ],
+    reply: 'room run finished without sending',
+  };
+  setPlaygroundModel([{ text: playground.reply }]);
   const runtimeConfigStore = new RuntimeConfigurationStore({
     config: {
       ...loaded.config,
@@ -98,7 +129,7 @@ export async function openFixtures(loaded: LoadedConfig, directory: string): Pro
   );
   const roomHost = createPlaygroundHost({
     store,
-    self: { displayName: 'Playground Bot' },
+    self: { displayName: playground.botName },
     pictures: playgroundAssets,
     sendRate: () => ({ sendsPerWindow: 20, windowSeconds: 60 }),
   });
@@ -133,7 +164,7 @@ export async function openFixtures(loaded: LoadedConfig, directory: string): Pro
       secrets: runtimeSecrets,
       hosts: { playground: roomHost },
       conversation: (target) => resolveConversation(store, target),
-      bot: { id: 1n, displayName: 'Playground Bot', username: null },
+      bot: { id: 1n, displayName: playground.botName, username: null },
       systemResources: runtimeResources,
       capabilityTools: roomTooling.capabilityTools,
       additionalTools: roomTooling.additionalTools,
@@ -146,17 +177,17 @@ export async function openFixtures(loaded: LoadedConfig, directory: string): Pro
     onQueued: () => wakeRoomScheduler(),
   });
   const seededRooms: { id: string; title: string }[] = [];
-  for (const [title, text] of [
-    ['E2E Room', 'first room message'],
-    ['E2E Second Room', 'second room message'],
-  ] as const) {
-    const created = playgroundStore.createRoom({ title, members: [{ name: 'Ada', role: 'admin' }] });
+  for (const room of playground.rooms) {
+    const created = playgroundStore.createRoom({
+      title: room.title,
+      members: [{ name: playground.memberName, role: 'admin' }],
+    });
     await playgroundIngress.submit(created.chatId, {
       requestKey: `e2e-${created.chatId.toString()}`,
       senderId: created.members[0]?.senderId,
-      text,
+      text: room.message,
     });
-    seededRooms.push({ id: created.chatId.toString(), title });
+    seededRooms.push({ id: created.chatId.toString(), title: room.title });
   }
   setPlaygroundSeed(seededRooms);
   // E2E-only fixture tweak: the shared seed keeps `thinking_text = ''` because

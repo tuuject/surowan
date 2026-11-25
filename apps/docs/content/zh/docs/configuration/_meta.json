@@ -1,0 +1,20 @@
+[
+  { "type": "file", "name": "index", "label": "入门" },
+  { "type": "file", "name": "lifecycle", "label": "生命周期" },
+  { "type": "file", "name": "secrets", "label": "密钥与路径" },
+  { "type": "file", "name": "telegram", "label": "Telegram" },
+  { "type": "file", "name": "providers", "label": "Provider 与模型" },
+  { "type": "file", "name": "models-dev", "label": "模型元数据" },
+  { "type": "file", "name": "agent", "label": "Agent" },
+  { "type": "file", "name": "vision", "label": "Vision" },
+  { "type": "file", "name": "tool-model", "label": "Tool Model" },
+  { "type": "file", "name": "image", "label": "图片生成" },
+  { "type": "file", "name": "dictionary", "label": "辞典" },
+  { "type": "file", "name": "web-search", "label": "网络搜索" },
+  { "type": "file", "name": "web-fetch", "label": "网页读取" },
+  { "type": "file", "name": "mcp", "label": "外部 MCP" },
+  { "type": "file", "name": "admin", "label": "Admin Panel" },
+  { "type": "file", "name": "developer", "label": "调试记录" },
+  { "type": "file", "name": "storage", "label": "存储与保留" },
+  { "type": "file", "name": "fields", "label": "字段参考" }
+]

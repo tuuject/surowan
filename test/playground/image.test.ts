@@ -50,7 +50,7 @@ describe('playground image generation', () => {
     expect(capabilityToolNames(f, invocationId)).not.toContain('image_generate');
     const prompt = roomSystemPrompt(f, invocationId);
     expect(prompt).toContain('web-fetch');
-    expect(prompt).not.toContain('image-generation');
+    expect(prompt).not.toContain(IMAGE_SKILL.uri);
 
     await expect(submitGeneration(f, null, 'call-1')).rejects.toThrow('image generation is disabled');
     expect(generationRows(f)).toEqual([]);
@@ -74,7 +74,7 @@ describe('playground image generation', () => {
     expect(names).toContain('list_image_models');
     // The room's copied prompt carries the skill index, and it changes with the
     // switch; a skill the Playground never shows stays hidden either way.
-    expect(roomSystemPrompt(f, invocationId)).toContain('image-generation');
+    expect(roomSystemPrompt(f, invocationId)).toContain(IMAGE_SKILL.uri);
     expect(
       f.tooling.skillVisible(
         { name: 'alarms', description: '', uri: '' },
@@ -87,7 +87,7 @@ describe('playground image generation', () => {
       false,
     );
     expect(capabilityToolNames(f, invocationId)).not.toContain('image_generate');
-    expect(roomSystemPrompt(f, invocationId)).not.toContain('image-generation');
+    expect(roomSystemPrompt(f, invocationId)).not.toContain(IMAGE_SKILL.uri);
   });
 
   test('a skill outside the room index is unreadable by absolute or relative reference', async () => {

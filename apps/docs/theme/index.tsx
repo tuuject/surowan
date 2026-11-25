@@ -1,4 +1,4 @@
-import { useFrontmatter } from '@rspress/core/runtime';
+import { useFrontmatter, useLang } from '@rspress/core/runtime';
 import {
   EditLink as DefaultEditLink,
   LastUpdated as DefaultLastUpdated,
@@ -13,6 +13,9 @@ import './styles.css';
 
 function HomeLayout() {
   const { frontmatter } = useFrontmatter();
+  // The home layout renders no H1 of its own; keep one for assistive tech, in
+  // the locale's own product name.
+  const heading = useLang() === 'en' ? 'Surowan' : '塑料碗';
   if (import.meta.env.SSG_MD) {
     const hero = frontmatter.hero;
     return (
@@ -31,7 +34,7 @@ function HomeLayout() {
       </>
     );
   }
-  return <DefaultHomeLayout beforeHero={<h1 className="sr-only">塑料碗</h1>} afterHero={<HomeIntro />} />;
+  return <DefaultHomeLayout beforeHero={<h1 className="sr-only">{heading}</h1>} afterHero={<HomeIntro />} />;
 }
 
 export function Layout() {

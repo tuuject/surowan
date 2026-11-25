@@ -1,19 +1,40 @@
 import { createRequire } from 'node:module';
 import { dirname, resolve } from 'node:path';
 import { defineConfig, normalizeHref } from '@rspress/core';
+import { loadLocaleNavigation } from '../../scripts/docs/navigation.ts';
 import buildInfo from './content/public/build-info.json';
 
+const contentRoot = resolve(import.meta.dirname, 'content');
 const repository = 'https://github.com/tuuject/surowan';
-const version = `文档对应源码提交：${buildInfo.commit}${buildInfo.dirty ? '（含未提交修改，仅供本地预览）' : ''}`;
+const commitUrl = `${repository}/commit/${buildInfo.commit}`;
+
+/**
+ * Per-locale site text is generated from `scripts/docs/locales.ts` into
+ * `build-info.json`, so the theme, `llms.txt` and `docs:verify` cannot drift
+ * apart. The default locale (`zh`) is served at the site root, `en` under `/en/`.
+ */
+function localeText(lang: string): (typeof buildInfo.locale)['zh'] {
+  if (lang === 'zh') {
+    return buildInfo.locale.zh;
+  }
+  if (lang === 'en') {
+    return buildInfo.locale.en;
+  }
+  throw new Error(`Documentation locale has no site text: ${lang}`);
+}
+
+// The sentence is rendered once by `provenanceText` in `scripts/docs/locales.ts`
+// and arrives here through `build-info.json`; the theme prints the same string.
+const provenance = (lang: string): string => localeText(lang).provenance;
 
 export default defineConfig({
-  root: resolve(import.meta.dirname, 'content'),
+  root: contentRoot,
   outDir: 'dist',
+  // No site-wide `title`: Rspress then uses each locale's own title for the
+  // document title and the navbar wordmark (塑料碗 / Surowan).
   lang: 'zh',
-  title: '塑料碗',
-  description: '自行部署的 Telegram Agent Bot。部署、配置，以及把碗配置成自己的使用指南。',
+  description: buildInfo.locale.zh.description,
   icon: '/favicon.svg',
-  logoText: '塑料碗',
   base: buildInfo.base,
   siteOrigin: buildInfo.siteOrigin,
   ssg: true,
@@ -37,26 +58,39 @@ export default defineConfig({
   // Resolve the explicit public-resource prefix before either output is rendered.
   replaceRules: [{ search: /__DOCS_BASE__\//g, replace: buildInfo.base }],
   llms: {
-    llmsTxt: ({ title, description, sections }) =>
-      [
-        `# ${title}`,
+    llmsTxt: ({ lang, sections }) => {
+      const text = localeText(lang);
+      // `/docs/index.md` sits above the three top-nav sections, so Rspress puts it in
+      // `Others`; place it first under a localized overview heading instead.
+      const overviewTitle = lang === 'en' ? 'Overview' : '总览';
+      const ordered = [
+        ...sections
+          .filter((section) => section.title === 'Others')
+          .map((section) => ({ ...section, title: overviewTitle })),
+        ...sections.filter((section) => section.title !== 'Others'),
+      ];
+      return [
+        `# ${text.title}`,
         '',
-        `> ${description}`,
+        `> ${text.description}`,
         '',
-        `${version}。源码：https://github.com/tuuject/surowan/commit/${buildInfo.commit}`,
+        provenance(lang),
+        `${text.llmsSourceLabel}${commitUrl}`,
         '',
-        '先核实用户的代码或镜像版本，再读快速开始与具体任务页。不要读取或转发真实密钥；重启、迁移与覆盖配置前须获得确认。',
-        '这是部署文档，不是 Bot 的 System Skills；不保证 Agent 自动发现此索引。',
+        ...text.llmsNotes,
         '',
-        ...sections.flatMap((section) => [
+        ...ordered.flatMap((section) => [
           `## ${section.title}`,
           '',
           ...section.pages.map((page) => `- [${page.title}](${page.link}): ${page.description ?? ''}`),
           '',
         ]),
-      ].join('\n'),
+      ].join('\n');
+    },
   },
-  route: { extensions: ['.md', '.mdx'], cleanUrls: false },
+  // `.md` and `.html` stay explicit: the site is served as static files, and
+  // llms.txt, every page's Markdown source and the redirects depend on the names.
+  route: { extensions: ['.md', '.mdx'], cleanUrls: false, localeRedirect: 'never' },
   plugins: [
     {
       name: 'static-search-links',
@@ -77,7 +111,10 @@ export default defineConfig({
         excludes: [
           'llms.txt',
           'llms-full.txt',
+          'en/llms.txt',
+          'en/llms-full.txt',
           'config.schema.json',
+          'examples/config.minimal.example.jsonc',
           'examples/config.example.jsonc',
           'examples/system-prompt.example.md',
           'examples/docker-compose.yml',
@@ -85,9 +122,23 @@ export default defineConfig({
       },
       checkAnchors: true,
     },
-    image: { checkDeadImages: true },
+    image: {
+      // At `/` Rspress resolves `__DOCS_BASE__/screenshots/...` below
+      // `content/public`, so production keeps the exact native check. A subpath
+      // base (used by `docs:verify`, never by production) cannot be resolved
+      // there; for that base `docs:verify` checks every rendered `src` instead.
+      checkDeadImages:
+        buildInfo.base === '/' ? true : { excludes: (url: string) => url.startsWith(`${buildInfo.base}screenshots/`) },
+    },
   },
   themeConfig: {
+    locales: (['zh', 'en'] as const).map((lang) => ({
+      lang,
+      label: buildInfo.locale[lang].label,
+      title: buildInfo.locale[lang].title,
+      description: buildInfo.locale[lang].description,
+      ...loadLocaleNavigation(contentRoot, lang),
+    })),
     lastUpdated: true,
     editLink: { docRepoBaseUrl: `${repository}/tree/main/apps/docs/content` },
     llmsUI: { placement: 'title', viewOptions: ['markdownLink'] },

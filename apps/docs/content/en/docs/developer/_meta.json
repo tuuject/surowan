@@ -1,0 +1,17 @@
+[
+  { "type": "file", "name": "index", "label": "Overview" },
+  {
+    "type": "dir",
+    "name": "http",
+    "label": "HTTP API",
+    "collapsible": false
+  },
+  { "type": "file", "name": "mcp-server", "label": "MCP server" },
+  { "type": "file", "name": "service-cli", "label": "Server CLI" },
+  { "type": "file", "name": "client-cli", "label": "Client CLI" },
+  { "type": "file", "name": "replay", "label": "Preflight & replay" },
+  { "type": "file", "name": "telegram-commands", "label": "Telegram commands" },
+  { "type": "file", "name": "extensions", "label": "Extensions & hosts" },
+  { "type": "file", "name": "mcp-tools", "label": "MCP tools" },
+  { "type": "file", "name": "cli-commands", "label": "CLI commands" }
+]

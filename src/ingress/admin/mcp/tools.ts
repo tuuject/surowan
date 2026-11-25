@@ -18,13 +18,21 @@ export interface ToolContext {
   readonly signal: AbortSignal;
 }
 
-interface CatalogEntry {
+/** One tool and the route it dispatches to; the association the server actually uses. */
+export interface ToolCatalogEntry {
   readonly tool: Tool;
   readonly spec: EndpointSpec;
 }
 
 export interface ToolCatalog {
   readonly tools: readonly Tool[];
+  /**
+   * The same tools with their routes. `tools` is only the `Tool` half; docs and
+   * audits that need to know which route a name maps to must read this, because
+   * two routes can share a method, a path and a grant and only the name tells
+   * them apart.
+   */
+  readonly entries: readonly ToolCatalogEntry[];
   readonly call: (
     name: string,
     args: Readonly<Record<string, unknown>>,
@@ -120,7 +128,7 @@ function annotations(spec: EndpointSpec): Tool['annotations'] {
 
 function buildCatalog(): ToolCatalog {
   const used = new Set<string>();
-  const entries = new Map<string, CatalogEntry>();
+  const entries = new Map<string, ToolCatalogEntry>();
   for (const spec of ADMIN_SURFACE_SPECS) {
     if (!specIsMcpExposed(spec)) {
       continue;
@@ -144,6 +152,7 @@ function buildCatalog(): ToolCatalog {
   }
   return {
     tools: [...entries.values()].map((entry) => entry.tool),
+    entries: [...entries.values()],
     async call(name, args, context) {
       const entry = entries.get(name);
       if (entry === undefined) {

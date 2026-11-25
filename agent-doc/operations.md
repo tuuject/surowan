@@ -37,7 +37,7 @@ Linux/macOS 要求 `lottie_convert.py` 本身在服务 PATH 中（`pip --user` �
 cd ~/Projects/surowan
 pnpm install
 
-# 生成 src/manual/（用户手册文档包，gitignored）：从 apps/docs/content/docs 打包
+# 生成 src/manual/（用户手册文档包，gitignored）：从 apps/docs/content/en/docs 打包（仅英文）
 # Markdown 并生成索引。跳过它时 Bot 仍能启动，但 list_documents/read_document
 # 退化为 unknown_space，且 `doctor` 会判为失败；Docker 镜像在构建时自动执行这一步。
 pnpm run manual:prepare
@@ -60,7 +60,7 @@ node src/cli.ts doctor --config dev-data/config.jsonc
 命令清单见 [AGENTS.md 的 Build, Test, and Development Commands](../AGENTS.md#build-test-and-development-commands)。各命令的用途与边界：
 
 - 包管理器为 pnpm（`pnpm-lock.yaml`）；运行时为 Node.js ≥24，测试运行器为 vitest（`pnpm test`），CLI 入口为 `node src/cli.ts …`。
-- `pnpm run manual:prepare`：从 `apps/docs/content/docs` 打包用户手册 Markdown 与索引到 `src/manual/`（gitignored，Docker 构建自动执行）；未生成时 Bot 仍可启动，但文档能力退化为 `unknown_space`，`doctor` 判为失败。
+- `pnpm run manual:prepare`：从 `apps/docs/content/en/docs` 打包英文用户手册 Markdown 与索引到 `src/manual/`，中文正文在 `apps/docs/content/zh/docs`、不进镜像（gitignored，Docker 构建自动执行）；未生成时 Bot 仍可启动，但文档能力退化为 `unknown_space`，`doctor` 判为失败。
 - `pnpm run skills:sync`：把 `skills/` 下的仓库 Skill 软链接进 `.agents/skills/`、`.claude/skills/`（均 gitignored），并按 `package.json` 的 `skills` 字段安装锁定版本的外部 Skill（哈希记入 `skills-lock.json`）。`pnpm install` 实际安装依赖时由 `postinstall` 自动执行（CI 与无 `.git` 时跳过，失败只警告）；只改了 `skills` 字段或新增仓库 Skill 时要手动运行。细节见 [Coding Agent Skills](#coding-agent-skills)。
 - `pnpm run check`：严格 TypeScript 检查（runtime/Admin/docs）；文档检查前会准备被忽略的版本元数据、字段参考和示例，不输出编译 JS。
 - `pnpm test`：运行全部行为测试。
@@ -74,7 +74,7 @@ node src/cli.ts doctor --config dev-data/config.jsonc
 - `admin:test:e2e`：Playwright 浏览器 E2E（`apps/admin-next/e2e`），驱动 `admin:build` 产物与真实 AdminServer 子进程，首次运行前需安装 Chromium；CI 的 Docker workflow 构建后会运行同一套件。命令细节与单套件过滤见 [verification.md](verification.md#admin-panel-浏览器-e2e)。
 - `admin:dev`：启动 Vite dev server（监听 127.0.0.1:5273），`/api/` 默认代理到 127.0.0.1:8787，也可用 `ADMIN_API_TARGET` 指向已运行的 Admin Panel。
 - `admin:dev:mock`：一键启动 E2E 测试后端与 Vite 热更新，打开 http://127.0.0.1:5273 即可调试前端；无需 `serve`、真实配置、Provider/Telegram 凭据或预先 `admin:build`。后端复用 `apps/admin-next/e2e/server.ts`，使用回环随机端口与预置测试数据，临时 SQLite/配置不接触 `dev-data/`；启动后终端打印一行 `ADMIN_DEV_MOCK_CODE pwp_…`，这是测试后端用真实 `pairing create --web` 生成的一次性码，有效一小时、只能用一次。在登录页点「Sign in with a one-time code」粘贴它，就会以 `admin` 登录，不绕过认证。`Ctrl+C` 同时关闭两端并清理临时数据，下次启动重新初始化；5273 被占用则报错退出，不终止已有进程。仅用于本机调试，不对外暴露测试钩子；模型等外部能力仍是测试替身，不代表真实服务验收。
-- `docs:*`：独立静态文档站；`dev`/`preview` 监听 127.0.0.1:5274，`build` 输出 `apps/docs/dist`，`verify` 检查生产 HTML/Markdown/llms 与 HTTP。维护及部署边界见 [apps/docs/README.md](../apps/docs/README.md)。用户可见行为、配置或运维改变时，同步更新相关指南、示例与测试，不把 `agent-doc/` 自动发布到站点。
+- `docs:*`：独立静态文档站；`dev`/`preview` 监听 127.0.0.1:5274，`build` 输出 `apps/docs/dist`，`verify` 检查生产 HTML/Markdown/llms、截图引用与配对的 HTTP 资源。`docs:screenshots` 构建 Admin Panel 后用 Playwright 重新截取双语文档截图，先写进 `apps/admin-next/.docs-shots-staging/`，通过校验才替换已提交的公开资产，需要人工看图后再提交。维护、截图流水线与部署边界见 [apps/docs/README.md](../apps/docs/README.md)。用户可见行为、配置或运维改变时，同步更新相关指南、示例与测试，不把 `agent-doc/` 自动发布到站点。
 
 ## Coding Agent Skills
 
@@ -400,7 +400,7 @@ node src/cli.ts backup --config dev-data/config.jsonc
 - runtime 阶段用 apt 装 `ffmpeg`（含 `ffprobe`）、`python3` 与 `gosu`，再 pip 装 `lottie`；因此**不需要**在宿主机准备任何媒体依赖。
 - runtime 阶段设置 `ENV SUROWAN_OFFICIAL_IMAGE=1`，用来标记官方镜像。Admin Panel 登录页据此显示 `docker compose exec … pairing create --web` 的完整命令；自建镜像没有这个标记，只显示通用提示，见 [admin-panel.md](admin-panel.md#认证)。
 - runtime 阶段接受 `SUROWAN_VERSION` build arg，用运行时自己的 `parseVersion` 推出 Channel，在 `/app/version` 写入 `Version: …` / `Channel: …`；版本号解析失败时构建直接失败，而不是让镜像静默回退到 Develop。Channel 不单独传参，所以不会出现「声明的 Channel 与版本格式不符、运行时拒绝整个文件」的情况（例如手动推送的 `v0.0.0-next-*` tag 会正确写成 Staging）。`docker.yml` 的 `main` 构建传 `v0.0.0-next-<UTC 时间戳>`，`v*` tag 构建传 tag 本身；没有 build arg 的本地 `docker build` 不生成该文件，运行时按 Git tag/commit 回退，最终回退到 `v0.0.0-develop`。Admin Panel 左下角显示这个版本号与 Channel。
-- 只复制 `src/`、`node_modules/`、`packages/image-service/` 的 `package.json`、`dist/` 与 `node_modules/`（经 workspace 符号链接解析）、`apps/admin-next/dist/` 和 `package.json`。`test/`、`agent-doc/`、`dev-data/` 被 `.dockerignore` 排除，镜像里没有这些目录。`apps/docs` 只保留 `content/docs` 与 `examples/` 作为手册源参与构建：`.dockerignore` 排除文档站配置、主题与生成产物，assets 生成的 `src/manual/` 经 builder 随 `src/` 进入 runtime；builder 在剪枝前删除 `apps/docs`——残留的目录没有 `package.json`，`pnpm install --prod --frozen-lockfile` 会把它判为 lockfile 过期而失败；镜像不含 Rspress 或文档站目录，该隔离由 `.github/workflows/docs.yml` 的 image-smoke 断言。
+- 只复制 `src/`、`node_modules/`、`packages/image-service/` 的 `package.json`、`dist/` 与 `node_modules/`（经 workspace 符号链接解析）、`apps/admin-next/dist/` 和 `package.json`。`test/`、`agent-doc/`、`dev-data/` 被 `.dockerignore` 排除，镜像里没有这些目录。`apps/docs` 只保留 `content/en/docs` 与 `examples/` 作为手册源参与构建：`.dockerignore` 排除中文正文（`content/zh`）、站点首页与 `_nav.json`、文档站配置、主题与生成产物，assets 生成的 `src/manual/` 经 builder 随 `src/` 进入 runtime；builder 在剪枝前删除 `apps/docs`——残留的目录没有 `package.json`，`pnpm install --prod --frozen-lockfile` 会把它判为 lockfile 过期而失败；镜像不含 Rspress 或文档站目录，该隔离由 `.github/workflows/docs.yml` 的 image-smoke 断言。
 - Admin 前端已经构建进 `/app/apps/admin-next/dist`，与 `static_dir` 默认值一致，无需额外配置。
 - CI（`.github/workflows/docker.yml`）的 `verify` job 依次跑 `pnpm install --frozen-lockfile` → `pnpm run lint` → `pnpm run check` → `pnpm test` → `pnpm run admin:build` → `pnpm --filter surowan-admin-next exec playwright install --with-deps chromium` → `pnpm run admin:test:e2e`；`main` 与 `v*` 的 `build` job 等它通过后才构建并推送镜像，`develop` 的 `docker-check` 与它并行、只构建不推送。`.github/workflows/docs.yml` 的 `image-smoke` 在 PR 与每次推送时以单架构 `docker build` 构建镜像，并断言手册在镜像内、文档站与 Rspress 不在；同 workflow 的 `verify` job 在 PR 与 push `main`/`develop` 时跑 `pnpm run lint`、`pnpm run check`、`pnpm test test/docs/examples.test.ts test/docs/search.test.ts`、`pnpm run docs:build`、`pnpm run docs:verify`（`DOCS_BASE_PATH=/` 与 `/surowan/` 各一遍），并要求构建后 `git status --porcelain` 为空。`.github/workflows/npm.yml` 在发布前跑 `pnpm run cli:check`、`pnpm test test/invocations test/cli` 与 `pnpm test test/npm-release.test.ts`。全部 workflow 都用 `pnpm install --frozen-lockfile`；完整对照见[验证：CI 对齐](verification.md#ci-对齐)。
 

@@ -1,0 +1,26 @@
+{
+  // The smallest configuration that starts `serve` with the Admin Panel and no
+  // Telegram bot. Sign in once with `pairing create --web` on the server, then add
+  // providers, models and the persona prompt from the panel.
+  "version": 1,
+  "data_dir": "/data",
+  "timezone": "Asia/Shanghai",
+  // Empty on purpose: providers, models and prompts are added in the panel, which
+  // writes them back into this file. Without an agent model the bot does not run.
+  "providers": {},
+  // Both values are required; `online_days` is how long audit and scheduling data
+  // is kept, `backup_copies` how many backups `backup` rotates through.
+  "retention": { "online_days": 30, "backup_copies": 7 },
+  "paths": {
+    "database": "/data/surowan.sqlite",
+    "media_cache": "/data/media-cache",
+    "backups": "/data/backups"
+  },
+  // Required section; `enabled` defaults to true. Binding 0.0.0.0 is what makes the
+  // port reachable through Docker's port mapping — prefer 127.0.0.1 behind a proxy.
+  "admin": {
+    "host": "0.0.0.0",
+    "port": 8787,
+    "session_ttl_hours": 24
+  }
+}

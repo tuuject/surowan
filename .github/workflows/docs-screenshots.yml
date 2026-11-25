@@ -1,0 +1,50 @@
+name: Documentation screenshots
+
+# Manual only: regenerating the docs assets is a reviewed, committing step, not
+# a merge gate. The run uploads the generated PNGs and manifest as an artifact;
+# nothing is pushed. There is no pixel diff.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    # A hung browser download or a stuck server must not occupy a runner for
+    # hours; a full run is under a minute on a warm cache.
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      # The headless shell the config actually runs (never full Chromium) plus
+      # the CJK fonts a zh-CN screenshot needs: ubuntu-latest ships no Chinese
+      # font, and a missing glyph renders tofu.
+      - name: Install Chromium and CJK fonts
+        run: |
+          pnpm --filter surowan-admin-next exec playwright install --with-deps --only-shell chromium
+          sudo apt-get update
+          sudo apt-get install -y fonts-noto-cjk
+
+      - name: Capture zh-CN and en screenshots
+        run: pnpm run docs:screenshots
+
+      # Fail here rather than uploading a set the docs build would reject.
+      - name: Check the screenshot assets
+        run: pnpm test test/docs/screenshot-assets.test.ts
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: docs-screenshots-${{ github.sha }}
+          path: |
+            apps/docs/content/public/screenshots/**/*.png
+            apps/docs/content/public/screenshots/manifest.json
+          if-no-files-found: error
+          retention-days: 7

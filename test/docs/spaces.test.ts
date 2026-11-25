@@ -41,7 +41,10 @@ async function tempRoot(prefix = 'surowan-doc-spaces-'): Promise<string> {
 
 async function writePack(root: string, pages: Readonly<Record<string, string>>, index?: string): Promise<void> {
   await mkdir(root, { recursive: true });
-  await writeFile(join(root, 'index.md'), index ?? '# Fixture manual\n\n- [Start](start/quick-start.md): first page\n');
+  await writeFile(
+    join(root, 'index.md'),
+    index ?? '# Fixture manual\n\n- [Start](guides/installation.md): first page\n',
+  );
   for (const [path, text] of Object.entries(pages)) {
     await mkdir(dirname(join(root, path)), { recursive: true });
     await writeFile(join(root, path), text);
@@ -84,43 +87,49 @@ function resultText(result: AgentToolResult<unknown>): string {
 }
 
 test('resolves space-relative paths and page links inside the space', () => {
-  expect(resolveDocPath('start/quick-start.md')).toEqual(['start', 'quick-start.md']);
-  expect(resolveDocPath('./start/./quick-start.md')).toEqual(['start', 'quick-start.md']);
+  expect(resolveDocPath('guides/installation.md')).toEqual(['guides', 'installation.md']);
+  expect(resolveDocPath('./guides/./installation.md')).toEqual(['guides', 'installation.md']);
   // A link is resolved against the directory of the document that contains it.
-  expect(resolveDocPath('config.md', 'configure/config-file.md')).toEqual(['configure', 'config.md']);
-  expect(resolveDocPath('../configure/models.md', 'guides/budgets.md')).toEqual(['configure', 'models.md']);
-  expect(resolveDocPath('./../start/./quick-start.md', 'guides/per-chat.md')).toEqual(['start', 'quick-start.md']);
-  // Manual links carry heading fragments; the fragment never names a file.
-  expect(resolveDocPath('../operations/upgrade.md#镜像标签', 'start/quick-start.md')).toEqual([
-    'operations',
-    'upgrade.md',
+  expect(resolveDocPath('config.md', 'configuration/lifecycle.md')).toEqual(['configuration', 'config.md']);
+  expect(resolveDocPath('../configuration/providers.md', 'guides/tuning.md')).toEqual([
+    'configuration',
+    'providers.md',
   ]);
-  expect(resolveDocPath('telegram.md#自助忽略与恢复', 'configure/admin.md')).toEqual(['configure', 'telegram.md']);
-  expect(resolveDocPath('start/quick-start.md#准备')).toEqual(['start', 'quick-start.md']);
-  expect(resolveDocPath('#内置用户手册', 'guides/extensions.md')).toEqual(['guides', 'extensions.md']);
+  expect(resolveDocPath('./../guides/./installation.md', 'guides/chats.md')).toEqual(['guides', 'installation.md']);
+  // Manual links carry heading fragments; the fragment never names a file.
+  expect(resolveDocPath('../guides/maintenance.md#镜像标签', 'guides/installation.md')).toEqual([
+    'guides',
+    'maintenance.md',
+  ]);
+  expect(resolveDocPath('../developer/telegram-commands.md#自助忽略与恢复', 'guides/admin.md')).toEqual([
+    'developer',
+    'telegram-commands.md',
+  ]);
+  expect(resolveDocPath('guides/installation.md#准备')).toEqual(['guides', 'installation.md']);
+  expect(resolveDocPath('#内置用户手册', 'guides/tools.md')).toEqual(['guides', 'tools.md']);
 });
 
 test('rejects absolute, escaping, malformed, and non-markdown paths', () => {
   expectResolveError('/etc/passwd.md', 'invalid_path');
   expectResolveError('..', 'invalid_path');
   expectResolveError('../outside.md', 'invalid_path');
-  expectResolveError('start/../../outside.md', 'invalid_path');
-  expectResolveError('../../outside.md', 'invalid_path', 'guides/budgets.md');
-  expectResolveError('start//quick-start.md', 'invalid_path');
-  expectResolveError('start/../secrets.md', 'invalid_path');
+  expectResolveError('guides/../../outside.md', 'invalid_path');
+  expectResolveError('../../outside.md', 'invalid_path', 'guides/tuning.md');
+  expectResolveError('guides//installation.md', 'invalid_path');
+  expectResolveError('guides/../secrets.md', 'invalid_path');
   expectResolveError('C:\\docs\\secret.md', 'invalid_path');
   expectResolveError('start\\quick-start.md', 'invalid_path');
-  expectResolveError('start/%2e%2e/secret.md', 'invalid_path');
+  expectResolveError('guides/%2e%2e/secret.md', 'invalid_path');
   expectResolveError('stärke.md', 'invalid_path');
   expectResolveError('', 'invalid_path');
   expectResolveError(`${'a'.repeat(DOC_PATH_MAX_LENGTH)}.md`, 'invalid_path');
   expectResolveError('assets/logo.png', 'unsupported_document');
-  expectResolveError('start/quick-start', 'unsupported_document');
-  expectResolveError('config.md', 'unsupported_document', 'configure/config-file');
+  expectResolveError('guides/installation', 'unsupported_document');
+  expectResolveError('config.md', 'unsupported_document', 'configuration/lifecycle');
   // Dropping a fragment keeps every other path rule.
   expectResolveError('#section', 'invalid_path');
   expectResolveError('#section', 'invalid_path', '../outside.md');
-  expectResolveError('../../outside.md#section', 'invalid_path', 'guides/budgets.md');
+  expectResolveError('../../outside.md#section', 'invalid_path', 'guides/tuning.md');
   expectResolveError('assets/logo.png#section', 'unsupported_document');
 });
 
@@ -134,8 +143,8 @@ test('an empty document space set lists nothing and rejects every read', async (
 test('loads a space from disk and serves its index and documents', async () => {
   const root = await tempRoot();
   await writePack(root, {
-    'start/quick-start.md': '# Quick start\n\nSee [configuration](../configure/config.md).\n',
-    'configure/config.md': '# Configuration\n',
+    'guides/installation.md': '# Quick start\n\nSee [configuration](../configuration/index.md).\n',
+    'configuration/index.md': '# Configuration\n',
   });
   const spaces = await FileSystemDocSpaces.load([bundledManualSpace(root)]);
   expect(spaces.missing).toEqual([]);
@@ -143,8 +152,8 @@ test('loads a space from disk and serves its index and documents', async () => {
   expect(summaries).toEqual([
     {
       id: 'manual',
-      title: '塑料碗用户手册',
-      description: '塑料碗（Surowan）的部署、配置与维护指南，与当前运行版本一起发布',
+      title: 'Surowan User Manual',
+      description: 'Deployment, configuration and maintenance guide for Surowan, shipped with the running version',
       documents: 2,
     },
   ]);
@@ -153,19 +162,19 @@ test('loads a space from disk and serves its index and documents', async () => {
   expect(index).toEqual({
     space: 'manual',
     path: 'index.md',
-    text: '# Fixture manual\n\n- [Start](start/quick-start.md): first page\n',
+    text: '# Fixture manual\n\n- [Start](guides/installation.md): first page\n',
     truncated: false,
   });
 
-  const page = await spaces.read(access, 'manual', 'start/quick-start.md');
+  const page = await spaces.read(access, 'manual', 'guides/installation.md');
   expect(page).toMatchObject({
     space: 'manual',
-    path: 'start/quick-start.md',
-    text: '# Quick start\n\nSee [configuration](../configure/config.md).\n',
+    path: 'guides/installation.md',
+    text: '# Quick start\n\nSee [configuration](../configuration/index.md).\n',
     truncated: false,
   });
-  const linked = await spaces.read(access, 'manual', '../configure/config.md', page.path);
-  expect(linked.path).toBe('configure/config.md');
+  const linked = await spaces.read(access, 'manual', '../configuration/index.md', page.path);
+  expect(linked.path).toBe('configuration/index.md');
   expect(linked.text).toBe('# Configuration\n');
 });
 
@@ -196,21 +205,21 @@ test('rejects traversal, absolute paths, non-markdown files, and symlink escapes
   const root = await tempRoot();
   const outside = await tempRoot('surowan-doc-spaces-outside-');
   await writeFile(join(outside, 'secret.md'), '# Secret\n');
-  await writePack(root, { 'start/quick-start.md': '# Quick start\n' });
+  await writePack(root, { 'guides/installation.md': '# Quick start\n' });
   // Windows refuses symlink creation without Developer Mode or elevation; the
   // escape checks below still run for the platform-independent paths.
   const symlinks = process.platform !== 'win32';
   if (symlinks) {
     await symlink(join(outside, 'secret.md'), join(root, 'leak.md'));
     await symlink(outside, join(root, 'linked'));
-    await symlink(join(root, 'start/quick-start.md'), join(root, 'alias.md'));
+    await symlink(join(root, 'guides/installation.md'), join(root, 'alias.md'));
   }
   const spaces = await FileSystemDocSpaces.load([bundledManualSpace(root)]);
 
   await expectReadError(spaces.read(access, 'manual', '../secret.md'), 'invalid_path');
   await expectReadError(spaces.read(access, 'manual', '/etc/passwd.md'), 'invalid_path');
   await expectReadError(spaces.read(access, 'manual', 'start/../../secret.md'), 'invalid_path');
-  await expectReadError(spaces.read(access, 'manual', 'start/quick-start.png'), 'unsupported_document');
+  await expectReadError(spaces.read(access, 'manual', 'guides/installation.png'), 'unsupported_document');
   await expectReadError(spaces.read(access, 'manual', 'start/missing.md'), 'document_not_found');
   if (symlinks) {
     await expectReadError(spaces.read(access, 'manual', 'leak.md'), 'document_not_found');
@@ -279,14 +288,14 @@ test('document tools list spaces, return indexes, read pages, and audit every ca
   try {
     const root = await tempRoot();
     await writePack(root, {
-      'start/quick-start.md': '# Quick start\n\nSee [configuration](../configure/config.md).\n',
-      'configure/config.md': '# Configuration\n',
+      'guides/installation.md': '# Quick start\n\nSee [configuration](../configuration/index.md).\n',
+      'configuration/index.md': '# Configuration\n',
     });
     const spaces = await FileSystemDocSpaces.load([bundledManualSpace(root)]);
     const [listTool, readTool] = createDocumentTools({ store, spaces, context });
 
     const listed = await listTool.execute('call-list', {});
-    expect(resultText(listed)).toContain('manual: 塑料碗用户手册');
+    expect(resultText(listed)).toContain('manual: Surowan User Manual');
     expect(resultText(listed)).toContain('2 markdown documents');
     expect(listed.details).toEqual({ space: null, documents: 2 });
 
@@ -294,20 +303,20 @@ test('document tools list spaces, return indexes, read pages, and audit every ca
     expect(resultText(index)).toContain('# Fixture manual');
     expect(index.details).toEqual({ space: 'manual', documents: 2 });
 
-    const page = await readTool.execute('call-read', { space: 'manual', path: 'start/quick-start.md' });
+    const page = await readTool.execute('call-read', { space: 'manual', path: 'guides/installation.md' });
     expect(resultText(page)).toContain('# Quick start');
-    expect(page.details).toEqual({ space: 'manual', path: 'start/quick-start.md', truncated: false });
+    expect(page.details).toEqual({ space: 'manual', path: 'guides/installation.md', truncated: false });
 
     const linked = await readTool.execute('call-link', {
       space: 'manual',
-      path: '../configure/config.md',
-      base: 'start/quick-start.md',
+      path: '../configuration/index.md',
+      base: 'guides/installation.md',
     });
     expect(resultText(linked)).toContain('# Configuration');
 
     const audit = store.orm.select().from(toolCalls).where(eq(toolCalls.toolCallId, 'call-list')).get();
     expect(audit).toMatchObject({ toolName: 'list_documents', state: 'success', sideEffect: false });
-    expect(audit?.resultText).toContain('manual: 塑料碗用户手册');
+    expect(audit?.resultText).toContain('manual: Surowan User Manual');
     const readAudit = store.orm.select().from(toolCalls).where(eq(toolCalls.toolCallId, 'call-read')).get();
     expect(readAudit).toMatchObject({ toolName: 'read_document', state: 'success', sideEffect: false });
     expect(readAudit?.resultText).toContain('# Quick start');
@@ -320,7 +329,7 @@ test('document tools surface explicit path and space errors in the audit trail',
   const { store, context } = await toolFixture();
   try {
     const root = await tempRoot();
-    await writePack(root, { 'start/quick-start.md': '# Quick start\n' });
+    await writePack(root, { 'guides/installation.md': '# Quick start\n' });
     const spaces = await FileSystemDocSpaces.load([bundledManualSpace(root)]);
     const [listTool, readTool] = createDocumentTools({ store, spaces, context });
 
@@ -355,7 +364,7 @@ test('document capabilities are discoverable and callable through the execute re
   const { store, context } = await toolFixture();
   try {
     const root = await tempRoot();
-    await writePack(root, { 'start/quick-start.md': '# Quick start\n' });
+    await writePack(root, { 'guides/installation.md': '# Quick start\n' });
     const spaces = await FileSystemDocSpaces.load([bundledManualSpace(root)]);
     const execute = createExecuteTool({
       audit: createToolAudit(store, context.invocationId),
@@ -369,7 +378,7 @@ test('document capabilities are discoverable and callable through the execute re
     const called = await execute.execute('call-document', {
       action: 'call',
       tool: 'read_document',
-      input: { space: 'manual', path: 'start/quick-start.md' },
+      input: { space: 'manual', path: 'guides/installation.md' },
     });
     expect(resultText(called)).toContain('# Quick start');
     // execute and the inner capability keep their own audit rows.

@@ -1,0 +1,22 @@
+[
+  {
+    "text": "User manual",
+    "link": "/docs/guides/",
+    "activeMatch": "/docs/guides/"
+  },
+  {
+    "text": "Configuration",
+    "link": "/docs/configuration/",
+    "activeMatch": "/docs/configuration/"
+  },
+  {
+    "text": "Developer",
+    "link": "/docs/developer/",
+    "activeMatch": "/docs/developer/"
+  },
+  {
+    "text": "GitHub",
+    "link": "https://github.com/tuuject/surowan",
+    "position": "right"
+  }
+]

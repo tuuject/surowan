@@ -1,0 +1,22 @@
+[
+  {
+    "text": "用户手册",
+    "link": "/docs/guides/",
+    "activeMatch": "/docs/guides/"
+  },
+  {
+    "text": "配置参考",
+    "link": "/docs/configuration/",
+    "activeMatch": "/docs/configuration/"
+  },
+  {
+    "text": "开发者参考",
+    "link": "/docs/developer/",
+    "activeMatch": "/docs/developer/"
+  },
+  {
+    "text": "GitHub",
+    "link": "https://github.com/tuuject/surowan",
+    "position": "right"
+  }
+]
