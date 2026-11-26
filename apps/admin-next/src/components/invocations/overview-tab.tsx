@@ -72,33 +72,33 @@ export function OverviewTab({ invocation }: { readonly invocation: InvocationDet
   const historyCommented = chat.history.some(
     (item) => item.kind !== 'steps' && comments?.[timelineEventKey(item.event)] !== undefined,
   );
+  // Full panel width, like the summary card above: replies end on the same edge
+  // as the cards. Bubbles keep their own width cap, so lines stay short.
   return (
-    <div className={css({ maxWidth: '960px' })}>
-      <div className={columnClass}>
-        {chat.history.length === 0 ? null : (
-          <ChatDisclosure
-            summary={t('invocations.invocationDetail.chat.history', { count: chat.history.length })}
-            defaultOpen={historyCommented}
-          >
-            <div className={columnClass}>
-              {chat.history.map((item) => (
-                <ChatItemView key={chatItemKey(item)} invocation={invocation} item={item} />
-              ))}
-            </div>
-          </ChatDisclosure>
-        )}
-        {chat.batches.map((batch) => (
-          <div key={batch.bucketId} className={columnClass}>
-            <TimedDivider label={t(batchLabelKey(batch))} at={batch.at} />
-            {batch.items.map((item) => (
+    <div className={columnClass}>
+      {chat.history.length === 0 ? null : (
+        <ChatDisclosure
+          summary={t('invocations.invocationDetail.chat.history', { count: chat.history.length })}
+          defaultOpen={historyCommented}
+        >
+          <div className={columnClass}>
+            {chat.history.map((item) => (
               <ChatItemView key={chatItemKey(item)} invocation={invocation} item={item} />
             ))}
           </div>
-        ))}
-        {invocation.finished_at === null ? null : (
-          <TimedDivider label={t('invocations.invocationDetail.chat.finished')} at={invocation.finished_at} />
-        )}
-      </div>
+        </ChatDisclosure>
+      )}
+      {chat.batches.map((batch) => (
+        <div key={batch.bucketId} className={columnClass}>
+          <TimedDivider label={t(batchLabelKey(batch))} at={batch.at} />
+          {batch.items.map((item) => (
+            <ChatItemView key={chatItemKey(item)} invocation={invocation} item={item} />
+          ))}
+        </div>
+      ))}
+      {invocation.finished_at === null ? null : (
+        <TimedDivider label={t('invocations.invocationDetail.chat.finished')} at={invocation.finished_at} />
+      )}
     </div>
   );
 }
