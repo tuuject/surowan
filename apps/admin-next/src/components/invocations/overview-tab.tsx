@@ -11,7 +11,7 @@ import { buildInvocationChat, type ChatBatch, type ChatItem } from '@/lib/invoca
 import { timelineEventKey } from '@/lib/timeline';
 import { useReviewStore } from '@/stores/review.ts';
 
-const columnClass = css({ display: 'flex', flexDirection: 'column', gap: '4', minWidth: '0' });
+const columnClass = css({ display: 'flex', flexDirection: 'column', gap: '5', minWidth: '0' });
 
 function ChatItemView({
   invocation,

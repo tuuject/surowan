@@ -4,7 +4,7 @@ import { sizes } from '@tuuject/koi-tokens/dimensions';
 import type { TFunction } from 'i18next';
 import { type ReactElement, type ReactNode, useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
-import { StateBadge, TechText, TimeText } from '@/components/business';
+import { StateBadge, TechText } from '@/components/business';
 import {
   AlarmIcon,
   BookOpenIcon,
@@ -22,7 +22,7 @@ import type { InvocationDetail } from '@/lib/api/invocations.ts';
 import type { ChatItem, ChatStep, StepAction, StepSummary } from '@/lib/invocation-chat.ts';
 import { timelineEventKey } from '@/lib/timeline.ts';
 import { useReviewStore } from '@/stores/review.ts';
-import { AgentStepBody, ModelStepDetails, ToolStepDetails } from './step-details';
+import { AgentStepFooter, ModelStepFooter, ToolStepFooter } from './step-details';
 
 type StepsItem = Extract<ChatItem, { readonly kind: 'steps' }>;
 
@@ -158,14 +158,14 @@ function stepIcon(action: StepAction): ReactElement {
   }
 }
 
-function StepBody({ step }: { readonly step: ChatStep }): ReactElement {
+function StepFooter({ step }: { readonly step: ChatStep }): ReactElement {
   switch (step.event.kind) {
     case 'tool_call':
-      return <ToolStepDetails tool={step.event.tool} result={step.result} />;
+      return <ToolStepFooter tool={step.event.tool} result={step.result} at={step.event.at} />;
     case 'model_call':
-      return <ModelStepDetails model={step.event.model} />;
+      return <ModelStepFooter model={step.event.model} at={step.event.at} />;
     case 'agent_message':
-      return <AgentStepBody message={step.event.message} />;
+      return <AgentStepFooter message={step.event.message} at={step.event.at} />;
   }
 }
 
@@ -195,8 +195,9 @@ function StepRow({
         event={step.event}
         position={step.position}
         footer={
+          // Indented by the icon and its gap, so the body lines up with the title text.
           <div className={css({ width: '100%', minWidth: '0', paddingInlineStart: '6' })}>
-            <StepBody step={step} />
+            <StepFooter step={step} />
           </div>
         }
       >
@@ -216,9 +217,6 @@ function StepRow({
             <StepLabel action={step.action} step={step} />
           </span>
           {state !== null && state !== 'success' ? <StateBadge state={state} /> : null}
-          <span className={css({ textStyle: 'small', color: 'text-muted' })}>
-            <TimeText value={step.event.at} />
-          </span>
         </span>
       </ReviewableItem>
     </li>

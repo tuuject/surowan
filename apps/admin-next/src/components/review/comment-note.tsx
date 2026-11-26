@@ -165,9 +165,10 @@ export function ReviewCommentNote({
 
 /**
  * One reviewable thing on the Overview: a chat bubble or a step. The Add button
- * sits at the inline end of the content and shows on hover or keyboard focus
- * (always on devices without hover); a saved comment or an open editor sits
- * underneath, on the same side as the content.
+ * sits beside the content on the side facing the conversation (after a member's
+ * bubble, before the bot's), so the content keeps its edge; it shows on hover or
+ * keyboard focus (always on devices without hover). The footer (meta line and
+ * panels), then a saved comment or an open editor, sit underneath on the same side.
  */
 export function ReviewableItem({
   invocation,
@@ -215,8 +216,9 @@ export function ReviewableItem({
       <div
         className={css({
           display: 'flex',
+          // Reversed on the end side: the content stays on its edge, the button lands on its inner side.
+          flexDirection: align === 'end' ? 'row-reverse' : 'row',
           alignItems: 'center',
-          justifyContent: align === 'end' ? 'flex-end' : 'flex-start',
           gap: '1',
           minWidth: '0',
           maxWidth: '100%',
@@ -230,7 +232,6 @@ export function ReviewableItem({
               variant="ghost"
               color="secondary"
               label={t('invocations.review.addComment')}
-              title={t('invocations.review.addComment')}
               icon={<ChatTextIcon />}
               className={css({ display: { base: 'inline-flex', md: 'none' } })}
               onClick={() => setAdding(true)}
@@ -248,7 +249,7 @@ export function ReviewableItem({
           </span>
         ) : null}
       </div>
-      {footer}
+      {footer === undefined ? null : <div className={footerClass}>{footer}</div>}
       {comment !== undefined ? (
         <div className={noteClass}>
           <ReviewCommentNote
@@ -279,6 +280,8 @@ export function ReviewableItem({
 const revealOnHoverClass = css({
   display: 'inline-flex',
   flexShrink: '0',
+  // Out of the line height: a one-line title must not grow to the button's 36px.
+  marginBlock: '-2',
   transitionProperty: 'opacity',
   transitionDuration: 'fast',
   '@media (hover: hover)': { opacity: '0' },
@@ -286,4 +289,7 @@ const revealOnHoverClass = css({
   _groupFocusWithin: { opacity: '1' },
 });
 
-const noteClass = css({ width: '100%', maxWidth: '560px' });
+// The footer's own gap above it: the meta line sits a step further from the content than the header does.
+const footerClass = css({ width: '100%', minWidth: '0', marginBlockStart: '1' });
+// As wide as a chat bubble can be.
+const noteClass = css({ width: '100%', maxWidth: '480px', marginBlockStart: '1' });

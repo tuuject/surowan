@@ -157,8 +157,6 @@ export const invocations: CompleteCatalog<typeof invocationsEn> = {
       mediaCount_few: '{{count}} وسائط',
       mediaCount_many: '{{count}} وسيطًا',
       mediaCount_other: '{{count}} وسيط',
-      telegramMessage: 'رسالة Telegram {{id}}، {{kind}}',
-      roomMessage: 'رسالة الغرفة #{{id}}، {{kind}}',
       openRecord: 'فتح سجل الرسالة',
       openRoom: 'فتح الغرفة',
     },

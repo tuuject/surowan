@@ -115,8 +115,6 @@ export const invocations: Catalog<typeof invocationsEn> = {
     contextMessage: {
       unknownSender: 'Unbekannter Absender',
       mediaCount: '{{count}} Medien',
-      telegramMessage: 'Telegram-Nachricht {{id}}, {{kind}}',
-      roomMessage: 'Raumnachricht #{{id}}, {{kind}}',
       openRecord: 'Nachrichtendatensatz öffnen',
       openRoom: 'Raum öffnen',
     },
