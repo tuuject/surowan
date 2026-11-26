@@ -1,5 +1,6 @@
 import { useNavigate } from '@tanstack/react-router';
 import { IconButton } from '@tuuject/koi-react/button';
+import { TrashIcon } from '@tuuject/koi-react/icons';
 import { Menu } from '@tuuject/koi-react/menu';
 import { css } from '@tuuject/koi-react/styled-system/css';
 import type { ReactElement } from 'react';
@@ -27,11 +28,14 @@ export interface ChatRowMenuProps {
   readonly onDecisionGate: (chat: ChatEntry) => void;
   readonly onGroupMemory: (chat: ChatEntry) => void;
   readonly onMcp: (chat: ChatEntry) => void;
+  readonly onRemove: (chat: ChatEntry) => void;
+  readonly removeDisabled: boolean;
 }
 
 /**
  * The row's "More actions" menu: per-Chat settings for groups, the MCP binding
- * for every Chat, and dated quick links into the audit pages.
+ * for every Chat, dated quick links into the audit pages, and removal last,
+ * apart from everything else and in the error color.
  */
 export function ChatRowMenu({
   row,
@@ -40,6 +44,8 @@ export function ChatRowMenu({
   onDecisionGate,
   onGroupMemory,
   onMcp,
+  onRemove,
+  removeDisabled,
 }: ChatRowMenuProps): ReactElement {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -174,6 +180,15 @@ export function ChatRowMenu({
               () => void navigate({ to: '/alarms', search: { chat: row.runtime_chat_id } }),
             ),
           ],
+        },
+        'separator' as const,
+        {
+          value: 'remove',
+          label: <span className={css({ color: 'error-text' })}>{t('pages.chats.remove')}</span>,
+          textValue: t('pages.chats.remove'),
+          icon: <TrashIcon className={css({ color: 'error-text' })} />,
+          disabled: removeDisabled,
+          onSelect: () => onRemove(row),
         },
       ]}
     />

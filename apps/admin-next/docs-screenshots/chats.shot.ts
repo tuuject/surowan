@@ -50,7 +50,7 @@ test('chats/active-hours-ask-only', async ({ page, docLocale }) => {
   await expect(page.getByRole('dialog')).toHaveCount(0);
 
   expect(savedChat(await chatsView(page))?.participation).toEqual({ ask_only: true });
-  await expect(groupRow(page).getByRole('cell').nth(3)).toContainText(labels.chats.activeHours.askOnly);
+  await expect(groupRow(page)).toContainText(labels.chats.activeHours.askOnly);
 
   // Reopened: the radio shows the mode the server stored.
   await openChatDialog(page, labels, labels.chats.editActiveHours);
@@ -82,7 +82,7 @@ test('chats/proactive-reply', async ({ page, docLocale }) => {
   });
   // The row follows the same query the dialog reads: wait for the saved summary
   // so reopening cannot mount the form on the pre-save view.
-  await expect(groupRow(page).getByRole('cell').nth(4)).toContainText(labels.chats.proactive.summary(25, 5, 4));
+  await expect(groupRow(page)).toContainText(labels.chats.proactive.summary(25, 5, 4));
 
   await openChatDialog(page, labels, labels.chats.editProactiveReply);
   dialog = page.getByRole('dialog', { name: labels.chats.proactive.title, exact: true });
@@ -133,7 +133,7 @@ test('chats/entry-gate-override', async ({ page, docLocale }) => {
     threshold: 0.8,
     instructions: question,
   });
-  await expect(groupRow(page).getByRole('cell').nth(5)).toHaveText(labels.chats.entryGate.enforceSummary);
+  await expect(groupRow(page)).toContainText(labels.chats.entryGate.enforceSummary);
 
   await openChatDialog(page, labels, labels.chats.editEntryGate);
   dialog = page.getByRole('dialog', { name: labels.chats.entryGate.title, exact: true });

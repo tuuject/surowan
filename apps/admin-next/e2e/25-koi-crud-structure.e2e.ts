@@ -157,6 +157,8 @@ const pages = [
     label: 'Chats',
     heading: 'Chat allowlist',
     action: 'Add Chat',
+    // One search field needs no filter Card: it sits in the toolbar beside the actions.
+    filters: 0,
   },
   {
     path: '/prompts',
@@ -202,13 +204,16 @@ for (const entry of pages) {
     expect((await listResponse).ok()).toBe(true);
     await expect(page).toHaveURL(new RegExp(`${entry.path}$`));
     await expect(page.getByRole('heading', { name: entry.heading, exact: true }).first()).toBeVisible();
-    await expect(page.getByText('Filters', { exact: true }).first()).toBeVisible();
+    const filters = 'filters' in entry ? entry.filters : 1;
+    if (filters > 0) {
+      await expect(page.getByText('Filters', { exact: true }).first()).toBeVisible();
+    }
     await expect(page.getByRole('button', { name: entry.action, exact: true }).first()).toBeVisible();
     await expect(page.locator('table').first()).toBeVisible();
     await expect(page.locator('table').first()).not.toHaveAttribute('aria-busy', 'true');
     await expect(page.getByText(/^\d+ records?$/).first()).toBeVisible();
     await expect(page.getByRole('navigation', { name: 'Pagination', exact: true })).toHaveCount(1);
-    await expectCardStructure(page, { filters: 1, cardTables: 'cardTables' in entry ? entry.cardTables : 0 });
+    await expectCardStructure(page, { filters, cardTables: 'cardTables' in entry ? entry.cardTables : 0 });
     await expect(page.getByRole('alert').filter({ hasText: 'Request failed' })).toHaveCount(0);
     await expect(page.locator('[data-route-error]')).toHaveCount(0);
   });

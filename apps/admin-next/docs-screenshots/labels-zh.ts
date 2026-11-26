@@ -81,7 +81,7 @@ export const ZH: DocsLabels = {
       modeEnforce: '拦截',
       threshold: '阈值',
       question: '提问文本',
-      enforceSummary: '开启（拦截）',
+      enforceSummary: '拦截，阈值 0.8',
     },
     mcp: {
       title: '该会话的 MCP 服务器',

@@ -1,5 +1,14 @@
 import { expect } from '@playwright/test';
-import { chatRow, inherited, openChatAction, prepareChatsPage, viewOf } from './chats-fixture.ts';
+import {
+  chatRow,
+  inherited,
+  labelledValue,
+  openChatAction,
+  openChatDetails,
+  prepareChatsPage,
+  removeChat,
+  viewOf,
+} from './chats-fixture.ts';
 import { test, watchPageIssues } from './helpers.ts';
 
 test.use({ signedIn: true });
@@ -27,8 +36,11 @@ test('group memory can be enabled, tuned and disabled from the Chat row', async 
   );
   await page.reload();
   const row = () => chatRow(page, GROUP);
+  const memory = () => labelledValue(row(), 'Group memory');
   await expect(row()).toBeVisible();
-  await expect(row().getByRole('cell').nth(6)).toHaveText('Off');
+  // Off is the default, so the summary leaves it out.
+  await expect(labelledValue(row(), 'Active hours')).toBeVisible();
+  await expect(memory()).toHaveCount(0);
 
   let dialog = page.getByRole('dialog');
   await openChatAction(page, row(), 'Edit group memory');
@@ -41,8 +53,7 @@ test('group memory can be enabled, tuned and disabled from the Chat row', async 
     enabled: true,
     idle_minutes: 45,
   });
-  await expect(row().getByRole('cell').nth(6)).toContainText('On, idle 45 min');
-  await expect(row().getByRole('cell').nth(6)).not.toContainText('30-hour');
+  await expect(memory()).toHaveText('On, idle 45 min');
 
   await openChatAction(page, row(), 'Edit group memory');
   dialog = page.getByRole('dialog');
@@ -71,7 +82,7 @@ test('group memory can be enabled, tuned and disabled from the Chat row', async 
   });
   // Hot-applied: nothing about group memory waits for a restart.
   expect((await viewOf(page)).restart_required.filter((path) => path.includes('group_memory'))).toEqual([]);
-  await expect(row().getByRole('cell').nth(6)).toContainText('On, idle 45 min, 30-hour clock');
+  await expect(memory()).toHaveText('On, idle 45 min, 30-hour clock');
 
   await openChatAction(page, row(), 'Edit group memory');
   dialog = page.getByRole('dialog');
@@ -98,7 +109,10 @@ test('group memory can be enabled, tuned and disabled from the Chat row', async 
     idle_minutes: 45,
     thirty_hour_clock: 'overlapping',
   });
-  await expect(row().getByRole('cell').nth(6)).toHaveText('Off');
+  await expect(memory()).toHaveCount(0);
+  const details = await openChatDetails(row());
+  await expect(labelledValue(details, 'Group memory')).toHaveText('Off');
+  await row().getByRole('button', { name: 'Toggle row details', exact: true }).click();
 
   await openChatAction(page, row(), 'Edit group memory');
   dialog = page.getByRole('dialog');
@@ -111,10 +125,9 @@ test('group memory can be enabled, tuned and disabled from the Chat row', async 
     enabled: true,
     idle_minutes: 45,
   });
-  await expect(row().getByRole('cell').nth(6)).toHaveText('On, idle 45 min');
+  await expect(memory()).toHaveText('On, idle 45 min');
 
-  await row().getByRole('button', { name: 'Remove', exact: true }).click();
-  await page.getByRole('button', { name: 'Remove Chat', exact: true }).click();
+  await removeChat(page, row());
   await expect(row()).toHaveCount(0);
   const issues = finish();
   expect(issues.pageErrors).toEqual([]);

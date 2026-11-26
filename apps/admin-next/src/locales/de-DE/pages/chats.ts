@@ -11,6 +11,7 @@ export const chats: Catalog<typeof chatsEn> = {
   chatOverride: 'Chat-Überschreibung',
   thinkingShort: 'Denken {{level}}',
   inheritedSuffix: ' (geerbt)',
+  partlyInheritedSuffix: ' (teilweise geerbt)',
   runningNote: 'Läuft: {{value}}',
   configConflictEdit:
     'Die Einstellungen wurden während der Bearbeitung an anderer Stelle geändert. Es wurde nichts gespeichert; den Chat erneut öffnen, um die aktuellen Einstellungen zu sehen.',
@@ -164,4 +165,20 @@ export const chats: Catalog<typeof chatsEn> = {
   decisionGateInheritedUnavailable: 'Die globalen Einstellungen des Eingangsfilters sind nicht verfügbar',
   decisionGateInvalid:
     'Eine Schwelle von 0 bis 1, 0–50 Verlaufsnachrichten, 1–50 neue Nachrichten und eine Frage eingeben.',
+  colPolicy: 'Chat-Regeln',
+  searchChats: 'Chat-Name oder -ID suchen',
+  supergroup: 'Supergruppe',
+  channel: 'Kanal',
+  topicsLimited: 'Topics {{ids}}',
+  moreWindows: '+{{count}} weitere',
+  timezoneLabel: 'Zeitzone',
+  keywordsLabel: 'Auslöse-Schlüsselwörter',
+  attentionLabel: 'Aufmerksamkeitsfenster',
+  attentionValue: '{{seconds}} s',
+  decisionGateCompact: '{{mode}}, Schwelle {{threshold}}',
+  mcpBindingLine: '{{server}}: {{tools}}',
+  mcpAllTools: 'alle Werkzeuge',
+  mcpToolCount: '{{count}} ausgewählt',
+  showSettings: 'Alle Einstellungen anzeigen',
+  hideSettings: 'Einstellungen ausblenden',
 };

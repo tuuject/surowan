@@ -81,14 +81,63 @@ async function restoreBaseline(page: Page): Promise<void> {
   );
 }
 
-export function chatRow(page: Page, id = ACTIVE_CHAT) {
-  return page.locator('table tbody tr').filter({ has: page.getByText(id, { exact: true }) });
+/**
+ * A Chat's row in the wide table or its block in the narrow list: both are in
+ * the page, and the list's own width decides which one shows.
+ */
+export function chatRow(page: Page, id = ACTIVE_CHAT): Locator {
+  return page
+    .locator('table tbody tr, [data-chat-card]')
+    .filter({ visible: true })
+    .filter({ has: page.getByText(id, { exact: true }) });
+}
+
+function exactly(label: string): RegExp {
+  return new RegExp(`^${label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`);
+}
+
+/** The value beside a label in a row's policy summary, or in its full settings. */
+export function labelledValue(scope: Locator, label: string): Locator {
+  return scope
+    .locator('dt')
+    .filter({ hasText: exactly(label) })
+    .locator('xpath=following-sibling::dd[1]');
+}
+
+/**
+ * Opens one Chat's full settings and returns only those: inside its block in
+ * the narrow list, or in the detail row right under its table row. Other Chats
+ * may stay expanded at the same time.
+ */
+export async function openChatDetails(row: Locator): Promise<Locator> {
+  await row.getByRole('button', { name: /^(Toggle row details|Show all settings)$/ }).click();
+  const details = row
+    .locator('[data-chat-details]')
+    .or(row.locator('xpath=following-sibling::tr[1]').locator('[data-chat-details]'));
+  await expect(details).toBeVisible();
+  return details;
+}
+
+/** Removal sits last in the row's "More actions" menu. */
+export async function removeChat(page: Page, row: Locator): Promise<void> {
+  await openChatAction(page, row, 'Remove');
+  await page.getByRole('button', { name: 'Remove Chat', exact: true }).click();
+}
+
+/**
+ * The menu that is open now. A menu closed by picking an item keeps fading out
+ * (`data-closed`, no pointer events) for a moment; on a slow machine the next
+ * row's menu opens while it is still there, so a page-wide `role="menu"` would
+ * match both.
+ */
+function openMenu(page: Page): Locator {
+  return page.locator('[role="menu"][data-open]');
 }
 
 /** Per-chat settings live in the row's "More actions" menu, next to the quick links. */
 export async function openChatAction(page: Page, row: Locator, name: string): Promise<void> {
   await row.getByRole('button', { name: 'More actions', exact: true }).click();
-  const menu = page.getByRole('menu');
+  const menu = openMenu(page);
   await expect(menu).toBeVisible();
   // A separator that bleeds past the scrollable body adds a horizontal scroll container to the panel.
   // Assert the invariant, not the CSS: neither an open menu nor anything inside it may scroll sideways.
@@ -100,15 +149,17 @@ export async function openChatAction(page: Page, row: Locator, name: string): Pr
       }),
     ),
   ).toBe(false);
-  await page.getByRole('menuitem', { name, exact: true }).click();
+  await menu.getByRole('menuitem', { name, exact: true }).click();
 }
 
 /** Private chats never gate, so their menu has no settings entries. */
 export async function expectNoChatAction(page: Page, row: Locator, name: string): Promise<void> {
   await row.getByRole('button', { name: 'More actions', exact: true }).click();
-  await expect(page.getByRole('menu')).toBeVisible();
-  await expect(page.getByRole('menuitem', { name, exact: true })).toHaveCount(0);
+  const menu = openMenu(page);
+  await expect(menu).toBeVisible();
+  await expect(menu.getByRole('menuitem', { name, exact: true })).toHaveCount(0);
   await page.keyboard.press('Escape');
+  // Wait until it has faded out too, so the next lookup starts from an empty page.
   await expect(page.getByRole('menu')).toHaveCount(0);
 }
 

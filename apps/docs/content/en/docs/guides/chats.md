@@ -22,7 +22,9 @@ Add a chat with *Add Chat* on the **Chats** page: a Telegram Chat ID and an opti
 
 ## What the Chats page does
 
-The *More actions* menu at the end of each row groups the editors by purpose:
+Each row shows the chat, its agent model and its *Chat policy*. The policy lists the active hours, plus proactive replies, the entry gate, group memory and MCP tools when they are turned on or set for this chat alone. Values the chat takes from the global settings are lighter and marked *(inherited)*; values set for this chat are in full color, so chats that differ stand out. An entry gate the chat changes only in part is marked *(partly inherited)*. The arrow at the start of a row opens every setting with the value in effect. In a narrow window the same rows stack into a list, and *Show all settings* under each chat opens the rest. The search box above the list finds a chat by name or ID when you press Enter.
+
+*Edit* sits next to *More actions* at the end of each row. The menu groups the other editors by purpose:
 
 - **Chat settings**: *Edit active hours*, *Edit proactive reply chance*, *Edit entry gate*, *Edit group memory*.
 - **MCP servers**: bind outbound MCP servers to this chat and narrow the tools it may call.

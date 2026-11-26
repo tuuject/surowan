@@ -1,5 +1,14 @@
 import { expect, type Locator } from '@playwright/test';
-import { chatRow, expectNoChatAction, inherited, openChatAction, prepareChatsPage, viewOf } from './chats-fixture.ts';
+import {
+  chatRow,
+  expectNoChatAction,
+  inherited,
+  labelledValue,
+  openChatAction,
+  prepareChatsPage,
+  removeChat,
+  viewOf,
+} from './chats-fixture.ts';
 import { test, watchPageIssues } from './helpers.ts';
 
 test.use({ signedIn: true });
@@ -29,7 +38,8 @@ test('active-hours editing sets custom periods, an empty schedule and back to un
     },
     { id: GROUP, settings: inherited },
   );
-  const groupRow = () => page.locator('table tbody tr').filter({ has: page.getByText(GROUP, { exact: true }) });
+  const groupRow = () => chatRow(page, GROUP);
+  const hours = () => labelledValue(groupRow(), 'Active hours');
   // The POST bypasses React Query: reload so the new row renders.
   await page.reload();
   await expect(groupRow()).toBeVisible();
@@ -37,11 +47,12 @@ test('active-hours editing sets custom periods, an empty schedule and back to un
     await openChatAction(page, groupRow(), 'Edit active hours');
     return page.getByRole('dialog');
   };
-  // Private chats never gate: no editor entry, no summary.
+  // Private chats never gate: no editor entry, no schedule in the policy summary.
   await expectNoChatAction(page, chatRow(page), 'Edit active hours');
-  await expect(chatRow(page).getByRole('cell').nth(3)).toHaveText('');
+  await expect(chatRow(page).getByRole('cell').nth(3)).toHaveText('—');
 
-  // The hot-added group starts unrestricted.
+  // The hot-added group starts unrestricted: nothing configures a schedule anywhere.
+  await expect(hours()).toHaveText('Unrestricted');
   let dialog = await openDialog();
   await expect(dialog.getByRole('radio', { name: /No schedule restriction/ })).toBeChecked();
 
@@ -65,16 +76,17 @@ test('active-hours editing sets custom periods, an empty schedule and back to un
     ],
   });
   // Each period renders as its own line instead of stretching the table.
-  const hoursCell = groupRow().getByRole('cell').nth(3);
-  await expect(hoursCell).toContainText('Mon–Fri 09:00–18:00');
-  await expect(hoursCell).toContainText('Daily 20:00–23:30');
-  await expect(hoursCell.locator('p')).toHaveCount(2);
+  await expect(hours()).toContainText('Mon–Fri 09:00–18:00');
+  await expect(hours()).toContainText('Daily 20:00–23:30');
+  await expect(hours().locator('p')).toHaveCount(2);
+  // The Chat sets its own schedule, so nothing marks it inherited.
+  await expect(hours()).not.toContainText('(inherited)');
 
   dialog = await openDialog();
   await dialog.getByRole('radio', { name: 'Only /ask', exact: true }).click();
   await dialog.getByRole('button', { name: 'Save', exact: true }).click();
   await expect(page.getByRole('dialog')).toHaveCount(0);
-  await expect(hoursCell).toContainText('Only /ask');
+  await expect(hours()).toHaveText('Only /ask');
   expect((await viewOf(page)).items.find((chat) => chat.id === GROUP)?.saved?.participation?.ask_only).toBe(true);
   dialog = await openDialog();
   await expect(dialog.getByRole('radio', { name: 'Only /ask', exact: true })).toBeChecked();
@@ -82,7 +94,7 @@ test('active-hours editing sets custom periods, an empty schedule and back to un
   await dialog.getByRole('radio', { name: /Custom periods/ }).click();
   await dialog.getByRole('button', { name: 'Save', exact: true }).click();
   await expect(page.getByRole('dialog')).toHaveCount(0);
-  await expect(hoursCell).toContainText('Mon–Fri 09:00–18:00');
+  await expect(hours()).toContainText('Mon–Fri 09:00–18:00');
   expect((await viewOf(page)).items.find((chat) => chat.id === GROUP)?.saved?.participation?.ask_only).toBeUndefined();
 
   // The explicit empty array is a distinct state: trigger-only.
@@ -94,7 +106,7 @@ test('active-hours editing sets custom periods, an empty schedule and back to un
   expect((await viewOf(page)).items.find((chat) => chat.id === GROUP)?.saved?.participation).toEqual({
     active_windows: [],
   });
-  await expect(groupRow().getByRole('cell').nth(3)).toContainText('Trigger only');
+  await expect(hours()).toHaveText('Trigger only');
 
   // Unrestricted removes the participation section entirely.
   dialog = await openDialog();
@@ -103,7 +115,7 @@ test('active-hours editing sets custom periods, an empty schedule and back to un
   await dialog.getByRole('button', { name: 'Save', exact: true }).click();
   await expect(page.getByRole('dialog')).toHaveCount(0);
   expect((await viewOf(page)).items.find((chat) => chat.id === GROUP)?.saved?.participation).toBeNull();
-  await expect(groupRow().getByRole('cell').nth(3)).toContainText('Unrestricted');
+  await expect(hours()).toHaveText('Unrestricted');
 
   // Custom mode with an empty editor is blocked: the explicit mode covers it.
   dialog = await openDialog();
@@ -131,8 +143,7 @@ test('active-hours editing sets custom periods, an empty schedule and back to un
   await expect(page.getByRole('dialog')).toHaveCount(0);
   await page.setViewportSize({ width: 1280, height: 720 });
 
-  await groupRow().getByRole('button', { name: 'Remove', exact: true }).click();
-  await page.getByRole('button', { name: 'Remove Chat', exact: true }).click();
+  await removeChat(page, groupRow());
   await expect(groupRow()).toHaveCount(0);
   const issues = finish();
   expect(issues.pageErrors).toEqual([]);

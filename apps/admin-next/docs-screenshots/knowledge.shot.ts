@@ -94,7 +94,7 @@ test('knowledge/thirty-hour-clock', async ({ page, docLocale }) => {
   const view = await apiJson<ChatsView>(page, await adminUrl('/api/chats'));
   const saved = view.items.find((item) => item.id === group)?.saved?.group_memory;
   expect(saved).toMatchObject({ enabled: true, thirty_hour_clock: 'non_overlapping' });
-  await expect(row.getByRole('cell').nth(6)).toContainText(labels.chats.groupMemory.thirtyHourSummary);
+  await expect(row).toContainText(labels.chats.groupMemory.thirtyHourSummary);
 
   await openDialog();
   dialog = page.getByRole('dialog', { name: labels.chats.groupMemory.title, exact: true });

@@ -1,20 +1,12 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { Alert } from '@tuuject/koi-react/alert';
 import { Button } from '@tuuject/koi-react/button';
-import { PlusIcon } from '@tuuject/koi-react/icons';
 import { Skeleton } from '@tuuject/koi-react/skeleton';
 import { css } from '@tuuject/koi-react/styled-system/css';
 import { type ReactElement, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import {
-  ConfirmDialog,
-  ListFooter,
-  ListPageHeader,
-  ListSearchForm,
-  ListToolbar,
-  QueryTextField,
-  useClientPagination,
-} from '@/components/business';
+import { ConfirmDialog, ListFooter, ListPageHeader, useClientPagination } from '@/components/business';
+import { ChatCardList } from '@/components/chats/card-list';
 import { ChatDialog } from '@/components/chats/chat-dialog';
 import { ChatTable } from '@/components/chats/chat-table';
 import { DecisionGateDialog } from '@/components/chats/decision-gate-dialog';
@@ -22,6 +14,8 @@ import { GroupMemoryDialog } from '@/components/chats/group-memory-dialog';
 import { McpBindingDialog } from '@/components/chats/mcp-binding-dialog';
 import { ParticipationDialog } from '@/components/chats/participation-dialog';
 import { ProactiveReplyDialog } from '@/components/chats/proactive-reply-dialog';
+import type { ChatRowHandlers } from '@/components/chats/row-parts';
+import { ChatsToolbar } from '@/components/chats/toolbar';
 import { RestartBanner } from '@/components/models/restart-banner';
 import type { ChatEntry, ChatsView } from '@/lib/api/chats.ts';
 import { deleteChat } from '@/lib/api/chats.ts';
@@ -29,16 +23,26 @@ import { restartServer } from '@/lib/api/config.ts';
 import { errorMessage } from '@/lib/errors';
 import { useListQuery } from '@/lib/list-query';
 import { isConfigConflict } from '@/lib/model-manager';
-import { chatsQuery } from '@/lib/queries';
+import { chatsQuery, decisionGateQuery } from '@/lib/queries';
 import { waitForAdminServer } from '@/lib/restart';
 import { toast } from '@/lib/toast.ts';
 import { useProviderWrite } from '@/lib/use-provider-write';
 
 const EMPTY_FILTERS = { search: '' };
 
+/**
+ * The table needs this much width for its five columns to read without
+ * squeezing; below it, measured on the list's own box rather than the window,
+ * the same Chats render as a stacked list.
+ */
+const tableShown = css({ display: 'none', '@container (min-width: 920px)': { display: 'block' } });
+const listShown = css({ '@container (min-width: 920px)': { display: 'none' } });
+
 export default function ChatsPage(): ReactElement {
   const { t } = useTranslation();
   const query = useQuery(chatsQuery);
+  // The Chats view leaves out the global entry gate; without it a row names only its own overrides.
+  const gate = useQuery(decisionGateQuery);
   const listQuery = useListQuery(EMPTY_FILTERS);
   const search = listQuery.value.search;
   const write = useProviderWrite();
@@ -147,6 +151,37 @@ export default function ChatsPage(): ReactElement {
     );
   }
   const view = query.data;
+  const handlers: ChatRowHandlers = {
+    onEdit: (chat) => {
+      setEditing((previous) => ({ view, chat, nonce: (previous?.nonce ?? 0) + 1 }));
+      setChatOpen(true);
+    },
+    onSchedule: (chat) => {
+      setScheduling((previous) => ({ view, chat, nonce: (previous?.nonce ?? 0) + 1 }));
+      setScheduleOpen(true);
+    },
+    onProactive: (chat) => {
+      setProactive((previous) => ({ view, chat, nonce: (previous?.nonce ?? 0) + 1 }));
+      setProactiveOpen(true);
+    },
+    onDecisionGate: (chat) => {
+      setDecisionGate((previous) => ({ view, chat, nonce: (previous?.nonce ?? 0) + 1 }));
+      setDecisionGateOpen(true);
+    },
+    onGroupMemory: (chat) => {
+      setGroupMemory((previous) => ({ view, chat, nonce: (previous?.nonce ?? 0) + 1 }));
+      setGroupMemoryOpen(true);
+    },
+    onMcp: (chat) => {
+      setMcpBinding((previous) => ({ view, chat, nonce: (previous?.nonce ?? 0) + 1 }));
+      setMcpBindingOpen(true);
+    },
+    onRemove: (chat) => {
+      remove.reset();
+      setRemoving({ chat, revision: view.revision });
+      setRemoveOpen(true);
+    },
+  };
   return (
     <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '5' } })}>
       <ListPageHeader title={t('pages.chats.allowlistTitle')} />
@@ -156,67 +191,39 @@ export default function ChatsPage(): ReactElement {
         pending={restart.isPending}
         onRestart={() => restart.mutate()}
       />
-      <ListSearchForm value={listQuery.value} emptyValue={EMPTY_FILTERS} onSearch={listQuery.apply}>
-        {({ draft, change }) => (
-          <QueryTextField
-            label={t('pages.chats.colChat')}
-            value={draft.search}
-            onChange={(search) => change({ search })}
+      <ChatsToolbar
+        search={search}
+        onSearch={(next) => listQuery.apply({ search: next })}
+        onAdd={() => {
+          setEditing((previous) => ({ view, chat: null, nonce: (previous?.nonce ?? 0) + 1 }));
+          setChatOpen(true);
+        }}
+        onRefresh={() => {
+          void query.refetch();
+          void gate.refetch();
+        }}
+        refreshing={query.isRefetching}
+      />
+      <div className={css({ containerType: 'inline-size' })}>
+        <div className={tableShown}>
+          <ChatTable view={view} items={pagination.items} gate={gate.data} handlers={handlers} />
+          <ListFooter
+            count={pagination.total}
+            page={pagination.page}
+            pageCount={pagination.pageCount}
+            onPageChange={pagination.onPageChange}
           />
-        )}
-      </ListSearchForm>
-      <ListToolbar onRefresh={() => void query.refetch()} refreshing={query.isRefetching}>
-        <Button
-          variant="outline"
-          onClick={() => {
-            setEditing((previous) => ({ view, chat: null, nonce: (previous?.nonce ?? 0) + 1 }));
-            setChatOpen(true);
-          }}
-          iconStart={<PlusIcon />}
-        >
-          {t('pages.chats.addChat')}
-        </Button>
-      </ListToolbar>
-      <div>
-        <ChatTable
-          view={view}
-          items={pagination.items}
-          onEdit={(chat) => {
-            setEditing((previous) => ({ view, chat, nonce: (previous?.nonce ?? 0) + 1 }));
-            setChatOpen(true);
-          }}
-          onSchedule={(chat) => {
-            setScheduling((previous) => ({ view, chat, nonce: (previous?.nonce ?? 0) + 1 }));
-            setScheduleOpen(true);
-          }}
-          onProactive={(chat) => {
-            setProactive((previous) => ({ view, chat, nonce: (previous?.nonce ?? 0) + 1 }));
-            setProactiveOpen(true);
-          }}
-          onDecisionGate={(chat) => {
-            setDecisionGate((previous) => ({ view, chat, nonce: (previous?.nonce ?? 0) + 1 }));
-            setDecisionGateOpen(true);
-          }}
-          onGroupMemory={(chat) => {
-            setGroupMemory((previous) => ({ view, chat, nonce: (previous?.nonce ?? 0) + 1 }));
-            setGroupMemoryOpen(true);
-          }}
-          onMcp={(chat) => {
-            setMcpBinding((previous) => ({ view, chat, nonce: (previous?.nonce ?? 0) + 1 }));
-            setMcpBindingOpen(true);
-          }}
-          onRemove={(chat) => {
-            remove.reset();
-            setRemoving({ chat, revision: view.revision });
-            setRemoveOpen(true);
-          }}
-        />
-        <ListFooter
-          count={pagination.total}
-          page={pagination.page}
-          pageCount={pagination.pageCount}
-          onPageChange={pagination.onPageChange}
-        />
+        </div>
+        <div className={listShown}>
+          <ChatCardList view={view} items={pagination.items} gate={gate.data} handlers={handlers} />
+          <ListFooter
+            inset={false}
+            count={pagination.total}
+            page={pagination.page}
+            pageCount={pagination.pageCount}
+            onPageChange={pagination.onPageChange}
+          />
+        </div>
       </div>
       <ChatDialog
         open={chatOpen}

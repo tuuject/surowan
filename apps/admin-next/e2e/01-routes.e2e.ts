@@ -168,11 +168,13 @@ test.describe('routes and deep links', () => {
     await expect(page.locator('[data-route-error]')).toHaveCount(0);
   });
 
-  test('/chats shows the allowlist with topics and agent models', async ({ page }) => {
+  test('/chats shows the allowlist as Chat, model and policy columns', async ({ page }) => {
     await page.goto(await adminUrl('/chats'));
     await expect(page.getByText('Chat allowlist')).toBeVisible();
-    await expect(page.getByRole('columnheader', { name: 'Topics' })).toBeVisible();
-    await expect(page.getByRole('columnheader', { name: 'Agent model' })).toBeVisible();
+    for (const name of ['Chat', 'Agent model', 'Chat policy', 'Status', 'Actions']) {
+      await expect(page.getByRole('columnheader', { name, exact: true })).toBeVisible();
+    }
+    await expect(page.getByRole('textbox', { name: 'Search Chat name or ID' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Add Chat' })).toBeVisible();
   });
 
