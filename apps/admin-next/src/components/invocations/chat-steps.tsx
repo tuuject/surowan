@@ -161,7 +161,7 @@ function stepIcon(action: StepAction): ReactElement {
 function StepBody({ step }: { readonly step: ChatStep }): ReactElement {
   switch (step.event.kind) {
     case 'tool_call':
-      return <ToolStepDetails tool={step.event.tool} />;
+      return <ToolStepDetails tool={step.event.tool} result={step.result} />;
     case 'model_call':
       return <ModelStepDetails model={step.event.model} />;
     case 'agent_message':

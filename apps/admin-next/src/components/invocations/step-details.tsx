@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { JsonViewer, LazyDetails } from '@/components/business';
 import type { AgentMessageEntry, ModelCallEntry, ToolCallEntry } from '@/lib/api/invocations.ts';
 import { formatCost, formatDuration, formatNumber } from '@/lib/format';
+import type { ToolOutcome } from '@/lib/invocation-chat.ts';
 import { ToolResult } from './tool-result';
 
 /** The bodies of the Overview's steps: what a reader opens a step to check. */
@@ -20,28 +21,46 @@ const metaClass = css({
 
 const textClass = css({ textStyle: 'body', overflowWrap: 'anywhere', whiteSpace: 'pre-wrap' });
 
-export function ToolStepDetails({ tool }: { readonly tool: ToolCallEntry }): ReactElement {
+/** A tool step's body: its timing and error at a glance, arguments and result on demand. */
+export function ToolStepDetails({
+  tool,
+  result,
+}: {
+  readonly tool: ToolCallEntry;
+  readonly result: ToolOutcome | null;
+}): ReactElement {
   const { t } = useTranslation();
   return (
-    <LazyDetails summary={t('invocations.invocationDetail.chat.toolDetails')}>
-      <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
-        <p className={metaClass}>
-          <span>
-            {t('invocations.invocationDetail.toolCall.duration', { value: formatDuration(tool.duration_ms) })}
+    <div className={css({ '& > :not(:last-child)': { marginBlockEnd: '2' } })}>
+      <p className={metaClass}>
+        <span>{t('invocations.invocationDetail.toolCall.duration', { value: formatDuration(tool.duration_ms) })}</span>
+        {tool.error_code !== null ? (
+          <span className={css({ color: 'error-text' })}>
+            {t('invocations.invocationDetail.toolCall.error', { code: tool.error_code })}
           </span>
-          {tool.error_code !== null ? (
-            <span className={css({ color: 'error-text' })}>
-              {t('invocations.invocationDetail.toolCall.error', { code: tool.error_code })}
-            </span>
-          ) : null}
-        </p>
-        <JsonViewer value={tool.arguments_json} title={t('invocations.invocationDetail.toolCall.arguments')} />
-        {tool.result_content ? (
-          <ToolResult content={tool.result_content} />
-        ) : (
-          <JsonViewer value={tool.result_text} title={t('invocations.invocationDetail.toolCall.result')} />
-        )}
-      </div>
+        ) : null}
+      </p>
+      <LazyDetails summary={t('invocations.invocationDetail.toolCall.arguments')}>
+        <JsonViewer value={tool.arguments_json} />
+      </LazyDetails>
+      <ToolOutcomeDetails result={result} />
+    </div>
+  );
+}
+
+/** What the tool handed back to the model, behind a disclosure. */
+export function ToolOutcomeDetails({ result }: { readonly result: ToolOutcome | null }): ReactElement {
+  const { t } = useTranslation();
+  if (result === null) {
+    return (
+      <p className={css({ textStyle: 'small', color: 'text-muted' })}>
+        {t('invocations.invocationDetail.chat.noResult')}
+      </p>
+    );
+  }
+  return (
+    <LazyDetails summary={t('invocations.invocationDetail.toolCall.result')}>
+      {result.content !== null ? <ToolResult content={result.content} /> : <JsonViewer value={result.text} />}
     </LazyDetails>
   );
 }

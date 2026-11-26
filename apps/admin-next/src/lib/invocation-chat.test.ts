@@ -357,6 +357,54 @@ describe('buildInvocationChat', () => {
     expect(key(after)).toBe(key(before));
   });
 
+  test('tool steps and replies carry the result the model received, else what the call recorded', () => {
+    const image = { type: 'image', url: '/img/1', asset_id: 'a1', width: 1, height: 1 } as const;
+    const chat = buildInvocationChat(
+      invocation({
+        tool_calls: [
+          tool('1', 'read', { uri: 'system:///skills/a/SKILL.md' }, t(2), { result_text: 'call copy' }),
+          // A failed call records no result text; the model still got an error message.
+          tool('2', 'execute', { action: 'call', tool: 'web_fetch', input: {} }, t(3), {
+            state: 'error',
+            error_code: 'fetch_failed',
+            result_text: null,
+          }),
+          // Runs recorded before tool results were kept only have the call's own copy.
+          tool('3', 'zzz', {}, t(4), { result_text: 'slept', result_content: [image] }),
+          tool('4', 'send', { text: 'hi' }, t(6), {
+            state: 'error',
+            error_code: 'send_rate_limited',
+            result_text: null,
+          }),
+          tool('5', 'docs__lookup', {}, t(7), { result_text: null }),
+        ],
+        agent_messages: [
+          { ...agent(1, 'tool_result', '# Skill A', t(2)), tool_call_id: 'call_1' },
+          { ...agent(2, 'tool_result', 'fetch_failed: host unreachable', t(3)), tool_call_id: 'call_2' },
+          { ...agent(3, 'tool_result', 'Rate limited, wait 5s', t(6)), tool_call_id: 'call_4' },
+        ],
+      }),
+    );
+    const results = (chat.batches[0]?.items ?? []).flatMap((item) => {
+      if (item.kind === 'reply') {
+        return [[item.event.tool.tool_name, item.result]];
+      }
+      if (item.kind === 'steps') {
+        return item.steps.flatMap((step) =>
+          step.event.kind === 'tool_call' ? [[step.event.tool.tool_name, step.result]] : [],
+        );
+      }
+      return [];
+    });
+    expect(results).toEqual([
+      ['read', { text: '# Skill A', content: null }],
+      ['execute', { text: 'fetch_failed: host unreachable', content: null }],
+      ['zzz', { text: 'slept', content: [image] }],
+      ['send', { text: 'Rate limited, wait 5s', content: null }],
+      ['docs__lookup', null],
+    ]);
+  });
+
   test('unparseable timestamps never throw and keep activity in the opening batch', () => {
     const chat = buildInvocationChat(
       invocation({

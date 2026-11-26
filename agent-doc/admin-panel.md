@@ -582,7 +582,7 @@ pnpm run admin:test:e2e  # Playwright 浏览器 E2E（真实 AdminServer + 临�
 | `src/lib/errors.ts` | `errorMessage()`：统一错误文本（`ApiError.code: message`） |
 | `src/lib/memory-ttl.ts` | Memo Pad 表单边界与 TTL 天/秒换算纯函数（summary/detail 长度、永久与短期判断） |
 | `src/lib/timeline.ts` | Invocation 时间线纯模型（同时间排序、事件锚点 `timelineEventKey`、send 参数解析） |
-| `src/lib/invocation-chat.ts` | Overview 对话视图纯模型：在时间线之上按批次（`buckets` + `source_bucket_id`）分组，`send`/`send_reply` 单列为回复，两次回复之间的模型/工具/Agent 事件折成步骤组，并按显示顺序编 `position` |
+| `src/lib/invocation-chat.ts` | Overview 对话视图纯模型：在时间线之上按批次（`buckets` + `source_bucket_id`）分组，`send`/`send_reply` 单列为回复，两次回复之间的模型/工具/Agent 事件折成步骤组，并按显示顺序编 `position`；工具步骤与回复按 `tool_call_id` 带上模型实际收到的结果（`tool_result` Agent 消息，失败调用的错误文本只在这里），没有时退回 `tool_calls.result_text`/`result_content` |
 | `src/lib/review-export.ts` / `src/lib/review-prompt.ts` | Invocation 批改（Review）快照截断、Markdown 渲染与末尾结构化 JSON 序列化纯模块（固定英文 Agent 提示词模板在 `review-prompt.ts`） |
 | `src/stores/review.ts` | 浏览器本地批改草稿 Zustand store（`localStorage` 持久化、格式清洗与跨标签页同步） |
 | `src/components/review/**` | Overview 条目批改入口（`ReviewableItem`：悬停或键盘聚焦时显示，无 hover 的设备常显）与 Invocation 详情页批改摘要面板 |

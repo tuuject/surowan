@@ -24,7 +24,7 @@ export const chat: typeof chatEn = {
   toolSearch: '查找工具：{{query}}',
   toolHelp: '查看工具用法 <name>{{name}}</name>',
   modelCall: '模型调用 <name>{{name}}</name>',
-  toolDetails: '工具详情',
+  noResult: '没有记录结果',
   image: '生成的图片',
   file: '文件',
 };

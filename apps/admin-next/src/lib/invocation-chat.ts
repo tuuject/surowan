@@ -1,5 +1,12 @@
 import type { ContextMessageEntry } from './api/contexts.ts';
-import type { InvocationBucketEntry, InvocationDetail, TelegramSendEntry, ToolCallEntry } from './api/invocations.ts';
+import type {
+  AgentMessageEntry,
+  InvocationBucketEntry,
+  InvocationDetail,
+  TelegramSendEntry,
+  ToolCallEntry,
+  ToolContentPart,
+} from './api/invocations.ts';
 import {
   buildInvocationTimeline,
   type InvocationTimelineEvent,
@@ -64,11 +71,19 @@ export type StepAction =
   | { readonly kind: 'agent_note'; readonly role: string }
   | { readonly kind: 'model_call'; readonly failed: boolean };
 
+/** What a tool call handed back to the model; `null` when nothing was recorded. */
+export interface ToolOutcome {
+  readonly text: string | null;
+  readonly content: readonly ToolContentPart[] | null;
+}
+
 export interface ChatStep {
   readonly event: ChatActivityEvent;
   readonly position: number;
   readonly action: StepAction;
   readonly secondary: boolean;
+  /** The result of a tool call step; always `null` for model calls and agent messages. */
+  readonly result: ToolOutcome | null;
 }
 
 export interface StepSummary {
@@ -87,6 +102,7 @@ export type ChatItem =
       readonly parts: readonly ParsedSendArguments[];
       /** Deliveries of this call in send order; empty when nothing went out. */
       readonly sends: readonly TelegramSendEntry[];
+      readonly result: ToolOutcome | null;
     }
   | {
       readonly kind: 'steps';
@@ -211,6 +227,19 @@ function classifyStep(event: ChatActivityEvent): { readonly action: StepAction; 
   }
 }
 
+/**
+ * The result as the model received it (its `tool_result` message, which for a
+ * failed call is the only place the error text lives), else the copy the call
+ * recorded itself, as runs from before tool results were kept only have that.
+ */
+function toolOutcome(tool: ToolCallEntry, received: AgentMessageEntry | undefined): ToolOutcome | null {
+  const text = received !== undefined && received.text.length > 0 ? received.text : tool.result_text;
+  const content = received?.result_content ?? tool.result_content ?? null;
+  const hasText = text !== null && text.length > 0;
+  const hasContent = content !== null && content.length > 0;
+  return hasText || hasContent ? { text: hasText ? text : null, content: hasContent ? content : null } : null;
+}
+
 const EMPTY_SUMMARY: StepSummary = { tools: 0, skills: 0, failedModelCalls: 0, privateTexts: 0 };
 
 export function summarizeSteps(steps: readonly ChatStep[]): StepSummary {
@@ -329,6 +358,12 @@ export function buildInvocationChat(invocation: InvocationDetail): InvocationCha
     position: next(),
     message: parseChatMessage(event.message),
   });
+  const resultsByCall = new Map<string, AgentMessageEntry>();
+  for (const message of invocation.agent_messages) {
+    if (message.role === 'tool_result' && typeof message.tool_call_id === 'string') {
+      resultsByCall.set(message.tool_call_id, message);
+    }
+  }
   const sendsByCall = new Map<string, TelegramSendEntry[]>();
   for (const send of invocation.telegram_sends) {
     const list = sendsByCall.get(send.tool_call_id) ?? [];
@@ -349,6 +384,7 @@ export function buildInvocationChat(invocation: InvocationDetail): InvocationCha
           position: next(),
           parts: parseReplyParts(event.tool),
           sends: sendsByCall.get(event.tool.tool_call_id) ?? [],
+          result: toolOutcome(event.tool, resultsByCall.get(event.tool.tool_call_id)),
         });
         continue;
       }
@@ -357,7 +393,12 @@ export function buildInvocationChat(invocation: InvocationDetail): InvocationCha
         // Keyed by its first event, so a running run appending steps keeps the key.
         items.push({ kind: 'steps', key: `steps-${timelineEventKey(event)}`, steps: group, summary: EMPTY_SUMMARY });
       }
-      group.push({ event, position: next(), ...classifyStep(event) });
+      group.push({
+        event,
+        position: next(),
+        ...classifyStep(event),
+        result: event.kind === 'tool_call' ? toolOutcome(event.tool, resultsByCall.get(event.tool.tool_call_id)) : null,
+      });
     }
     const isOpening = slot === openingSlot;
     return {

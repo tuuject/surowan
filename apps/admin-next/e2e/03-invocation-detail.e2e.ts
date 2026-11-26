@@ -1,5 +1,6 @@
 import { expect } from '@playwright/test';
 import { adminUrl, e2eFetch, test } from './helpers.ts';
+import { overviewCard } from './review-helpers.ts';
 
 /**
  * Invocation detail contract: the six tabs render their real fields, failed
@@ -159,6 +160,8 @@ test.describe('failed invocation (4002)', () => {
     await overview.getByText('1 tool call, 1 failed model call, 1 private note', { exact: true }).click();
     await expect(overview.getByText('Model call openai/gpt-4.1-mini', { exact: true })).toBeVisible();
     await expect(overview.getByText('Error provider_timeout')).toBeVisible();
+    // This seeded run predates recorded tool results, and its failed read kept none.
+    await expect(overviewCard(page, 'Used tool read').getByText('No result recorded', { exact: true })).toBeVisible();
   });
 
   test('model calls tab exposes redacted error details', async ({ page }) => {

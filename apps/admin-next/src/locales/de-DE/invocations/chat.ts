@@ -25,7 +25,7 @@ export const chat: Catalog<typeof chatEn> = {
   toolSearch: 'Tools nach „{{query}}“ durchsucht',
   toolHelp: 'Anleitung für <name>{{name}}</name> gelesen',
   modelCall: 'Modellaufruf <name>{{name}}</name>',
-  toolDetails: 'Tool-Details',
+  noResult: 'Kein Ergebnis aufgezeichnet',
   image: 'Generiertes Bild',
   file: 'Datei',
 };

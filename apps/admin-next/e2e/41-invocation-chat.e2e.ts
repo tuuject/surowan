@@ -73,9 +73,18 @@ test('a long-lived run reads as batches of messages, folded steps and replies', 
   await expect(panel.getByText('Model call openai/e2e-chat-model', { exact: true })).toHaveCount(1);
   await expect(panel.getByText('Tool result', { exact: true })).toHaveCount(0);
   const fetchStep = overviewCard(page, 'Used tool web_fetch');
-  await fetchStep.getByText('Tool details', { exact: true }).click();
   await expect(fetchStep.getByText('Duration 40 ms', { exact: true })).toBeVisible();
-  await expect(fetchStep.getByText('Arguments', { exact: true })).toBeVisible();
+  // Arguments and the result the model got open separately, each on demand.
+  await expect(fetchStep.getByRole('button', { name: 'Text', exact: true })).toHaveCount(0);
+  await fetchStep.getByText('Arguments', { exact: true }).click();
+  await expect(fetchStep.getByRole('button', { name: 'Text', exact: true })).toHaveCount(1);
+  await expect(fetchStep.getByText('Sunny, 22°C', { exact: true })).toHaveCount(0);
+  await fetchStep.getByText('Result', { exact: true }).click();
+  await expect(fetchStep.getByText('Sunny, 22°C', { exact: true })).toBeVisible();
+  // A reply keeps what the send tool told the model, too.
+  const sent = overviewCard(page, 'Sunny and 22°C today.');
+  await sent.getByText('Result', { exact: true }).click();
+  await expect(sent.getByText('sent', { exact: true })).toBeVisible();
   await panel.getByText('1 earlier message in context', { exact: true }).click();
   await expect(panel.getByText('Morning, everyone', { exact: true })).toBeVisible();
 

@@ -25,7 +25,7 @@ export const chat = {
   toolSearch: 'Searched tools for “{{query}}”',
   toolHelp: 'Read how to use <name>{{name}}</name>',
   modelCall: 'Model call <name>{{name}}</name>',
-  toolDetails: 'Tool details',
+  noResult: 'No result recorded',
   image: 'Generated image',
   file: 'File',
 };

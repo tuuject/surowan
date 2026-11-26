@@ -5,6 +5,7 @@ import type { ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
 import { CopyableValue, StateBadge, TechText, TimeText } from '@/components/business';
 import { isRoom, MessageRecordLink } from '@/components/invocations/shared';
+import { ToolOutcomeDetails } from '@/components/invocations/step-details';
 import { ReviewableItem } from '@/components/review/comment-note.tsx';
 import type { InvocationDetail } from '@/lib/api/invocations.ts';
 import type { ChatItem } from '@/lib/invocation-chat.ts';
@@ -142,34 +143,40 @@ export function BotReply({
       position={item.position}
       align="end"
       footer={
-        <div className={metaClass}>
-          {replyTo === null ? null : (
-            <span>
-              {t(room ? 'invocations.invocationDetail.send.replyToRoom' : 'invocations.invocationDetail.send.replyTo', {
-                id: replyTo,
-              })}
-            </span>
-          )}
-          {item.sends.length === 0 ? (
-            <span className={css({ display: 'inline-flex', alignItems: 'center', gap: '1' })}>
-              <StateBadge state={tool.state} />
-              {tool.error_code === null ? null : <TechText>{tool.error_code}</TechText>}
-            </span>
-          ) : (
-            item.sends.map((send) => (
-              <span key={send.id} className={css({ display: 'inline-flex', alignItems: 'center', gap: '1' })}>
-                <StateBadge state={send.state} />
-                {send.telegram_message_id !== null ? (
-                  <span>{t('invocations.invocationDetail.send.messageLabel', { id: send.telegram_message_id })}</span>
-                ) : send.room_seq !== null ? (
-                  <span>{t('invocations.invocationDetail.send.roomMessageLabel', { id: send.room_seq })}</span>
-                ) : null}
-                {send.error_code === null ? null : <TechText>{send.error_code}</TechText>}
+        <>
+          <div className={metaClass}>
+            {replyTo === null ? null : (
+              <span>
+                {t(
+                  room ? 'invocations.invocationDetail.send.replyToRoom' : 'invocations.invocationDetail.send.replyTo',
+                  {
+                    id: replyTo,
+                  },
+                )}
               </span>
-            ))
-          )}
-          <TimeText value={tool.created_at} />
-        </div>
+            )}
+            {item.sends.length === 0 ? (
+              <span className={css({ display: 'inline-flex', alignItems: 'center', gap: '1' })}>
+                <StateBadge state={tool.state} />
+                {tool.error_code === null ? null : <TechText>{tool.error_code}</TechText>}
+              </span>
+            ) : (
+              item.sends.map((send) => (
+                <span key={send.id} className={css({ display: 'inline-flex', alignItems: 'center', gap: '1' })}>
+                  <StateBadge state={send.state} />
+                  {send.telegram_message_id !== null ? (
+                    <span>{t('invocations.invocationDetail.send.messageLabel', { id: send.telegram_message_id })}</span>
+                  ) : send.room_seq !== null ? (
+                    <span>{t('invocations.invocationDetail.send.roomMessageLabel', { id: send.room_seq })}</span>
+                  ) : null}
+                  {send.error_code === null ? null : <TechText>{send.error_code}</TechText>}
+                </span>
+              ))
+            )}
+            <TimeText value={tool.created_at} />
+          </div>
+          {item.result === null ? null : <ToolOutcomeDetails result={item.result} />}
+        </>
       }
     >
       <div

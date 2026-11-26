@@ -49,7 +49,7 @@ export const chat: CompleteCatalog<typeof chatEn> = {
   toolSearch: 'بحث في الأدوات عن «{{query}}»',
   toolHelp: 'قرأ طريقة استخدام <name>{{name}}</name>',
   modelCall: 'استدعاء النموذج <name>{{name}}</name>',
-  toolDetails: 'تفاصيل الأداة',
+  noResult: 'لم تُسجَّل نتيجة',
   image: 'صورة مُولَّدة',
   file: 'ملف',
 };
