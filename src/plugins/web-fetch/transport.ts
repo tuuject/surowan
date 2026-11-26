@@ -4,6 +4,7 @@ import { isIP } from 'node:net';
 import { Readable } from 'node:stream';
 import { webFetchUserAgent } from '../../platform/version.ts';
 import { type AddressPolicy, type ResolveHostname, resolveAllowedAddress } from './address.ts';
+import { textEncodingOf } from './charset.ts';
 import { WebFetchError } from './shared.ts';
 
 const MAX_REDIRECTS = 3;
@@ -163,19 +164,25 @@ export function mediaTypeOf(response: Response): string | undefined {
   return response.headers.get('content-type')?.split(';', 1)[0]?.trim().toLowerCase();
 }
 
+/**
+ * Reads at most `maxBytes` from the wire. The decoded text can be longer in
+ * UTF-8 than that: legacy charsets spend fewer bytes per character.
+ */
 export async function readTextBody(
   response: Response,
   maxBytes: number,
 ): Promise<{ text: string; truncated: boolean }> {
   const { bytes, truncated } = await readBody(response, maxBytes);
-  const attempts = truncated ? Math.min(3, bytes.byteLength) : 0;
-  for (let dropped = 0; dropped <= attempts; dropped += 1) {
-    try {
-      const text = new TextDecoder('utf-8', { fatal: true }).decode(bytes.subarray(0, bytes.byteLength - dropped));
-      return { text, truncated };
-    } catch {}
+  const { encoding, declared } = textEncodingOf(bytes, response.headers.get('content-type'));
+  try {
+    // A declared charset decodes like a browser, bad bytes becoming U+FFFD. An undeclared
+    // body must be strict UTF-8, or binary content would come back as text. Streaming holds
+    // back a character the read limit cut in half instead of failing on it.
+    const text = new TextDecoder(encoding, { fatal: !declared }).decode(bytes, { stream: truncated });
+    return { text, truncated };
+  } catch {
+    throw new WebFetchError('invalid_text_encoding', 'Response is not valid UTF-8 and declares no charset');
   }
-  throw new WebFetchError('invalid_text_encoding', 'Response is not valid UTF-8');
 }
 
 export async function readBody(response: Response, maxBytes: number): Promise<{ bytes: Buffer; truncated: boolean }> {

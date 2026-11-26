@@ -42,6 +42,7 @@ description: web_fetch 的三个开关：Markdown 协商、代理 fake-IP 放行
 - 不发 Cookie，不带任何配置里的凭据。User-Agent 是 `Mozilla/5.0 Surowan/<version>`，让站点返回普通页面。
 - 重定向最多 3 跳，默认策略下**每一跳都重新做地址检查**，所以「公网地址 302 到 127.0.0.1」这种绕法不成立（打开 `dangerously_allow_all_ip_addresses` 后地址检查本身不在了）。
 - 只接受文本类（`text/*`、JSON、XML、JavaScript）与图片两类响应，其他二进制类型、非 `identity` 的 `content-encoding` 直接报错。
+- GBK、Big5、Shift_JIS 这类非 UTF-8 网页，只要响应头、页面的 `<meta charset>` 或 XML 声明写明了编码，就能正常读取，个别坏字节显示为 `�`。什么编码都没写明、内容又不是 UTF-8 的页面会报 `invalid_text_encoding`，不会去猜编码。
 - 正文结果上限 32 KiB，超出加 `[content truncated]`。HTML 原文读取上限 2 MiB（转换要读整页）。单次请求 15 秒超时，且不会超过 Invocation 的剩余时间。
 - 返回内容一律包在「不可信网页内容」的提示里，可以引用，不能当指令或授权。
 
