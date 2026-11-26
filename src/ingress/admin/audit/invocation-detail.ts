@@ -2,6 +2,7 @@ import { eq, sql } from 'drizzle-orm';
 import {
   agentMessages,
   hostSends,
+  invocationBuckets,
   invocationMessages,
   messages,
   modelCalls,
@@ -129,12 +130,26 @@ export function getInvocation(orm: Orm, id: bigint): Record<string, unknown> | n
       sequenceNo: invocationMessages.sequenceNo,
       messageId: invocationMessages.messageId,
       revisionId: invocationMessages.revisionId,
+      sourceBucketId: invocationMessages.sourceBucketId,
       omittedBefore: invocationMessages.omittedBefore,
       snapshotJson: invocationMessages.snapshotJson,
     })
     .from(invocationMessages)
     .where(eq(invocationMessages.invocationId, id))
     .orderBy(invocationMessages.sequenceNo)
+    .all();
+  // Every batch this run took: the opening one and those attached while it ran.
+  // `injected_at` is when the model saw the batch; an attached batch the run
+  // ended before injecting keeps it null.
+  const bucketRows = orm
+    .select({
+      bucketId: invocationBuckets.bucketId,
+      attachedAt: invocationBuckets.attachedAt,
+      injectedAt: invocationBuckets.injectedAt,
+    })
+    .from(invocationBuckets)
+    .where(eq(invocationBuckets.invocationId, id))
+    .orderBy(invocationBuckets.attachedAt, invocationBuckets.bucketId)
     .all();
   return {
     id: invocation.id.toString(),
@@ -239,8 +254,14 @@ export function getInvocation(orm: Orm, id: bigint): Record<string, unknown> | n
       sequence_no: Number(row.sequenceNo),
       message_id: row.messageId.toString(),
       revision_id: row.revisionId.toString(),
+      source_bucket_id: row.sourceBucketId?.toString() ?? null,
       omitted_before: Number(row.omittedBefore),
       snapshot_json: row.snapshotJson,
+    })),
+    buckets: bucketRows.map((row) => ({
+      bucket_id: row.bucketId.toString(),
+      attached_at: row.attachedAt,
+      injected_at: row.injectedAt,
     })),
   };
 }

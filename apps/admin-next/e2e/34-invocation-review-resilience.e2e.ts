@@ -125,13 +125,13 @@ test.describe('invocation review storage and metadata resilience', () => {
     await page.goto(await adminUrl('/invocations/4001'));
     await expect(page.getByText('Invocation 4001').first()).toBeVisible();
 
-    const sendCard = await addOverviewComment(page, 'call_send_001', 'First in-memory comment.');
+    const sendCard = await addOverviewComment(page, 'Hello from the seeded invocation', 'First in-memory comment.');
     await expect(
       toast(page, "Couldn't save the review draft in this browser; it is kept only until you close this tab"),
     ).toBeVisible();
     await expect(sendCard.getByText('First in-memory comment.')).toBeVisible();
 
-    const readCard = await addOverviewComment(page, 'call_read_001', 'Second in-memory comment.');
+    const readCard = await addOverviewComment(page, 'Used tool read', 'Second in-memory comment.');
     await expect(sendCard.getByText('First in-memory comment.')).toBeVisible();
     await expect(readCard.getByText('Second in-memory comment.')).toBeVisible();
     await expectReviewCounts(page, '2 comments on this invocation', '1 invocation in your review draft');

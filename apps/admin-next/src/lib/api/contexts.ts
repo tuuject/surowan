@@ -6,6 +6,8 @@ export interface ContextMessageEntry {
   readonly sequence_no: number;
   readonly message_id: string;
   readonly revision_id: string;
+  /** The batch a `new` message arrived in; `null` for history and for runs recorded before batches were kept. */
+  readonly source_bucket_id: string | null;
   readonly omitted_before: number;
   readonly snapshot_json: string;
 }

@@ -4,6 +4,7 @@
  * mirror this structure key for key (enforced by the `typeof` annotation in
  * `zh-CN/invocations.ts`).
  */
+import { chat } from './invocations/chat.ts';
 import { review } from './invocations/review.ts';
 
 export const invocations = {
@@ -99,41 +100,31 @@ export const invocations = {
       label: 'Label',
       description: 'Description (as sent to the model)',
     },
-    timeline: {
-      queued: 'Invocation queued',
-      started: 'Invocation started',
-      finished: 'Invocation finished',
-    },
+    chat,
     send: {
       sticker: 'Sticker {{ref}}',
       noContent: 'No send content recorded',
       replyTo: 'Reply to Telegram message {{id}}',
       replyToRoom: 'Reply to room message #{{id}}',
-      delivery: 'Telegram delivery',
       messageLabel: 'Message {{id}}',
       roomMessageLabel: 'Room message #{{id}}',
     },
     toolCall: {
       duration: 'Duration {{value}}',
       error: 'Error {{code}}',
-      argumentsAndResult: 'Arguments and result',
       arguments: 'Arguments',
       result: 'Result',
     },
     contextMessage: {
       unknownSender: 'Unknown sender',
       mediaCount: '{{count}} media',
-      telegramMessage: 'Telegram message {{id}}, {{kind}}',
-      roomMessage: 'Room message #{{id}}, {{kind}}',
       openRecord: 'Open message record',
       openRoom: 'Open room',
     },
     agentRoles: {
       assistantLabel: 'Assistant private text',
-      assistantNote: 'Not published to Telegram',
       toolResultLabel: 'Tool result',
       harnessNudgeLabel: 'Send reminder',
-      harnessNudgeNote: 'Reminder to use send',
     },
     agent: {
       noText: 'No text content',
@@ -141,11 +132,8 @@ export const invocations = {
       viewToolResult: 'View tool result passed to the agent',
     },
     modelCall: {
-      badge: 'Model call',
       attempt: 'Attempt {{value}}',
       tokens: 'Tokens {{value}}',
-      cacheRead: 'Cache read {{value}}',
-      cacheWrite: 'Cache write {{value}}',
       cost: 'Cost {{value}}',
       duration: 'Duration {{value}}',
       error: 'Error {{code}}',

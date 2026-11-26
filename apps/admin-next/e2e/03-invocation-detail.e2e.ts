@@ -1,5 +1,6 @@
 import { expect } from '@playwright/test';
 import { adminUrl, e2eFetch, test } from './helpers.ts';
+import { overviewCard } from './review-helpers.ts';
 
 /**
  * Invocation detail contract: the six tabs render their real fields, failed
@@ -51,11 +52,18 @@ test.describe('completed invocation (4001)', () => {
     await expect(page.getByText('Invocation 4001').first()).toBeVisible();
   });
 
-  test('overview timeline renders queued/started/finished and tool events', async ({ page }) => {
-    await expect(page.getByText('Invocation started')).toBeVisible();
-    await expect(page.getByText('Invocation finished')).toBeVisible();
-    await expect(page.getByText('Hello from the seeded invocation').first()).toBeVisible();
-    await expect(page.getByText('call_send_001')).toBeVisible();
+  test('overview reads as a chat: batch divider, incoming message, collapsed steps and the reply', async ({ page }) => {
+    const overview = page.getByRole('tabpanel', { name: /Overview/ });
+    await expect(overview.getByText('Messages queued', { exact: true })).toBeVisible();
+    await expect(overview.getByText('Run finished', { exact: true })).toBeVisible();
+    await expect(overview.getByText('plain text message with a reply')).toBeVisible();
+    await expect(overview.getByText('Hello from the seeded invocation')).toBeVisible();
+    // The work between message and reply is one line until opened.
+    await expect(overview.getByText('1 tool call, 2 private notes', { exact: true })).toBeVisible();
+    await expect(overview.getByText('Used tool read', { exact: true })).toHaveCount(0);
+    // Retained history is folded away too.
+    await expect(overview.getByText('1 earlier message in context', { exact: true })).toBeVisible();
+    await expect(overview.getByText('edited caption')).toHaveCount(0);
   });
 
   test('tool calls tab lists read + send with call ids', async ({ page }) => {
@@ -97,16 +105,19 @@ test.describe('completed invocation (4001)', () => {
   });
 
   test('model call payloads mount only when their disclosure is expanded', async ({ page }) => {
+    // 4001's model calls succeeded and stay out of the chat; 4002's failed one is a step.
+    await page.goto(await adminUrl('/invocations/4002'));
     const overview = page.getByRole('tabpanel', { name: /Overview/ });
-    // A native <details> renders its subtree while collapsed; the payloads must
-    // not exist in the DOM until the user expands "View details".
+    // A native <details> renders its subtree while collapsed; neither the step
+    // nor its payloads exist in the DOM until the reader opens them.
+    await expect(overview.getByText('View details')).toHaveCount(0);
+    await overview.getByText('1 tool call, 1 failed model call, 1 private note', { exact: true }).click();
     await expect(overview.getByText('Last API request payload')).toHaveCount(0);
     await expect(overview.getByText('context_messages')).toHaveCount(0);
     await overview.getByText('View details').first().click();
     await expect(overview.getByText('Last API request payload')).toBeVisible();
-    await expect(overview.getByText('Last API response status')).toBeVisible();
-    // Both payloads keep their JSON tree behind a second lazy disclosure; the
-    // request payload comes first and carries context_messages.
+    // The request payload keeps its JSON tree behind a second lazy disclosure
+    // and carries context_messages.
     await expect(overview.getByText('context_messages')).toHaveCount(0);
     await overview
       .getByText(/Payload \(\d+ chars\) — click to expand/)
@@ -144,8 +155,13 @@ test.describe('failed invocation (4002)', () => {
   test('overview shows the failed model call with its stable error code', async ({ page }) => {
     await page.goto(await adminUrl('/invocations/4002'));
     await expect(page.getByText('Invocation 4002').first()).toBeVisible();
-    await expect(page.getByText('Error provider_timeout')).toBeVisible();
     await expect(page.getByText('model_failed').first()).toBeVisible();
+    const overview = page.getByRole('tabpanel', { name: /Overview/ });
+    await overview.getByText('1 tool call, 1 failed model call, 1 private note', { exact: true }).click();
+    await expect(overview.getByText('Model call openai/gpt-4.1-mini', { exact: true })).toBeVisible();
+    await expect(overview.getByText('Error provider_timeout')).toBeVisible();
+    // This seeded run predates recorded tool results, and its failed read kept none.
+    await expect(overviewCard(page, 'Used tool read').getByText('No result recorded', { exact: true })).toBeVisible();
   });
 
   test('model calls tab exposes redacted error details', async ({ page }) => {

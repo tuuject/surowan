@@ -17,6 +17,7 @@ function contextMessage(overrides: Partial<ContextMessageEntry> = {}): ContextMe
     sequence_no: 1,
     message_id: '7001',
     revision_id: '8001',
+    source_bucket_id: '42',
     omitted_before: 0,
     snapshot_json:
       '{"sender":{"username":"alice","name":"Alice"},"kind":"text","text":"hello","telegram_date":"2026-09-15T09:59:00.000Z","message_id":"7001"}',
@@ -116,6 +117,7 @@ function invocation(overrides: Partial<InvocationDetail> = {}): InvocationDetail
     agent_messages: [],
     telegram_sends: [],
     context_messages: [],
+    buckets: [],
     resumed_from_invocation_id: null,
     resumed_by_invocation_id: null,
     resume: { available: false, reason: 'resume_not_failed' },

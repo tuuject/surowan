@@ -1,5 +1,6 @@
 import { expect } from '@playwright/test';
 import { adminBase, adminUrl, test, watchPageIssues } from './helpers.ts';
+import { expandOverview } from './review-helpers.ts';
 
 test.use({ signedIn: true });
 
@@ -32,6 +33,9 @@ test('message detail displays a copyable Telegram user ID for each revision', as
 test('invocation overview and frozen context copy the frozen sender ID', async ({ page }) => {
   await page.goto(await adminUrl('/invocations/4001'));
   const overview = page.getByRole('tabpanel', { name: /Overview/ });
+  // The incoming message, then the retained one once its history is opened.
+  await expect(overview.getByRole('button', { name: 'Copy Telegram sender ID 42', exact: true })).toHaveCount(1);
+  await expandOverview(page);
   await expect(overview.getByRole('button', { name: 'Copy Telegram sender ID 42', exact: true })).toHaveCount(2);
   await overview.getByRole('button', { name: 'Copy Telegram sender ID 42', exact: true }).first().click();
   await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe('42');

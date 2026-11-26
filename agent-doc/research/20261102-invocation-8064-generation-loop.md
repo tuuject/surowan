@@ -25,7 +25,7 @@
 | 现有上限 | max_wall_clock_seconds=1,800；turns_per_injection=24；idle_grace_seconds=60 |
 | 原始报文 | 37 条 request_json / response_json 均为 null；duration_ms 均为 null |
 
-**Private Reasoning 是面板对普通 Assistant 私有文本的标签，不等于 Provider 的 thinking 字段。** 本次最早的大段异常位于 `thinking_text`，后续大段异常主要位于 `text`。只监控 reasoning 会漏掉最昂贵的部分。字段映射见 [面板展示代码](../../apps/admin-next/src/components/invocations/timeline-cards.tsx#L238) 和 [消息记录代码](../../src/orchestration/agent-runtime/run-hooks.ts#L145)。
+**Private Reasoning 是面板对普通 Assistant 私有文本的标签，不等于 Provider 的 thinking 字段。** 本次最早的大段异常位于 `thinking_text`，后续大段异常主要位于 `text`。只监控 reasoning 会漏掉最昂贵的部分。字段映射见 [面板展示代码](../../apps/admin-next/src/components/invocations/step-details.tsx#L118) 和 [消息记录代码](../../src/orchestration/agent-runtime/run-hooks.ts#L145)。
 
 | Token 口径 | 已记录数值 |
 |---|---:|

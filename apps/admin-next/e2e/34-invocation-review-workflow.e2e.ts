@@ -35,9 +35,9 @@ test.describe('invocation review workflow', () => {
     await page.goForward();
     await expect(page.getByText('Invocation 4001').first()).toBeVisible();
 
-    // 1. On /invocations/4001 Overview: add a comment on send tool call (call_send_001),
+    // 1. On /invocations/4001 Overview: add a comment on the bot's reply (send call_send_001),
     // on an assistant agent message card (with Ctrl+Enter), and add an overall comment.
-    await addOverviewComment(page, 'call_send_001', 'Reply was too verbose here.');
+    await addOverviewComment(page, 'Hello from the seeded invocation', 'Reply was too verbose here.');
     await addOverviewComment(
       page,
       'private reasoning before calling read',
@@ -101,7 +101,7 @@ test.describe('invocation review workflow', () => {
     // tab B's comment is still present after reloading.
     const pageB = await page.context().newPage();
     await pageB.goto(await adminUrl('/invocations/4002'));
-    await addOverviewComment(pageB, 'call_read_002', 'Added from tab B.');
+    await addOverviewComment(pageB, 'Used tool read', 'Added from tab B.');
 
     // Tab A on /reviews shows tab B's comment without reload
     await expect(section4002.getByText('Added from tab B.')).toBeVisible();
