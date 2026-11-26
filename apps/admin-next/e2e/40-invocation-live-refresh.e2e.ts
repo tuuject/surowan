@@ -128,8 +128,10 @@ test('one failed background refetch keeps the page and its data, and the next ev
   // The next event recovers it: the stream was never closed, so the new row
   // arrives without a reload.
   const recovered = await appendToolCall(id);
-  await expect(page.getByRole('tab', { name: 'Tool calls (3)' })).toBeVisible({ timeout: 15_000 });
-  await expect(page.getByText(recovered.tool_call_id)).toBeVisible();
+  const tools = page.getByRole('tab', { name: 'Tool calls (3)' });
+  await expect(tools).toBeVisible({ timeout: 15_000 });
+  await tools.click();
+  await expect(page.getByRole('tabpanel', { name: 'Tool calls (3)' }).getByText(recovered.tool_call_id)).toBeVisible();
   await e2eFetch(`/running-invocation/finish?id=${id}`, { method: 'POST' });
 });
 
@@ -159,11 +161,14 @@ test('Auto refresh off freezes the page, survives a reload, and the switch turns
   // The choice is remembered in the browser, not in the page's memory.
   await page.reload();
   await expect(switchOn(page)).not.toBeChecked();
-  await expect(page.getByRole('tab', { name: 'Tool calls (2)' })).toBeVisible();
+  // A reload opens the Overview again; the call ids are listed on Tool calls.
+  await page.getByRole('tab', { name: 'Tool calls (2)' }).click();
 
   await switchOn(page).click();
   const live = await appendToolCall(id);
-  await expect(page.getByText(live.tool_call_id)).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByRole('tabpanel', { name: /Tool calls/ }).getByText(live.tool_call_id)).toBeVisible({
+    timeout: 10_000,
+  });
   // Release the conversation's one running slot for the next spec in this file.
   await e2eFetch(`/running-invocation/finish?id=${id}`, { method: 'POST' });
 });

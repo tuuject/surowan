@@ -1,5 +1,6 @@
 import type { CompleteCatalog } from '../catalog.ts';
 import type { invocations as invocationsEn } from '../en/invocations.ts';
+import { chat } from './invocations/chat.ts';
 import { review } from './invocations/review.ts';
 
 /** Mirrors `en/invocations.ts` key for key; plural keys add the CLDR Arabic categories. */
@@ -132,24 +133,18 @@ export const invocations: CompleteCatalog<typeof invocationsEn> = {
       label: 'التسمية',
       description: 'الوصف (كما أُرسل إلى النموذج)',
     },
-    timeline: {
-      queued: 'أُدرج الاستدعاء في قائمة الانتظار',
-      started: 'بدأ الاستدعاء',
-      finished: 'انتهى الاستدعاء',
-    },
+    chat,
     send: {
       sticker: 'الملصق {{ref}}',
       noContent: 'لم يُسجّل أي محتوى للإرسال',
       replyTo: 'رد على رسالة Telegram {{id}}',
       replyToRoom: 'رد على رسالة الغرفة #{{id}}',
-      delivery: 'تسليم Telegram',
       messageLabel: 'الرسالة {{id}}',
       roomMessageLabel: 'رسالة الغرفة #{{id}}',
     },
     toolCall: {
       duration: 'المدة {{value}}',
       error: 'الخطأ {{code}}',
-      argumentsAndResult: 'الوسائط والنتيجة',
       arguments: 'الوسائط',
       result: 'النتيجة',
     },
@@ -169,10 +164,8 @@ export const invocations: CompleteCatalog<typeof invocationsEn> = {
     },
     agentRoles: {
       assistantLabel: 'نص المساعد الخاص',
-      assistantNote: 'لا يُنشر إلى Telegram',
       toolResultLabel: 'نتيجة الأداة',
       harnessNudgeLabel: 'تذكير الإرسال',
-      harnessNudgeNote: 'تذكير باستخدام `send`',
     },
     agent: {
       noText: 'لا يوجد محتوى نصي',
@@ -180,11 +173,8 @@ export const invocations: CompleteCatalog<typeof invocationsEn> = {
       viewToolResult: 'عرض نتيجة الأداة المسلَّمة إلى الوكيل',
     },
     modelCall: {
-      badge: 'استدعاء النموذج',
       attempt: 'المحاولة {{value}}',
       tokens: 'الرموز {{value}}',
-      cacheRead: 'قراءة من الذاكرة المؤقتة {{value}}',
-      cacheWrite: 'كتابة إلى الذاكرة المؤقتة {{value}}',
       cost: 'التكلفة {{value}}',
       duration: 'المدة {{value}}',
       error: 'الخطأ {{code}}',

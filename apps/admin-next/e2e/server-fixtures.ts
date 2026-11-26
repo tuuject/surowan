@@ -30,6 +30,7 @@ import { PlaygroundStore } from '../../../src/store/playground/index.ts';
 import { recordPromptVersionsFromConfig } from '../../../src/store/prompt-versions.ts';
 import { seedAdminFixture } from '../../../test/fixtures/admin-seed.ts';
 import { seedAdminBulkRows } from '../../../test/fixtures/admin-seed-bulk.ts';
+import { seedAdminChatRun } from '../../../test/fixtures/admin-seed-chat-run.ts';
 import { seedAdminWarnings } from '../../../test/fixtures/admin-seed-context.ts';
 import { seedAdminToolImages } from '../../../test/fixtures/admin-tool-images.ts';
 import { fauxRegistry } from '../../../test/helpers.ts';
@@ -64,6 +65,10 @@ export async function openFixtures(loaded: LoadedConfig, directory: string): Pro
     await seedAdminToolImages(store, loaded.config.data_dir, seed);
   }
   seedAdminBulkRows(store);
+  // The docs instance keeps its runs to the ones its screenshots document.
+  if (docs === null) {
+    seedAdminChatRun(store);
+  }
   seedAdminWarnings(store.orm);
   if (docs !== null) {
     // Docs screenshots get the same rows in the documentation language (after

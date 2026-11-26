@@ -65,7 +65,11 @@ export interface ParsedSendArguments {
  * of being dropped, keeping every Telegram ID a string on the client.
  */
 export function parseSendArguments(argumentsJson: string): ParsedSendArguments {
-  const args = parseJsonObject(argumentsJson);
+  return parseSendObject(parseJsonObject(argumentsJson));
+}
+
+/** The same projection over an already parsed object, e.g. one `send_reply` part. */
+export function parseSendObject(args: JsonObject | null): ParsedSendArguments {
   const replyRaw = args?.reply_to_message_id;
   const replyTo =
     typeof replyRaw === 'string' && replyRaw.length > 0

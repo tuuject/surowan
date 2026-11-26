@@ -1,5 +1,6 @@
 import { expect } from '@playwright/test';
 import { adminUrl, test } from './helpers.ts';
+import { expandOverview } from './review-helpers.ts';
 
 /**
  * Regression: while the mode is "system", an OS scheme change must update the
@@ -11,9 +12,11 @@ test.use({ signedIn: true });
 
 test('system color scheme change updates the theme context value', async ({ page }) => {
   await page.emulateMedia({ colorScheme: 'light' });
-  await page.goto(await adminUrl('/invocations/4001'));
+  // 4002's failed model call is the Overview step that carries a payload.
+  await page.goto(await adminUrl('/invocations/4002'));
 
   const overview = page.getByRole('tabpanel', { name: /Overview/ });
+  await expandOverview(page);
   await overview.getByText('View details').first().click();
   await overview
     .getByText(/Payload \(\d+ chars\) — click to expand/)

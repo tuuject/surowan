@@ -10,12 +10,24 @@ export function overviewCard(page: Page, text: string): Locator {
     .filter({ hasText: text });
 }
 
+/** Opens the Overview's collapsed history and step groups, so every reviewable item is on the page. */
+export async function expandOverview(page: Page): Promise<void> {
+  const panel = page.getByRole('tabpanel', { name: /Overview/ });
+  // Every non-empty Overview opens with a batch divider: wait for the chat itself.
+  await expect(panel.getByRole('separator').first()).toBeVisible();
+  const closed = panel.locator('details[data-chat-disclosure]:not([open]) > summary');
+  while ((await closed.count()) > 0) {
+    await closed.first().click();
+  }
+}
+
 export async function addOverviewComment(
   page: Page,
   cardText: string,
   comment: string,
   useCtrlEnter = false,
 ): Promise<Locator> {
+  await expandOverview(page);
   const card = overviewCard(page, cardText);
   await card.getByRole('button', { name: 'Add review comment', exact: true }).click();
   const input = card.getByRole('textbox', { name: 'Review comment', exact: true });

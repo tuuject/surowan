@@ -50,14 +50,15 @@ interface InvocationLiveRow {
   readonly sends: string | null;
   readonly agent_messages: string | null;
   readonly context_messages: string | null;
+  readonly buckets: string | null;
 }
 
 /**
  * The fingerprint of one Invocation detail page, or `null` once its row is
  * gone. Every subquery is an index range scan on the Invocation's own rows
  * (`tool_calls_invocation_idx`, `model_calls_invocation_idx`, the primary keys
- * of `agent_messages` / `invocation_messages`, and `host_sends` probed through
- * the tool call it belongs to).
+ * of `agent_messages` / `invocation_messages` / `invocation_buckets`, and
+ * `host_sends` probed through the tool call it belongs to).
  */
 export function invocationLiveFingerprint(orm: Orm, id: bigint): string | null {
   const row = orm
@@ -90,7 +91,10 @@ export function invocationLiveFingerprint(orm: Orm, id: bigint): string | null {
                  FROM agent_messages a WHERE a.invocation_id = i.id ORDER BY a.id)) AS agent_messages,
               (SELECT group_concat(sig, '|') FROM (
                  SELECT m.sequence_no || '~' || m.message_id || '~' || m.revision_id AS sig
-                 FROM invocation_messages m WHERE m.invocation_id = i.id ORDER BY m.sequence_no)) AS context_messages
+                 FROM invocation_messages m WHERE m.invocation_id = i.id ORDER BY m.sequence_no)) AS context_messages,
+              (SELECT group_concat(sig, '|') FROM (
+                 SELECT b.bucket_id || '~' || COALESCE(b.injected_at, '') AS sig
+                 FROM invocation_buckets b WHERE b.invocation_id = i.id ORDER BY b.bucket_id)) AS buckets
        FROM invocations i WHERE i.id = ${id}`)
     .at(0);
   return row === undefined ? null : digest(row);

@@ -1,0 +1,30 @@
+import type { chat as chatEn } from '../../en/invocations/chat.ts';
+
+/** Mirrors `en/invocations/chat.ts` key for key; the annotation fails the build on drift. */
+export const chat: typeof chatEn = {
+  batch: '消息入队',
+  batchPending: '消息入队，模型还没读取',
+  batchSkipped: '消息入队，没有交给模型',
+  finished: '运行结束',
+  history_one: '此前的上下文 {{count}} 条',
+  history_other: '此前的上下文 {{count}} 条',
+  summaryTools_one: '调用 {{count}} 次工具',
+  summaryTools_other: '调用 {{count}} 次工具',
+  summarySkills_one: '使用 {{count}} 个技能',
+  summarySkills_other: '使用 {{count}} 个技能',
+  summaryFailedModelCalls_one: '{{count}} 次模型调用失败',
+  summaryFailedModelCalls_other: '{{count}} 次模型调用失败',
+  summaryPrivateTexts_one: '{{count}} 段私有文本',
+  summaryPrivateTexts_other: '{{count}} 段私有文本',
+  summarySteps_one: '{{count}} 个步骤',
+  summarySteps_other: '{{count}} 个步骤',
+  summarySeparator: '、',
+  skill: '使用技能 <name>{{name}}</name>',
+  tool: '使用工具 <name>{{name}}</name>',
+  toolSearch: '查找工具：{{query}}',
+  toolHelp: '查看工具用法 <name>{{name}}</name>',
+  modelCall: '模型调用 <name>{{name}}</name>',
+  toolDetails: '工具详情',
+  image: '生成的图片',
+  file: '文件',
+};

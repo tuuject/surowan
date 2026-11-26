@@ -71,7 +71,7 @@ These views are reads. Editing them is on the [configuration page](configuration
 
 `at` cannot be combined with `from` or `to` (`400 invalid_time_range`), and a message filter must match at least one message. Rows carry the counters the runtime recorded (`sends_used`, `tool_calls_used`, `turns_used`, `tool_call_count`), the token total under the daily-budget definition (`total_tokens`, with `cache_read_tokens` / `cache_write_tokens` as a breakdown), `total_cost` when the provider reported one, and the Chat identity block (`host_kind`, `telegram_chat_id`, `chat_type`, `message_thread_id`).
 
-`GET /api/invocations/:id` returns the detail: model calls, tool calls, sends and the retained Context messages of that run. It also returns the resume verdict, so a client can offer the button only when the click would succeed:
+`GET /api/invocations/:id` returns the detail: model calls, tool calls, sends, the retained Context messages of that run (a new message carries `source_bucket_id`, the batch it arrived in), and `buckets`: every batch the run took with `injected_at`, when the model read it (`null` while it waits, or when the run ended first). It also returns the resume verdict, so a client can offer the button only when the click would succeed:
 
 ```json
 { "…": "…", "resume": { "available": true, "reason": null } }

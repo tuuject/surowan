@@ -1,4 +1,5 @@
 import type { invocations as invocationsEn } from '../en/invocations.ts';
+import { chat } from './invocations/chat.ts';
 import { review } from './invocations/review.ts';
 
 export const invocations: typeof invocationsEn = {
@@ -94,24 +95,18 @@ export const invocations: typeof invocationsEn = {
       label: '标签',
       description: '描述（发送给模型的内容）',
     },
-    timeline: {
-      queued: '运行已入队',
-      started: '开始运行',
-      finished: '运行结束',
-    },
+    chat,
     send: {
       sticker: '贴纸 {{ref}}',
       noContent: '未记录发送内容',
       replyTo: '回复 Telegram 消息 {{id}}',
       replyToRoom: '回复房间消息 #{{id}}',
-      delivery: 'Telegram 送达',
       messageLabel: '消息 {{id}}',
       roomMessageLabel: '房间消息 #{{id}}',
     },
     toolCall: {
       duration: '耗时 {{value}}',
       error: '错误 {{code}}',
-      argumentsAndResult: '参数与结果',
       arguments: '参数',
       result: '结果',
     },
@@ -125,10 +120,8 @@ export const invocations: typeof invocationsEn = {
     },
     agentRoles: {
       assistantLabel: '助手私有文本',
-      assistantNote: '不会发布到 Telegram',
       toolResultLabel: '工具结果',
       harnessNudgeLabel: '发送提醒',
-      harnessNudgeNote: '提醒模型用发送工具回复',
     },
     agent: {
       noText: '无文本内容',
@@ -136,11 +129,8 @@ export const invocations: typeof invocationsEn = {
       viewToolResult: '查看传给模型的工具结果',
     },
     modelCall: {
-      badge: '模型调用',
       attempt: '第 {{value}} 次尝试',
       tokens: 'Token {{value}}',
-      cacheRead: '缓存读取 {{value}}',
-      cacheWrite: '缓存写入 {{value}}',
       cost: '费用 {{value}}',
       duration: '耗时 {{value}}',
       error: '错误 {{code}}',

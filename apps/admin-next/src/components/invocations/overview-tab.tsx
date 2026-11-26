@@ -1,137 +1,104 @@
-import { css, cx } from '@tuuject/koi-react/styled-system/css';
-import type { ReactElement } from 'react';
+import { Divider } from '@tuuject/koi-react/divider';
+import { css } from '@tuuject/koi-react/styled-system/css';
+import type { ReactElement, ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
+import { TimeText } from '@/components/business';
+import { BotReply, MemberMessage } from '@/components/invocations/chat-bubbles';
+import { ChatDisclosure, StepGroup } from '@/components/invocations/chat-steps';
 import { TabEmpty } from '@/components/invocations/shared';
-import {
-  AgentMessageCard,
-  ContextMessageCard,
-  ModelCallCard,
-  TimelineCard,
-  ToolCallCard,
-} from '@/components/invocations/timeline-cards';
-import { EventReviewAffordance } from '@/components/review/comment-note.tsx';
 import type { InvocationDetail } from '@/lib/api/invocations.ts';
-import { buildInvocationTimeline, type InvocationTimelineEvent, timelineEventKey } from '@/lib/timeline';
-import { TimeText } from '@/components/business/time-text';
+import { buildInvocationChat, type ChatBatch, type ChatItem } from '@/lib/invocation-chat.ts';
+import { timelineEventKey } from '@/lib/timeline';
+import { useReviewStore } from '@/stores/review.ts';
 
-export function TimelineItem({
+const columnClass = css({ display: 'flex', flexDirection: 'column', gap: '4', minWidth: '0' });
+
+function ChatItemView({
   invocation,
-  event,
-  position,
+  item,
 }: {
   readonly invocation: InvocationDetail;
-  readonly event: InvocationTimelineEvent;
-  readonly position: number;
-}): ReactElement {
-  const { t } = useTranslation();
-  switch (event.kind) {
-    case 'queued':
-      return (
-        <TimelineCard
-          header={
-            <>
-              <span className={css({ textStyle: 'label' })}>{t('invocations.invocationDetail.timeline.queued')}</span>
-              <span className={css({ textStyle: 'small', color: 'text-muted' })}>
-                <TimeText value={event.at} />
-              </span>
-            </>
-          }
-        />
-      );
-    case 'started':
-      return (
-        <TimelineCard
-          header={
-            <>
-              <span className={css({ textStyle: 'label' })}>{t('invocations.invocationDetail.timeline.started')}</span>
-              <span className={css({ textStyle: 'small', color: 'text-muted' })}>
-                <TimeText value={event.at} />
-              </span>
-            </>
-          }
-        />
-      );
-    case 'finished':
-      return (
-        <TimelineCard
-          header={
-            <>
-              <span className={css({ textStyle: 'label' })}>{t('invocations.invocationDetail.timeline.finished')}</span>
-              <span className={css({ textStyle: 'small', color: 'text-muted' })}>
-                <TimeText value={event.at} />
-              </span>
-            </>
-          }
-        />
-      );
-    case 'context_message':
-      return (
-        <ContextMessageCard
-          chat={invocation.chat}
-          message={event.message}
-          footer={<EventReviewAffordance invocation={invocation} event={event} position={position} />}
-        />
-      );
-    case 'model_call':
-      return (
-        <ModelCallCard
-          model={event.model}
-          footer={<EventReviewAffordance invocation={invocation} event={event} position={position} />}
-        />
-      );
-    case 'tool_call':
-      return (
-        <ToolCallCard
-          chat={invocation.chat}
-          tool={event.tool}
-          send={event.linkedSend}
-          footer={<EventReviewAffordance invocation={invocation} event={event} position={position} />}
-        />
-      );
-    case 'agent_message':
-      return (
-        <AgentMessageCard
-          message={event.message}
-          footer={<EventReviewAffordance invocation={invocation} event={event} position={position} />}
-        />
-      );
+  readonly item: ChatItem;
+}): ReactElement | null {
+  switch (item.kind) {
+    case 'member':
+      return <MemberMessage invocation={invocation} item={item} />;
+    case 'reply':
+      return <BotReply invocation={invocation} item={item} />;
+    case 'steps':
+      return <StepGroup invocation={invocation} item={item} />;
   }
 }
 
+function chatItemKey(item: ChatItem): string {
+  return item.kind === 'steps' ? item.key : timelineEventKey(item.event);
+}
+
+function TimedDivider({ label, at }: { readonly label: ReactNode; readonly at: string | null }): ReactElement {
+  return (
+    <Divider
+      label={
+        <span className={css({ display: 'inline-flex', flexWrap: 'wrap', justifyContent: 'center', columnGap: '2' })}>
+          <span>{label}</span>
+          <TimeText value={at} />
+        </span>
+      }
+    />
+  );
+}
+
+function batchLabelKey(batch: ChatBatch) {
+  switch (batch.status) {
+    case 'injected':
+      return 'invocations.invocationDetail.chat.batch';
+    case 'pending':
+      return 'invocations.invocationDetail.chat.batchPending';
+    case 'skipped':
+      return 'invocations.invocationDetail.chat.batchSkipped';
+  }
+}
+
+/**
+ * The run read as a chat: retained history (collapsed), then each batch with
+ * its messages, the steps the model took and the replies it sent.
+ */
 export function OverviewTab({ invocation }: { readonly invocation: InvocationDetail }): ReactElement {
   const { t } = useTranslation();
-  const events = buildInvocationTimeline(invocation);
-  if (events.length === 0) {
+  const comments = useReviewStore((state) => state.invocations[invocation.id]?.comments);
+  const chat = buildInvocationChat(invocation);
+  if (chat.history.length === 0 && chat.batches.every((batch) => batch.items.length === 0)) {
     return <TabEmpty message={t('invocations.invocationDetail.emptyTimeline')} />;
   }
+  const historyCommented = chat.history.some(
+    (item) => item.kind !== 'steps' && comments?.[timelineEventKey(item.event)] !== undefined,
+  );
   return (
-    <ol
-      className={css({
-        marginInlineStart: '1',
-        '& > :not(:last-child)': { marginBlockEnd: '4' },
-        borderInlineStartWidth: '1px',
-        borderColor: 'border',
-        paddingInlineStart: '6',
-      })}
-    >
-      {events.map((event, index) => (
-        <li key={timelineEventKey(event)} className={css({ position: 'relative' })}>
-          <span
-            className={cx(
-              css({
-                position: 'absolute',
-                top: '5',
-                insetInlineStart: '-29px',
-                width: '10px',
-                height: '10px',
-                borderRadius: 'full',
-              }),
-              event.kind === 'finished' ? css({ bg: 'error-solid' }) : css({ bg: 'action' }),
-            )}
-          />
-          <TimelineItem invocation={invocation} event={event} position={index} />
-        </li>
-      ))}
-    </ol>
+    <div className={css({ maxWidth: '960px' })}>
+      <div className={columnClass}>
+        {chat.history.length === 0 ? null : (
+          <ChatDisclosure
+            summary={t('invocations.invocationDetail.chat.history', { count: chat.history.length })}
+            defaultOpen={historyCommented}
+          >
+            <div className={columnClass}>
+              {chat.history.map((item) => (
+                <ChatItemView key={chatItemKey(item)} invocation={invocation} item={item} />
+              ))}
+            </div>
+          </ChatDisclosure>
+        )}
+        {chat.batches.map((batch) => (
+          <div key={batch.bucketId} className={columnClass}>
+            <TimedDivider label={t(batchLabelKey(batch))} at={batch.at} />
+            {batch.items.map((item) => (
+              <ChatItemView key={chatItemKey(item)} invocation={invocation} item={item} />
+            ))}
+          </div>
+        ))}
+        {invocation.finished_at === null ? null : (
+          <TimedDivider label={t('invocations.invocationDetail.chat.finished')} at={invocation.finished_at} />
+        )}
+      </div>
+    </div>
   );
 }

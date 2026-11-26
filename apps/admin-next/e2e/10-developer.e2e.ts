@@ -1,5 +1,6 @@
 import { expect } from '@playwright/test';
 import { adminUrl, e2eFetch, test } from './helpers.ts';
+import { expandOverview } from './review-helpers.ts';
 
 test.use({ signedIn: true });
 
@@ -42,7 +43,9 @@ test('Developer persists recording preferences and confirms payload-only cleanup
       response_json: null,
     })),
   });
-  await page.goto(await adminUrl('/invocations/4001'));
+  // 4002's failed model call is the Overview step that showed a payload before the cleanup.
+  await page.goto(await adminUrl('/invocations/4002'));
+  await expandOverview(page);
   await expect(page.getByText('Raw payloads unavailable (not recorded or cleared).').first()).toBeVisible();
 });
 

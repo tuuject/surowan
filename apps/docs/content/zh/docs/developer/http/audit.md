@@ -71,7 +71,7 @@ description: 读取运行、用量与警告数据，下载媒体，真实续跑�
 
 `at` 不能与 `from` 或 `to` 同时出现（`400 invalid_time_range`），消息过滤必须至少命中一条消息。每行带着运行期记下的计数（`sends_used`、`tool_calls_used`、`turns_used`、`tool_call_count`）、按日预算口径算出的 `total_tokens`（`cache_read_tokens` / `cache_write_tokens` 是它的拆分）、Provider 报告过的 `total_cost`，以及 Chat 身份块（`host_kind`、`telegram_chat_id`、`chat_type`、`message_thread_id`）。
 
-`GET /api/invocations/:id` 返回详情：模型调用、工具调用、发送，以及这次运行保留的 Context 消息。它还带续跑判定，客户端据此只在点下去能成功时才显示按钮：
+`GET /api/invocations/:id` 返回详情：模型调用、工具调用、发送、这次运行保留的 Context 消息（新消息带 `source_bucket_id`，标明属于哪一批），以及 `buckets`：这次运行收下的每一批消息与模型读到它的时间 `injected_at`（还没读到或运行先结束时为 `null`）。它还带续跑判定，客户端据此只在点下去能成功时才显示按钮：
 
 ```json
 { "…": "…", "resume": { "available": true, "reason": null } }

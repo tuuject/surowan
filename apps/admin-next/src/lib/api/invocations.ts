@@ -121,6 +121,14 @@ export interface TelegramSendEntry {
   readonly finished_at: string | null;
 }
 
+/** One batch of messages this run took: the opening one, or one attached while it ran. */
+export interface InvocationBucketEntry {
+  readonly bucket_id: string;
+  readonly attached_at: string;
+  /** When the model read the batch; `null` while it waits, or when the run ended first. */
+  readonly injected_at: string | null;
+}
+
 export interface InvocationDetail extends InvocationListItem {
   readonly bucket_id: string;
   readonly prompt_version: number;
@@ -131,6 +139,7 @@ export interface InvocationDetail extends InvocationListItem {
   readonly agent_messages: readonly AgentMessageEntry[];
   readonly telegram_sends: readonly TelegramSendEntry[];
   readonly context_messages: readonly ContextMessageEntry[];
+  readonly buckets: readonly InvocationBucketEntry[];
   /** The failed run this one resumed, and the latest run that resumed this one. */
   readonly resumed_from_invocation_id: string | null;
   readonly resumed_by_invocation_id: string | null;

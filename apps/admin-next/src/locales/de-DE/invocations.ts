@@ -1,5 +1,6 @@
 import type { Catalog } from '../catalog.ts';
 import type { invocations as invocationsEn } from '../en/invocations.ts';
+import { chat } from './invocations/chat.ts';
 import { review } from './invocations/review.ts';
 
 /** Mirrors `en/invocations.ts` key for key; the annotation fails the build on drift. */
@@ -96,24 +97,18 @@ export const invocations: Catalog<typeof invocationsEn> = {
       label: 'Bezeichnung',
       description: 'Beschreibung (wie an das Modell gesendet)',
     },
-    timeline: {
-      queued: 'Aufruf eingereiht',
-      started: 'Aufruf gestartet',
-      finished: 'Aufruf beendet',
-    },
+    chat,
     send: {
       sticker: 'Sticker {{ref}}',
       noContent: 'Kein Sendeinhalt aufgezeichnet',
       replyTo: 'Antwort auf Telegram-Nachricht {{id}}',
       replyToRoom: 'Antwort auf Raumnachricht #{{id}}',
-      delivery: 'Telegram-Zustellung',
       messageLabel: 'Nachricht {{id}}',
       roomMessageLabel: 'Raumnachricht #{{id}}',
     },
     toolCall: {
       duration: 'Dauer {{value}}',
       error: 'Fehler {{code}}',
-      argumentsAndResult: 'Argumente und Ergebnis',
       arguments: 'Argumente',
       result: 'Ergebnis',
     },
@@ -127,10 +122,8 @@ export const invocations: Catalog<typeof invocationsEn> = {
     },
     agentRoles: {
       assistantLabel: 'Privater Text des Assistenten',
-      assistantNote: 'Nicht an Telegram veröffentlicht',
       toolResultLabel: 'Tool-Ergebnis',
       harnessNudgeLabel: 'Sende-Erinnerung',
-      harnessNudgeNote: 'Erinnerung, `send` zu verwenden',
     },
     agent: {
       noText: 'Kein Textinhalt',
@@ -138,11 +131,8 @@ export const invocations: Catalog<typeof invocationsEn> = {
       viewToolResult: 'An den Agenten übergebenes Tool-Ergebnis ansehen',
     },
     modelCall: {
-      badge: 'Modellaufruf',
       attempt: 'Versuch {{value}}',
       tokens: 'Tokens {{value}}',
-      cacheRead: 'Cache gelesen {{value}}',
-      cacheWrite: 'Cache geschrieben {{value}}',
       cost: 'Kosten {{value}}',
       duration: 'Dauer {{value}}',
       error: 'Fehler {{code}}',

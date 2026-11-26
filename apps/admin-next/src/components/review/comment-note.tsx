@@ -1,10 +1,10 @@
-import { Button } from '@tuuject/koi-react/button';
+import { Button, IconButton } from '@tuuject/koi-react/button';
 import { Field } from '@tuuject/koi-react/field';
 import { TrashIcon } from '@tuuject/koi-react/icons';
-import { css } from '@tuuject/koi-react/styled-system/css';
+import { css, cx } from '@tuuject/koi-react/styled-system/css';
 import { Textarea } from '@tuuject/koi-react/textarea';
 import { sizes } from '@tuuject/koi-tokens/dimensions';
-import { type ReactElement, useState } from 'react';
+import { type ReactElement, type ReactNode, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ChatTextIcon, EditIcon } from '@/components/icons.tsx';
 import type { InvocationDetail } from '@/lib/api/invocations.ts';
@@ -163,14 +163,28 @@ export function ReviewCommentNote({
   );
 }
 
-export function EventReviewAffordance({
+/**
+ * One reviewable thing on the Overview: a chat bubble or a step. The Add button
+ * sits at the inline end of the content and shows on hover or keyboard focus
+ * (always on devices without hover); a saved comment or an open editor sits
+ * underneath, on the same side as the content.
+ */
+export function ReviewableItem({
   invocation,
   event,
   position,
+  align = 'start',
+  header,
+  footer,
+  children,
 }: {
   readonly invocation: InvocationDetail;
   readonly event: CommentableTimelineEvent;
   readonly position: number;
+  readonly align?: 'start' | 'end';
+  readonly header?: ReactNode;
+  readonly footer?: ReactNode;
+  readonly children: ReactNode;
 }): ReactElement {
   const { t } = useTranslation();
   const anchor = timelineEventKey(event);
@@ -184,44 +198,92 @@ export function EventReviewAffordance({
     setAdding(false);
   };
 
-  if (comment !== undefined) {
-    return (
-      <ReviewCommentNote
-        badgeLabel={t('invocations.review.commentLabel')}
-        text={comment.text}
-        editorLabel={t('invocations.review.commentLabel')}
-        editorPlaceholder={t('invocations.review.commentPlaceholder')}
-        onSave={handleSave}
-        onDelete={() => deleteEventComment(invocation.id, anchor)}
-      />
-    );
-  }
-
-  if (adding) {
-    return (
-      <ReviewCommentEditor
-        label={t('invocations.review.commentLabel')}
-        placeholder={t('invocations.review.commentPlaceholder')}
-        initialValue=""
-        onSave={handleSave}
-        onCancel={() => setAdding(false)}
-      />
-    );
-  }
-
   return (
-    <div>
-      {/* Pulled outward by the ghost padding so the icon lines up with the event text above. */}
-      <Button
-        type="button"
-        variant="ghost"
-        color="secondary"
-        iconStart={<ChatTextIcon />}
-        className={css({ marginInlineStart: '-4' })}
-        onClick={() => setAdding(true)}
+    <article
+      className={cx(
+        'group',
+        css({
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: align === 'end' ? 'flex-end' : 'flex-start',
+          gap: '1',
+          minWidth: '0',
+        }),
+      )}
+    >
+      {header}
+      <div
+        className={css({
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: align === 'end' ? 'flex-end' : 'flex-start',
+          gap: '1',
+          minWidth: '0',
+          maxWidth: '100%',
+        })}
       >
-        {t('invocations.review.addComment')}
-      </Button>
-    </div>
+        {children}
+        {comment === undefined && !adding ? (
+          // Icon-only on narrow screens, so the hidden control never pushes the content onto two lines.
+          <span className={revealOnHoverClass}>
+            <IconButton
+              variant="ghost"
+              color="secondary"
+              label={t('invocations.review.addComment')}
+              title={t('invocations.review.addComment')}
+              icon={<ChatTextIcon />}
+              className={css({ display: { base: 'inline-flex', md: 'none' } })}
+              onClick={() => setAdding(true)}
+            />
+            <Button
+              type="button"
+              variant="ghost"
+              color="secondary"
+              iconStart={<ChatTextIcon />}
+              className={css({ display: { base: 'none', md: 'inline-flex' } })}
+              onClick={() => setAdding(true)}
+            >
+              {t('invocations.review.addComment')}
+            </Button>
+          </span>
+        ) : null}
+      </div>
+      {footer}
+      {comment !== undefined ? (
+        <div className={noteClass}>
+          <ReviewCommentNote
+            badgeLabel={t('invocations.review.commentLabel')}
+            text={comment.text}
+            editorLabel={t('invocations.review.commentLabel')}
+            editorPlaceholder={t('invocations.review.commentPlaceholder')}
+            onSave={handleSave}
+            onDelete={() => deleteEventComment(invocation.id, anchor)}
+          />
+        </div>
+      ) : adding ? (
+        <div className={noteClass}>
+          <ReviewCommentEditor
+            label={t('invocations.review.commentLabel')}
+            placeholder={t('invocations.review.commentPlaceholder')}
+            initialValue=""
+            onSave={handleSave}
+            onCancel={() => setAdding(false)}
+          />
+        </div>
+      ) : null}
+    </article>
   );
 }
+
+// Hidden only where a pointer can hover: a touch screen has no way to reveal it.
+const revealOnHoverClass = css({
+  display: 'inline-flex',
+  flexShrink: '0',
+  transitionProperty: 'opacity',
+  transitionDuration: 'fast',
+  '@media (hover: hover)': { opacity: '0' },
+  _groupHover: { opacity: '1' },
+  _groupFocusWithin: { opacity: '1' },
+});
+
+const noteClass = css({ width: '100%', maxWidth: '560px' });
