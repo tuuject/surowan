@@ -33,7 +33,14 @@ npx biome lint apps/admin-next/src && (cd apps/admin-next && pnpm exec tsc --noE
 # 通过
 ```
 
-未运行：完整 e2e、全量 vitest（只改了一个视图容器）；公开截图 `tuning/invocation-resume` 在 1440px 下拍摄，面板宽度与原来的 960px 列只差几十像素，没有重拍。
+公开截图 `tuning/invocation-resume`（中英）在 1440px 视口下拍摄，面板约 1144px，比原来的 960px 列宽了近 200px，分隔线随之变长，所以重拍并替换：
+
+```bash
+pnpm --filter surowan-admin-next exec playwright test --config playwright.docs.config.ts tuning-runs -g invocation-resume
+# 2 passed（en、zh-CN）；看图确认分隔线延伸到摘要卡片右边缘后，从 staging 手动复制到 apps/docs/content/public/screenshots/tuning/
+```
+
+未运行：完整 e2e、全量 vitest（只改了一个视图容器）。
 
 ## 提交
 
