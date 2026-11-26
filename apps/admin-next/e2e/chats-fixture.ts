@@ -124,10 +124,20 @@ export async function removeChat(page: Page, row: Locator): Promise<void> {
   await page.getByRole('button', { name: 'Remove Chat', exact: true }).click();
 }
 
+/**
+ * The menu that is open now. A menu closed by picking an item keeps fading out
+ * (`data-closed`, no pointer events) for a moment; on a slow machine the next
+ * row's menu opens while it is still there, so a page-wide `role="menu"` would
+ * match both.
+ */
+function openMenu(page: Page): Locator {
+  return page.locator('[role="menu"][data-open]');
+}
+
 /** Per-chat settings live in the row's "More actions" menu, next to the quick links. */
 export async function openChatAction(page: Page, row: Locator, name: string): Promise<void> {
   await row.getByRole('button', { name: 'More actions', exact: true }).click();
-  const menu = page.getByRole('menu');
+  const menu = openMenu(page);
   await expect(menu).toBeVisible();
   // A separator that bleeds past the scrollable body adds a horizontal scroll container to the panel.
   // Assert the invariant, not the CSS: neither an open menu nor anything inside it may scroll sideways.
@@ -139,15 +149,17 @@ export async function openChatAction(page: Page, row: Locator, name: string): Pr
       }),
     ),
   ).toBe(false);
-  await page.getByRole('menuitem', { name, exact: true }).click();
+  await menu.getByRole('menuitem', { name, exact: true }).click();
 }
 
 /** Private chats never gate, so their menu has no settings entries. */
 export async function expectNoChatAction(page: Page, row: Locator, name: string): Promise<void> {
   await row.getByRole('button', { name: 'More actions', exact: true }).click();
-  await expect(page.getByRole('menu')).toBeVisible();
-  await expect(page.getByRole('menuitem', { name, exact: true })).toHaveCount(0);
+  const menu = openMenu(page);
+  await expect(menu).toBeVisible();
+  await expect(menu.getByRole('menuitem', { name, exact: true })).toHaveCount(0);
   await page.keyboard.press('Escape');
+  // Wait until it has faded out too, so the next lookup starts from an empty page.
   await expect(page.getByRole('menu')).toHaveCount(0);
 }
 
