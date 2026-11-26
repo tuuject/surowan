@@ -304,7 +304,7 @@ participation 放行 = 未配置 participation || 处于活跃时段 || 更新�
 - 私聊不受影响：私聊消息始终按直接对话处理；正数 Chat ID 上显式写 `proactive_reply` 会被 `check-config` 拒绝。
 - 某个 Chat 的入场闸门处于 `enforce` 时，该 Chat 的抽样整体停用：`proactiveAllows` 直接放行，`random` 不被调用，保底计数不变（`shadow` 不改变抽样）。理由是两层叠加时，抽中后又被闸门抛弃会白白清零保底计数。
 - 日志事件：直接绕过为 `agent_proactive_reply_bypassed`（含 `trigger_kind`）；抽样为 `agent_proactive_reply_sampled`（含 `attempt`、`probability`、`consecutive_misses_before/after`、`hit`、`hard_pity`、`state_reset`）。不写入长期审计表。
-- Admin Chats 页的「主动回复」列与星形按钮可编辑本群模式：跟随全局、关闭、或自定义三个参数；保存后热应用。
+- Admin Chats 页的会话策略摘要显示本群实际生效的主动回复（继承全局的标「（继承）」，继承来的关闭不显示），More actions →「编辑主动回复概率」可编辑本群模式：跟随全局、关闭、或自定义三个参数；保存后热应用。
 
 ## 入场闸门（decision_gate）
 

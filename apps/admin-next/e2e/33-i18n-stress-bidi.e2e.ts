@@ -79,7 +79,8 @@ test('Arabic weekday labels in the active-hours chart stay out of the track', as
   await addDialog.getByRole('button', { name: 'حفظ المحادثة', exact: true }).click();
   await expect(addDialog).toBeHidden();
 
-  const row = page.locator('main table tbody tr').filter({ hasText: chatId }).first();
+  // A phone shows the narrow list, not the table.
+  const row = page.locator('main [data-chat-card]').filter({ hasText: chatId }).first();
   await expect(row).toBeVisible();
   await row.getByRole('button', { name: 'إجراءات إضافية', exact: true }).click();
   await page.getByRole('menuitem', { name: 'تعديل ساعات النشاط', exact: true }).click();

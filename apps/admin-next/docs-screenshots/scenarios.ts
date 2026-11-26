@@ -72,7 +72,7 @@ export const DOCS_SCENARIOS: readonly DocsScenario[] = [
     id: 'first-bot/chat-allowlist',
     description: 'Chats page with the allowed Chats.',
     target:
-      'The allowlist lists the seeded private Chat and the docs group Chat with their titles, topics, model and active state.',
+      'The allowlist lists the seeded private Chat and the docs group Chat with their titles, topic scope, agent model, policy summary and active state.',
     pages: ['guides/first-bot', 'guides/chats'],
   },
   {

@@ -1,11 +1,21 @@
 import { expect } from '@playwright/test';
-import { chatRow, expectNoChatAction, inherited, openChatAction, prepareChatsPage, viewOf } from './chats-fixture.ts';
+import {
+  chatRow,
+  expectNoChatAction,
+  inherited,
+  labelledValue,
+  openChatAction,
+  openChatDetails,
+  prepareChatsPage,
+  viewOf,
+} from './chats-fixture.ts';
 import { gateConfigText, resetDecisionGate } from './decision-gate-fixture.ts';
 import { test } from './helpers.ts';
 
 /**
  * The per-Chat entry gate dialog on the Chats page, against the real
- * AdminServer: an override shows in the row and is saved into that Chat's
+ * AdminServer: the row shows the gate a Chat actually runs with (its own
+ * fields over the global ones), an override is saved into that Chat's
  * section, "inherit" sends `null` and removes it again, and enabling without a
  * global key is refused by the server. Each test starts from the fixture
  * allowlist with no global gate section.
@@ -38,7 +48,11 @@ test.beforeEach(async ({ page }) => {
 });
 
 function groupRow(page: import('@playwright/test').Page) {
-  return page.locator('table tbody tr').filter({ has: page.getByText(GROUP, { exact: true }) });
+  return chatRow(page, GROUP);
+}
+
+function gateSummary(page: import('@playwright/test').Page) {
+  return labelledValue(groupRow(page), 'Entry gate');
 }
 
 async function openDialog(page: import('@playwright/test').Page) {
@@ -93,7 +107,12 @@ function savedGroupGate(view: Awaited<ReturnType<typeof viewOf>>) {
 test('a Chat that enables the gate without a global key gets the server error', async ({ page }) => {
   // Private chats never gate, so their menu has no entry gate action.
   await expectNoChatAction(page, chatRow(page), 'Edit entry gate');
-  await expect(groupRow(page).getByRole('cell').nth(5)).toHaveText('Inherits the global setting');
+  // Off globally and not overridden: the summary leaves it out, the full settings say so.
+  await expect(labelledValue(groupRow(page), 'Active hours')).toBeVisible();
+  await expect(gateSummary(page)).toHaveCount(0);
+  const details = await openChatDetails(page, groupRow(page));
+  await expect(labelledValue(details, 'Entry gate')).toHaveText('Off (inherited)');
+  await groupRow(page).getByRole('button', { name: 'Toggle row details', exact: true }).click();
 
   const dialog = await openDialog(page);
   // Inherited fields show the global values and cannot be edited until the
@@ -134,10 +153,17 @@ test('overrides save into the Chat, show in the row, and inherit again', async (
     instructions: QUESTION,
   });
   expect(await gateConfigText()).toMatch(/"id":\s*-100555000113[\s\S]{0,400}"decision_gate"/);
-  await expect(groupRow(page).getByRole('cell').nth(5)).toHaveText('On (Enforce)');
+  await expect(gateSummary(page)).toHaveText('Enforce, threshold 0.8');
 
   await page.reload();
-  await expect(groupRow(page).getByRole('cell').nth(5)).toHaveText('On (Enforce)');
+  await expect(gateSummary(page)).toHaveText('Enforce, threshold 0.8');
+  // The full settings mark which fields the Chat sets and which it inherits.
+  const details = await openChatDetails(page, groupRow(page));
+  await expect(labelledValue(details, 'Mode')).toHaveText('Enforce');
+  await expect(labelledValue(details, 'Threshold')).toHaveText('0.8');
+  await expect(labelledValue(details, 'History messages')).toHaveText('10 (inherited)');
+  await expect(labelledValue(details, 'Question')).toHaveText(QUESTION);
+  await groupRow(page).getByRole('button', { name: 'Toggle row details', exact: true }).click();
 
   dialog = await openDialog(page);
   for (const field of ['Enabled', 'Mode', 'Threshold', 'Question']) {
@@ -151,7 +177,7 @@ test('overrides save into the Chat, show in the row, and inherit again', async (
   await dialog.getByRole('button', { name: 'Save', exact: true }).click();
   await expect(page.getByRole('dialog')).toHaveCount(0);
   expect(savedGroupGate(await viewOf(page))).toBeNull();
-  await expect(groupRow(page).getByRole('cell').nth(5)).toHaveText('Inherits the global setting');
+  await expect(gateSummary(page)).toHaveCount(0);
 
   // With the Chat override gone and the global section cleared, the file has no
   // gate at all: the override was removed rather than left as an empty object.
@@ -222,7 +248,7 @@ test('only changed fields are sent, and an untouched dialog sends nothing', asyn
   expect(writes).toEqual([]);
 });
 
-test('an enabled-only override is just On, without naming a mode', async ({ page }) => {
+test('an enabled-only override names the mode and threshold it inherits', async ({ page }) => {
   await seedGlobalKey(page);
   await page.evaluate(async () => {
     const view = await (await fetch('/api/decision-gate')).json();
@@ -236,8 +262,26 @@ test('an enabled-only override is just On, without naming a mode', async ({ page
     }
   });
   await page.reload();
+  // Only the mode changed globally; the gate itself is still off there.
+  await expect(gateSummary(page)).toHaveCount(0);
   await seedChatGate(page, { enabled: true });
-  await expect(groupRow(page).getByRole('cell').nth(5)).toHaveText('On');
+  await expect(gateSummary(page)).toHaveText('Enforce, threshold 0.57');
+  const details = await openChatDetails(page, groupRow(page));
+  await expect(labelledValue(details, 'Entry gate')).toHaveText('On');
+  await expect(labelledValue(details, 'Mode')).toHaveText('Enforce (inherited)');
+  await expect(labelledValue(details, 'Threshold')).toHaveText('0.57 (inherited)');
+});
+
+test('without the global gate the row still names what the Chat sets', async ({ page }) => {
+  await seedGlobalKey(page);
+  await seedChatGate(page, { enabled: true, mode: 'shadow' });
+  await page.route('**/api/decision-gate', (route) =>
+    route.request().method() === 'GET'
+      ? route.fulfill({ status: 503, json: { error: 'unavailable', message: 'Synthetic gate outage' } })
+      : route.continue(),
+  );
+  await page.reload();
+  await expect(gateSummary(page)).toHaveText('On (Record only)');
 });
 
 test('the open dialog is the review artifact', async ({ page }, testInfo) => {
@@ -254,7 +298,7 @@ test('the open dialog is the review artifact', async ({ page }, testInfo) => {
   await dialog.getByLabel('Question', { exact: true }).fill(QUESTION);
   await dialog.getByRole('button', { name: 'Save', exact: true }).click();
   await expect(page.getByRole('dialog')).toHaveCount(0);
-  await expect(groupRow(page).getByRole('cell').nth(5)).toHaveText('On (Enforce)');
+  await expect(gateSummary(page)).toHaveText('Enforce, threshold 0.7');
 
   dialog = await openDialog(page);
   await expect(dialog).toBeVisible();

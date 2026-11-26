@@ -82,7 +82,7 @@ export const EN: DocsLabels = {
       modeEnforce: 'Enforce',
       threshold: 'Threshold',
       question: 'Question',
-      enforceSummary: 'On (Enforce)',
+      enforceSummary: 'Enforce, threshold 0.8',
     },
     mcp: {
       title: 'MCP servers for this Chat',

@@ -245,6 +245,7 @@ pnpm test test/im test/intake test/schema/migrations-host-neutral-ids.test.ts te
 | `replay/memory.test.ts` / `replay/tools-memory*.test.ts` | 到期边界、日期上界与线上一致，两个读原语 dispatch 完整；场景图片保存后读取相同字节、缺失/跨场景拒绝、两阶段 fidelity 与生产表无写入 |
 | `apps/admin-next/e2e/04-memo-expiry.e2e.ts` | 实际页面仅改文本时省略 TTL 并保持小时级/过期/同天数/永久条目的精确 expires_at |
 | `apps/admin-next/e2e/04-writes.e2e.ts` | 全局模型切换自动重置不兼容的 Chat effort，成功弹窗列出 Chat ID 与前后档位，saved/active 一致；切回兼容模型不弹窗 |
+| `apps/admin-next/e2e/09-chats-layout.e2e.ts` | Chats 宽表与窄列表在 1440/1280/1024/390/320 下切换、无横向溢出、编辑与 More actions 在每个宽度都在窗口内、继承值与本会话值的摘要语义、详情展开、搜索与清除、从窄列表删除；最后一个 Chat 的删除项禁用；深色主题下继承值与本会话值颜色不同（截图 `chats-<宽度>.png`、`chats-320-details.png`、`chats-390-dark.png`） |
 | `apps/admin-next/e2e/09-chats-group-memory.e2e.ts` | Chats 行开关群聊记忆、idle 分钟校验、30 小时制提示气泡与三档保存（截图 `group-memory-30-hour-tooltip.png`）、关闭后保留 idle 与 30 小时制，以及运行态立即更新 |
 | `apps/admin-next/e2e/18-group-memory.e2e.ts` | Group memory 页面审计、修改 summary、删除事件与 API 状态复核 |
 | `tasks/long-tasks.test.ts` | 任务/receipt 的 JSON 边界、终态 CAS 与唯一 receipt、plugin/Conversation/caller scope、quota（含取消记录）及外部 completion handle |

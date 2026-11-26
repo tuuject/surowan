@@ -249,7 +249,10 @@ test('chats dialogs keep their transitions and their copy', async ({ page }) => 
   await expectTransition(
     page,
     'remove Chat',
-    () => row.getByRole('button', { name: 'Remove', exact: true }).click(),
+    async () => {
+      await row.getByRole('button', { name: 'More actions', exact: true }).click();
+      await page.getByRole('menuitem', { name: 'Remove', exact: true }).click();
+    },
     page.getByRole('alertdialog'),
     DISMISS,
   );

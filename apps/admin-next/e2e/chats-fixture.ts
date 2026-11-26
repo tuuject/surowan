@@ -81,8 +81,41 @@ async function restoreBaseline(page: Page): Promise<void> {
   );
 }
 
-export function chatRow(page: Page, id = ACTIVE_CHAT) {
-  return page.locator('table tbody tr').filter({ has: page.getByText(id, { exact: true }) });
+/**
+ * A Chat's row in the wide table or its block in the narrow list: both are in
+ * the page, and the list's own width decides which one shows.
+ */
+export function chatRow(page: Page, id = ACTIVE_CHAT): Locator {
+  return page
+    .locator('table tbody tr, [data-chat-card]')
+    .filter({ visible: true })
+    .filter({ has: page.getByText(id, { exact: true }) });
+}
+
+function exactly(label: string): RegExp {
+  return new RegExp(`^${label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`);
+}
+
+/** The value beside a label in a row's policy summary, or in its full settings. */
+export function labelledValue(scope: Locator, label: string): Locator {
+  return scope
+    .locator('dt')
+    .filter({ hasText: exactly(label) })
+    .locator('xpath=following-sibling::dd[1]');
+}
+
+/** Opens a Chat's full settings (the table's row details or the list's toggle) and returns them. */
+export async function openChatDetails(page: Page, row: Locator): Promise<Locator> {
+  await row.getByRole('button', { name: /^(Toggle row details|Show all settings)$/ }).click();
+  const details = page.locator('[data-chat-details]').filter({ visible: true });
+  await expect(details).toBeVisible();
+  return details;
+}
+
+/** Removal sits last in the row's "More actions" menu. */
+export async function removeChat(page: Page, row: Locator): Promise<void> {
+  await openChatAction(page, row, 'Remove');
+  await page.getByRole('button', { name: 'Remove Chat', exact: true }).click();
 }
 
 /** Per-chat settings live in the row's "More actions" menu, next to the quick links. */

@@ -105,10 +105,11 @@ export async function openRoute(page: Page, path: string): Promise<void> {
   if (loading !== undefined) {
     await expect(page.locator('main')).not.toContainText(loading);
   }
-  // Routes with a table render either real rows or the empty-state row.
-  const tables = await page.locator('main table').count();
-  if (tables > 0) {
-    await expect(page.locator('main table tbody tr').first()).toBeVisible();
+  // Routes with a table render either real rows or the empty-state row. A page
+  // may keep a table for wide screens hidden while a narrow list shows instead.
+  const tables = page.locator('main table').filter({ visible: true });
+  if ((await tables.count()) > 0) {
+    await expect(tables.first().locator('tbody tr').first()).toBeVisible();
   }
   await page.evaluate(
     () =>

@@ -1,5 +1,15 @@
 import { expect, type Locator } from '@playwright/test';
-import { chatRow, expectNoChatAction, inherited, openChatAction, prepareChatsPage, viewOf } from './chats-fixture.ts';
+import {
+  chatRow,
+  expectNoChatAction,
+  inherited,
+  labelledValue,
+  openChatAction,
+  openChatDetails,
+  prepareChatsPage,
+  removeChat,
+  viewOf,
+} from './chats-fixture.ts';
 import { test, watchPageIssues } from './helpers.ts';
 
 test.use({ signedIn: true });
@@ -25,11 +35,17 @@ test('proactive-reply editing follows inherit, off and custom values per group',
     },
     { id: GROUP, settings: inherited },
   );
-  const groupRow = () => page.locator('table tbody tr').filter({ has: page.getByText(GROUP, { exact: true }) });
+  const groupRow = () => chatRow(page, GROUP);
+  const proactive = () => labelledValue(groupRow(), 'Proactive replies');
   await page.reload();
   await expect(groupRow()).toBeVisible();
-  // Global proactive replies are off in the fixture, so the group starts there.
-  await expect(groupRow().getByRole('cell').nth(4)).toContainText('Off');
+  // Global proactive replies are off in the fixture: an inherited "off" stays out of
+  // the summary, and the full settings still name it.
+  await expect(labelledValue(groupRow(), 'Active hours')).toBeVisible();
+  await expect(proactive()).toHaveCount(0);
+  const details = await openChatDetails(page, groupRow());
+  await expect(labelledValue(details, 'Proactive replies')).toHaveText('Off (inherited)');
+  await groupRow().getByRole('button', { name: 'Toggle row details', exact: true }).click();
 
   const openDialog = async (): Promise<Locator> => {
     await openChatAction(page, groupRow(), 'Edit proactive reply chance');
@@ -52,8 +68,7 @@ test('proactive-reply editing follows inherit, off and custom values per group',
     increment: 0.05,
     hard_pity: 4,
   });
-  await expect(groupRow().getByRole('cell').nth(4)).toContainText('25% first');
-  await expect(groupRow().getByRole('cell').nth(4)).toContainText('guaranteed by try 4');
+  await expect(proactive()).toHaveText('25% first, +5% per miss, guaranteed by try 4');
 
   dialog = await openDialog();
   await expect(dialog.getByRole('radio', { name: /Use custom values for this Chat/ })).toBeChecked();
@@ -63,13 +78,15 @@ test('proactive-reply editing follows inherit, off and custom values per group',
   expect((await viewOf(page)).items.find((chat) => chat.id === GROUP)?.saved?.proactive_reply).toEqual({
     enabled: false,
   });
-  await expect(groupRow().getByRole('cell').nth(4)).toHaveText('Off');
+  // A Chat that turns it off on its own differs from the global setting, so the summary shows it.
+  await expect(proactive()).toHaveText('Off');
 
   dialog = await openDialog();
   await dialog.getByRole('radio', { name: /Follow the global setting/ }).click();
   await dialog.getByRole('button', { name: 'Save', exact: true }).click();
   await expect(page.getByRole('dialog')).toHaveCount(0);
   expect((await viewOf(page)).items.find((chat) => chat.id === GROUP)?.saved?.proactive_reply).toBeNull();
+  await expect(proactive()).toHaveCount(0);
 
   dialog = await openDialog();
   await dialog.getByRole('radio', { name: /Use custom values for this Chat/ }).click();
@@ -112,8 +129,7 @@ test('proactive-reply editing follows inherit, off and custom values per group',
     hard_pity: 7,
   });
 
-  await groupRow().getByRole('button', { name: 'Remove', exact: true }).click();
-  await page.getByRole('button', { name: 'Remove Chat', exact: true }).click();
+  await removeChat(page, groupRow());
   await expect(groupRow()).toHaveCount(0);
   const issues = finish();
   expect(issues.pageErrors).toEqual([]);

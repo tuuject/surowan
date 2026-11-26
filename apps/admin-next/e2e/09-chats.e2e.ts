@@ -7,6 +7,7 @@ import {
   openChatAction,
   prepareChatsPage,
   refetchAfterReconnect,
+  removeChat,
   saveDialog,
   viewOf,
 } from './chats-fixture.ts';
@@ -44,7 +45,7 @@ test('navigation, exact string IDs and hot add work; removal is immediate', asyn
   // entry, so only assert the added chat is not among the pending paths.
   expect(view.restart_required).not.toContain('telegram.chats[9007199254740991]');
 
-  await added.getByRole('button', { name: 'Remove', exact: true }).click();
+  await openChatAction(page, added, 'Remove');
   await expect(page.getByRole('alertdialog')).toContainText('along with its memos, images and stored messages');
   await page.getByRole('button', { name: 'Remove Chat', exact: true }).click();
   // Removal is hot: the Chat leaves both the saved and the running view at once.
@@ -85,7 +86,12 @@ test('Chat models apply hot, thinking options match the model, and global defaul
   await expect(page.locator('#chat-thinking option[value="inherit"]')).toHaveCount(0);
   await thinking.selectOption('off');
   await saveDialog(page);
-  await expect(chatRow(page).getByRole('cell').nth(2)).toContainText('vision / vision-model');
+  // The model's name leads; its provider and thinking effort sit underneath, the full id in the tooltip.
+  const modelCell = chatRow(page).getByRole('cell').nth(2);
+  await expect(modelCell).toContainText('Vision Model');
+  await expect(modelCell).toContainText('vision');
+  await expect(modelCell).toContainText('thinking Off');
+  await expect(modelCell.getByTitle('vision / vision-model')).toBeVisible();
   expect((await viewOf(page)).items.find((chat) => chat.id === ACTIVE_CHAT)?.active?.effective).toEqual({
     provider: 'vision',
     model: 'vision-model',
@@ -126,7 +132,7 @@ test('remove confirmation retains its original revision and removes Chats immedi
   await page.getByRole('button', { name: 'Add Chat', exact: true }).click();
   await page.getByLabel('Telegram Chat ID').fill('-1009876543210');
   await saveDialog(page);
-  await chatRow(page).getByRole('button', { name: 'Remove', exact: true }).click();
+  await openChatAction(page, chatRow(page), 'Remove');
   await editElsewhere(page, { ...inherited, topic_ids: ['67'] });
   await refetchAfterReconnect(page);
   await page.getByRole('button', { name: 'Remove Chat', exact: true }).click();
@@ -134,16 +140,14 @@ test('remove confirmation retains its original revision and removes Chats immedi
   await expect(page.getByRole('alertdialog')).toHaveCount(0);
   await expect(chatRow(page).getByRole('cell').nth(1)).toContainText('67');
 
-  await chatRow(page).getByRole('button', { name: 'Remove', exact: true }).click();
-  await page.getByRole('button', { name: 'Remove Chat', exact: true }).click();
+  await removeChat(page, chatRow(page));
   await expect(chatRow(page)).toHaveCount(0);
   expect((await viewOf(page)).items.find((chat) => chat.id === ACTIVE_CHAT)).toBeUndefined();
 
   await page.getByRole('button', { name: 'Add Chat', exact: true }).click();
   await page.getByLabel('Telegram Chat ID').fill(ACTIVE_CHAT);
   await saveDialog(page);
-  await chatRow(page, '-1009876543210').getByRole('button', { name: 'Remove', exact: true }).click();
-  await page.getByRole('button', { name: 'Remove Chat', exact: true }).click();
+  await removeChat(page, chatRow(page, '-1009876543210'));
   // A hot-added Chat is removed just as immediately.
   await expect(chatRow(page, '-1009876543210')).toHaveCount(0);
 });
