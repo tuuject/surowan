@@ -104,10 +104,16 @@ export function labelledValue(scope: Locator, label: string): Locator {
     .locator('xpath=following-sibling::dd[1]');
 }
 
-/** Opens a Chat's full settings (the table's row details or the list's toggle) and returns them. */
-export async function openChatDetails(page: Page, row: Locator): Promise<Locator> {
+/**
+ * Opens one Chat's full settings and returns only those: inside its block in
+ * the narrow list, or in the detail row right under its table row. Other Chats
+ * may stay expanded at the same time.
+ */
+export async function openChatDetails(row: Locator): Promise<Locator> {
   await row.getByRole('button', { name: /^(Toggle row details|Show all settings)$/ }).click();
-  const details = page.locator('[data-chat-details]').filter({ visible: true });
+  const details = row
+    .locator('[data-chat-details]')
+    .or(row.locator('xpath=following-sibling::tr[1]').locator('[data-chat-details]'));
   await expect(details).toBeVisible();
   return details;
 }

@@ -11,6 +11,7 @@ export const chats: typeof chatsEn = {
   chatOverride: '会话覆盖',
   thinkingShort: '思考 {{level}}',
   inheritedSuffix: '（继承）',
+  partlyInheritedSuffix: '（部分继承）',
   runningNote: '运行中：{{value}}',
   configConflictEdit: '你编辑期间设置被别处修改，未保存任何更改。请重新打开该会话查看当前设置。',
   invalidChatId: '请输入 Telegram 会话 ID：不为 0 的整数。',

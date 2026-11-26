@@ -11,6 +11,7 @@ export const chats: CompleteCatalog<typeof chatsEn> = {
   chatOverride: 'تجاوز خاص بالمحادثة',
   thinkingShort: 'التفكير {{level}}',
   inheritedSuffix: ' (موروث)',
+  partlyInheritedSuffix: ' (موروث جزئيًا)',
   runningNote: 'قيد التشغيل: {{value}}',
   configConflictEdit:
     'تغيّرت الإعدادات في مكان آخر أثناء التعديل. لم يُحفظ شيء؛ أعد فتح المحادثة لرؤية الإعدادات الحالية.',

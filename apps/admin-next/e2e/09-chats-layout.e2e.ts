@@ -11,7 +11,7 @@ import {
   removeChat,
   viewOf,
 } from './chats-fixture.ts';
-import { test, watchPageIssues } from './helpers.ts';
+import { e2eFetch, test, watchPageIssues } from './helpers.ts';
 
 /**
  * The allowlist's two layouts against the real AdminServer: a five-column table
@@ -181,11 +181,15 @@ test('the table and the narrow list show the same Chats, actions and summary at 
   }
 
   // The full settings open in place on a phone too, every inherited value marked.
-  const details = await openChatDetails(page, chatRow(page, CUSTOM));
+  const details = await openChatDetails(chatRow(page, CUSTOM));
   await expect(labelledValue(details, 'Active hours')).toContainText('Daily 10:00–12:00');
   await expect(labelledValue(details, 'Timezone')).toHaveText('UTC (inherited)');
   await expect(labelledValue(details, 'Thinking effort')).toHaveText('High');
   await expect(labelledValue(details, 'MCP tools')).toHaveText('Inherit every server');
+  // A second Chat's settings open beside the first; each lookup stays inside its own Chat.
+  const plainDetails = await openChatDetails(chatRow(page, INHERITING));
+  await expect(labelledValue(plainDetails, 'Active hours')).toHaveText('Unrestricted');
+  await expect(labelledValue(details, 'Active hours')).toContainText('Daily 10:00–12:00');
   await expectNoSidewaysScroll(page, 'narrow phone with details');
   const detailsShot = testInfo.outputPath('chats-320-details.png');
   await page.screenshot({ path: detailsShot, fullPage: true, animations: 'disabled' });
@@ -210,6 +214,47 @@ test('the table and the narrow list show the same Chats, actions and summary at 
   const issues = finish();
   expect(issues.pageErrors).toEqual([]);
   expect(issues.externalRequests).toEqual([]);
+});
+
+test('a change waiting to apply shows the running values in both layouts and in the details', async ({ page }) => {
+  await write(page, '/api/chats', 'POST', { id: INHERITING, ...inherited });
+  await write(page, `/api/chats/${INHERITING}/participation`, 'PUT', {
+    active_windows: [{ start: '09:00', end: '18:00', days: [1, 2, 3, 4, 5] }],
+  });
+  // The next apply fails: the file drops the schedule while the process keeps running on it.
+  await e2eFetch('/fail-next-config-apply', { method: 'POST' });
+  const message = await page.evaluate(async (id) => {
+    const view = await (await fetch('/api/chats')).json();
+    const response = await fetch(`/api/chats/${id}/participation`, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json', 'if-match': view.revision },
+      body: JSON.stringify({ active_windows: null }),
+    });
+    return response.ok ? null : String((await response.json()).message);
+  }, INHERITING);
+  expect(message).toMatch(/^config\.jsonc was updated but not applied:/);
+  const view = await viewOf(page);
+  const chat = view.items.find((item) => item.id === INHERITING);
+  expect(chat?.saved?.participation ?? null).toBeNull();
+  expect(chat?.active?.participation?.active_windows).toHaveLength(1);
+  await page.reload();
+
+  for (const viewport of [
+    { width: 1440, height: 1000 },
+    { width: 390, height: 844 },
+  ]) {
+    await page.setViewportSize(viewport);
+    const row = chatRow(page, INHERITING);
+    await expect(row).toContainText('Changes pending');
+    await expect(labelledValue(row, 'Active hours')).toHaveText('Unrestricted');
+    await expect(row).toContainText('Running: Active hours Mon–Fri 09:00–18:00');
+  }
+
+  // The file has no attention window any more, the process still has one: it keeps a row.
+  const details = await openChatDetails(chatRow(page, INHERITING));
+  await expect(labelledValue(details, 'Active hours')).toContainText('Running: Mon–Fri 09:00–18:00');
+  await expect(labelledValue(details, 'Attention window').locator('p').first()).toHaveText('—');
+  await expect(labelledValue(details, 'Attention window')).toContainText('Running: 300s');
 });
 
 test('dark theme keeps the summary readable on a phone', async ({ page }, testInfo) => {

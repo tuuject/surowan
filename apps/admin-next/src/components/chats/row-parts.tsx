@@ -8,11 +8,11 @@ import {
   type ChatFact,
   type ChatFacts,
   chatStatus,
-  type FactSource,
   isGroupChat,
   type SettingsSide,
   shownSettings,
   shownSide,
+  type SummarySource,
 } from '@/components/chats/facts';
 import { EditIcon } from '@/components/icons';
 import type { ChatEntry, ChatSettingsView, ChatsView } from '@/lib/api/chats.ts';
@@ -56,12 +56,20 @@ export function RunningNote({ value }: { readonly value: string | null }): React
   );
 }
 
-/** Marks a value taken from the global settings; a default nobody configured needs no mark. */
-function InheritedMark({ source }: { readonly source: FactSource }): ReactElement | null {
+/**
+ * Marks a value taken from the global settings, or a summary that mixes global
+ * fields with the Chat's own; a default nobody configured needs no mark.
+ */
+function InheritedMark({ source }: { readonly source: SummarySource }): ReactElement | null {
   const { t } = useTranslation();
-  return source === 'global' ? (
-    <span className={css({ color: 'text-muted', fontFamily: 'sans' })}>{t('pages.chats.inheritedSuffix')}</span>
-  ) : null;
+  if (source !== 'global' && source !== 'mixed') {
+    return null;
+  }
+  return (
+    <span className={css({ color: 'text-muted', fontFamily: 'sans' })}>
+      {source === 'global' ? t('pages.chats.inheritedSuffix') : t('pages.chats.partlyInheritedSuffix')}
+    </span>
+  );
 }
 
 /** Space-separated tokens that each stay on one line; the spaces stay plain so copying keeps the text. */
@@ -83,15 +91,20 @@ function Tokens({ text }: { readonly text: string }): ReactElement {
 export function FactValue({
   fact,
   lines = fact.lines,
+  source = fact.source,
   more,
 }: {
   readonly fact: ChatFact;
   readonly lines?: readonly string[];
+  /** The compact summary passes its own source when it names more fields than `lines`. */
+  readonly source?: SummarySource;
   readonly more?: string | undefined;
 }): ReactElement {
   const keyed = keyedLines(lines);
+  // A partly inherited summary still differs from the global settings, so it keeps full color.
+  const own = source === 'chat' || source === 'mixed';
   return (
-    <div className={cx(css({ minWidth: '0', overflowWrap: 'anywhere' }), fact.source === 'chat' ? undefined : quiet)}>
+    <div className={cx(css({ minWidth: '0', overflowWrap: 'anywhere' }), own ? undefined : quiet)}>
       {keyed.map((line, index) => (
         // Lines follow the table's direction; only their content is isolated, so an id in
         // an Arabic page or Arabic free text in an English one keeps the column's alignment.
@@ -103,7 +116,7 @@ export function FactValue({
           ) : (
             <bdi>{line.text}</bdi>
           )}
-          {index === keyed.length - 1 ? <InheritedMark source={fact.source} /> : null}
+          {index === keyed.length - 1 ? <InheritedMark source={source} /> : null}
         </p>
       ))}
       {more === undefined ? null : <p className={cx(css({ margin: '0' }), quiet)}>{more}</p>}
@@ -275,7 +288,14 @@ export function compactPolicyRows(
           {
             key: fact.key,
             label: fact.label,
-            value: <FactValue fact={fact} lines={fact.compact} more={fact.compactMore} />,
+            value: (
+              <FactValue
+                fact={fact}
+                lines={fact.compact}
+                source={fact.compactSource ?? fact.source}
+                more={fact.compactMore}
+              />
+            ),
           },
         ],
   );
@@ -286,6 +306,17 @@ function compactPolicyText(row: ChatEntry, facts: ChatFacts, side: SettingsSide)
     .policy(row, side)
     .flatMap((fact) => (fact.compact === null ? [] : [`${fact.label} ${fact.compact.join(facts.separator)}`]))
     .join(facts.separator);
+}
+
+/** The running policy summary, while a change to it waits for the file to apply. */
+export function PolicyRunningNote({
+  row,
+  facts,
+}: {
+  readonly row: ChatEntry;
+  readonly facts: ChatFacts;
+}): ReactElement | null {
+  return <RunningNote value={facts.runningDiff(row, (_, side) => compactPolicyText(row, facts, side))} />;
 }
 
 export function ChatPolicySummary({
@@ -299,7 +330,7 @@ export function ChatPolicySummary({
   return (
     <div className={css({ minWidth: '0', '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
       {rows.length === 0 ? <span className={quiet}>—</span> : <FactRows rows={rows} labels={facts.compactLabels} />}
-      <RunningNote value={facts.runningDiff(row, (_, side) => compactPolicyText(row, facts, side))} />
+      <PolicyRunningNote row={row} facts={facts} />
     </div>
   );
 }
@@ -370,7 +401,12 @@ export function ChatActions({
   );
 }
 
-/** Every setting of the shown side, each with its source and, when a restart is pending, the running value. */
+/**
+ * Every setting of the shown side, each with its source and, when a change
+ * waits to apply, the running value. A field only the running side has (the
+ * file turned it off or removed it) still gets a row, so nothing the process
+ * runs on is hidden.
+ */
 export function ChatSettingsDetails({
   row,
   facts,
@@ -385,6 +421,7 @@ export function ChatSettingsDetails({
     return null;
   }
   const other: SettingsSide | null = side === 'saved' && row.active !== null ? 'active' : null;
+  const shownFacts = facts.policy(row, side);
   const runningFacts = other === null ? [] : facts.policy(row, other);
   const running = (fact: ChatFact): string | null => {
     if (other === null) {
@@ -441,7 +478,7 @@ export function ChatSettingsDetails({
         </>
       ),
     },
-    ...facts.policy(row, side).map((fact) => ({
+    ...shownFacts.map((fact) => ({
       label: fact.label,
       value: (
         <>
@@ -450,6 +487,17 @@ export function ChatSettingsDetails({
         </>
       ),
     })),
+    ...runningFacts
+      .filter((fact) => !shownFacts.some((item) => item.key === fact.key))
+      .map((fact) => ({
+        label: fact.label,
+        value: (
+          <>
+            <p className={cx(css({ margin: '0' }), quiet)}>—</p>
+            <RunningNote value={fact.lines.join(facts.separator)} />
+          </>
+        ),
+      })),
   ];
   return (
     <div data-chat-details="">

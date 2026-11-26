@@ -110,7 +110,7 @@ test('group memory can be enabled, tuned and disabled from the Chat row', async 
     thirty_hour_clock: 'overlapping',
   });
   await expect(memory()).toHaveCount(0);
-  const details = await openChatDetails(page, row());
+  const details = await openChatDetails(row());
   await expect(labelledValue(details, 'Group memory')).toHaveText('Off');
   await row().getByRole('button', { name: 'Toggle row details', exact: true }).click();
 

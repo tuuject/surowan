@@ -11,6 +11,7 @@ export const chats: Catalog<typeof chatsEn> = {
   chatOverride: 'Chat-Überschreibung',
   thinkingShort: 'Denken {{level}}',
   inheritedSuffix: ' (geerbt)',
+  partlyInheritedSuffix: ' (teilweise geerbt)',
   runningNote: 'Läuft: {{value}}',
   configConflictEdit:
     'Die Einstellungen wurden während der Bearbeitung an anderer Stelle geändert. Es wurde nichts gespeichert; den Chat erneut öffnen, um die aktuellen Einstellungen zu sehen.',

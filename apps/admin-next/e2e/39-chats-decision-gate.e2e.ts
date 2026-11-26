@@ -110,7 +110,7 @@ test('a Chat that enables the gate without a global key gets the server error', 
   // Off globally and not overridden: the summary leaves it out, the full settings say so.
   await expect(labelledValue(groupRow(page), 'Active hours')).toBeVisible();
   await expect(gateSummary(page)).toHaveCount(0);
-  const details = await openChatDetails(page, groupRow(page));
+  const details = await openChatDetails(groupRow(page));
   await expect(labelledValue(details, 'Entry gate')).toHaveText('Off (inherited)');
   await groupRow(page).getByRole('button', { name: 'Toggle row details', exact: true }).click();
 
@@ -158,7 +158,7 @@ test('overrides save into the Chat, show in the row, and inherit again', async (
   await page.reload();
   await expect(gateSummary(page)).toHaveText('Enforce, threshold 0.8');
   // The full settings mark which fields the Chat sets and which it inherits.
-  const details = await openChatDetails(page, groupRow(page));
+  const details = await openChatDetails(groupRow(page));
   await expect(labelledValue(details, 'Mode')).toHaveText('Enforce');
   await expect(labelledValue(details, 'Threshold')).toHaveText('0.8');
   await expect(labelledValue(details, 'History messages')).toHaveText('10 (inherited)');
@@ -248,6 +248,47 @@ test('only changed fields are sent, and an untouched dialog sends nothing', asyn
   expect(writes).toEqual([]);
 });
 
+async function setGlobalGate(page: import('@playwright/test').Page, patch: Readonly<Record<string, unknown>>) {
+  await page.evaluate(async (body) => {
+    const view = await (await fetch('/api/decision-gate')).json();
+    const response = await fetch('/api/decision-gate', {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json', 'if-match': view.revision },
+      body: JSON.stringify(body),
+    });
+    if (!response.ok) {
+      throw new Error(`Updating the global gate failed: ${response.status}`);
+    }
+  }, patch);
+  await page.reload();
+  await expect(groupRow(page)).toBeVisible();
+}
+
+test('the summary marks each gate field by where it comes from', async ({ page }) => {
+  await seedGlobalKey(page);
+  await setGlobalGate(page, { enabled: true });
+  // Nothing set on the Chat: the running global gate is inherited as a whole.
+  await expect(gateSummary(page)).toHaveText('Record only, threshold 0.57 (inherited)');
+
+  // Only the threshold is the Chat's own; the switch and the mode still come from the global section.
+  await seedChatGate(page, { threshold: 0.9 });
+  await expect(gateSummary(page)).toHaveText('Record only, threshold 0.9 (partly inherited)');
+  const color = (locator: import('@playwright/test').Locator) =>
+    locator.evaluate((element) => getComputedStyle(element.querySelector('div') ?? element).color);
+  // A partly inherited summary still differs from the global settings: full text color, like a
+  // gate the Chat sets entirely, not the muted color of the group's default schedule.
+  const partlyOwn = await color(gateSummary(page));
+  const muted = await color(labelledValue(groupRow(page), 'Active hours'));
+  expect(partlyOwn).not.toBe(muted);
+  await seedChatGate(page, { enabled: true, mode: 'enforce' });
+  await expect(gateSummary(page)).toHaveText('Enforce, threshold 0.9');
+  expect(await color(gateSummary(page))).toBe(partlyOwn);
+
+  // A field the summary doesn't name still makes the gate partly the Chat's own.
+  await seedChatGate(page, { enabled: null, mode: null, threshold: null, instructions: QUESTION });
+  await expect(gateSummary(page)).toHaveText('Record only, threshold 0.57 (partly inherited)');
+});
+
 test('an enabled-only override names the mode and threshold it inherits', async ({ page }) => {
   await seedGlobalKey(page);
   await page.evaluate(async () => {
@@ -265,8 +306,9 @@ test('an enabled-only override names the mode and threshold it inherits', async 
   // Only the mode changed globally; the gate itself is still off there.
   await expect(gateSummary(page)).toHaveCount(0);
   await seedChatGate(page, { enabled: true });
-  await expect(gateSummary(page)).toHaveText('Enforce, threshold 0.57');
-  const details = await openChatDetails(page, groupRow(page));
+  // The switch is the Chat's own, the mode and threshold are not.
+  await expect(gateSummary(page)).toHaveText('Enforce, threshold 0.57 (partly inherited)');
+  const details = await openChatDetails(groupRow(page));
   await expect(labelledValue(details, 'Entry gate')).toHaveText('On');
   await expect(labelledValue(details, 'Mode')).toHaveText('Enforce (inherited)');
   await expect(labelledValue(details, 'Threshold')).toHaveText('0.57 (inherited)');

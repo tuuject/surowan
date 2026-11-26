@@ -11,6 +11,7 @@ export const chats = {
   chatOverride: 'Chat override',
   thinkingShort: 'thinking {{level}}',
   inheritedSuffix: ' (inherited)',
+  partlyInheritedSuffix: ' (partly inherited)',
   runningNote: 'Running: {{value}}',
   configConflictEdit:
     'The settings changed elsewhere while you were editing. Nothing was saved; reopen the Chat to see the current settings.',

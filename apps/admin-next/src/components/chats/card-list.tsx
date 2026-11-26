@@ -13,6 +13,7 @@ import {
   ChatStatusBadge,
   compactPolicyRows,
   FactRows,
+  PolicyRunningNote,
 } from '@/components/chats/row-parts';
 import type { ChatEntry, ChatsView } from '@/lib/api/chats.ts';
 import type { DecisionGateView } from '@/lib/api/decision-gate.ts';
@@ -92,13 +93,21 @@ function ChatCard({
         </div>
         <ChatActions row={row} view={view} handlers={handlers} inset />
       </div>
-      <FactRows
-        labels={[t('pages.chats.colAgentModel'), ...facts.compactLabels]}
-        rows={[
-          { key: 'model', label: t('pages.chats.colAgentModel'), value: <ChatModelSummary row={row} facts={facts} /> },
-          ...compactPolicyRows(row, facts),
-        ]}
-      />
+      <div className={css({ minWidth: '0', '& > :not(:last-child)': { marginBlockEnd: '1' } })}>
+        <FactRows
+          labels={[t('pages.chats.colAgentModel'), ...facts.compactLabels]}
+          rows={[
+            {
+              key: 'model',
+              label: t('pages.chats.colAgentModel'),
+              value: <ChatModelSummary row={row} facts={facts} />,
+            },
+            ...compactPolicyRows(row, facts),
+          ]}
+        />
+        {/* Same running note as the table's policy cell: a change waiting to apply shows at any width. */}
+        <PolicyRunningNote row={row} facts={facts} />
+      </div>
       <Button
         variant="ghost"
         color="secondary"

@@ -43,7 +43,7 @@ test('proactive-reply editing follows inherit, off and custom values per group',
   // the summary, and the full settings still name it.
   await expect(labelledValue(groupRow(), 'Active hours')).toBeVisible();
   await expect(proactive()).toHaveCount(0);
-  const details = await openChatDetails(page, groupRow());
+  const details = await openChatDetails(groupRow());
   await expect(labelledValue(details, 'Proactive replies')).toHaveText('Off (inherited)');
   await groupRow().getByRole('button', { name: 'Toggle row details', exact: true }).click();
 

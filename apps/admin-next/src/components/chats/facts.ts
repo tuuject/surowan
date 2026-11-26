@@ -18,6 +18,9 @@ import { summarizeWindows } from '@/lib/participation';
  */
 export type FactSource = 'chat' | 'global' | 'default';
 
+/** A summary line can combine fields from both levels: `mixed` when only some of them are the Chat's own. */
+export type SummarySource = FactSource | 'mixed';
+
 export type FactKey =
   | 'topics'
   | 'model'
@@ -46,6 +49,8 @@ export interface ChatFact {
   readonly compact: readonly string[] | null;
   /** A quiet closing line in the compact summary, e.g. how many more windows the full settings list. */
   readonly compactMore?: string;
+  /** Where the compact lines come from, when they show more fields than `lines` does. */
+  readonly compactSource?: SummarySource;
   /** Identifiers the user copies or matches. */
   readonly mono?: boolean;
   /** Long free text: keeps its own line breaks. */
@@ -331,6 +336,17 @@ export function useChatFacts(view: ChatsView, gate: DecisionGateView | undefined
           threshold: effective.threshold,
         })
       : t('pages.chats.decisionGateOffSummary');
+    // The summary names the switch, and while it is on, the mode and threshold too: each may
+    // come from either level, and a Chat override of a field the summary doesn't name still
+    // makes the gate partly its own.
+    const named: readonly (keyof DecisionGateValues)[] = effective.enabled
+      ? ['enabled', 'mode', 'threshold']
+      : ['enabled'];
+    const ownedNamed = named.filter(own).length;
+    const ownsOthers =
+      override !== null && Object.keys(override).some((key) => !named.includes(key as keyof DecisionGateValues));
+    const compactSource: SummarySource =
+      ownedNamed === named.length ? 'chat' : ownedNamed === 0 && !ownsOthers ? 'global' : 'mixed';
     const facts: ChatFact[] = [
       {
         key: 'decisionGate',
@@ -338,6 +354,7 @@ export function useChatFacts(view: ChatsView, gate: DecisionGateView | undefined
         lines: [effective.enabled ? t('common.on') : t('common.off')],
         source: fieldSource('enabled'),
         compact: effective.enabled || override !== null ? [state] : null,
+        compactSource,
       },
     ];
     // An entry gate that is off only reports the fields this Chat sets itself.
