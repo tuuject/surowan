@@ -181,7 +181,10 @@ export function createWebFetchTool(
           if (servedMarkdown) {
             headerLines.push('Format: Markdown served by the site; call again with raw: true for the original HTML');
           }
-          body = await readTextBody(fetched.response, bodyBudget(headerLines));
+          const budget = bodyBudget(headerLines);
+          const read = await readTextBody(fetched.response, budget);
+          const cut = truncateUtf8(read.text, budget);
+          body = { text: cut.text, truncated: read.truncated || cut.truncated };
         }
         const text = `${headerLines.join('\n')}\n${body.text}${body.truncated ? TRUNCATION_MARKER : ''}`;
         audit.succeed(text);

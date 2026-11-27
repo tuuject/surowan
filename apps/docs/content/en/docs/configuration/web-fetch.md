@@ -42,6 +42,7 @@ Independent of configuration:
 - No cookies and none of the configured credentials; the User-Agent is `Mozilla/5.0 Surowan/<version>` so sites serve their normal page.
 - At most 3 redirects, and under the default policy **every hop is address-checked again**, so "public URL 302s to 127.0.0.1" does not work.
 - Only text-ish responses (`text/*`, JSON, XML, JavaScript) and images are accepted; other binary types and any `content-encoding` other than `identity` fail.
+- Pages in GBK, Big5, Shift_JIS and other non-UTF-8 encodings read fine as long as the response header, the page's `<meta charset>` or its XML declaration names the encoding; a stray bad byte shows up as `�`. A page that names no encoding and is not UTF-8 fails with `invalid_text_encoding`; the encoding is never guessed.
 - The returned text is capped at 32 KiB with a `[content truncated]` marker; an HTML body is read up to 2 MiB (conversion needs the whole page); one request times out after 15 seconds and never outlives the Invocation's remaining time.
 - Everything returned is wrapped as untrusted web content: quotable, never an instruction or an authorization.
 

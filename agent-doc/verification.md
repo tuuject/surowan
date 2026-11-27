@@ -196,6 +196,7 @@ pnpm test test/im test/intake test/schema/migrations-host-neutral-ids.test.ts te
 | `admin/mcp-servers-presentation.test.ts` | `exposure`/`description` 可单独 `PUT` 且不动其它字段、空白描述即删除、`direct` 回落为缺省、超长 400、`mcp_description_missing` 常驻告警；描述起草只读被选中的 Tool、不写文件、审计 `model_calls`、无效回复 502、未连接 409、无付费权限的密钥 403 |
 | `skills/execute-search.test.ts` | `Intl.Segmenter` 分词（中文、日文、`_` 连接的名字）、去虚词与单个假名、评分规则；`execute.search` 用中文请求命中能力且英文排序不变 |
 | `web-fetch/address.test.ts` | 有界不可信文本结果与审计、公网 IPv4 放行与 IPv4 映射字面量拒绝、私网/合成地址拒绝（含跳转目标）、fake-ip 网段默认拒绝且需 `allow_proxy_synthetic_addresses` 开启、6to4/Teredo 过渡地址拒绝、`dangerously_allow_all_ip_addresses` 从配置到插件生效并放行私网/环回/跳转目标但仍拒绝非默认端口 |
+| `web-fetch/charset.test.ts` | 非 UTF-8 文本按 Content-Type `charset`（含引号与别名）、HTML `<meta>` 预扫描（`http-equiv` 形式、超过 1024 字节的声明、注释与其它标签属性里的诱饵不算、`utf-16` 当 UTF-8、未知头部标签跳过）与 XML 声明解码，BOM 优先于头部、头部优先于页面；已声明编码的坏字节替换为 U+FFFD，未声明且非 UTF-8 仍记 `invalid_text_encoding`；解码后按 UTF-8 结果预算截断、读取上限切开的半个字符（UTF-8/UTF-16）丢弃而非报错或替换 |
 | `web-fetch/content.test.ts` | 默认 `Accept` 优先 `text/markdown` 且站点 Markdown 原样返回、`raw` 与 `accept_markdown: false` 不声明 Markdown、HTML 默认转 Markdown（正文在 32 KiB 之后仍保留、去导航/脚本，图片保留为绝对链接）、`raw` 返回原始 HTML、Markdown 按 UTF-8 边界截断、转换不发任何网络请求 |
 | `web-fetch/images.test.ts` | 能看图时 Markdown 带 `Images:` 提示且内联 `data:` 图片剔除；图片响应存成本 Chat 工具图片（标记 + `toolImages` + 审计 `result_content_json`，不含字节）、`referer` 去 fragment 后随每一跳发送、无存储时图片按二进制拒绝、GIF/伪装 HTML/超 20 MiB（声明或实际）/非法 referer 各自的失败码且不留资产、插件 scope 只把图片存进本 Invocation 的 Chat |
 | `operations.test.ts` | 审计行 Retention、聊天记录保留、备份轮换、Scheduler 关闭 |
