@@ -275,6 +275,18 @@ test('a process with Telegram disabled runs the room round and only recovers wha
     expect(releaseDetail.body.sends).toMatchObject([{ state: 'success', kind: 'text' }]);
     expect(agentCalls).toBeGreaterThan(0);
 
+    // The room reports the settled run, and the timeline attributes the reply
+    // to a successful send while the input it answered reads as released.
+    const runs = await call(`/api/playground/rooms/${roomId}/invocations`);
+    expect((runs.body.items as { state: string }[])[0]).toMatchObject({ state: 'completed' });
+    const settled = (await call(`/api/playground/rooms/${roomId}/messages`)).body.items as {
+      sent_by_bot: boolean;
+      send_state: string;
+      input_state: string;
+    }[];
+    expect(settled.find((item) => item.sent_by_bot)).toMatchObject({ send_state: 'success' });
+    expect(settled.find((item) => !item.sent_by_bot)).toMatchObject({ input_state: 'released' });
+
     // The dead process's run and its claimed receipt are closed by startup
     // recovery; the fresh queued run still waits for Telegram.
     const invocations = await call('/api/invocations?limit=50');

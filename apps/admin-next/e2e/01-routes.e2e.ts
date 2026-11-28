@@ -1,320 +1,253 @@
-import { expect } from '@playwright/test';
-import { adminUrl, type PageIssues, test, watchPageIssues } from './helpers.ts';
+import { readdirSync } from 'node:fs';
+import { join } from 'node:path';
+import { expect, type Page, type Request } from '@playwright/test';
+import { adminUrl, test, watchPageIssues } from './helpers.ts';
 
 /**
- * The business routes and their deep links render real content (not the
- * error boundary, not a blank page) with an authenticated session. While each
- * route renders, the page must also stay read-only and same-origin: no write
- * method to `/api/**`, no request to another origin (the production CSP would
- * block it), no console error and no uncaught page error.
+ * One smoke test per panel route: the built bundle renders that route under the
+ * production CSP with a signed-in session, and it stays read-only and
+ * same-origin while doing so.
+ *
+ * Nothing here reads visible copy, an accessible name or a locale. A route
+ * "rendered" means its `<main>` has content, the router fell through to no error
+ * boundary, every `/api/` answer was a success and the page produced no console
+ * error, no uncaught error, no write call and no cross-origin request.
+ *
+ * A last test keeps the table complete by walking `src/routes/`, so a new page
+ * cannot ship without its smoke test.
  */
 test.use({ signedIn: true });
 
-const INVOCATION_A = '4001';
-const CONVERSATION_ID = '2001';
-const MESSAGE_A = '6001';
+interface RouteCase {
+  readonly path: string;
+  /** Answers the route's read probes in-process, before it navigates. */
+  readonly stub?: (page: Page) => Promise<void>;
+}
 
-test.describe('routes and deep links', () => {
-  let finishWatching: () => PageIssues = () => {
-    throw new Error('page issues are not being watched');
-  };
+/**
+ * Answers one `/api/image*` read: the shared fixture runs no image service, so
+ * the image routes answer 503 there (and the browser logs the failure as a
+ * console error). That is a fixture gap, not a page defect, so the smoke stubs
+ * the exact read instead of loosening an assertion for every route.
+ */
+async function stubImageRead(page: Page, path: string | RegExp, body: unknown): Promise<void> {
+  await page.route(path, (route) => route.fulfill({ json: body }));
+}
 
-  test.beforeEach(({ page }) => {
-    finishWatching = watchPageIssues(page);
+const ROUTES: readonly RouteCase[] = [
+  { path: '/' },
+  { path: '/warnings' },
+  { path: '/invocations' },
+  { path: '/invocations/4001' },
+  { path: '/contexts' },
+  { path: '/contexts/2001' },
+  { path: '/messages' },
+  { path: '/messages/6001' },
+  { path: '/alarms' },
+  { path: '/recurring-alarms' },
+  { path: '/memories' },
+  { path: '/group-memories' },
+  { path: '/dictionary' },
+  { path: '/reviews' },
+  { path: '/search-settings' },
+  { path: '/prompts' },
+  { path: '/admins' },
+  { path: '/chats' },
+  { path: '/telegram' },
+  { path: '/models' },
+  { path: '/providers' },
+  { path: '/stickers' },
+  // The shared fixture runs no image service (`/api/image` answers 503, and the
+  // browser logs that as a console error), so answer the read probes with an
+  // enabled service and two empty lists: the page then renders its real list
+  // state instead of a fixture gap.
+  {
+    path: '/image-assets',
+    stub: async (page) => {
+      await stubImageRead(page, '**/api/image/status', { enabled: true, models: [] });
+      await stubImageRead(page, /\/api\/image\/prompts\?/, { items: [], total: 0, limit: 20, offset: 0 });
+      await stubImageRead(page, /\/api\/image\/images\?/, { items: [], total: 0, limit: 20, offset: 0 });
+    },
+  },
+  // Same fixture gap: the settings form reads the capability status. The config
+  // itself (`/api/image/config`) is served for real from the fixture's file.
+  {
+    path: '/image-settings',
+    stub: (page) => stubImageRead(page, '**/api/image/status', { enabled: false, models: [] }),
+  },
+  // Same gap: the page reads the capability status, the prompt picker and the
+  // reference-image picker's recent assets.
+  {
+    path: '/image-generate',
+    stub: async (page) => {
+      await stubImageRead(page, '**/api/image/status', { enabled: false, models: [] });
+      await stubImageRead(page, /\/api\/image\/prompts\?/, { items: [], total: 0, limit: 50, offset: 0 });
+      await stubImageRead(page, /\/api\/image\/images\?/, { items: [], total: 0, limit: 20, offset: 0 });
+    },
+  },
+  // Same gap: the generation list (the fixture seeds no generations).
+  {
+    path: '/image-generations',
+    stub: (page) => stubImageRead(page, /\/api\/image\/generations\?/, { items: [], total: 0, limit: 20, offset: 0 }),
+  },
+  // Same gap: the fixture seeds no generation, so the detail read is answered
+  // with the smallest record the page renders (no outputs, attempts or images).
+  {
+    path: '/image-generations/e2e-generation',
+    stub: (page) =>
+      stubImageRead(page, '**/api/image/generations/e2e-generation', {
+        id: 'e2e-generation',
+        status: 'succeeded',
+        source: 'panel',
+        actorName: '',
+        createdAt: '2024-01-01T00:00:00.000Z',
+        finishedAt: null,
+        snapshot: {
+          authored: { authoredPrompt: '', modelId: '', aspectRatio: '', resolution: '', outputCount: 0 },
+          resolvedPrompt: '',
+          finalPrompt: '',
+          promptAssets: [],
+          imageAssets: [],
+        },
+        outputs: [],
+        attempts: [],
+        error: null,
+      }),
+  },
+  { path: '/settings' },
+  { path: '/keychain' },
+  { path: '/developer' },
+  { path: '/decision-gate' },
+  { path: '/harness' },
+  { path: '/mcp-servers' },
+  { path: '/preferences' },
+  { path: '/playground' },
+  { path: '/api-keys' },
+];
+
+interface ApiTraffic {
+  /** Every `/api/` answer that is not a long-lived event stream. */
+  readonly responses: { path: string; status: number }[];
+  /** `/api/` requests that have neither answered nor finished. */
+  readonly inflight: Set<Request>;
+}
+
+function isApiRequest(request: Request): boolean {
+  try {
+    return new URL(request.url()).pathname.startsWith('/api/');
+  } catch {
+    return false;
+  }
+}
+
+/** Records the route's own API traffic, excluding streams that never end. */
+function trackApiTraffic(page: Page): ApiTraffic {
+  const traffic: ApiTraffic = { responses: [], inflight: new Set() };
+  page.on('request', (request) => {
+    if (isApiRequest(request)) {
+      traffic.inflight.add(request);
+    }
   });
+  page.on('response', (response) => {
+    if (!isApiRequest(response.request())) {
+      return;
+    }
+    // A live-refresh stream answers once and then stays open by design: it is
+    // neither a first-load answer nor something to wait for.
+    if ((response.headers()['content-type'] ?? '').includes('text/event-stream')) {
+      traffic.inflight.delete(response.request());
+      return;
+    }
+    traffic.responses.push({ path: new URL(response.url()).pathname, status: response.status() });
+  });
+  const settle = (request: Request): void => {
+    traffic.inflight.delete(request);
+  };
+  page.on('requestfinished', settle);
+  page.on('requestfailed', settle);
+  return traffic;
+}
 
-  test.afterEach(() => {
+/**
+ * Waits for the first load to settle: at least one `/api/` answer arrived,
+ * nothing is in flight, and that stays true across two samples. The shell
+ * renders as soon as the session answers, before the route issues its own
+ * requests, so a single quiet sample could be the gap between the two waves.
+ */
+async function waitForFirstLoad(path: string, traffic: ApiTraffic): Promise<void> {
+  let quietSamples = 0;
+  await expect
+    .poll(
+      () => {
+        quietSamples = traffic.inflight.size === 0 && traffic.responses.length > 0 ? quietSamples + 1 : 0;
+        return quietSamples;
+      },
+      {
+        message: `${path} never finished its first load without pending /api/ requests`,
+        intervals: [100, 100, 200, 200, 500],
+      },
+    )
+    .toBeGreaterThanOrEqual(2);
+}
+
+for (const route of ROUTES) {
+  test(`${route.path} renders under the production CSP`, async ({ page }) => {
+    const traffic = trackApiTraffic(page);
+    const finishWatching = watchPageIssues(page);
+    await route.stub?.(page);
+
+    await page.goto(await adminUrl(route.path));
+    await waitForFirstLoad(route.path, traffic);
+
+    const main = page.locator('main');
+    await expect(main).toBeVisible();
+    expect(
+      await main.evaluate((element) => element.children.length),
+      `${route.path} rendered an empty main`,
+    ).toBeGreaterThan(0);
+    await expect(page.locator('[data-route-error]')).toHaveCount(0);
+
+    const failed = traffic.responses.filter((response) => response.status >= 400);
+    expect(failed, JSON.stringify(failed)).toEqual([]);
+
     const issues = finishWatching();
     expect(issues.writeApiCalls, JSON.stringify(issues.writeApiCalls)).toEqual([]);
     expect(issues.externalRequests, JSON.stringify(issues.externalRequests)).toEqual([]);
     expect(issues.consoleErrors, JSON.stringify(issues.consoleErrors)).toEqual([]);
     expect(issues.pageErrors, JSON.stringify(issues.pageErrors)).toEqual([]);
   });
+}
 
-  test('/ overview renders the real stats and bot status', async ({ page }) => {
-    await page.goto(await adminUrl('/'));
-    await expect(page.getByText('Stored messages')).toBeVisible();
-    await expect(page.getByText('Cached media analyses')).toBeVisible();
-    await expect(page.getByText('Recent invocations')).toBeVisible();
-    await expect(page.getByRole('link', { name: 'View all', exact: true })).toHaveAttribute('href', '/invocations');
-    await expect(page.getByText('Bot status')).toBeVisible();
-    await expect(page.getByRole('main').getByText('Telegram', { exact: true })).toBeVisible();
-    await expect(page.getByRole('main').getByText('Disabled', { exact: true })).toBeVisible();
-    await expect(page.getByText('Invocation failure rate is above the threshold')).toBeVisible();
-    await expect(page.getByTestId('app-version')).toContainText('v');
-    await expect(page.locator('[data-route-error]')).toHaveCount(0);
-  });
+/** `src/routes/`: the TanStack file routes this smoke has to stay complete with. */
+const ROUTES_DIR = join(import.meta.dirname, '..', 'src', 'routes');
 
-  test('/warnings lists standing and event warnings', async ({ page }) => {
-    await page.goto(await adminUrl('/warnings'));
-    await expect(page.getByText('Standing warnings', { exact: true })).toBeVisible();
-    await expect(page.getByText('Event warnings', { exact: true })).toBeVisible();
-    await expect(page.getByText('Invocation failure rate is above the threshold')).toBeVisible();
-    await expect(page.getByText('Consecutive administrator sign-in failures')).toBeVisible();
-    await expect(page.getByText('1 unread', { exact: true })).toBeVisible();
-    await expect(page.locator('[data-route-error]')).toHaveCount(0);
-  });
+/**
+ * The path pattern one route file answers, in this app's flat-file convention:
+ * `index.tsx` is `/`, `foo.tsx` is `/foo`, and the non-nested `foo_.$param.tsx`
+ * is `/foo/<one segment>`. `__root.tsx` is the shell and has no path of its own.
+ */
+function routePattern(file: string): RegExp {
+  const base = file.slice(0, -'.tsx'.length);
+  const [own, child] = base.split('_.');
+  if (own === 'index') {
+    return /^\/$/;
+  }
+  const prefix = `/${escapeRegExp(own ?? '')}`;
+  return child === undefined ? new RegExp(`^${prefix}$`) : new RegExp(`^${prefix}/[^/]+$`);
+}
 
-  test('/invocations lists tool sessions with real pagination', async ({ page }) => {
-    await page.goto(await adminUrl('/invocations'));
-    await expect(page.locator('table tbody tr').first()).toBeVisible();
-    await expect(page.getByRole('navigation', { name: 'Pagination', exact: true })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Load more', exact: true })).toHaveCount(0);
-    await expect(page.locator('[data-route-error]')).toHaveCount(0);
-  });
+function escapeRegExp(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
 
-  test('/invocations/:id renders the six-tab detail', async ({ page }) => {
-    await page.goto(await adminUrl(`/invocations/${INVOCATION_A}`));
-    await expect(page.getByText(`Invocation ${INVOCATION_A}`).first()).toBeVisible();
-    for (const tab of [
-      'Overview',
-      'Tool calls',
-      'Model calls',
-      'Telegram sends',
-      'Agent transcript',
-      'Frozen context',
-    ]) {
-      await expect(page.getByRole('tab', { name: new RegExp(`^${tab}`) })).toBeVisible();
-    }
-    await expect(page.locator('[data-route-error]')).toHaveCount(0);
+// No page fixture: this test only reads the route directory and the table above.
+test('every file under src/routes/ has a smoke entry', () => {
+  const files = readdirSync(ROUTES_DIR).filter((file) => file.endsWith('.tsx') && file !== '__root.tsx');
+  // An unreadable or emptied directory would otherwise pass the check below.
+  expect(files.length, `no route files found in ${ROUTES_DIR}`).toBeGreaterThan(0);
+  const missing = files.filter((file) => {
+    const pattern = routePattern(file);
+    return !ROUTES.some((route) => pattern.test(route.path));
   });
-
-  test('/contexts lists conversation contexts', async ({ page }) => {
-    await page.goto(await adminUrl('/contexts'));
-    await expect(page.locator('table tbody tr').first()).toBeVisible();
-    await expect(page.getByRole('navigation', { name: 'Pagination', exact: true })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Load more', exact: true })).toHaveCount(0);
-    await expect(page.locator('[data-route-error]')).toHaveCount(0);
-  });
-
-  test('/contexts/:conversationId shows retained messages, capability refs and the truncation marker', async ({
-    page,
-  }) => {
-    await page.goto(await adminUrl(`/contexts/${CONVERSATION_ID}`));
-    await expect(page.getByText(`Conversation context ${CONVERSATION_ID}`).first()).toBeVisible();
-    await expect(page.getByText('Retained messages (4)')).toBeVisible();
-    await expect(page.getByText('Authorized references (1)')).toBeVisible();
-    // seq 4 carries a payload above the preview cap; expanding it shows the marker
-    const seq4Row = page.locator('table tbody tr', { hasText: 'img:unique_photo_seed_1' }).first();
-    await expect(seq4Row).toBeVisible();
-    const seq4Toggle = page.getByRole('button', { name: 'Toggle row details' }).nth(3);
-    await seq4Toggle.click();
-    await expect(page.getByText('Preview truncated; the stored payload is longer.')).toBeVisible();
-    await expect(page.locator('[data-route-error]')).toHaveCount(0);
-  });
-
-  test('/messages lists messages with search and pagination controls', async ({ page }) => {
-    await page.goto(await adminUrl('/messages'));
-    await expect(page.locator('table tbody tr').first()).toBeVisible();
-    await expect(page.getByRole('navigation', { name: 'Pagination', exact: true })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Load more', exact: true })).toHaveCount(0);
-    await expect(page.locator('[data-route-error]')).toHaveCount(0);
-  });
-
-  test('/messages/:id shows every revision and the media row', async ({ page }) => {
-    await page.goto(await adminUrl(`/messages/${MESSAGE_A}`));
-    await expect(page.getByText(`Message ${MESSAGE_A}`).first()).toBeVisible();
-    await expect(page.getByText('first caption')).toBeVisible();
-    await expect(page.getByText('edited caption')).toBeVisible();
-    await expect(page.getByText('unique_photo_seed_1')).toBeVisible();
-    await expect(page.locator('[data-route-error]')).toHaveCount(0);
-  });
-
-  test('/alarms lists pending alarms with the seeded summary first', async ({ page }) => {
-    await page.goto(await adminUrl('/alarms'));
-    await expect(page.getByText('Remind Alice about the fixture data')).toBeVisible();
-    await expect(page.locator('[data-route-error]')).toHaveCount(0);
-  });
-
-  test('/recurring-alarms renders the list and its create action', async ({ page }) => {
-    await page.goto(await adminUrl('/recurring-alarms'));
-    await expect(page.getByRole('heading', { name: 'Recurring alarms', level: 1 })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'New recurring alarm' })).toBeEnabled();
-    await expect(page.getByText('No recurring alarms match the filters.')).toBeVisible();
-    await expect(page.locator('[data-route-error]')).toHaveCount(0);
-  });
-
-  test('/memories lists seeded memos', async ({ page }) => {
-    await page.goto(await adminUrl('/memories'));
-    await expect(page.getByText('Alice prefers short replies.')).toBeVisible();
-    await expect(page.locator('table tbody').getByText('short-term').first()).toBeVisible();
-    await expect(page.locator('[data-route-error]')).toHaveCount(0);
-  });
-
-  test('/group-memories lists generated events and replays their source range', async ({ page }) => {
-    await page.goto(await adminUrl('/group-memories'));
-    await expect(page.getByText('Alice discussed the fixture data.')).toBeVisible();
-    await expect(page.getByRole('columnheader', { name: 'Messages' })).toBeVisible();
-    await page.getByRole('button', { name: 'View source', exact: true }).click();
-    const dialog = page.getByRole('dialog');
-    await expect(dialog.getByText('Messages 900–901, capped for display.')).toBeVisible();
-    await expect(dialog.getByText('edited caption')).toBeVisible();
-    await expect(dialog.getByText('edited text with forward origin')).toBeVisible();
-    await expect(page.locator('[data-route-error]')).toHaveCount(0);
-  });
-
-  test('/prompts shows the prompt editor and version history', async ({ page }) => {
-    await page.goto(await adminUrl('/prompts'));
-    await expect(page.getByRole('heading', { name: 'Global prompt', exact: true })).toBeVisible();
-    await expect(page.getByRole('textbox', { name: 'Prompt', exact: true })).toHaveText('Participate safely.');
-    await expect(page.getByText('Version history')).toBeVisible();
-    await expect(page.locator('table tbody tr').first()).toBeVisible();
-    await expect(page.locator('[data-route-error]')).toHaveCount(0);
-  });
-
-  test('/admins renders the empty bot-admin list', async ({ page }) => {
-    await page.goto(await adminUrl('/admins'));
-    await expect(page.getByText('No bot admins configured.')).toBeVisible();
-    await expect(page.locator('[data-route-error]')).toHaveCount(0);
-  });
-
-  test('/chats shows the allowlist as Chat, model and policy columns', async ({ page }) => {
-    await page.goto(await adminUrl('/chats'));
-    await expect(page.getByText('Chat allowlist')).toBeVisible();
-    for (const name of ['Chat', 'Agent model', 'Chat policy', 'Status', 'Actions']) {
-      await expect(page.getByRole('columnheader', { name, exact: true })).toBeVisible();
-    }
-    await expect(page.getByRole('textbox', { name: 'Search Chat name or ID' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Add Chat' })).toBeVisible();
-  });
-
-  test('/telegram renders the connection state and the token form', async ({ page }) => {
-    await page.goto(await adminUrl('/telegram'));
-    await expect(page.getByRole('heading', { name: 'Telegram settings' })).toBeVisible();
-    await expect(page.getByText('Disabled', { exact: true })).toBeVisible();
-    await expect(page.getByText('A token is configured.', { exact: true })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Save token' })).toBeDisabled();
-    await expect(page.locator('[data-route-error]')).toHaveCount(0);
-  });
-
-  test('/models shows one card per role with its model and thinking effort', async ({ page }) => {
-    await page.goto(await adminUrl('/models'));
-    await expect(page.getByRole('heading', { name: 'Models', exact: true, level: 1 })).toBeVisible();
-    // A named model shows only its display name in the trigger; the alias / id line is the menu's.
-    for (const [role, model] of [
-      ['Agent model', 'Agent Model'],
-      ['Vision model', 'Vision Model'],
-      ['Tool Model', 'Inherit Agent model'],
-    ] as const) {
-      const card = page.getByRole('region', { name: role, exact: true });
-      await expect(card.getByRole('combobox', { name: 'Model', exact: true })).toHaveText(new RegExp(model));
-      await expect(card.getByRole('combobox', { name: 'Thinking effort', exact: true })).toBeVisible();
-    }
-    await expect(page.getByRole('link', { name: 'Manage providers' })).toHaveAttribute('href', '/providers');
-    await expect(page.locator('[data-route-error]')).toHaveCount(0);
-  });
-
-  test('/providers lists providers, their models and the discovery actions', async ({ page }) => {
-    await page.goto(await adminUrl('/providers'));
-    await expect(page.getByRole('heading', { name: 'Providers', exact: true })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Provider agent' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Fetch models' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Add manually' })).toBeVisible();
-    await expect(page.locator('[data-model-list] li').first()).toBeVisible();
-    await expect(page.locator('[data-route-error]')).toHaveCount(0);
-  });
-
-  test('/stickers lists configured sets and the search index', async ({ page }) => {
-    await page.goto(await adminUrl('/stickers'));
-    await expect(page.getByText('Configured sticker sets')).toBeVisible();
-    await expect(page.locator('table tbody tr', { hasText: 'mascot' }).first()).toBeVisible();
-    await expect(page.getByText('Sticker search index')).toBeVisible();
-    await expect(page.locator('[data-route-error]')).toHaveCount(0);
-  });
-
-  test('/image-assets renders both tabs and its media navigation entry', async ({ page }) => {
-    // The e2e server wires no image service; an enabled status plus two empty
-    // lists keeps the page on its real list state.
-    await page.route('**/api/image/status', (route) => route.fulfill({ json: { enabled: true, models: [] } }));
-    for (const resource of ['prompts', 'images']) {
-      await page.route(`**/api/image/${resource}?*`, (route) =>
-        route.fulfill({ json: { items: [], total: 0, limit: 20, offset: 0 } }),
-      );
-    }
-    await page.goto(await adminUrl('/image-assets'));
-    await expect(page.getByRole('heading', { name: 'Image assets', exact: true })).toBeVisible();
-    const nav = page.getByRole('navigation', { name: 'Main navigation', exact: true });
-    const entry = nav.locator('a[href="/image-assets"]');
-    await expect(entry).toBeVisible();
-    await expect(entry).toHaveAttribute('aria-current', 'page');
-    await expect(page.getByRole('button', { name: 'Prompt assets', exact: true })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Images', exact: true })).toBeVisible();
-    await expect(page.getByText('No prompt assets', { exact: true })).toBeVisible();
-    await expect(page.locator('[data-route-error]')).toHaveCount(0);
-  });
-
-  test('/settings renders the credentials form and the config card', async ({ page }) => {
-    await page.goto(await adminUrl('/settings'));
-    await expect(page.getByText('Admin credentials')).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Update credentials' })).toBeVisible();
-    await expect(page.getByRole('heading', { name: 'Configuration file' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Apply config file' })).toBeVisible();
-    await expect(page.locator('[data-route-error]')).toHaveCount(0);
-  });
-
-  test('/keychain lists the seeded entries and the external reference list', async ({ page }) => {
-    await page.goto(await adminUrl('/keychain'));
-    await expect(page.getByRole('heading', { name: 'Keychain' })).toBeVisible();
-    // The fixture keychain seeds named entries; values never appear anywhere.
-    await expect(page.getByRole('cell', { name: 'telegram', exact: true })).toBeVisible();
-    await expect(page.getByText('Values are never shown anywhere')).toBeVisible();
-    await expect(page.getByText('No environment or command references')).toBeVisible();
-    await expect(page.locator('[data-route-error]')).toHaveCount(0);
-  });
-
-  test('/developer renders the recording switch and cleanup action', async ({ page }) => {
-    await page.goto(await adminUrl('/developer'));
-    await expect(page.getByRole('switch', { name: 'Record raw request payloads for debugging' })).not.toBeChecked();
-    await expect(page.getByRole('button', { name: 'Clear payloads', exact: true })).toBeVisible();
-  });
-
-  test('/decision-gate renders the entry gate form with its defaults', async ({ page }) => {
-    await page.goto(await adminUrl('/decision-gate'));
-    await expect(page.getByRole('heading', { name: 'Entry gate', level: 1 })).toBeVisible();
-    await expect(page.getByLabel('Threshold', { exact: true })).toHaveValue('0.57');
-    await expect(page.getByLabel('Address', { exact: true })).toHaveValue('https://openrouter.ai/api/alpha');
-    await expect(page.getByRole('button', { name: 'Save and apply' })).toBeDisabled();
-    await expect(page.locator('[data-route-error]')).toHaveCount(0);
-  });
-
-  test('/harness renders the grouped agent settings', async ({ page }) => {
-    await page.goto(await adminUrl('/harness'));
-    for (const title of ['Budget and concurrency', 'Send behavior', 'Rate limits', 'Context']) {
-      await expect(page.getByRole('heading', { name: title, exact: true })).toBeVisible();
-    }
-    await expect(page.getByLabel('Daily token budget')).toHaveValue('300000');
-    await expect(page.getByRole('button', { name: 'Save and apply' })).toBeDisabled();
-    await expect(page.locator('[data-route-error]')).toHaveCount(0);
-  });
-
-  test('/mcp-servers lists the configured outbound servers', async ({ page }) => {
-    await page.goto(await adminUrl('/mcp-servers'));
-    await expect(page.getByRole('heading', { name: 'MCP servers', exact: true })).toBeVisible();
-    await expect(page.locator('table tbody tr', { hasText: 'stdio-fixture' })).toBeVisible();
-    await expect(page.locator('table tbody tr', { hasText: 'http-remote' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Add server', exact: true })).toBeVisible();
-    await expect(page.locator('[data-route-error]')).toHaveCount(0);
-  });
-
-  test('/preferences renders the browser-local display options', async ({ page }) => {
-    await page.goto(await adminUrl('/preferences'));
-    await expect(page.getByLabel('Theme', { exact: true })).toBeVisible();
-    await expect(page.locator('[data-route-error]')).toHaveCount(0);
-  });
-
-  test('/playground lists rooms and reads without executing anything', async ({ page }) => {
-    await page.goto(await adminUrl('/playground'));
-    await expect(page.getByText('E2E Room').first()).toBeVisible();
-    await expect(page.locator('[data-route-error]')).toHaveCount(0);
-  });
-
-  test('/api-keys renders the key table and the create action', async ({ page }) => {
-    await page.goto(await adminUrl('/api-keys'));
-    await expect(page.getByRole('main').getByText('API keys', { exact: true }).first()).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Create API key' })).toBeVisible();
-    for (const header of ['Name', 'Prefix', 'Mode', 'Created', 'Last used', 'Status', 'Actions']) {
-      await expect(page.getByRole('columnheader', { name: header, exact: true })).toBeVisible();
-    }
-    await expect(page.locator('[data-route-error]')).toHaveCount(0);
-  });
+  expect(missing, `route files with no entry in ROUTES: ${missing.join(', ')}`).toEqual([]);
 });

@@ -18,7 +18,7 @@ pnpm run admin:dev   # 管理面板，127.0.0.1:5273，需配合运行中的 Bot
 pnpm run docs:dev    # 文档站，127.0.0.1:5274
 ```
 
-生产管理面板通过 `pnpm run admin:build` 构建，由 Bot 服务托管。改动管理面板或其可见文案时，还要运行 `pnpm run admin:test:e2e`。完整的验证矩阵见 [agent-doc/verification.md](agent-doc/verification.md)。
+生产管理面板通过 `pnpm run admin:build` 构建，由 Bot 服务托管。改动管理面板前端时，还要运行 `pnpm run admin:build` 与 `pnpm run admin:test:e2e`（登录与逐路由渲染冒烟；新增或改名路由需同步 `apps/admin-next/e2e/01-routes.e2e.ts` 的路由表）。只改可见文案或 locale 键值不需要跑浏览器套件。完整的验证矩阵见 [agent-doc/verification.md](agent-doc/verification.md)。
 
 `pnpm install` 会顺带把仓库自带的 Coding Agent Skill（`skills/`）链接到 `.agents/skills/` 与 `.claude/skills/`，并安装 `package.json` 的 `skills` 字段里锁定版本的外部 Skill；新增 Skill 或改了该字段后运行 `pnpm run skills:sync`。说明见 [agent-doc/operations.md](agent-doc/operations.md#coding-agent-skills)。
 

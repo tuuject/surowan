@@ -3,7 +3,7 @@ import { rmSync } from 'node:fs';
 import { rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { test as base, expect, type Locator, type Page } from '@playwright/test';
+import { test as base, type Page } from '@playwright/test';
 
 /** The administrator every spec signs in as (the account is created on demand). */
 export const E2E_USERNAME = 'e2e-admin';
@@ -49,7 +49,7 @@ export interface ServerOptions {
   readonly adminUsername: string;
 }
 
-export const DEFAULT_SERVER_OPTIONS: ServerOptions = {
+const DEFAULT_SERVER_OPTIONS: ServerOptions = {
   mcpImages: false,
   mcpManager: false,
   seedLocale: null,
@@ -155,8 +155,24 @@ export async function adminUrl(path: string): Promise<string> {
   return `${await adminBase()}${path}`;
 }
 
+/**
+ * Stops this file's fixture server; the next `adminBase()` boots a fresh one.
+ * A spec whose contract starts at a fresh instance (no account, no session)
+ * calls this from `afterAll`, so re-running the file (a repeat, or the same
+ * worker picking the file again) never inherits the previous run's store.
+ */
+export async function stopServer(): Promise<void> {
+  const server = current;
+  if (server === null) {
+    return;
+  }
+  current = null;
+  server.child.kill('SIGTERM');
+  await rm(server.authFile, { force: true });
+}
+
 /** Creates the E2E administrator unless the spec's server already has an account. */
-export async function ensureAdmin(baseURL?: string, username: string = E2E_USERNAME): Promise<void> {
+async function ensureAdmin(baseURL?: string, username: string = E2E_USERNAME): Promise<void> {
   const base = baseURL ?? (await adminBase());
   const response = await fetch(`${base}/__e2e/ensure-admin`, {
     method: 'POST',
@@ -185,7 +201,7 @@ export async function e2eFetch<T>(path: string, init?: RequestInit): Promise<T> 
  * the real password login; specs that change the session
  * may overwrite the file and later contexts in the same file pick that up.
  */
-export async function authStoragePath(options: ServerOptions = DEFAULT_SERVER_OPTIONS): Promise<string> {
+async function authStoragePath(options: ServerOptions = DEFAULT_SERVER_OPTIONS): Promise<string> {
   const server = await ensureServer(options);
   if (server.signedIn) {
     return server.authFile;
@@ -311,74 +327,4 @@ export function watchPageIssues(page: Page): () => PageIssues {
     page.off('request', onRequest);
     return { consoleErrors, pageErrors, writeApiCalls, externalRequests };
   };
-}
-
-/**
- * Starts this page with the Invocation pages' live refresh already off, seeded
- * the way the panel store persists it. A spec that asserts the snapshot
- * "new records" contract, or a first request that must fail, cannot race the
- * stream's own refetch that way.
- */
-export async function disableInvocationAutoRefresh(page: Page): Promise<void> {
-  await page.addInitScript(() => {
-    window.localStorage.setItem(
-      'surowan-admin-ui',
-      JSON.stringify({ version: 0, state: { invocationAutoRefresh: false } }),
-    );
-  });
-}
-
-/** Counts rendered body rows of the first table on the page. */
-export function tableBodyRows(page: Page): ReturnType<Page['locator']> {
-  return page.locator('table tbody tr');
-}
-
-/** The vertical model list's row whose id is exactly `modelId`. */
-export function modelListRow(page: Page, modelId: string): Locator {
-  return page.locator('[data-model-list] li').filter({ has: page.getByText(modelId, { exact: true }) });
-}
-
-/** The "Next page" button of a list's real page controls. */
-export function nextPage(page: Page): ReturnType<Page['getByRole']> {
-  return page.getByRole('button', { name: 'Next page', exact: true });
-}
-
-/** The "Previous page" button of a list's real page controls. */
-export function previousPage(page: Page): ReturnType<Page['getByRole']> {
-  return page.getByRole('button', { name: 'Previous page', exact: true });
-}
-
-/** Applies the filter toolbar's draft conditions. */
-export async function clickSearch(page: Page): Promise<void> {
-  await page.getByRole('button', { name: 'Search', exact: true }).click();
-}
-
-/** Asserts the list uses real page controls instead of a "Load more" stream. */
-export async function expectRealPagination(page: Page): Promise<void> {
-  await expect(page.getByRole('navigation', { name: 'Pagination', exact: true }).first()).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Load more', exact: true })).toHaveCount(0);
-}
-
-/** Opens a parent group when needed, then activates its real child link. */
-export async function clickNav(page: Page, group: string, label: string): Promise<void> {
-  const nav = page.getByRole('navigation', { name: 'Main navigation', exact: true });
-  const parent = nav.getByRole('button', { name: group, exact: true });
-  if ((await parent.getAttribute('aria-expanded')) !== 'true') {
-    await parent.click();
-  }
-  await nav.getByRole('link', { name: label, exact: true }).click();
-}
-
-/**
- * A toast with `text`, scoped to the Koi toast stack: page content that also
- * contains the words (a dialog, or the row the write just rendered) would
- * otherwise satisfy or break the assertion.
- */
-export function toast(page: Page, text: string): ReturnType<Page['locator']> {
-  return page.locator('[data-koi-toast]').filter({ hasText: text });
-}
-
-/** The "Applied" toast of a successful config write. */
-export function appliedToast(page: Page): ReturnType<Page['locator']> {
-  return toast(page, 'Applied');
 }

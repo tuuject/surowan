@@ -103,10 +103,12 @@ test('one command serves the hot-reloading SPA with an isolated backend and clos
     const code = /^ADMIN_DEV_MOCK_CODE (pwp_\S+)$/m.exec(server.output())?.[1];
     expect(code).toBeDefined();
     await page.goto(DEV_BASE);
-    await page.getByRole('button', { name: 'Sign in with a one-time code' }).click();
-    await page.getByLabel('One-time code').fill(code ?? '');
-    await page.getByRole('button', { name: 'Sign in', exact: true }).click();
-    await expect(page.getByText('Stored messages')).toBeVisible();
+    // Structural hooks only: the sign-in copy is i18n bound and not a contract.
+    await page.locator('[data-testid="auth-switch-to-code"]').click();
+    await page.locator('input[autocomplete="one-time-code"]').fill(code ?? '');
+    await page.locator('button[type="submit"]').click();
+    await expect(page.getByRole('main')).toBeVisible();
+    await expect(page.locator('[data-route-error]')).toHaveCount(0);
     expect((await page.request.get(`${DEV_BASE}/api/overview`)).status()).toBe(200);
     const denied = await page.request.post(`${DEV_BASE}/api/auth/logout`, {
       headers: { origin: 'http://evil.example' },

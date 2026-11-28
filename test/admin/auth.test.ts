@@ -370,3 +370,58 @@ test('admin can change username and password from an authenticated session', asy
     store.close();
   }
 });
+
+test('audit read-only routes answer 405 method_not_allowed for an authenticated session', async () => {
+  const { store, server } = await fixture();
+  try {
+    await createAdminAccount(store.orm, { username: 'owner', password: PASSWORD });
+    const cookie = sessionCookie(
+      await server.handle(post('/api/auth/login', { username: 'owner', password: PASSWORD })),
+    );
+
+    for (const [method, path] of [
+      ['POST', '/api/invocations'],
+      ['PUT', '/api/overview'],
+    ] as const) {
+      const response = await server.handle(
+        request(path, { method, headers: { cookie, 'content-type': 'application/json' }, body: '{}' }),
+      );
+      expect(response.status, `${method} ${path}`).toBe(405);
+      expect(await readJson(response), `${method} ${path}`).toMatchObject({ error: 'method_not_allowed' });
+    }
+  } finally {
+    store.close();
+  }
+});
+
+test('a cross-origin write is refused before the session gate', async () => {
+  const { store, server } = await fixture();
+  try {
+    const crossOriginWake = (cookie?: string): Request =>
+      request('/api/wake', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          origin: 'http://evil.example',
+          ...(cookie === undefined ? {} : { cookie }),
+        },
+        body: '{}',
+      });
+
+    // Without a credential the Origin gate answers first, so a foreign page
+    // never learns whether this instance has a valid session.
+    const anonymous = await server.handle(crossOriginWake());
+    expect(anonymous.status).toBe(403);
+    expect(await readJson(anonymous)).toMatchObject({ error: 'bad_origin' });
+
+    await createAdminAccount(store.orm, { username: 'owner', password: PASSWORD });
+    const cookie = sessionCookie(
+      await server.handle(post('/api/auth/login', { username: 'owner', password: PASSWORD })),
+    );
+    const withSession = await server.handle(crossOriginWake(cookie));
+    expect(withSession.status).toBe(403);
+    expect(await readJson(withSession)).toMatchObject({ error: 'bad_origin' });
+  } finally {
+    store.close();
+  }
+});

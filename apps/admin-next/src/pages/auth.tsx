@@ -243,7 +243,15 @@ function PasswordLoginForm({
             </p>
           )
         ) : null}
-        <Button type="button" variant="outline" color="secondary" size="lg" fullWidth onClick={onUseCode}>
+        <Button
+          type="button"
+          variant="outline"
+          color="secondary"
+          size="lg"
+          fullWidth
+          onClick={onUseCode}
+          data-testid="auth-switch-to-code"
+        >
           {t('pages.auth.codeSignIn')}
         </Button>
       </div>

@@ -160,15 +160,15 @@ pnpm run skills:sync
 ## Testing Guidelines
 
 - Never write unit tests after you write code.
-- Highly prefer E2E tests as the sole testing mechanism. Use them to verify complex features work. At the end of E2E tests, produce a verifiable and repeatable artifact.
+- Prefer tests that drive real components end to end in vitest (real `AdminServer`, real `SqliteStore`, Faux Provider/Telegram doubles) over isolated unit tests. Use them to verify complex features work. At the end of such tests, produce a verifiable and repeatable artifact.
 - If you must test a system in isolation, first write down all the ways it could fail, then write the code.
-- 本仓库现有的 E2E 只有 Admin Panel 的 Playwright 套件（`pnpm run admin:test:e2e`，英文 locale），读不到 canonical Context、审计行、Telegram 副作用、宿主隔离与发布清单；这些属于上一条的隔离测试，按下列规则写在 vitest。
+- 浏览器 E2E 只有 Admin Panel 的 Playwright 冒烟层（`pnpm run admin:test:e2e`）：登录路径，以及每条路由在生产构建产物与 CSP 下能渲染、无报错、无写请求。不要为界面文案、布局、样式或交互细节新增浏览器 E2E，断言也不得依赖可见文字、无障碍名称或 locale；其中可测的契约（API 状态码、错误码、落库与审计状态）写在 vitest。界面观感与交互体验靠 `pnpm run docs:screenshots` 的截图与人工走查确认，不靠自动断言。canonical Context、审计行、Telegram 副作用、宿主隔离与发布清单同样只在 vitest 断言，按下列规则写。
 - Bug 修复必须复现原故障并验证审计状态，不只验证返回文本。
 - 新行为测试应覆盖外部可见契约、边界、预算、恢复、状态转换和真实错误。
 - 测试中的 Provider/Telegram 一律使用现有 Faux 或 fixture 替身（E2E 与隔离测试相同）；真实外部连接由 `doctor` 和人工 Telegram 验收覆盖。
 - 媒体改动至少覆盖静态图片、Sticker 结构化输出或外部转换链路中受影响的一项。
 - Context 改动至少断言 canonical history 的落盘状态（`context_messages` / `head_seq` / `context_refs`）与审计事件，不能只断言返回文本。
-- Admin Panel 前端、admin API 端点或面板可见文案（含 locale 键值）改动，提交前运行 `pnpm run admin:test:e2e`，至少覆盖受影响套件（如 `pnpm run admin:test:e2e 01-routes`）：e2e 断言各路由真实渲染与页面可见文案（英文 locale），`pnpm test` 与 `pnpm run check` 不包含这一层，漏跑只会在 CI 上暴露。
+- Admin Panel 前端改动，提交前运行 `pnpm run admin:build` 与 `pnpm run admin:test:e2e`（冒烟：登录与逐路由渲染，`pnpm test` 与 `pnpm run check` 不包含这一层）；新增或改名路由时同步 `apps/admin-next/e2e/01-routes.e2e.ts` 里的路由表。admin API 端点改动在 `test/admin/` 用 vitest 覆盖；只改面板文案或 locale 键值不需要改任何测试。
 - 最终验证至少运行受影响测试、`pnpm run check` 与 `pnpm run lint`；跨模块改动运行完整 `pnpm test`。
 - 改动 `apps/docs/`、`scripts/docs/`，或改动会进入生成文档的 `ConfigSchema` 与 `apps/docs/examples/` 示例时，另外运行 `pnpm run docs:build` 与 `pnpm run docs:verify`（`DOCS_BASE_PATH=/` 与 `/surowan/` 各一遍），并保证构建后 `git status --porcelain` 为空。各 workflow 实际执行的命令见 [agent-doc/verification.md](agent-doc/verification.md#ci-对齐)。
 - E2E 与 fixture 的时间只取一种基准：要么全部从当前时钟推导（`Date.now()` ± 偏移），要么全部是无关运行时刻的固定值（如永远成立的「已过期」行）。写死的绝对时间不得承担「未来/仍然有效」语义——它会在某天穿过真实时钟，变成到点即失败的「时间炸弹」。

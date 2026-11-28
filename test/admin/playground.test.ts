@@ -197,3 +197,41 @@ test('a route deeper than its endpoint is not found and runs nothing', async () 
     f.store.close();
   }
 });
+
+test('a read key lists rooms but its create is refused by the write permission', async () => {
+  const f = await fixture();
+  try {
+    const keyResponse = await f.server.handle(
+      post('/api/api-keys', { name: 'playground-read', mode: 'read' }, f.cookie),
+    );
+    expect(keyResponse.status).toBe(200);
+    const { key, item } = await readJson<{ key: string; item: { id: string } }>(keyResponse);
+    try {
+      const auth = { authorization: `Bearer ${key}` };
+      const listed = await f.server.handle(request('/api/playground/rooms', { headers: auth }));
+      expect(listed.status).toBe(200);
+
+      // The write gate answers before body validation, so the empty body the
+      // panel would send first is never read as a bad room request.
+      const created = await f.server.handle(
+        request('/api/playground/rooms', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', ...auth },
+          body: '{}',
+        }),
+      );
+      expect(created.status).toBe(403);
+      expect(await readJson(created)).toMatchObject({
+        error: 'forbidden',
+        message: expect.stringContaining('lacks write'),
+      });
+    } finally {
+      const revoked = await f.server.handle(
+        request(`/api/api-keys/${item.id}`, { method: 'DELETE', headers: { cookie: f.cookie } }),
+      );
+      expect(revoked.status).toBe(200);
+    }
+  } finally {
+    f.store.close();
+  }
+});
