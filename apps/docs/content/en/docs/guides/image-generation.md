@@ -67,7 +67,7 @@ Once enabled, just ask in the conversation: "draw a neon street in the rain", or
 Boundaries worth knowing:
 
 - **Reference images come from exactly two channels**: `img_` references visible in this conversation, or library assets promoted with "the agent may use this asset". The second channel is judged by text only (name, description, category, keywords) because the model never sees the picture. Cross-conversation, expired or invented references are refused, and every submission re-checks that the asset is still visible and not archived.
-- **At most 3 generations per invocation.** Resuming a failed run does not redo a generation it already submitted, and does not bill again; clicking Generate again, or having the model submit again, creates a new billed generation.
+- **At most 3 generations in progress at once per invocation.** Each finished generation frees its slot, so asking for one revision after another never runs out; a fourth request sent while three are still running waits until one of them finishes. Resuming a failed run does not redo a generation it already submitted, and does not bill again; clicking Generate again, or having the model submit again, creates a new billed generation.
 - **Delivered pictures are not re-delivered by default**: the same output of the same generation is not sent twice because of a repeated call or a late receipt.
 - **Asking for the original file** is covered below.
 - A failed generation is explained in the model's own words; it does not retry in a loop.
@@ -117,6 +117,6 @@ Clicking a generation id opens its own detail page (or navigate to `/image-gener
 
 - Generation records and asset records are cleaned up by `retention.online_days`; original files are removed with the data directory.
 - `backup` snapshots the SQLite database and copies `<data_dir>/images` into a `.images/` directory next to the backup file, so a restore puts both back together. See [Upgrade, back up and restore](maintenance.md).
-- Each generation is billed by the upstream provider at its own prices (locally there is no extra quota, only the "at most 3 submissions per invocation" gate); **Suggest with AI** spends Tool model tokens.
+- Each generation is billed by the upstream provider at its own prices (locally there is no extra quota, only the "at most 3 in progress at once per invocation" gate); **Suggest with AI** spends Tool model tokens.
 
 Related pages: [Image understanding](vision.md), [Stickers and sticker sets](stickers.md), [Image generation settings](../configuration/image.md), [Model metadata catalog](../configuration/models-dev.md), [Upgrade, back up and restore](maintenance.md), [Try personas and tools in the Playground](playground.md).

@@ -1,14 +1,12 @@
 import { type GenerationActor, generationCreateSchema, scanReferences } from '@surowan/image-service';
-import { and, eq, sql } from 'drizzle-orm';
-import type { BusinessStore } from '../../store/store.ts';
-import { type LongTaskService, TaskQuotaError } from '../../store/long-tasks/index.ts';
-import { longTasks } from '../../store/schema/index.ts';
+import type { LongTaskService } from '../../store/long-tasks/index.ts';
+import { TaskQuotaError } from '../../store/long-tasks/quota.ts';
 import type { ImageCoreHandle } from './index.ts';
-import { MAX_PER_INVOCATION, RECEIPT_PROMPT_PREVIEW_LENGTH } from './shared.ts';
+import { IMAGE_INVOCATION_QUOTA, RECEIPT_PROMPT_PREVIEW_LENGTH } from './shared.ts';
 
 /**
  * The submission half of the image bridge: media-to-asset input translation,
- * the per-invocation quota, and the idempotent submit that creates the
+ * the per-invocation in-progress quota, and the idempotent submit that creates the
  * generation row and its long task. Everything that would spend money is
  * refused before anything is created — including a second promotion check
  * taken after the input conversion awaits, immediately before the synchronous
@@ -92,7 +90,6 @@ function agentReachedAssetIds(authoredPrompt: string, libraryAssetIds: readonly 
 
 export interface SubmissionDeps {
   readonly core: ImageCoreHandle;
-  readonly store: BusinessStore;
   readonly tasks: LongTaskService;
   /** Whether the conversation may submit new generations (host opt-in included). */
   readonly enabledFor: (conversationId: bigint) => boolean;
@@ -104,28 +101,10 @@ export interface SubmissionDeps {
 }
 
 export function createSubmission(deps: SubmissionDeps) {
-  const { core, store, tasks, enabledFor, prepareInputImage } = deps;
+  const { core, tasks, enabledFor, prepareInputImage } = deps;
   // A media row re-used as input within this process resolves to the same
   // asset, so repeated generations do not copy the same source image again.
   const inputAssetCache = new Map<bigint, string>();
-
-  /**
-   * Whether the invocation that would own a new generation already reached its
-   * per-invocation quota. The task create re-checks inside its transaction, but
-   * this must be decided before the core creates (and enqueues) a generation:
-   * an orphaned generation would start a paid call even though the tool call
-   * was refused. Tools of one invocation run sequentially, so the count cannot
-   * change between this check and the create it guards.
-   */
-  function thisInvocationAtQuota(invocationId: bigint): boolean {
-    const used =
-      store.orm
-        .select({ count: sql<bigint>`count(*)` })
-        .from(longTasks)
-        .where(and(eq(longTasks.pluginId, 'image'), eq(longTasks.createdByInvocationId, invocationId)))
-        .get()?.count ?? 0n;
-    return used >= BigInt(MAX_PER_INVOCATION);
-  }
 
   /** Resolves one media row to a core input asset, reusing prior conversions. */
   async function inputAssetId(mediaId: bigint, signal: AbortSignal): Promise<string> {
@@ -177,10 +156,15 @@ export function createSubmission(deps: SubmissionDeps) {
     const idempotencyKey = `tool:${params.toolCallId}`;
     // A replay of an accepted call returns its generation without creating
     // anything, so only a new key is metered against the invocation's quota.
+    // The task create re-checks inside its transaction, but this must be
+    // decided before the core creates (and enqueues) a generation: an orphaned
+    // generation would start a paid call even though the tool call was
+    // refused. Tools of one invocation run sequentially, so between this check
+    // and that create the in-progress count can only fall as rounds settle.
     if (
       params.invocationId !== null &&
       !core.generations.createKeyUsed(actor, idempotencyKey) &&
-      thisInvocationAtQuota(params.invocationId)
+      tasks.atInvocationQuota('image', params.invocationId, IMAGE_INVOCATION_QUOTA)
     ) {
       throw new TaskQuotaError();
     }
@@ -224,7 +208,7 @@ export function createSubmission(deps: SubmissionDeps) {
             prompt_preview: generation.snapshot.authored.authoredPrompt.slice(0, RECEIPT_PROMPT_PREVIEW_LENGTH),
             output_count: generation.snapshot.authored.outputCount,
           },
-          ...(params.invocationId === null ? {} : { maxPerInvocation: MAX_PER_INVOCATION }),
+          ...(params.invocationId === null ? {} : { invocationQuota: IMAGE_INVOCATION_QUOTA }),
         },
         new Date(),
       );

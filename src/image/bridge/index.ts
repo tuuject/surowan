@@ -97,7 +97,6 @@ export function createImageBridge(options: ImageBridgeOptions) {
 
   const submission = createSubmission({
     core,
-    store,
     tasks,
     enabledFor,
     prepareInputImage: options.prepareInputImage,

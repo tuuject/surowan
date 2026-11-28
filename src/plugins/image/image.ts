@@ -13,7 +13,7 @@ import type { InvocationScope } from '../plugin.ts';
  * whether and what to send with `send kind:image`.
  */
 
-const IMAGE_GENERATE_MAX_PER_INVOCATION = 3;
+const IMAGE_GENERATE_MAX_IN_PROGRESS = 3;
 
 const IMAGE_PROMPT_MAX = 8000;
 
@@ -216,7 +216,7 @@ export function createImageGenerateTool(
     name: 'image_generate',
     label: 'Generate image',
     description:
-      'Submit an image generation request for this conversation. Use when the user asks for a picture, an illustration, or an image edit of media they shared. You MUST first call list_image_models to discover available ids, capabilities and administrator guidance. Choose the best fit for the request and write prompt (1-8000 chars) in the recommended style of that model; you SHOULD NOT copy the notes verbatim. Set model_id to the chosen id; it MAY be omitted only when exactly one model is configured. If a model is unavailable, refresh the directory; you MUST NOT silently fall back to a different model. aspect_ratio and resolution are coarse intent classes; extended_data is provider-specific and rarely needed. Reference images come from two channels, and both accept only ids you obtained in this conversation: input_image_refs takes img_ references visible in this conversation (from read_image or media the user shared), and library_image_refs takes asset ids returned by search_image_assets; you MUST NOT pass arbitrary, invented or foreign ids, and ids that were demoted or archived are rejected. You MAY also place a library asset inline in the prompt as {{image:<asset id>}}; every inline reference is rendered to the image model as the ordered label 图 N (first reference is 图 1), so write the sentence around it naturally. The call returns immediately with a generation id; the result arrives later as a task completion receipt. At most 3 generations MAY be submitted per invocation. After submitting, you MAY tell the user briefly that the request is running; when the receipt arrives, use send kind:image to deliver the pictures or explain the error.',
+      'Submit an image generation request for this conversation. Use when the user asks for a picture, an illustration, or an image edit of media they shared. You MUST first call list_image_models to discover available ids, capabilities and administrator guidance. Choose the best fit for the request and write prompt (1-8000 chars) in the recommended style of that model; you SHOULD NOT copy the notes verbatim. Set model_id to the chosen id; it MAY be omitted only when exactly one model is configured. If a model is unavailable, refresh the directory; you MUST NOT silently fall back to a different model. aspect_ratio and resolution are coarse intent classes; extended_data is provider-specific and rarely needed. Reference images come from two channels, and both accept only ids you obtained in this conversation: input_image_refs takes img_ references visible in this conversation (from read_image or media the user shared), and library_image_refs takes asset ids returned by search_image_assets; you MUST NOT pass arbitrary, invented or foreign ids, and ids that were demoted or archived are rejected. You MAY also place a library asset inline in the prompt as {{image:<asset id>}}; every inline reference is rendered to the image model as the ordered label 图 N (first reference is 图 1), so write the sentence around it naturally. The call returns immediately with a generation id; the result arrives later as a task completion receipt. At most 3 generations submitted in this invocation MAY be in progress at once; each frees its slot when it settles, so revising a picture one round after another never runs out. After submitting, you MAY tell the user briefly that the request is running; when the receipt arrives, use send kind:image to deliver the pictures or explain the error.',
     parameters: ImageGenerateInputSchema,
     executionMode: 'sequential',
     execute: async (toolCallId, input, signal) => {
@@ -302,7 +302,9 @@ export function createImageGenerateTool(
         const quota = error instanceof Error && error.name === 'TaskQuotaError';
         audit.fail(quota ? 'image_generate_quota_exceeded' : 'image_generate_error');
         if (quota) {
-          throw new Error(`image generation quota of ${IMAGE_GENERATE_MAX_PER_INVOCATION} per invocation reached`);
+          throw new Error(
+            `${IMAGE_GENERATE_MAX_IN_PROGRESS} image generations from this invocation are still in progress. This is a limit on parallel work, not a used-up quota, and it frees as soon as one of them settles. Nothing was submitted or queued for this request: finish this turn, and when a completion receipt arrives, call image_generate again for it yourself. You MAY tell the user it will follow once a current picture finishes; you MUST NOT say the quota is used up or that image generation is unavailable.`,
+          );
         }
         throw error;
       }
