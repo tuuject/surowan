@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto';
 import {
   type Api,
   createModels,
@@ -230,19 +229,24 @@ function reusableProvider(
 }
 
 /**
- * One digest for every SecretRef a provider's connection carries. Values under
- * `env` and `command` digest to a constant, so only a keychain rotation can
- * change the result — and checking for one never runs a command.
+ * One digest for a list of SecretRefs, in order; values never leave memory.
+ * Each entry is already `SecretStore.digestOf`, so the list itself is the
+ * identity: hashing it again would only shorten a string that is compared in
+ * memory and never stored.
  */
-/** One digest for a list of SecretRefs, in order; values never leave memory. */
 export async function secretRefsDigest(references: readonly SecretRef[], secrets: SecretStore): Promise<string> {
   const digests: string[] = [];
   for (const reference of references) {
     digests.push(await secrets.digestOf(reference));
   }
-  return createHash('sha256').update(JSON.stringify(digests)).digest('hex');
+  return JSON.stringify(digests);
 }
 
+/**
+ * One digest for every SecretRef a provider's connection carries. Values under
+ * `env` and `command` digest to a constant, so only a keychain rotation can
+ * change the result — and checking for one never runs a command.
+ */
 async function connectionKeyDigest(configured: ProviderFileConfig, secrets: SecretStore): Promise<string> {
   const headerRefs: readonly SecretRef[] = configured.kind === 'custom' ? Object.values(configured.headers ?? {}) : [];
   return await secretRefsDigest([configured.api_key, ...headerRefs], secrets);

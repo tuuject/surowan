@@ -1,6 +1,7 @@
 import { eq } from 'drizzle-orm';
 import { afterEach, vi } from 'vitest';
-import { ConfigReloader, type ImageConfigGateway } from '../../src/adapters/local-monolith/config/reload.ts';
+import type { ImageConfigGateway } from '../../src/adapters/local-monolith/config/gateways.ts';
+import { ConfigReloader } from '../../src/adapters/local-monolith/config/reload.ts';
 import { applyGroupMemoryToggles, stopRemovedChats } from '../../src/adapters/local-monolith/runtime/chat-lifecycle.ts';
 import { createChatsAdminHandler } from '../../src/ingress/admin/routes/chats.ts';
 import { BUILTIN_SEARCH_PROVIDERS } from '../../src/platform/web-search.ts';
