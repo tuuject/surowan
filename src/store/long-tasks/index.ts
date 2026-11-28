@@ -9,15 +9,10 @@ import { parseHostKind, type HostKind } from '../../platform/im-host/identity.ts
 import type { Orm } from '../store.ts';
 import { chats, conversations, longTasks, taskReceipts } from '../schema/index.ts';
 import { deliveryText, readDelivery } from './delivery.ts';
-import { MAX_ERROR, MAX_JSON, jsonText, parseJson } from './json.ts';
+import { MAX_JSON, jsonText, parseJson } from './json.ts';
 import { getTask, listTasks } from './list.ts';
-
-export class TaskQuotaError extends Error {
-  constructor() {
-    super('Task quota exceeded for this invocation');
-    this.name = 'TaskQuotaError';
-  }
-}
+import { assertInvocationQuota, type InvocationQuota, invocationAtQuota, TaskQuotaError } from './quota.ts';
+import { cancelTask, finishTask } from './settle.ts';
 
 export interface ListedTask {
   readonly id: bigint;
@@ -32,7 +27,7 @@ export interface CreateTaskInput {
   readonly delivery?: DeliveryPolicy;
   readonly scheduledAt?: string;
   readonly timerResult?: unknown;
-  readonly maxPerInvocation?: number;
+  readonly invocationQuota?: InvocationQuota;
 }
 
 export interface CancelOptions {
@@ -99,6 +94,16 @@ export class LongTaskService {
   /** Asks the host to run the Scheduler loop now, as task writes do. */
   wake(): void {
     this.#wake?.();
+  }
+
+  /**
+   * Whether the invocation already holds `quota.max` tasks of the plugin under
+   * the quota's counting rule. Task creation re-checks this inside its write
+   * transaction; a creator whose paid work starts before its task exists asks
+   * here first, so both decisions use the same rule.
+   */
+  atInvocationQuota(pluginId: string, invocationId: bigint, quota: InvocationQuota): boolean {
+    return invocationAtQuota(this.#orm, pluginId, invocationId, quota);
   }
 
   /** The hosts whose timers this instance completes; undefined means every host. */
@@ -218,29 +223,19 @@ export class LongTaskService {
               throw new Error('timerResult requires scheduledAt');
             })()
         : jsonText(input.timerResult === undefined ? input.payload : input.timerResult, MAX_JSON, 'timerResult');
-    if (
-      input.maxPerInvocation !== undefined &&
-      (!Number.isSafeInteger(input.maxPerInvocation) || input.maxPerInvocation < 1)
-    ) {
-      throw new Error('maxPerInvocation must be a safe integer >= 1');
-    }
-    if (input.maxPerInvocation !== undefined && invocationId === null) {
-      throw new Error('maxPerInvocation requires an invocation');
+    const quota = input.invocationQuota;
+    if (quota !== undefined) {
+      assertInvocationQuota(quota);
+      if (invocationId === null) {
+        throw new Error('invocationQuota requires an invocation');
+      }
     }
     const deliveryJson = deliveryText(input.delivery);
     const at = now.toISOString();
     const created = this.#orm.transaction(
       () => {
-        if (input.maxPerInvocation !== undefined && invocationId !== null) {
-          const count =
-            this.#orm
-              .select({ count: sql<bigint>`count(*)` })
-              .from(longTasks)
-              .where(and(eq(longTasks.pluginId, pluginId), eq(longTasks.createdByInvocationId, invocationId)))
-              .get()?.count ?? 0n;
-          if (count >= BigInt(input.maxPerInvocation)) {
-            throw new TaskQuotaError();
-          }
+        if (quota !== undefined && invocationId !== null && this.atInvocationQuota(pluginId, invocationId, quota)) {
+          throw new TaskQuotaError();
         }
         const row = this.#orm
           .insert(longTasks)
@@ -293,44 +288,7 @@ export class LongTaskService {
     options: CompletionOptions | undefined,
     now = new Date(),
   ): boolean {
-    const json =
-      value === undefined
-        ? null
-        : jsonText(value, status === 'completed' ? MAX_JSON : MAX_ERROR, status === 'completed' ? 'result' : 'error');
-    const at = now.toISOString();
-    const changed = this.#orm.transaction(
-      () => {
-        const update = this.#orm
-          .update(longTasks)
-          .set({ state: status, finishedAt: at, updatedAt: at })
-          .where(
-            and(
-              eq(longTasks.id, taskId),
-              eq(longTasks.pluginId, pluginId),
-              eq(longTasks.conversationId, conversationId),
-              eq(longTasks.state, 'waiting'),
-            ),
-          )
-          .run();
-        if (update.changes === 0) {
-          return false;
-        }
-        this.#orm
-          .insert(taskReceipts)
-          .values({
-            taskId,
-            status,
-            resultJson: status === 'completed' ? json : null,
-            errorJson: status === 'failed' ? json : null,
-            state: options?.notify === false ? 'suppressed' : 'pending',
-            createdAt: at,
-            updatedAt: at,
-          })
-          .run();
-        return true;
-      },
-      { behavior: 'immediate' },
-    );
+    const changed = finishTask(this.#orm, pluginId, conversationId, taskId, status, value, options, now);
     if (changed) {
       this.#wake?.();
     }
@@ -379,63 +337,7 @@ export class LongTaskService {
     options: CancelOptions | undefined,
     now = new Date(),
   ): boolean {
-    if (restricted && callerId === null) {
-      return false;
-    }
-    const at = now.toISOString();
-    const changed = this.#orm.transaction(
-      () => {
-        const owner = restricted && callerId !== null ? eq(longTasks.createdByUserId, callerId) : undefined;
-        const identity = and(
-          eq(longTasks.id, taskId),
-          eq(longTasks.pluginId, pluginId),
-          eq(longTasks.conversationId, conversationId),
-          owner,
-        );
-        const waiting = this.#orm
-          .update(longTasks)
-          .set({ state: 'cancelled', finishedAt: at, updatedAt: at })
-          .where(and(identity, eq(longTasks.state, 'waiting')))
-          .run();
-        if (waiting.changes > 0) {
-          this.#orm
-            .insert(taskReceipts)
-            .values({
-              taskId,
-              status: 'cancelled',
-              state: 'suppressed',
-              createdAt: at,
-              updatedAt: at,
-              cancelledAt: at,
-              cancelledBy: options?.cancelledBy ?? null,
-              adminCancelled: options?.adminCancelled ?? false,
-              cancelReason: options?.reason ?? null,
-            })
-            .run();
-          return true;
-        }
-        const pending = this.#orm
-          .update(taskReceipts)
-          .set({
-            state: 'suppressed',
-            updatedAt: at,
-            cancelledAt: at,
-            cancelledBy: options?.cancelledBy ?? null,
-            adminCancelled: options?.adminCancelled ?? false,
-            cancelReason: options?.reason ?? null,
-          })
-          .where(
-            and(
-              eq(taskReceipts.taskId, taskId),
-              eq(taskReceipts.state, 'pending'),
-              sql`EXISTS (SELECT 1 FROM long_tasks lt WHERE lt.id = ${taskReceipts.taskId} AND lt.plugin_id = ${pluginId} AND lt.conversation_id = ${conversationId}${restricted && callerId !== null ? sql` AND lt.created_by_user_id = ${callerId}` : sql``})`,
-            ),
-          )
-          .run();
-        return pending.changes > 0;
-      },
-      { behavior: 'immediate' },
-    );
+    const changed = cancelTask(this.#orm, pluginId, conversationId, taskId, callerId, restricted, options, now);
     if (changed) {
       this.#wake?.();
     }

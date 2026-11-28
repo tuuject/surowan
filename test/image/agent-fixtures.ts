@@ -61,15 +61,24 @@ export type ImageAgentFixture = {
   calls: ProviderCall[];
 };
 
+/**
+ * Holds provider call `index` open until the returned promise settles, so a
+ * test can keep generations in progress. The signal aborts when the worker
+ * stops, which must release the hold for teardown to finish.
+ */
+export type ProviderHold = (index: number, signal: AbortSignal | undefined) => Promise<void>;
+
 /** Provider sink with a scripted failure plan: index i fails when plan[i] is true. */
-function providerSink(calls: ProviderCall[], plan: readonly boolean[] = []): typeof fetch {
+function providerSink(calls: ProviderCall[], plan: readonly boolean[] = [], hold?: ProviderHold): typeof fetch {
   return async (_input, init) => {
     const call: ProviderCall = {
       headers: Object.fromEntries(new Headers(init?.headers ?? {}).entries()),
       body: JSON.parse(String(init?.body)),
     };
-    calls.push(call);
-    if (plan[calls.length - 1] === true) {
+    // Fixed before the hold: a request admitted meanwhile appends to `calls`.
+    const index = calls.push(call) - 1;
+    await hold?.(index, init?.signal ?? undefined);
+    if (plan[index] === true) {
       return new Response(JSON.stringify({ error: { message: 'upstream exploded' } }), { status: 500 });
     }
     const image = await sharp({
@@ -84,7 +93,7 @@ function providerSink(calls: ProviderCall[], plan: readonly boolean[] = []): typ
   };
 }
 
-export async function fixture(plan: readonly boolean[] = []): Promise<ImageAgentFixture> {
+export async function fixture(plan: readonly boolean[] = [], hold?: ProviderHold): Promise<ImageAgentFixture> {
   const calls: ProviderCall[] = [];
   const configPath = join(directory, 'config.jsonc');
   await writeTestConfig(
@@ -118,7 +127,7 @@ export async function fixture(plan: readonly boolean[] = []): Promise<ImageAgent
   const store = await SqliteStore.open(loaded.config);
   cleanup.push(() => store.close());
   const service = createImageService(store, loaded.config, {
-    providerAdapter: createOpenRouterAdapter({ fetchImpl: providerSink(calls, plan) }),
+    providerAdapter: createOpenRouterAdapter({ fetchImpl: providerSink(calls, plan, hold) }),
   });
   cleanup.push(() => service.stop());
   const tasks = new LongTaskService(store.orm, () => undefined);

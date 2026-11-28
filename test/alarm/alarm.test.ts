@@ -121,6 +121,24 @@ describe('alarm tool', () => {
         .prepare<[], { count: bigint }>("SELECT COUNT(*) AS count FROM long_tasks WHERE plugin_id = 'alarm'")
         .get()?.count,
     ).toBe(3n);
+
+    // Unlike the image cap, an alarm keeps its slot after it settles: a
+    // cancelled alarm still counts against the invocation that created it.
+    const cancelled = await alarmTools(store, config, context).delete_alarm.execute('quota-delete', {
+      id: store.db
+        .prepare<[], { id: bigint }>("SELECT id FROM long_tasks WHERE plugin_id = 'alarm' ORDER BY id LIMIT 1")
+        .get()!
+        .id.toString(),
+    });
+    expect(cancelled.details).toMatchObject({ state: 'cancelled' });
+    await expect(
+      tool.execute('quota-4', { target_user_id: '42', summary: 'fifth', datetime: futureIso(6 * 3_600_000) }),
+    ).rejects.toThrow('quota');
+    expect(
+      store.db
+        .prepare<[], { error_code: string | null }>("SELECT error_code FROM tool_calls WHERE tool_call_id = 'quota-4'")
+        .get()?.error_code,
+    ).toBe('alarm_quota_exceeded');
     store.close();
   });
 

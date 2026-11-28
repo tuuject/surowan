@@ -3,7 +3,8 @@ import { eq } from 'drizzle-orm';
 import { afterEach, describe, expect, test } from 'vitest';
 import { loadConfig } from '../../src/adapters/local-monolith/config/index.ts';
 import { definePlugin, type InvocationScope, loadPlugins } from '../../src/plugins/plugin.ts';
-import { LongTaskService, TaskQuotaError } from '../../src/store/long-tasks/index.ts';
+import { LongTaskService } from '../../src/store/long-tasks/index.ts';
+import { TaskQuotaError } from '../../src/store/long-tasks/quota.ts';
 import { longTasks, taskReceipts } from '../../src/store/schema/index.ts';
 import { cleanupTestDirectories, ctx, directories, initDb, seedInvocation } from './fixtures.ts';
 
@@ -47,17 +48,87 @@ describe('LongTaskService', () => {
     expect(scope.cancel(created.taskId)).toBe(false);
   });
 
-  test('enforces maxPerInvocation quota', async () => {
+  test('a created-count quota keeps counting tasks that already settled', async () => {
     const { store, conversationId } = await initDb();
     const invId = 300n;
     seedInvocation(store, invId, conversationId);
     const tasks = new LongTaskService(store.orm);
     const scope = tasks.invocationScope('test-plugin', ctx(conversationId, { invocationId: invId }), ['telegram']);
-    scope.create({ payload: { n: 1 }, delivery: { bypassDailyBudget: false }, maxPerInvocation: 2 });
-    scope.create({ payload: { n: 2 }, delivery: { bypassDailyBudget: false }, maxPerInvocation: 2 });
+    const settle = tasks.scoped('test-plugin', conversationId);
+    const invocationQuota = { max: 2, counts: 'created' } as const;
+    const first = scope.create({ payload: { n: 1 }, delivery: { bypassDailyBudget: false }, invocationQuota });
+    const second = scope.create({ payload: { n: 2 }, delivery: { bypassDailyBudget: false }, invocationQuota });
+    expect(settle.complete(first.taskId, { ok: true })).toBe(true);
+    expect(settle.cancel(second.taskId)).toBe(true);
+    expect(tasks.atInvocationQuota('test-plugin', invId, invocationQuota)).toBe(true);
+    expect(() => scope.create({ payload: { n: 3 }, delivery: { bypassDailyBudget: false }, invocationQuota })).toThrow(
+      TaskQuotaError,
+    );
+    expect(store.orm.select().from(longTasks).all()).toHaveLength(2);
+  });
+
+  test('a waiting-count quota frees a slot when a task completes, fails or is cancelled', async () => {
+    const { store, conversationId } = await initDb();
+    const invId = 302n;
+    seedInvocation(store, invId, conversationId);
+    const tasks = new LongTaskService(store.orm);
+    const scope = tasks.invocationScope('test-plugin', ctx(conversationId, { invocationId: invId }), ['telegram']);
+    const settle = tasks.scoped('test-plugin', conversationId);
+    const invocationQuota = { max: 2, counts: 'waiting' } as const;
+    const create = (n: number) =>
+      scope.create({ payload: { n }, delivery: { bypassDailyBudget: false }, invocationQuota }).taskId;
+
+    const first = create(1);
+    const second = create(2);
+    expect(tasks.atInvocationQuota('test-plugin', invId, invocationQuota)).toBe(true);
+    expect(() => create(3)).toThrow(TaskQuotaError);
+    expect(store.orm.select().from(longTasks).all()).toHaveLength(2);
+
+    expect(settle.complete(first, { ok: true })).toBe(true);
+    expect(tasks.atInvocationQuota('test-plugin', invId, invocationQuota)).toBe(false);
+    const third = create(3);
+    expect(() => create(4)).toThrow(TaskQuotaError);
+
+    expect(settle.fail(second, { error: 'boom' })).toBe(true);
+    const fourth = create(4);
+    expect(() => create(5)).toThrow(TaskQuotaError);
+
+    expect(settle.cancel(third)).toBe(true);
+    create(5);
+    expect(() => create(6)).toThrow(TaskQuotaError);
+
+    // Five tasks were created in one invocation; never more than two waited at once.
+    const rows = store.orm.select({ state: longTasks.state }).from(longTasks).all();
+    expect(rows.map(({ state }) => state).sort()).toEqual(['cancelled', 'completed', 'failed', 'waiting', 'waiting']);
+    expect(scope.get(fourth)?.state).toBe('waiting');
+  });
+
+  test('waiting-count quotas stay per invocation and reject a malformed limit', async () => {
+    const { store, conversationId } = await initDb();
+    seedInvocation(store, 303n, conversationId);
+    seedInvocation(store, 304n, conversationId);
+    const tasks = new LongTaskService(store.orm);
+    const invocationQuota = { max: 1, counts: 'waiting' } as const;
+    const earlier = tasks.invocationScope('test-plugin', ctx(conversationId, { invocationId: 303n }), ['telegram']);
+    const later = tasks.invocationScope('test-plugin', ctx(conversationId, { invocationId: 304n }), ['telegram']);
+    earlier.create({ payload: 1, delivery: { bypassDailyBudget: false }, invocationQuota });
+    // A still-waiting task of an earlier invocation does not hold a later one back.
+    expect(typeof later.create({ payload: 2, delivery: { bypassDailyBudget: false }, invocationQuota }).taskId).toBe(
+      'bigint',
+    );
     expect(() =>
-      scope.create({ payload: { n: 3 }, delivery: { bypassDailyBudget: false }, maxPerInvocation: 2 }),
-    ).toThrow(TaskQuotaError);
+      later.create({
+        payload: 3,
+        delivery: { bypassDailyBudget: false },
+        invocationQuota: { max: 0, counts: 'waiting' },
+      }),
+    ).toThrow(/invocationQuota.max/);
+    expect(() =>
+      tasks
+        .scoped('test-plugin', conversationId)
+        .create({ payload: 4, delivery: { bypassDailyBudget: false }, invocationQuota }),
+    ).toThrow(/requires an invocation/);
+    expect(store.orm.select().from(longTasks).all()).toHaveLength(2);
   });
 
   test('quota is per plugin, not shared', async () => {
@@ -67,8 +138,9 @@ describe('LongTaskService', () => {
     const tasks = new LongTaskService(store.orm);
     const a = tasks.invocationScope('plugin-a', ctx(conversationId, { invocationId: invId }), ['telegram']);
     const b = tasks.invocationScope('plugin-b', ctx(conversationId, { invocationId: invId }), ['telegram']);
-    a.create({ payload: 1, delivery: { bypassDailyBudget: false }, maxPerInvocation: 1 });
-    const created = b.create({ payload: 2, delivery: { bypassDailyBudget: false }, maxPerInvocation: 1 });
+    const invocationQuota = { max: 1, counts: 'created' } as const;
+    a.create({ payload: 1, delivery: { bypassDailyBudget: false }, invocationQuota });
+    const created = b.create({ payload: 2, delivery: { bypassDailyBudget: false }, invocationQuota });
     expect(typeof created.taskId).toBe('bigint');
   });
 

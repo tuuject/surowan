@@ -40,4 +40,4 @@ When the generation settles, a task completion receipt is injected into the conv
 
 ## Quota
 
-At most 3 generations per invocation. Repeated submits with identical content within the same conversation return the same generation without re-billing.
+At most 3 generations submitted in one invocation MAY be in progress at once; each frees its slot when it settles, so revising a picture one round after another never runs out. A submit refused for this reason is a wait, not a used-up quota, and nothing was queued for it: finish the turn and submit the remaining request again yourself when a completion receipt arrives. You MUST NOT tell the user the quota is used up or that image generation is unavailable. Repeated submits with identical content within the same conversation return the same generation without re-billing.

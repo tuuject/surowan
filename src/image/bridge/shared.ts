@@ -1,9 +1,15 @@
 import type { GenerationStatus } from '@surowan/image-service';
+import type { InvocationQuota } from '../../store/long-tasks/quota.ts';
 
 /** Shared constants of the bridge's submission and reconciliation halves. */
 
-/** Outstanding generations per conversation per invocation, matching alarm's quota style. */
-export const MAX_PER_INVOCATION = 3;
+/**
+ * Generations one invocation may have in progress at once. A settled
+ * generation frees its slot, so a user revising a picture round after round
+ * inside one long invocation never runs out; only a burst of parallel submits
+ * is held back until a receipt arrives.
+ */
+export const IMAGE_INVOCATION_QUOTA: InvocationQuota = { max: 3, counts: 'waiting' };
 
 export const RECEIPT_PROMPT_PREVIEW_LENGTH = 200;
 

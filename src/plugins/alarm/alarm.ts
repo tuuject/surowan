@@ -96,7 +96,7 @@ export function createAlarmTool(scope: InvocationScope): AgentTool<typeof AlarmI
             },
             scheduledAt: parsed.scheduledAt,
             timerResult: payload,
-            maxPerInvocation: ALARM_MAX_PER_INVOCATION,
+            invocationQuota: { max: ALARM_MAX_PER_INVOCATION, counts: 'created' },
           },
           now,
         );
