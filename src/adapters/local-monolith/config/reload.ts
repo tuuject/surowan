@@ -19,8 +19,8 @@ import { type AgentModelSwitcher, ModelSwitchError } from '../../../platform/mod
 import type { RuntimeConfigurationStore } from '../../../platform/runtime-config.ts';
 import type { SecretStore } from '../../../platform/secrets.ts';
 import type { SearchProviderRule } from '../../../platform/web-search.ts';
-import type { TelegramTokenSource } from '../telegram/connection-token.ts';
 import { ConfigWriteError, readConfigRevision, writeConfigEdits } from './file.ts';
+import type { ImageConfigGateway, TelegramConfigGateway } from './gateways.ts';
 import { assertConfigPermissions, type LoadedConfig, loadConfig } from './index.ts';
 import { applyFile, type ConfigReloadState, messageOf } from './reload-apply.ts';
 import {
@@ -31,29 +31,6 @@ import {
   writeChatUserIgnored,
 } from './reload-chat.ts';
 import { KeychainController } from './reload-keychain.ts';
-
-/**
- * The image configuration gateway. The reloader prepares a candidate snapshot
- * (resolving SecretRefs) before anything is published and republishes it
- * together with the configuration; a failed prepare keeps the old snapshot.
- * Optional: absent when the process runs without the image service.
- */
-export interface ImageConfigGateway {
-  prepare: (candidate: RawConfig) => Promise<unknown>;
-  publish: (snapshot: unknown) => void;
-}
-
-/**
- * The Telegram token gateway. Preparing a candidate turns the configured
- * SecretRef into one of three states and never fails an apply: an unreadable
- * token is a connection problem the manager reports, not a bad file. Publishing
- * only hands the source over; the manager decides whether that means a restart,
- * a stop or nothing at all.
- */
-export interface TelegramConfigGateway {
-  prepare: (candidate: RawConfig) => Promise<TelegramTokenSource>;
-  publish: (source: TelegramTokenSource) => void;
-}
 
 export interface ConfigReloaderOptions {
   /** The startup load result: the base for the first diff. */

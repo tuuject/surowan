@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto';
 import { sql } from 'drizzle-orm';
 import type { Orm } from '../../../store/store.ts';
 
@@ -8,9 +7,10 @@ import type { Orm } from '../../../store/store.ts';
  * There is no in-process event bus and the panel may run without the agent
  * runtime writing through the same object graph, so the only truthful signal is
  * the database itself. Each open stream re-reads one aggregate query per tick
- * and hashes the result: equal hash means the page would look the same, a new
- * hash means push one `change` event and let the browser refetch the ordinary
- * JSON endpoints.
+ * and compares its text with the previous tick's: equal text means the page
+ * would look the same, different text means push one `change` event and let
+ * the browser refetch the ordinary JSON endpoints. The fingerprint never leaves
+ * the server, so it is compared as is rather than hashed.
  *
  * The per-row signatures fold every column the Invocation pages render, so an
  * UPDATE is caught even when it does not change a row count: `tool_calls` and
@@ -25,12 +25,11 @@ import type { Orm } from '../../../store/store.ts';
  */
 
 /**
- * Mutating one column of a watched row must change the digest, so the shape
+ * Mutating one column of a watched row must change the text, so the shape
  * stays explicit. SQLite hands the integer columns back as `bigint`.
  */
-function digest(value: unknown): string {
-  const text = JSON.stringify(value, (_key, item: unknown) => (typeof item === 'bigint' ? item.toString() : item));
-  return createHash('sha256').update(text).digest('hex').slice(0, 16);
+function serialize(value: unknown): string {
+  return JSON.stringify(value, (_key, item: unknown) => (typeof item === 'bigint' ? item.toString() : item));
 }
 
 interface InvocationLiveRow {
@@ -97,7 +96,7 @@ export function invocationLiveFingerprint(orm: Orm, id: bigint): string | null {
                  FROM invocation_buckets b WHERE b.invocation_id = i.id ORDER BY b.bucket_id)) AS buckets
        FROM invocations i WHERE i.id = ${id}`)
     .at(0);
-  return row === undefined ? null : digest(row);
+  return row === undefined ? null : serialize(row);
 }
 
 interface InvocationListLiveRow {
@@ -148,7 +147,7 @@ export function invocationListLiveFingerprint(orm: Orm): string {
                  FROM model_calls m JOIN invocations i ON i.id = m.invocation_id
                  WHERE i.state IN ('queued', 'running') ORDER BY m.id)) AS live_model_calls`)
     .at(0);
-  return digest(row ?? null);
+  return serialize(row ?? null);
 }
 
 /** Whether the Invocation exists at all; the detail stream answers 404 before opening one. */

@@ -141,7 +141,7 @@ export async function expectChange(frames: Frames): Promise<string> {
       continue;
     }
     expect(frame.event).toBe('change');
-    expect(frame.data).toMatch(/^[0-9a-f]{16}$/);
+    expect(frame.data).toMatch(/^[1-9]\d*$/);
     return frame.data;
   }
 }

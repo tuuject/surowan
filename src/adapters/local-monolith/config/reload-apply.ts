@@ -11,7 +11,7 @@ import { SecretResolutionError, type SecretStore } from '../../../platform/secre
 import type { SearchProviderRule } from '../../../platform/web-search.ts';
 import { type TelegramTokenSource, telegramTokenIdentity } from '../telegram/connection-token.ts';
 import { assertConfigPermissions, type LoadedConfig, loadConfig } from './index.ts';
-import type { ImageConfigGateway, TelegramConfigGateway } from './reload.ts';
+import type { ImageConfigGateway, PreparedImageConfig, TelegramConfigGateway } from './gateways.ts';
 
 /** The mutable reload state the class owns and this module reads and writes. */
 export type ConfigReloadState = {
@@ -169,7 +169,7 @@ export async function applyFile(deps: ConfigApplyDeps): Promise<ConfigApplyResul
   // The image candidate is prepared with every apply — including ones where
   // the file is unchanged — so a keychain rotation is picked up by the next
   // explicit reload even though the configuration file hash did not move.
-  let imageSnapshot: unknown;
+  let imageSnapshot: PreparedImageConfig | undefined;
   let imageSnapshotId: string | null;
   if (deps.imageConfig === undefined) {
     imageSnapshot = undefined;
@@ -183,10 +183,9 @@ export async function applyFile(deps: ConfigApplyDeps): Promise<ConfigApplyResul
     }
     // `undefined` (no image section) is the disabled state with its own
     // stable identity, so disabling and re-enabling each count as changes.
-    imageSnapshotId =
-      imageSnapshot === undefined
-        ? 'disabled'
-        : createHash('sha256').update(JSON.stringify(imageSnapshot)).digest('hex').slice(0, 32);
+    // A snapshot's version already digests its models and resolved
+    // credentials, so it is the identity as is.
+    imageSnapshotId = imageSnapshot === undefined ? 'disabled' : imageSnapshot.version;
   }
   const imageChanged = imageSnapshotId !== state.imageSnapshotId;
   // A keychain rotation changes the token without touching the file, exactly as

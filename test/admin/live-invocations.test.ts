@@ -24,6 +24,11 @@
  * 10. A revoked session keeps the stream (and so a logged-out browser) alive.
  * 11. A heartbeat reaches the client as a data event, so it refetches every
  *      fifteen seconds for nothing.
+ * 12. An event carries the fingerprint itself: every column the page renders
+ *      goes to the browser on each change, growing with the Invocation, when
+ *      the page only needs to know that something changed.
+ * 13. An event's `data` is empty: `EventSource` drops such an event without
+ *      dispatching it, so no page would ever refetch.
  */
 import { eq } from 'drizzle-orm';
 import { afterEach, expect, test } from 'vitest';
@@ -61,7 +66,8 @@ test('a cookie session opens the stream; every other credential is refused', asy
 
   const detail = await open(f, '/api/live/invocations/4001');
   expect(detail.initial.event).toBe('change');
-  expect(detail.initial.data).toMatch(/^[0-9a-f]{16}$/);
+  // The stream's own event number, never the fingerprint it compares.
+  expect(detail.initial.data).toBe('1');
   await detail.controller.abort();
 });
 
@@ -124,7 +130,8 @@ test('every row the detail page renders changes the fingerprint; nothing else do
     })
     .run();
   const afterToolInsert = await expectChange(frames);
-  expect(afterToolInsert).not.toBe(initial.data);
+  // Events count up per stream; the quiet window above sent none.
+  expect([initial.data, afterToolInsert]).toEqual(['1', '2']);
   f.store.orm
     .update(toolCalls)
     .set({ state: 'success', resultText: 'read:ok', finishedAt: now, durationMs: 5n })

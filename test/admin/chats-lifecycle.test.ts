@@ -27,6 +27,7 @@ test('Admin delete waits for a run started during asynchronous configuration pre
       prepare: async () => {
         preparing.resolve();
         await prepared.promise;
+        return undefined;
       },
       publish: () => undefined,
     },

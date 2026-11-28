@@ -69,6 +69,7 @@ export function createLiveAdminHandler(deps: LiveAdminDeps) {
     let ticker: ReturnType<typeof setInterval> | undefined;
     let ticks = 0;
     let last: string | null = null;
+    let changes = 0;
     let closed = false;
 
     /** Drops every resource exactly once; safe to call from any of the stop paths. */
@@ -135,7 +136,11 @@ export function createLiveAdminHandler(deps: LiveAdminDeps) {
         return;
       }
       last = next;
-      write(`event: change\ndata: ${next}\n\n`);
+      changes += 1;
+      // The fingerprint is every rendered column of the page, so it stays here.
+      // `data` only has to be non-empty: `EventSource` does not dispatch an
+      // event whose data is empty.
+      write(`event: change\ndata: ${changes}\n\n`);
     }
 
     function tick(): void {
