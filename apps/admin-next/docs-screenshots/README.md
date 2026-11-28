@@ -85,8 +85,7 @@ localized prose, all in `e2e/`:
   endpoint in-process and `server-boot.ts` starts the real `ImageService` plus
   its worker, so the image pages render real records instead of `503`.
 - specs that photograph live MCP state opt into `test.use({ mcpManager: true })`,
-  which runs the stdio fixture and the unreachable HTTP endpoint exactly as the
-  ordinary E2E specs do.
+  which runs the stdio fixture and the unreachable HTTP endpoint.
 
 ## Add a scenario
 

@@ -563,7 +563,7 @@ Manage → Harness tuning 编辑 `agent` 段里除 `provider`/`model`/`thinking_
 ```bash
 pnpm run admin:build   # 生成 apps/admin-next/dist，供 serve 托管
 pnpm run admin:dev     # Vite dev server，监听 127.0.0.1:5273，/api 代理到 ADMIN_API_TARGET
-pnpm run admin:test:e2e  # Playwright 浏览器 E2E（真实 AdminServer + 临时 SQLite + 合成数据）
+pnpm run admin:test:e2e  # Playwright 浏览器冒烟：登录路径与逐路由渲染（真实 AdminServer + 临时 SQLite + 合成数据）
 ```
 
 `ADMIN_API_TARGET` 默认 `http://127.0.0.1:8787`。开发代理只把 Origin 精确等于
@@ -604,7 +604,7 @@ pnpm run admin:test:e2e  # Playwright 浏览器 E2E（真实 AdminServer + 临�
 - 详情页 loading/error 复用 `components/business/detail-state.tsx` 的
   `DetailSkeleton` / `DetailError`，错误行显示 `ApiError.code: message`。
 - 页面滚动由 `html` 的 `overflow-y: auto` 承担；`body` / `#root` 保留全高布局，但不作为页面滚动容器。Base UI 打开 modal 时锁定同一个 viewport scroller，避免锁住固定一屏高的 `body` 后裁短长页面、把滚动位置归零；不要在弹窗事件里用 `scrollTo` 补偿。
-- 所有弹层（`Dialog`、`ConfirmDialog`、`Drawer`）由页面常驻渲染，打开与否是独立于目标数据的 `open` 状态：关闭只把 `open` 置 false，标题与正文继续读保留的快照，退出过渡（Koi 300ms opacity/transform）期间不清空。需要每次打开重置的表单把 Dialog 外壳与内层表单分开，用每次打开递增的 `key` 重挂内层；重挂 Dialog 根会让 Base UI 直接跳过进出过渡。唯一例外是 API 密钥明文：关闭时必须立即清除，允许展示弹层在退出期间只剩外壳与标题。回归见 `apps/admin-next/e2e/29-modal-transitions.e2e.ts`。
+- 所有弹层（`Dialog`、`ConfirmDialog`、`Drawer`）由页面常驻渲染，打开与否是独立于目标数据的 `open` 状态：关闭只把 `open` 置 false，标题与正文继续读保留的快照，退出过渡（Koi 300ms opacity/transform）期间不清空。需要每次打开重置的表单把 Dialog 外壳与内层表单分开，用每次打开递增的 `key` 重挂内层；重挂 Dialog 根会让 Base UI 直接跳过进出过渡。唯一例外是 API 密钥明文：关闭时必须立即清除，允许展示弹层在退出期间只剩外壳与标题。
 
 Overview 的 Bot status 卡片显示当前 `sleeping`/`awake`、`sleep_until`，睡眠时提供带确认的 `Wake now` 操作，并显示所有 `chat_pause` Chat 的名称或 Telegram ID 与暂停时间。
 
@@ -651,7 +651,7 @@ Messages 列表与消息详情的 Revision 在发送者姓名旁显示可复制�
 - 两个图表是刻意的 LTR 岛：24 小时「活跃时段」条与 recharts 折线图在阿拉伯语界面里仍是 `dir="ltr"`，时间轴不镜像，也不半镜像；活跃时段图的星期标签列用 `max-content` 随内容（阿语没有 CLDR 缩写，是完整星期名），与刻度行共用一个网格，标签永远在 LTR 岛之外。
 - 方向性图标用 Koi `Icon` 的 `mirrored` 属性（`.koi-mirror`，`:dir(rtl)` 下 `transform: scaleX(-1)`）：`src/components/icons.tsx` 的 `icon(data, mirrored)` 只为方向性图标传 `true`（前进箭头、退出括号），`NextIcon`/`ForwardIcon` 直接复用 Koi 自己已标记的方向图标。应用里没有自己的镜像类或包装组件，也没有第二个 `scaleX(-1)`。需要同时旋转的图标（展开 chevron）仍用独立 `rotate` 属性，好让镜像的 transform 继续生效。移动端导航 Drawer 用 Koi 的逻辑边 `side="start"`，RTL 下从右侧滑出。Koi 的 Pagination/Breadcrumb chevron、Switch thumb、Tabs 指示器与 Menu/Popover 摆放由设计体系自己处理，应用不做补偿。
 - 双向文本规则（`src/components/business/bidi-text.tsx`、`src/components/business/time-text.tsx`）：技术字符串用 `<TechText>`（`bdi dir="ltr"`，标记隔离，不加控制字符，复制得到原串），时间戳统一用 `<TimeText value=… />`（`TimeText` 内部就是 `TechText` 包住 `formatTime`）在渲染点隔离；用户产出的自由文本在渲染它的元素上加 `dir="auto"`；聊天标题为空时回退的 `telegram_chat_id` 走 `TechText`，不留普通数字串。表格单元格**不用** `unicode-bidi: plaintext`：那会让单元格按各自段落方向对齐，数字/徽章/id 单元格与表头分属两边；列对齐跟随表格方向，技术内容在单元格内隔离即可。译文句子里插入的时间戳用 react-i18next 的 `Trans` + `<time>{{time}}</time>`（四种语言目录都带该标签），由 `components={{ time: <TechText /> }}` 提供隔离，因此选中/复制得到的是原句，不含 FSI/PDI 控制字符；目录里没有保留任何 `isolateLtr` 之类的字符串级控制字符方案。技术输入（URL、API key、模型 id、header、JSON、路径、cron、id、数字）带 `dir="ltr"`，自由文本输入与 textarea 带 `dir="auto"`；阅读用的用户内容（Telegram 消息、memo、Prompt）同样 `dir="auto"`。CodeMirror 里 JSON 固定 LTR，Markdown Prompt 用 `EditorView.perLineTextDirection` 加 `.cm-line { unicode-bidi: plaintext }`，逐行判定方向。表格表头在原始列宽下换行（`TableShell` 的 header class：`white-space: normal` + `hyphens: auto`，词内断行只作最后手段 `overflow-wrap: break-word`），长语言表头按音节折行而不是压到相邻列上；单元格同样带 `hyphens: auto`，坏断词前先按音节断。列宽与表格 `minWidth` 保持 develop 的取值、不随语言调整，只有 en 自己就需要的最小宽度例外（`api-keys` 的 Name 列、`stickers` 的 Index state 列）。
-- 布局压力测试：德语（长词与文本膨胀）与阿拉伯语（RTL 与双向文本）是设计体系的压力样本。`e2e/33-i18n-stress-*.e2e.ts`（共享 `i18n-stress-helpers.ts`）在 1440×900 / 820×1180 / 390×844 三种视口遍历代表性路由（shell、列表、表格、表单与长文编辑器），断言页面不横向溢出、按钮/标签/表头/表格单元格的文本不溢出自身盒子，并检查 RTL 下的侧边栏位置、对话框/菜单/Select 面板落在视口内、语言菜单切换不重载且持久化、技术字符串隔离与输入方向；它把全页截图写到 `<tmpdir>/surowan-admin-e2e-results/i18n-stress/`，供人工复核。语言本身不是需求：不从 Koi 组件内部找缺陷的应用层绕行，Koi 的问题交给设计体系修。
+- 布局压力测试：德语（长词与文本膨胀）与阿拉伯语（RTL 与双向文本）是设计体系的压力样本。改动界面时用这两种语言人工走查代表性路由（shell、列表、表格、表单与长文编辑器），检查页面不横向溢出、按钮/标签/表头/表格单元格的文本不溢出自身盒子，并检查 RTL 下的侧边栏位置、对话框/菜单/Select 面板落在视口内、语言菜单切换不重载且持久化、技术字符串隔离与输入方向。浏览器冒烟不承担这些检查。语言本身不是需求：不从 Koi 组件内部找缺陷的应用层绕行，Koi 的问题交给设计体系修。
 
 ## 数据表
 
@@ -678,7 +678,7 @@ Bot 管理员白名单不再是数据库表：迁移 `src/store/migrations/026_d
 
 `PUT /search/config` 接受 `{ enabled: boolean, url_filters: string[], engines: [{ id, provider, enabled, endpoint, results, timeout_seconds, note, api_key, keep_api_key }] }`。字段规则与 [configuration.md](configuration.md#网络搜索web_search) 一致；`api_key` 是 `SecretInput`（新明文 / `{ value, name? }` / `{ entry }`，面板会话可选用已有条目），`keep_api_key` 保留该引擎原有引用，两者互斥；程序化凭据改 `endpoint` 时必须重新提交密钥。校验失败返回 400 `search_invalid`，配置 revision 冲突返回 409 `config_conflict`，其它写失败沿用配置写端点的状态码。保存后立即热应用：关闭功能或禁用所有引擎会让运行中的 Invocation 立刻停止（`web_search_disabled`），下一次消息用重建的 Context 开启新 Invocation；只禁用部分引擎不打断运行。
 
-页面 `/search-settings`（侧栏 Manage → Web search）按 `revision` 初始化草稿，支持总开关、引擎增删与编辑（服务商、引擎 ID、地址、条数、超时、给模型看的备注、密钥来源）、URL 正则过滤规则，以及规则测试框：粘贴 URL 后高亮命中规则的条目，标记为「被 … 过滤」或「保留」，不发起任何真实搜索。保存按钮在草稿不合法（非法正则、缺密钥、未知服务商、条数越界）时禁用并列出原因。浏览器 E2E 覆盖配置读取不回显密钥、保存开关、添加引擎并保存新密钥，以及非法规则阻止保存。
+页面 `/search-settings`（侧栏 Manage → Web search）按 `revision` 初始化草稿，支持总开关、引擎增删与编辑（服务商、引擎 ID、地址、条数、超时、给模型看的备注、密钥来源）、URL 正则过滤规则，以及规则测试框：粘贴 URL 后高亮命中规则的条目，标记为「被 … 过滤」或「保留」，不发起任何真实搜索。保存按钮在草稿不合法（非法正则、缺密钥、未知服务商、条数越界）时禁用并列出原因。`GET/PUT /search/config` 的契约（配置读取不回显密钥、保存开关、新增引擎写入 keychain、未知服务商与非法参数被拒）由 `test/web-search/admin.test.ts` 覆盖。
 
 ## MCP servers 页
 
@@ -695,7 +695,7 @@ Bot 管理员白名单不再是数据库表：迁移 `src/store/migrations/026_d
 
 ## 验证
 
-测试命令、覆盖契约与浏览器冒烟清单见 [verification.md](verification.md) 的「静态与单元验证」「Admin Panel 冒烟」与「Admin Panel 浏览器 E2E」三节。
+测试命令、覆盖契约与浏览器冒烟范围见 [verification.md](verification.md) 的「静态与单元验证」「Admin Panel 冒烟」与「Admin Panel 浏览器 E2E」三节。
 
 ## 图片设置与模型目录
 

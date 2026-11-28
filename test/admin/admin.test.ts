@@ -27,3 +27,19 @@ test('admin static serving falls back to index.html and refuses traversal', asyn
     store.close();
   }
 });
+
+test('the static bundle answers with the strict CSP and the framing headers', async () => {
+  const { store, server } = await fixture();
+  try {
+    const index = await server.handle(request('/'));
+    expect(index.status).toBe(200);
+    const csp = index.headers.get('content-security-policy') ?? '';
+    expect(csp).toContain("default-src 'none'");
+    expect(csp).toContain("script-src 'self'");
+    expect(csp).toContain("connect-src 'self'");
+    expect(index.headers.get('x-frame-options')).toBe('DENY');
+    expect(index.headers.get('x-content-type-options')).toBe('nosniff');
+  } finally {
+    store.close();
+  }
+});

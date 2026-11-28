@@ -202,3 +202,29 @@ test('a room with every member at the name limit fits its creation request', asy
     f.store.close();
   }
 });
+
+test('the room list carries every room title and the detail counts its held input', async () => {
+  const f = await fixture();
+  try {
+    const first = await createRoom(f, 'One', 'r1', [{ name: 'Ada' }]);
+    const second = await createRoom(f, 'Two', 'r2');
+    const ada = (await roomState(f, first.id)).participants[0]!.id;
+    const sent = await sendMessage(f, first.id, { request_key: 'm-1', sender_id: ada, text: 'first room message' });
+    expect(sent.status).toBe(201);
+
+    const listed = await readJson<{ items: { id: string; title: string }[] }>(
+      await f.server.handle(get('/api/playground/rooms', f.cookie)),
+    );
+    expect(listed.items).toHaveLength(2);
+    expect(listed.items.map((room) => room.title)).toEqual(expect.arrayContaining(['One', 'Two']));
+    expect(listed.items.find((room) => room.id === second.id)?.title).toBe('Two');
+
+    const detail = await readJson<{ room: { title: string; pending: number }; participants: { name: string }[] }>(
+      await f.server.handle(get(`/api/playground/rooms/${first.id}`, f.cookie)),
+    );
+    expect(detail.room).toMatchObject({ title: 'One', pending: 1 });
+    expect(detail.participants.map((member) => member.name)).toEqual(['Ada']);
+  } finally {
+    f.store.close();
+  }
+});

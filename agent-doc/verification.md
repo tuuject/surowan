@@ -17,7 +17,7 @@ GitHub Actions 会跑同一组检查；提交前按改动范围自己跑过，�
 | Workflow | 触发 | 执行的验证 |
 | --- | --- | --- |
 | `.github/workflows/docs.yml` | PR、push `main`/`develop` | `pnpm install --frozen-lockfile`、`pnpm run check`、`pnpm run lint`、`test/docs/` 下每个 `*.test.ts` 各一条 `pnpm test <文件>`（逐文件跑，避免 vitest OR 多个过滤器时静默放过改名后的文件）、`pnpm run docs:build`、`pnpm run docs:verify`；构建后 `git status --porcelain` 必须为空；`DOCS_BASE_PATH=/` 与 `/surowan/` 各跑一遍 |
-| `.github/workflows/docker.yml` 的 `verify` job | PR、push `main`/`develop`/`v*` | 全量 `pnpm test`、`pnpm run admin:build` 后全量 `pnpm run admin:test:e2e`（镜像构建见 [Docker 部署](operations.md#docker-部署)） |
+| `.github/workflows/docker.yml` 的 `verify` job | PR、push `main`/`develop`/`v*` | 全量 `pnpm test`、`pnpm run admin:build` 后运行 `pnpm run admin:test:e2e` 冒烟（镜像构建见 [Docker 部署](operations.md#docker-部署)） |
 | `.github/workflows/npm.yml` | push `main` 与 `v*` tag | `pnpm run cli:check`、`pnpm test test/invocations test/cli`、`pnpm test test/npm-release.test.ts`、`scripts/npm-release.ts` 的 ref/版本校验与打包发布 |
 
 依赖变更必须同步提交 `pnpm-lock.yaml`：每个 workflow 都用 `pnpm install --frozen-lockfile`。本页其余检查（`git diff --check`、`actionlint`、`check-config`、`doctor`、服务冒烟与真实 Telegram 验收等）不在 workflow 里执行，仍需按范围人工完成。
@@ -244,11 +244,10 @@ pnpm test test/im test/intake test/schema/migrations-host-neutral-ids.test.ts te
 | `memo/image.test.ts` | 图片准备与文件写入/重命名/重复副本清理期间撤权或取消，拒绝元数据写入、错误审计、无孤立文件且并发赢家不受损 |
 | `context/store-conversation.test.ts` / `memo/injection.test.ts` | checkpoint 与 Memo 状态原子回滚/重试、活 header 不提前推进；截断增量跨批次及 SQLite 重开逐步通知新增/修改/删除，不重复已输出部分 |
 | `replay/memory.test.ts` / `replay/tools-memory*.test.ts` | 到期边界、日期上界与线上一致，两个读原语 dispatch 完整；场景图片保存后读取相同字节、缺失/跨场景拒绝、两阶段 fidelity 与生产表无写入 |
-| `apps/admin-next/e2e/04-memo-expiry.e2e.ts` | 实际页面仅改文本时省略 TTL 并保持小时级/过期/同天数/永久条目的精确 expires_at |
-| `apps/admin-next/e2e/04-writes.e2e.ts` | 全局模型切换自动重置不兼容的 Chat effort，成功弹窗列出 Chat ID 与前后档位，saved/active 一致；切回兼容模型不弹窗 |
-| `apps/admin-next/e2e/09-chats-layout.e2e.ts` | Chats 宽表与窄列表在 1440/1280/1024/390/320 下切换、无横向溢出、编辑与 More actions 在每个宽度都在窗口内、继承值与本会话值的摘要语义、详情展开、搜索与清除、从窄列表删除、两个 Chat 同时展开详情；应用失败后宽表与窄列表都显示运行值、详情保留只在运行侧存在的字段；最后一个 Chat 的删除项禁用；深色主题下继承值与本会话值颜色不同（截图 `chats-<宽度>.png`、`chats-320-details.png`、`chats-390-dark.png`） |
-| `apps/admin-next/e2e/09-chats-group-memory.e2e.ts` | Chats 行开关群聊记忆、idle 分钟校验、30 小时制提示气泡与三档保存（截图 `group-memory-30-hour-tooltip.png`）、关闭后保留 idle 与 30 小时制，以及运行态立即更新 |
-| `apps/admin-next/e2e/18-group-memory.e2e.ts` | Group memory 页面审计、修改 summary、删除事件与 API 状态复核 |
+| `memo/store.test.ts` | 文本编辑省略 `ttl_seconds` 时保留原到期时间（小时级与同天数条目都精确到毫秒），`null` 恢复为永久 |
+| `config/reload-chat-models.test.ts` | 全局模型切换把不兼容的继承 Chat effort 重置为新模型最弱档，并按 `chatId`/`previous`/`current` 返回重置清单；兼容档位与独立模型覆盖保持原值，切回兼容模型不再重置 |
+| `admin/chats.test.ts` | Chats 行群聊记忆开关热应用且保留其它字段、idle 分钟校验、30 小时制三档的保留与清除语义（只在显式命名时写入，`off` 从文件删除） |
+| `admin/group-memory.test.ts` | Group memory 列表鉴权、Chat/日期/摘要过滤与分页、修改 summary、删除事件只改对应行 |
 | `tasks/long-tasks.test.ts` | 任务/receipt 的 JSON 边界、终态 CAS 与唯一 receipt、plugin/Conversation/caller scope、quota（含取消记录）及外部 completion handle |
 | `tasks/migration.test.ts` | 使用历史迁移建立 019/020 测试库再升级至 022：ID、owner、取消后 Invocation 关联、四态迁移、NULL 创建者、丢弃旧旁路观察（含非法 payload）、canonical history/refs/正常审计与任务回执整行保留，并验证 022 为每个 receipt 建立唯一 `bucket_id`、重复打开及新库无旧表、Drizzle CHECK/partial index 与 SQLite 一致性 |
 | `tasks/delivery.test.ts` | 创建 Invocation 删除后的外部 complete/fail 真实内部链路、普通 assistant 不直发、目的地移除、queued 管理取消与 running AbortSignal 审计结算 |
@@ -351,102 +350,38 @@ node src/cli.ts serve --config dev-data/config.jsonc
 
 ```bash
 pnpm run admin:build        # 前置：E2E 驱动已构建的 dist（真实静态托管）
-pnpm run admin:test:e2e     # Playwright 套件（apps/admin-next/e2e/**/*.e2e.ts）；先确保锁定版本的 Chromium headless shell 已装
-pnpm run admin:test:e2e 08-models 16-model-health 18-tool-model 27-model-roles  # 模型分配、Provider 管理与健康检查回归
-pnpm run admin:test:e2e 17-dictionary 18-tool-model  # 辞典页与 Tool Model 回归
-pnpm run admin:test:e2e 20-playground  # Playground 房间 API 与页面回归
-pnpm run admin:test:e2e 22-search-settings  # 网络搜索设置页与保存流程
-pnpm run admin:test:e2e 38-decision-gate 39-chats-decision-gate  # 入场闸门全局表单与 Chats 覆盖（产物：两张全页截图）
-pnpm run admin:test:e2e 37-mcp-servers  # 出站 MCP Server 页：增删改、绑定、渐进式暴露、Skill 徽标/详情/开关与工具模型起草描述（起草只填输入框，保存才落盘；产物：页面截图与 mcp 配置段）
-pnpm run admin:test:e2e 32-recurring-alarms  # 循环闹钟：规则控件与 Cron 互转、预览、停用、立即执行与删除（产物：立即执行后的触发记录截图）
-pnpm run admin:test:e2e 40-invocation-live-refresh  # Invocation 列表/详情的「自动刷新」：运行中的 Tool 调用原地追加、标签页与展开行保持、关掉后冻结与偏好持久化、列表第 1 页自动换快照、详情页悬浮栏的「自动滚动到底部」、390px 无横向滚动与悬浮开关在视口内（产物：详情与列表截图、自动滚动截图、手机截图）
-pnpm run admin:test:e2e 30-dev-mock --workers=1  # 一键 mock 调试命令、Vite 代理认证与退出清理
+pnpm run admin:test:e2e     # Playwright 冒烟套件（apps/admin-next/e2e/**/*.e2e.ts）；先确保锁定版本的 Chromium headless shell 已装
 ```
 
-`30-dev-mock.e2e.ts` 使用固定的 127.0.0.1:5273，运行前须停止占用该端口的开发服务器；不终止其它进程。它通过真实 Vite 页面验证用命令打印的 `ADMIN_DEV_MOCK_CODE` 完成首次登录、测试数据列表、Vite 热更新客户端与 Origin 保护，并验证 stdin EOF、端口冲突、后端意外退出时的两端收尾；生成消息页截图与 `mock-dev-lifecycle` JSON 验收产物，保存在 `playwright.config.ts` 的 `outputDir`（系统临时目录下 `surowan-admin-e2e-results`）中。
+浏览器层只保留冒烟，用来证明登录路径可用、每条路由在生产构建产物与生产 CSP 下能渲染且不报错、不发写请求；它不判断界面文案、布局或交互体验。套件只有三个 spec：
 
-`20-playground.e2e.ts` 用真实 `AdminServer` + 房间写入路径驱动：匿名与无效 key 401、只读 API key 能列房间但建房得 403、请求 key 幂等建房、房间之间的 ID 隔离、上传校验与内容读取（页面部分随 Playground 页面一并断言）。夹具 `e2e/server.ts` 在仿真数据里额外建两个房间并放入一条 held 消息，规格通过 `GET /__e2e/playground-seed` 取用它们的 ID，不依赖自增主键。
-
-Passkey 启用模式（PowerShell）：
-
-```powershell
-$env:E2E_PASSKEYS='1'; pnpm run admin:test:e2e 16-passkeys
-Remove-Item Env:E2E_PASSKEYS
-```
-
-默认不设置 `E2E_PASSKEYS`，验证未配 `admin.public_url` 时无登录/设置入口且 API 返回 404。
-设置 `E2E_PASSKEYS=1` 后，夹具在 `localhost` 随机端口配置 `public_url`，通过 Chromium CDP
-虚拟认证器执行真实 WebAuthn 注册与登录；覆盖多个凭据、旧 RP 不可用保护、删密码后的
-会话轮换、无用户名登录、最后可用凭据保护、恢复密码和取消提示。旧 RP 场景仅由测试钩子
-改变临时库的 RP 标记，不 mock WebAuthn 验签；此套件不代表真实手机或平台认证器兼容性验收。
-
+- `00-auth.e2e.ts`：走一遍登录路径——全新实例用一次性 web 码建出 `admin` 并登录一次，密码登录，错误密码留在登录表单内，会话被撤销后回到登录表单。元素只按稳定属性定位（`autocomplete`、`type="submit"`、`data-testid`、`[data-route-error]`），结果经 session API 断言，不依赖可见文字或 locale。
+- `01-routes.e2e.ts`：由文件内的路由表为每个面板路由与深链接生成一条用例。每条都在生产构建产物与生产 CSP 下带着已登录会话加载，断言 `main` 已渲染且非空、页面上没有 `[data-route-error]`、没有 status ≥ 400 的 API 响应、没有发往 `/api/` 的写请求、没有跨源请求、没有 console error、没有未捕获的页面错误；不做文字断言。
+- `30-dev-mock.e2e.ts`：`pnpm run admin:dev:mock` 的命令生命周期，使用固定的 127.0.0.1:5273，必须用 `pnpm run admin:test:e2e 30-dev-mock --workers=1` 单独运行，运行前停止占用该端口的开发服务器；不终止其它进程。它通过真实 Vite 页面验证命令打印的 `ADMIN_DEV_MOCK_CODE` 完成首次登录、测试数据列表、Vite 热更新客户端与 Origin 保护，并验证 stdin EOF、端口冲突、后端意外退出时的两端收尾；生成消息页截图与 `mock-dev-lifecycle` JSON 验收产物，保存在 `playwright.config.ts` 的 `outputDir`（系统临时目录下 `surowan-admin-e2e-results`）中。
 - **真实后端夹具**：每个 spec 文件由 `apps/admin-next/e2e/helpers.ts` 按需派生一个独立的 Node 子进程运行 `apps/admin-next/e2e/server.ts`，
-  它创建临时目录 + 临时 SQLite，加载 `test/fixtures/admin-seed.ts`（基础行 +
-  `seedAdminBulkRows` 的批量分页数据），构造 `SqliteStore` / `AgentModelSwitcher` /
+  它创建临时目录 + 临时 SQLite，加载 `test/fixtures/admin-seed.ts` 的合成数据
+  （各列表与详情页都有代表性行），构造 `SqliteStore` / `AgentModelSwitcher` /
   `ConfigReloader` / `AdminServer`，在回环地址随机端口启动，并同端口暴露仅测试使用的
-  `/__e2e/**` 状态与控制钩子（含单次 apply 失败注入，验证先保存后应用失败的真实路径）；
+  `/__e2e/**` 状态与控制钩子（如 `/__e2e/ensure-admin` 按 `admin-account` 的方式建号、`/__e2e/pairing-create` 对本服务器的配置与数据库运行真实 CLI）；
   同一 worker 切换到下一个文件时关闭上一台，worker 退出（含被强杀导致 stdin 关闭）时
   夹具自行优雅关闭并清理临时目录。**不读 `dev-data/`、不启动 `serve`、
   不触碰 8787 或任何用户进程。**
+  夹具同时供 `pnpm run docs:screenshots` 与 `pnpm run admin:dev:mock` 使用，所以 `e2e/server*.ts`、
+  `e2e/helpers.ts`、`e2e/docs-locale*.ts` 与 `e2e/models-fixture.ts` 一并保留；只为已删除用例服务的假服务与辅助文件不保留。
 - 每个 spec 文件都是全新数据库，文件之间不共享任何状态，与执行顺序无关；`globalSetup`
-  只检查 `dist` 已构建。`00-auth` 从全新实例开始走 UI：匿名 session 不带 `setup_required`，页面是普通登录页，从一次性码入口用真实 `pairing create --web` 的码建出 `admin` 并登录，再在 Settings 里改成测试用户名与密码。其余套件以
+  只检查 `dist` 已构建。`00-auth` 自己从匿名访问建号，不用 `signedIn`；其余需要会话的用例用
   `test.use({ signedIn: true })` 让 helper 先调 `/__e2e/ensure-admin` 钩子（按 `admin-account` 的方式建号，已有账号时什么也不做），再通过真实密码登录生成本文件的 storageState。
-  会话撤销用例直接删除 `admin_sessions` 行后断言 401 回落登录页并重新登录。
 - 用例文件名以 `.e2e.ts` 结尾、目录独立，Playwright `testMatch` 单独声明，**不会**被
   vitest 与 `pnpm test` 发现；`workers` 取 `availableParallelism()`，文件间并行、文件内串行，
-  端口随机，不与固定端口冲突。依赖 CPU 时序的断言在满核负载下会暴露竞态：在途状态用
-  `/__e2e/health-gate` 等显式钩子控制，toast 断言用 `toast()` 限定在 `[data-koi-toast]` 容器内。
-- `01-routes.e2e.ts` 与多个套件按路由断言可见文案（英文 locale）：修改面板文案或
-  locale 键值时必须同步这些断言，并运行受影响套件（如 `pnpm run admin:test:e2e 01-routes`，任一套件都可单独运行）——
-  `pnpm test` 与 `pnpm run check` 都不覆盖浏览器层。
-- **种子时间基准**：`test/fixtures/admin-seed.ts` 的时间要么全部从当前时钟推导，要么全部是无关运行时刻的固定值。承担「仍然有效/未过期」语义的字段必须用运行时的 `Date.now() ± 偏移`（如批量 Memo 行的 `expiresAt`）；固定时间戳只用于「已过期/历史」这类永远成立的行。写死的未来时间会随时间穿过真实时钟：到那天整批种子变成 expired，`state=expired` 过滤断言就会拿到默认分页的 25 行而不是 1 行。
-- 覆盖契约（全部断言真实 UI 状态，非仅文案）：
-  1. 认证：全新实例与已用实例的登录页和匿名 session 文档相同，匿名 `POST /api/auth/setup` 401；真实 CLI 的码 → shell（`admin`、无密码）→ Settings 设置用户名与密码；错误密码表单内显示 `invalid_credentials` 且 URL 不变；
-     登出回登录页；会话撤销后受保护请求 401 → 登录页且无错误屏；`/__e2e/pairing-create` 钩子
-     对本服务器的配置与数据库运行**真实的** `pairing create --web` CLI，登录页粘贴其码进入 shell，
-     同一码第二次显示 `pairing_code_used`，Agent 配对码显示 `pairing_code_invalid` 且未被消费
-     （`/__e2e/pairing-rows` 断言票据与 Session 行数，产物为 JSON 与码表单截图）。
-  2. `apps/admin-next/src/routes/**` 声明的全部路由与深链接直接访问渲染真实内容（非错误边界、非空白）。
-  3. 列表过滤与分页：Invocations、Messages、Contexts、Alarms、Memories、Group memory、Stickers
-     的过滤器真正改变结果集（Memories 的 Active / Expired / Short-term / Long-term 状态过滤；
-     各页可用过滤器以页面与 `02-lists-filters-invocations.e2e.ts` / `02-lists-filters-resources.e2e.ts` 为准）。
-     查询条件先编辑 draft，只有 Search / Enter 才提交并回到第 1 页，Reset 与浏览器 Back/Forward 恢复已应用条件。
-     八个审计/记忆列表是快照分页：显示真实 total，Previous/Next 可往返；打开后插入的新 Invocation
-     （`/__e2e/insert-invocation`）不进入任何一页、只让「1 new record」提示条出现，点击后才换新快照，
-     请求记录与截图作为附件写到 Playwright 输出目录（`snapshot-requests.json`、`snapshot-notice.png`）。
-     全量响应用真实数组切片分页，其余 offset API 使用真实 offset/total。`seedAdminBulkRows`（`test/fixtures/admin-seed.ts`）让种子行数超过
-     相应默认页大小，因此能实际跨页；不再使用 `Load more` 或无限拼接。
-     `13-sender-ids.e2e.ts` 验证 Messages、Revision、Invocation Overview/Frozen context 的发送者 ID 与真实剪贴板内容，覆盖无 username、匿名频道、缺失/旧快照、复制失败与窄屏暗色布局，确认复制不发写请求。
-  4. Invocation 详情六个 Tab（Overview / Tool calls / Model calls / Telegram sends /
-     Agent transcript / Frozen context）切换并渲染期望字段；失败调用显示稳定错误码
-     （`provider_timeout`）且可展开脱敏详情（`sk-***`，无活密钥模式）；assistant 文本
-     带 `Private reasoning` 标记。
-  5. 写操作（请求真实发出 + UI/数据变化）：Memo 新建、编辑与删除（含 API 复核）、群聊记忆的 Chats 开关与 Group memory 页编辑/删除，详情里的 `pwblob://` 图片经内容端点渲染且监听到的请求带会话 Cookie、Bot admin
-     添加与移除（写回 `telegram.admins`）、模型切换（写回 `config.jsonc`）、Settings 页的 `Apply config file`、
-     Alarm 取消成功与 409 冲突路径（`alarm_not_pending` + 列表刷新到新状态）、
-     Overview 的 Cancel ongoing 与睡眠态 Wake now；Models 页并发编辑（模型编辑输掉 revision 竞争后关闭而不覆盖、
-     连接卡片的旧草稿不能删掉期间新增的 header、header 名可逐键输入不丢焦点）。
-     `08-models-editing.e2e.ts` 还记录编辑弹窗实际触发的双向 CSS 过渡，验证关闭期间保留草稿、取消后重开恢复模型快照，并附加 `model-edit-transitions` JSON 验收产物；同一套件在桌面和窄屏分别打开编辑框与删除确认框，等待真实滚动锁生效和释放，断言页面 `scrollY` 与背景模型行位置不变，并附加 `modal-scroll-positions` JSON 产物。
-     `29-modal-transitions.e2e.ts` 逐个打开 Providers（含嵌套的元数据确认）、Chats、API keys、Dictionary、Web search、Bot admins、Playground 与 Prompt 恢复确认，监听真实 `transitionrun` 事件断言进入与退出过渡都存在，并在关闭瞬间读取标题断言它没有提前清空；只断言计算样式为 300ms 无法发现条件挂载导致的过渡缺失。
-     `09-chats.e2e.ts` 在 360px 暗色视口里用长模型 ID 验证编辑会话的表单无横向溢出、保存按钮可见，并生成 `mobile-chat-edit.png`。
-     `08-models.e2e.ts` 拦住首个 `POST /providers/discover`，验证获取模型列表弹窗加载时搜索框与刷新按钮已就位、列表只显示骨架行（不再把按钮改成「获取中…」），首次失败时由错误提示承载重试，重试后列表恢复；生成 `discovery-loading.png`、`discovery-failed.png` 与 `discovery-listed.png`。
-     `16-model-health.e2e.ts` 通过本地 SSE 上游验证单项和跨 Provider 批量健康检查、检查中禁用重复操作、三项并发上限、先完成项与在途项同时可见、SPA 离页取消在途与排队检查、刷新清空页内结果、配置和当前模型不变、密钥不进页面及窄屏布局。
-     Developer 页默认关闭、开关持久化、应用失败与恢复、取消/确认清除、清除前后其它审计不变，以及移动端暗色布局。
-  6. 只读保证：`01-routes.e2e.ts` 访问每条路由时记录网络请求，断言没有任何 POST/PUT/DELETE 打到
-     `/api/**`。
-  7. 安全：生产静态托管（非 dev server）下断言 CSP 头（`default-src 'none'` /
-     `script-src 'self'` / `connect-src 'self'`）；`01-routes.e2e.ts` 的每条路由无 console error / pageerror /
-     CSP violation，且全部请求同源（有外部请求即失败）。
-  8. 信任边界（直接发 API 请求）：无 Session 访问受保护路由返回 401
-     `unauthenticated`；对只读审计路由发 POST/PUT 返回 405 `method_not_allowed`；
-     跨站 Origin 的写请求返回 403 `bad_origin`。
-  9. Chats：字符串 ID 安全整数边界、新增 Chat 热应用、删除 Chat 的热移除与数据清除（删除后该 Chat 的 Memo 行消失、其 Blob 内容端点 404，确认框含 Memo Pad/Blobs 警告）、修改 Topic 范围的保存/运行态分离、模型/thinking 热切与恢复继承、
-     后台 refetch 不升级编辑和删除确认的原始 revision、保存后应用失败的双视图刷新与 Settings 恢复、移动端暗色布局。
-  10. API key（`14-api-keys.e2e.ts` 的 API 用例，API-only、自带登录，可单独运行）：Session 创建只返回一次明文与 `prefix`，列表不回显明文；Bearer read key 覆盖全部 GET 审计读（含 overview、providers、playground 房间），写与账号管理路由 403；撤销/rotate 立即 401 且列表保留 `revoked_at`；`Authorization` 存在时不回退 Cookie；未接线的 replay 返回 503 `replay_unavailable`。
-  11. API keys 页面：`01-routes.e2e.ts` 断言 `/api-keys` 深链接渲染标题、`Create API key` 与 Name/Prefix/Mode/Created/Last used/Status/Actions 列头；`14-api-keys.e2e.ts` 的 `API key management UI`（注入上方 API 登录的 Session Cookie）断言：侧栏 Manage → API keys 进入页面；创建弹窗 Name `maxlength=80` 与四种模式下拉，成功后一次性 **Save your API key** 弹窗显示可复制的明文，`Copy API key` 的复制值正确（拦截 clipboard，不写系统剪贴板），Web Storage 无 `pwk_` 明文；Done/Escape、刷新、历史导航与会话过期后 DOM 和表单 value 均无明文，刷新后行内只保留元数据（前缀、Active、Never used）；Revoke 确认框取消不发 DELETE、确认后同一 key 立即 401 且状态 Revoked、按钮消失；列表失败显示错误与 Retry 且不伪造行，空白名称不发请求，创建失败在弹窗内联显示并禁止进行中重复提交，撤销失败留在确认框（Working… 禁用两端按钮）；窄屏暗色无整页横向溢出。该套件关闭 trace、截图、视频与失败时的 ARIA 页面快照，所有密钥值断言只输出布尔结果，避免失败产物泄漏明文。
-  12. Sticker sets：`31-sticker-sets.e2e.ts` 断言页面位于 Telegram 导航分组、已删除的种子 Set 不在管理表里；从 `t.me/addstickers` 链接添加带备注的 Set（非法昵称在前端拦下、不发写请求），改昵称与备注时名称只读且 API 里仍是同一行，删除后行转为未配置，再用另一种大小写重新添加时复用同一行；名称重复在弹窗内联报错。生成 `sticker-sets` 截图与 API 列表 JSON 验收产物。
-  13. 入场闸门：`01-routes.e2e.ts` 断言 `/decision-gate` 深链接渲染标题与默认阈值、保存按钮在无改动时禁用；`38-decision-gate.e2e.ts` 用真实 `AdminServer` 从空 `decision_gate` 段开始，断言页面默认值（开关、模式、阈值 0.57、两条条数 10、模型、地址、超时 3000、内置提问），只提交改动的字段并直接读 `/__e2e/config-text` 核对落盘（未改的 `enabled` 不写入），刷新后值仍在；没有密钥时开启被服务端 400 `decision_gate_invalid` 拒绝且文件没有该段；新密钥写入 keychain，`config.jsonc` 只有 `{ "jar": "decision-gate" }`，keychain 列表含该条目，页面、DOM 与响应都不出现明文；选用已有 `agent` 条目只改引用；清空提问保存后发送 `null` 并从文件删除 `instructions`，随后回填内置文本；单次 apply 失败后 `saved` 与 `active` 分化并显示 `Running: 0.57`，总开关同样显示 `Running: On`；无效编辑只清空阈值时 Discard 仍可撤销；外部写入使 revision 过期时显示冲突、保留 `0.66` 草稿且不自动刷新，只有 Reload 后才换成新文件并可再次保存；提交过明文后（成功与失败各一次）通过 React fiber 读取 TanStack Query 的 mutation cache，变量里不含密钥；最后以 `decision-gate.png` 全页截图作为验收产物。`39-chats-decision-gate.e2e.ts` 在 Chats 页断言私聊没有该菜单项、群行默认显示「跟随全局」；全局没有密钥时 Chat 开启得到 400 且文件不变；逐字段覆盖（开关、模式、阈值、提问）保存后 `GET /chats` 的 `saved.decision_gate` 与配置文件一致、行内显示 `On (Enforce)`，刷新后仍在；取消勾选时控件显示全局值、重新勾选恢复本群值；只改一项时断言发出的 PUT body 恰好只有该字段，未改动的对话框保存不发请求；只覆盖 `enabled: true` 的行显示 `On` 而不是继承来的模式；全部关闭并保存后覆盖对象从文件删除、行恢复「跟随全局」，生成 `chats-decision-gate.png` 全页截图。
-
+  端口随机，不与固定端口冲突。`playwright.config.ts` 只为失败的用例保留 trace 与截图，
+  产物写到仓库外的输出目录。
+- 断言不得依赖可见文字、无障碍名称或 locale：改面板文案、布局、样式或交互细节都不需要动浏览器层；
+  其中可测的契约（API 状态码、错误码、落库与审计状态）写在 vitest。界面观感与交互体验靠
+  `pnpm run docs:screenshots` 的截图与人工走查确认。浏览器之外的 API 契约只由 `test/admin/` 断言：
+  CSP 与静态层在 `test/admin/admin.test.ts`，会话门 401 与跨源 403 在 `test/admin/auth.test.ts`，
+  审计只读路由的 405 在 `test/admin/audit.test.ts`，API 密钥在 `test/admin/api-keys*.test.ts`，
+  Playground 房间在 `test/admin/playground*.test.ts`。
+- **种子时间基准**：`test/fixtures/admin-seed.ts` 的时间要么全部从当前时钟推导，要么全部是无关运行时刻的固定值。承担「仍然有效/未过期」语义的字段必须用运行时的 `Date.now() ± 偏移`（如批量 Memo 行的 `expiresAt`）；固定时间戳只用于「已过期/历史」这类永远成立的行。写死的未来时间会随时间穿过真实时钟，让整批种子在某个真实日期之后整体变成过期数据。
 - `test:e2e` 先跑 `playwright install --only-shell chromium`，再跑 `playwright test`：浏览器版本跟随锁文件里的
   `@playwright/test`，升级后缺的 headless shell 会自动下载，已装时约 0.5 秒空操作、不联网。CI 先用
   `playwright install --with-deps chromium` 补 Linux 系统依赖，入口里的这一步随后是空操作。下载失败（离线、
@@ -619,15 +554,7 @@ pnpm test
 - 哪些外部场景因 Token、Chat、Provider 或 MCP 不可用而未执行。
 - 观察到的审计状态，而不是推测状态。
 
-Invocation 实时刷新浏览器回归：`pnpm run admin:build` 后执行 `pnpm run admin:test:e2e 40-invocation-live-refresh`，用 `/__e2e/append-tool-call`、`/__e2e/running-invocation`、`/__e2e/running-invocation/finish` 与 `/__e2e/insert-invocation` 在真实服务端上写入审计行，断言运行中的详情页在一个事件内出现新的 Tool 调用（标签计数增加）而当前标签页与已展开行不动、状态徽标随行更新；关掉开关后追加的行不再出现、刷新页面开关仍是关的、重新打开后立即出现；列表第 1 页的到达直接出现在顶部且没有提示条，关掉后不再自动变化。同一条约束的反面（旧快照只靠提示条换新）由 `02-lists-filters-invocations.e2e.ts` 在预先关掉自动刷新的页面上继续覆盖。另外覆盖：一次详情重取失败（502）不把已在屏幕上的运行换成错误页、下一次事件即恢复；第 2 页计数的到达在读者回到第 1 页时直接置顶（不依赖新事件）；第 1 页换快照期间表格保持 `aria-busy` 之外、旧行不被骨架替换；关掉开关后 6.5 秒（长于 5 秒兜底轮询与 15 秒心跳）内没有任何 `/api/live/` 或列表/详情请求。「自动滚动到底部」在 1280×560 视口上断言：默认关闭且两个悬浮开关在页面顶部就在视口内；关着时新行到达不移动页面；打开即滚到底；读者回到顶部后下一条新行把页面带回底部且新行在视口内；刷新后开关仍开着但打开页面不会自己跳到底；再关掉后新行不移动页面（产物：`detail-auto-scroll.png`）。合并重取的行为由 `apps/admin-next/src/lib/coalesced-refresh.test.ts` 覆盖（在途请求不被取消、只补一次尾随请求、失败不卡死）。
-
-图片设置浏览器回归：`pnpm run admin:build` 后执行 `pnpm run admin:test:e2e 11-image-settings`，覆盖搜索与下拉选型、自动能力、保存与回显、空密钥沿用、旧配置凭据复用与重复项合并、缺项提示但按钮可点击且不发送非法写入、目录/供应商失败重试和窄屏无横向溢出；模型目录使用固定响应，真实 OpenRouter 目录需另行只读验收。
-
-生图审计详情浏览器回归：`pnpm run admin:build` 后执行 `pnpm run admin:test:e2e 12-image-generations`，使用固定生成记录验证详情深链接、刷新、列表进入与返回；断言生成状态、Attempt 错误、上游请求编号、用量、最终 Prompt、参考图快照顺序与原图链接、无参考图及原图加载失败状态，并保证浏览过程不发起写请求或真实生图。
-
-生图素材页浏览器回归：`pnpm run admin:build` 后执行 `pnpm run admin:test:e2e 12-image-assets 12-image-assets-editing`（两个 spec 共享 `e2e/image-assets-fake.ts` 的有状态假服务），验证两个标签页的种子数据、Prompt 素材的新建/改名/归档与参考图的上传/编辑/归档（断言真实写方法与路径，编辑只提交相对打开时变化的字段：无改动不发请求、降权保存只发 `agentVisible`）、AI 提取预览（默认只带 `{}` 的提取请求、提议填充弹窗后保存走正常更新、纯文本工具模型时的提示与一次性模型选择会按所选 provider/model/thinking_level 重发且不产生任何写）、重新打开同一行是全新编辑会话（无上一素材的提示泄漏、取消的草稿不复活），以及 `enabled: false` 时的设置门控。
-
-图片工作台浏览器回归：`pnpm run admin:build` 后执行 `pnpm run admin:test:e2e 12-image-generate`，用有状态假服务验证「更多」弹窗的搜索与翻页（每次翻页先等目标页渲染）、点选素材把 `{{image:<id>}}` 插到光标处（无光标时追加）、引用参考图一排随文本解析增删（同一素材引用两次仍只有一条）、Prompt 素材勾选/移除标签并随提交改变 `prompt_refs`、提交不再发送 `input_image_refs`、解析预览显示带 `图 N` 标签的最终文本、新上传即插入引用，以及任何宽度下「本次输出」卡片的顶部低于表单底部（真正的垂直堆叠）且窄屏无横向溢出；同时产出这些流程的截图工件。
+Invocation 实时刷新的合并重取行为由 `apps/admin-next/src/lib/coalesced-refresh.test.ts` 覆盖（在途请求不被取消、只补一次尾随请求、失败不卡死）。
 
 ## /ask 验证契约
 
@@ -638,4 +565,3 @@ Invocation 实时刷新浏览器回归：`pnpm run admin:build` 后执行 `pnpm 
 | `test/proactive/ask.test.ts` | 零概率时 ask 批次仍创建 queued Invocation；原始 ask 编辑成普通文本后仍绕过抽样，不修改保底状态 |
 | `test/schema/migrations-ask.test.ts` | 063 保留旧注意力、索引并扩展 CHECK |
 | `test/admin/chats-participation.test.ts` | ask_only patch、字段保留、空对象删除、私聊拒绝 |
-| `apps/admin-next/e2e/09-chats-active-hours.e2e.ts` | 英文面板开关 Only /ask、恢复时段与列表摘要 |

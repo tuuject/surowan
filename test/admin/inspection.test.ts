@@ -175,3 +175,44 @@ test('active prompt and preflight reads redact metadata without any model reques
   }
   expect(f.modelCalls()).toBe(0);
 });
+
+test('the file source projects configuration and both prompts for a read key', async () => {
+  const f = await fixture();
+  const view = await f.server.handle(request('/api/config/view?source=file', { headers: auth(f.key) }));
+  expect(view.status).toBe(200);
+  const body = (await view.json()) as { source: string; config: Record<string, unknown> };
+  expect(body.source).toBe('file');
+  expect(JSON.stringify(body.config)).not.toContain('"api_key"');
+
+  for (const scope of ['global', 'group']) {
+    const path =
+      scope === 'group' ? '/api/prompts/group?source=file&chat=-100123456789' : '/api/prompts/global?source=file';
+    const response = await f.server.handle(request(path, { headers: auth(f.key) }));
+    expect(response.status, path).toBe(200);
+    expect(await response.json(), path).toMatchObject({ source: 'file', scope, core_read_only: true });
+  }
+});
+
+test('a read key next to the session cookie still reaches the rest of the read surface', async () => {
+  const f = await fixture();
+  const both = { cookie: f.cookie, ...auth(f.key) };
+  for (const path of ['/api/overview', '/api/messages', '/api/config/status', '/api/memories']) {
+    const response = await f.server.handle(request(path, { headers: both }));
+    expect(response.status, path).toBe(200);
+  }
+
+  // Memo Pad bytes are readable under either credential; a well-formed blob id
+  // with no row is a 404, and an anonymous request stops at the session gate.
+  const blobPath = `/api/memories/blobs/blb_${'a'.repeat(32)}/content`;
+  const anonymous = await f.server.handle(request(blobPath));
+  expect(anonymous.status).toBe(401);
+  expect(await anonymous.json()).toMatchObject({ error: 'unauthenticated' });
+  for (const headers of [both, { cookie: f.cookie }]) {
+    const response = await f.server.handle(request(blobPath, { headers }));
+    expect(response.status, JSON.stringify(headers)).toBe(404);
+    expect(await response.json(), JSON.stringify(headers)).toMatchObject({ error: 'not_found' });
+  }
+
+  // The cookie itself is untouched by the Authorization header it travelled with.
+  expect((await f.server.handle(request('/api/invocations', { headers: { cookie: f.cookie } }))).status).toBe(200);
+});

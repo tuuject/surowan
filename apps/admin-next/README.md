@@ -17,7 +17,7 @@ Koi 0.5.0 以 npm 发布版引入（不能用 `workspace:*` / `file:`）。应�
 pnpm --filter surowan-admin-next run check   # TypeScript 严格检查（tsc --noEmit）
 pnpm --filter surowan-admin-next run build   # 产出 dist/（静态 SPA）
 pnpm --filter surowan-admin-next run dev     # Vite dev server，监听 127.0.0.1:5273
-pnpm --filter surowan-admin-next run test:e2e # Playwright 浏览器 E2E（见下文）
+pnpm --filter surowan-admin-next run test:e2e # Playwright 浏览器冒烟（见下文）
 ```
 
 - `pnpm --filter surowan-admin-next run dev` 会把 `/api` 代理到 `ADMIN_API_TARGET`（默认
@@ -71,13 +71,17 @@ pnpm run admin:test:e2e                    # 或在本目录 pnpm --filter surow
 `test:e2e` 会先跑 `playwright install --only-shell chromium`：升级 `@playwright/test` 后缺的浏览器自动补齐，已装时是空操作。
 
 Playwright 套件位于 `e2e/**/*.e2e.ts`（文件名不以 `.test.ts` 结尾，vitest
-不会发现它们）。每个 spec 文件由 `e2e/helpers.ts` 派生自己的 Node 子进程
+不会发现它们），只有三个 spec：`00-auth.e2e.ts` 走登录路径（一次性 web 码建号并登录一次、
+密码登录、错误密码、会话撤销），`01-routes.e2e.ts` 按文件内的路由表逐条加载生产构建产物，
+断言 `main` 已渲染且非空、无 `[data-route-error]`、无 status ≥ 400 的 API 响应、无写请求、
+无跨源请求、无 console/page error，`30-dev-mock.e2e.ts` 覆盖 `pnpm run admin:dev:mock`
+的命令生命周期。断言不得依赖可见文字、无障碍名称或 locale：界面文案、布局与交互细节不为它服务，
+改这些不需要改测试。每个 spec 文件由 `e2e/helpers.ts` 派生自己的 Node 子进程
 `e2e/server.ts`：临时目录 + 临时 SQLite + `test/fixtures/admin-seed.ts` 合成数据 +
 真实 `AdminServer`（`static_dir` 指向本包 `dist`），回环随机端口，用完即关并清理；
-文件间互不共享状态，按全部 CPU 核心并行，任一套件都可单独运行。
-用例覆盖认证状态机、路由深链接、列表过滤与快照分页（新数据提示条）、Invocation
-六 Tab、记忆/管理员/模型/Chats/Developer/告警/Overview 写操作与冲突路径、只读保证与 CSP 同源
-安全断言。真实命令与契约清单见
+文件间互不共享状态，按全部 CPU 核心并行。同一套夹具也供 `pnpm run docs:screenshots` 与
+`pnpm run admin:dev:mock` 使用；失败用例的 trace 与截图留在 Playwright 的 `outputDir`（仓库外）。
+新增或改名路由时同步 `01-routes.e2e.ts` 的路由表。真实命令与契约见
 [agent-doc/verification.md](../../agent-doc/verification.md#admin-panel-浏览器-e2e)。
 
 `e2e/server.ts` 另外为 Models 页准备离线夹具：一个回环 `/v1/models` 上游
@@ -106,13 +110,11 @@ models.dev 目录缓存——`GET /providers/discover` 与 `lookup-metadata` 因
 - `GET /api/chats` 同时返回 `saved` 与 `active`，页面并排显示 Saved settings / Running settings。增删 Chat、Topic 范围变化只有重启后生效；已有 active Chat 的模型设置热应用于下一次 Invocation。删除不清除审计历史，最后一个配置 Chat 不能删除。
 - 空 Topic 输入表示不限制 Topic；Global default 恢复模型与 thinking 继承，也可只覆盖 thinking。选了 Chat 模型时 thinking 必须显式指定（不提供继承项）。可选模型与思考档取自服务端，换模型自动选最弱档。
 - 表单与删除确认打开时冻结 revision 和数据快照。后台刷新不能升级草稿的 `If-Match`；`config_conflict` 关闭旧对话框并要求重新打开。写入成功或失败都刷新 Chats / Models / config-status，因为失败也可能已写文件但未应用；错误仍内联展示。Settings 应用配置也使这三个视图失效。
-- `e2e/09-chats.e2e.ts` 覆盖增删、Topic 待重启、热切模型与恢复继承、并发修改/删除、真实保存后应用失败与恢复、移动端暗色表单。
 
 ### Developer 页（`src/pages/developer.tsx`）
 
 - Manage → Developer 通过现有配置写入流程管理可选的 `developer.record_model_payloads`（默认关闭），保存后热应用，保留文件与运行态不一致时的反馈。
 - 清除历史报文使用 `ConfirmDialog` 明确确认；成功展示清除调用数，并使 Invocation 详情缓存失效。仅清除请求/响应快照，正常审计不变；说明 SQLite 文件未必缩小。
-- `e2e/10-developer.e2e.ts` 覆盖默认值、切换与刷新持久化、取消/确认清除、详情空报文状态。
 
 ### Models 页（`src/pages/models.tsx`）写入约定
 
@@ -144,8 +146,6 @@ models.dev 目录缓存——`GET /providers/discover` 与 `lookup-metadata` 因
   `image-assets-picker` 与 `image-prompts-picker`（`/image-generate` 的素材选择器）。
 - `GET /image/status` 返回 `enabled: false` 时整页换成指向 `/image-settings` 的
   `Alert`，与 `/image-generate` 同一门控。
-- `e2e/12-image-assets.e2e.ts` 用有状态假服务覆盖两个标签页的种子数据、两类素材各自的
-  新建/上传 → 改名 → 归档写路径，以及禁用门控。
 
 面板 UI 文案全部经 i18next（English / 中文），新增可见文案必须同时补两个 catalog；本文档引用界面文案时用英文原文（E2E 固定 `en-US`）。
 
